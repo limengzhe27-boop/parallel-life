@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  npcSourceReferences,
+  mapNpcSourceFields,
+  npcSourceReferenceSchema,
+} from './npc-source-reference.ts';
 import { NativePlanIntentsSchema, compileNpcPlanIntents } from './npc-plan-intent.ts';
 import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import { isDeepStrictEqual } from 'node:util';
@@ -19,7 +24,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v7';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v8';
+const PREVIOUS_REVIEW_PROTOCOL = 'npc-wire-v7';
 const PREVIOUS_PLAN_PROTOCOL = 'npc-wire-v6';
 const PREVIOUS_INTERPRETATION_PROTOCOL = 'npc-wire-v5';
 const PREVIOUS_SINGLE_ACTION_PROTOCOL = 'npc-wire-v4';
@@ -93,6 +99,7 @@ const Wire = z.strictObject({
     PREVIOUS_SINGLE_ACTION_PROTOCOL,
     PREVIOUS_INTERPRETATION_PROTOCOL,
     PREVIOUS_PLAN_PROTOCOL,
+    PREVIOUS_REVIEW_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -245,10 +252,11 @@ const AgendaReview = z.strictObject({
   reason: Text.max(2000),
   basisSourceIds: z.array(Id).min(1).max(64),
 });
-const ModelWire = PreviousPlanWire.extend({
-  protocol: z.literal(NPC_WIRE_PROTOCOL),
+const PreviousReviewWire = PreviousPlanWire.extend({
+  protocol: z.literal(PREVIOUS_REVIEW_PROTOCOL),
   agendaReview: AgendaReview.nullable(),
 });
+const ModelWire = PreviousReviewWire.extend({ protocol: z.literal(NPC_WIRE_PROTOCOL) });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(strictSchema);
@@ -355,8 +363,10 @@ export function npcResponseFormat(
   const editableGoals = state.goals
     .filter((g) => !['fulfilled', 'withdrawn'].includes(g.status))
     .map((g) => g.id);
-  if (editableGoals.length) properties.goals!.items!.properties!.id!.enum = editableGoals;
-  else properties.goals = { type: 'null' };
+  if (editableGoals.length) {
+    properties.goals!.items!.properties!.id!.enum = editableGoals;
+    properties.goals = { anyOf: [properties.goals!, { type: 'null' }] };
+  } else properties.goals = { type: 'null' };
   const planVariants = properties.planIntents!.items!.anyOf!;
   const validPlans = (state.plans ?? []).filter(
     (p) =>
@@ -543,7 +553,13 @@ export function npcResponseFormat(
       },
     };
   }
-  return { ...NPC_RESPONSE_FORMAT, schema };
+  return {
+    ...NPC_RESPONSE_FORMAT,
+    schema: npcSourceReferenceSchema(
+      schema as Record<string, unknown>,
+      npcSourceReferences(current?.sources ?? []),
+    ),
+  };
 }
 
 const optionalNullKeys = new Set([
@@ -590,11 +606,23 @@ function transport(value: unknown, convertParameters = true): unknown {
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    const mapped = mapNpcSourceFields(
+      raw,
+      npcSourceReferences(context.sources),
+      'decode',
+    ) as Record<string, unknown>;
+    return decodeNpcWire(context, {
+      ...mapped,
+      ...(mapped.goals === null ? { goals: [] } : {}),
+      protocol: PREVIOUS_REVIEW_PROTOCOL,
+    });
+  }
+  if ('protocol' in raw && raw.protocol === PREVIOUS_REVIEW_PROTOCOL) {
     const value = transport(raw, false) as Record<string, unknown>;
     const visibleGoals =
       context.viewState?.goals.filter((g) => !['fulfilled', 'withdrawn'].includes(g.status)) ?? [];
     if (value.goals === null && !visibleGoals.length) value.goals = [];
-    const { agendaReview, ...native } = ModelWire.parse(value);
+    const { agendaReview, ...native } = PreviousReviewWire.parse(value);
     const currentSource = context.sources.filter((s) => s.id === context.input.sourceId);
     if (currentSource.length !== 1) throw Error('NPC_V7_INPUT_SOURCE');
     const bindBasis = (ids: string[]) => {

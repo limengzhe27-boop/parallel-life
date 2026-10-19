@@ -14,6 +14,16 @@ import {
   NPC_AGENT_OUTPUT_TOKENS,
 } from '../src/modules/world/infrastructure/npc-agent-model.ts';
 
+import {
+  mapNpcSourceFields,
+  npcSourceReferences,
+  npcSourceRef,
+} from '../src/modules/world/infrastructure/npc-source-reference.ts';
+const wireExpected = (input: AgentSnapshot, value: unknown) =>
+  mapNpcSourceFields(value, npcSourceReferences(input.sources), 'encode');
+const sourceRef = (input: AgentSnapshot, id: string) =>
+  npcSourceRef(npcSourceReferences(input.sources), id);
+
 function snapshot(channel: AgentSnapshot['channel']['kind'] = 'private'): AgentSnapshot {
   const state = emptyActorAgentState(
     { worldId: 'world-a', actorId: 'actor-a' },
@@ -121,12 +131,12 @@ test('all three channels use one protocol and preserve the same actor identity/r
     await adapter.decide(input);
     const call = calls.at(-1)!,
       payload = JSON.parse(call.messages[1]!.content);
-    assert.deepEqual(payload.state, input.state);
+    assert.deepEqual(payload.state, wireExpected(input, input.state));
     assert.deepEqual(payload.channel, {
       ...input.channel,
       maxCombinedStatementChars: channel === 'group' ? 500 : channel === 'scene' ? 4000 : 12000,
     });
-    assert.deepEqual(payload.input, { ...input.input, speaker: 'player' });
+    assert.deepEqual(payload.input, wireExpected(input, { ...input.input, speaker: 'player' }));
     assert.deepEqual(payload.replyAs, {
       kind: 'actor',
       actorId: input.state.actorId,
@@ -160,7 +170,7 @@ test('unknown server/director properties and source record pointers are not seri
   assert(!prompt.includes('TOP_SECRET'));
   assert(!prompt.includes('DB-POINTER-NOT-FOR-PROMPT'));
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.sources[0].id, input.sources[0]!.id);
+  assert.equal(payload.sources[0].id, sourceRef(input, input.sources[0]!.id));
   assert(!('recordId' in payload.sources[0]));
 });
 
@@ -206,7 +216,7 @@ test('forgotten canonical summary and decision quote never enter prompt or budge
   adapter.validateInput(input);
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.deepEqual(payload.state, input.viewState);
+  assert.deepEqual(payload.state, wireExpected(input, input.viewState));
   assert(!JSON.stringify(calls[0]!.messages).includes(secret));
   assert(payload.contextSelection.stateDetailsWithheld);
   assert.equal(payload.state.actorId, input.state.actorId);
@@ -384,7 +394,7 @@ test('accepted input receipt is an opaque source, not relabelled as a committed 
   adapter.validateInput(input);
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.input.sourceId, 'input-receipt-1');
+  assert.equal(payload.input.sourceId, sourceRef(input, 'input-receipt-1'));
   assert.equal(payload.sources[0].kind, 'accepted_input');
   assert(!('recordId' in payload.sources[0]));
 });
@@ -432,13 +442,15 @@ test('budget selects bounded persona and whole older observations without trunca
   assert(messages[1]!.content.length <= NPC_AGENT_PAYLOAD_LIMIT);
   assert(JSON.stringify(messages).length <= NPC_AGENT_REQUEST_LIMIT);
   assert.equal(payload.input.text, input.input.text);
-  assert.deepEqual(payload.state, input.state);
+  assert.deepEqual(payload.state, wireExpected(input, input.state));
   assert.deepEqual(payload.actor.boundaries, input.actor.boundaries);
   assert(payload.contextSelection.personaExcerpt);
   assert(payload.contextSelection.omittedObservationSourceIds.length > 0);
   assert.deepEqual(
-    payload.observations.find((o: { sourceId: string }) => o.sourceId === 'source-1'),
-    input.observations.at(-1),
+    payload.observations.find(
+      (o: { sourceId: string }) => o.sourceId === sourceRef(input, 'source-1'),
+    ),
+    wireExpected(input, input.observations.at(-1)),
   );
   for (const part of payload.actor.persona.split('\n')) assert(input.actor.persona.includes(part));
   assert.deepEqual(input, original);
@@ -665,7 +677,9 @@ test('supplied context manifest matches the final cached model messages and excl
     assert.ok(!JSON.stringify(messages).includes('MUTATED_AFTER_PREPARATION'));
     assert.equal(manifest.observations.length, oversized ? 0 : 1);
     assert.equal(
-      payload.observations.some((o: { sourceId: string }) => o.sourceId === 'scene:observed'),
+      payload.observations.some(
+        (o: { sourceId: string }) => o.sourceId === sourceRef(input, 'scene:observed'),
+      ),
       !oversized,
     );
   }
@@ -702,7 +716,7 @@ test('group report is supplied only as authorized private recall and does not AC
     assert.equal(manifest.observations.length, channel === 'private' ? 1 : 0);
     assert.ok(
       JSON.parse(calls[0]!.messages[1]!.content).observations.some(
-        (o: { sourceId: string }) => o.sourceId === 'group:observed',
+        (o: { sourceId: string }) => o.sourceId === sourceRef(input, 'group:observed'),
       ),
     );
   }
@@ -758,14 +772,14 @@ test('explicit speaker follows trusted input origin and replyAs follows the boun
       assert.equal(payload.input.speaker, origin === 'player' ? 'player' : 'system');
       assert.equal(payload.input.origin, origin);
       assert.equal(payload.input.text, input.input.text);
-      assert.equal(payload.input.sourceId, input.input.sourceId);
+      assert.equal(payload.input.sourceId, sourceRef(input, input.input.sourceId));
       assert.deepEqual(payload.replyAs, {
         kind: 'actor',
         actorId: 'actor-a',
         name: input.actor.name,
       });
-      assert.deepEqual(payload.state.goals, input.viewState.goals);
-      assert.deepEqual(payload.observations, input.observations);
+      assert.deepEqual(payload.state.goals, wireExpected(input, input.viewState.goals));
+      assert.deepEqual(payload.observations, wireExpected(input, input.observations));
       assert.deepEqual(payload.channel.audienceActorIds, input.channel.audienceActorIds);
       assert.deepEqual(input, before);
     }
@@ -798,7 +812,7 @@ test('identity instructions precede mechanics while the adapter preserves origin
   assert.match(system, /不从人称猜作者/);
   assert.match(system, /不要仅改写或复述玩家问题来冒充回应/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.deepEqual(payload.observations, input.observations);
+  assert.deepEqual(payload.observations, wireExpected(input, input.observations));
   assert.equal(payload.input.text, input.input.text);
   const { createHash } = await import('node:crypto');
   assert.equal(
@@ -820,7 +834,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v38-self-agenda-context');
+  assert.equal(payload.promptVersion, 'npc-agent-v39-short-source-references');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -860,7 +874,7 @@ test('invitation time catalog is local date conversion only and does not alter p
     local: '18:00',
     at: '2026-10-15T18:00:00+08:00',
   });
-  assert.deepEqual(payload.input, { ...input.input, speaker: 'player' });
+  assert.deepEqual(payload.input, wireExpected(input, { ...input.input, speaker: 'player' }));
   assert.deepEqual(payload.state.decisions, []);
   const { calls: quietCalls, adapter: quiet } = capture();
   await quiet.decide(snapshot());
@@ -893,7 +907,7 @@ test('current utterance is presented last with its actual speaker and same sourc
   assert.equal(last.role, 'user');
   assert.match(last.content, /当前发言人：玩家/);
   assert(last.content.includes(input.actor.name));
-  assert(last.content.includes(input.input.sourceId));
+  assert(last.content.includes(sourceRef(input, input.input.sourceId)!));
   assert(last.content.includes(input.input.text));
   assert.equal(JSON.parse(calls[0]!.messages[1]!.content).input.speaker, 'player');
   const wake = snapshot();
@@ -948,4 +962,42 @@ test('original autonomous model input carries scoped own motivation without seed
   assert.equal(payload.selfAgendaContext.existingAgenda.unfinishedGoals, 1);
   assert.equal(JSON.stringify(payload.selfAgendaContext).includes('DO_NOT_COPY'), false);
   assert.deepEqual(input, before);
+});
+
+test('v8 source projection preserves canonical inbox manifests and exact player text while hiding transport hashes', async () => {
+  const input = snapshot('private');
+  const definition = `definition:${'e'.repeat(64)}`;
+  input.sources.push({ ...input.sources[0]!, id: definition });
+  input.actor.persona = JSON.stringify({
+    publicPremise: { identity: { sourceId: definition } },
+    persona: 'Keep this voice.',
+  });
+  input.input.origin = 'wake';
+  input.input.text = JSON.stringify({ type: 'npc_agenda_review', basisSourceIds: [definition] });
+  input.actorObservationInbox = {
+    sourceIds: ['source-1'],
+  } as AgentSnapshot['actorObservationInbox'];
+  input.sources[0]!.kind = 'group_message';
+  input.sources[0]!.contentHash = 'a'.repeat(64);
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(payload.sources[0].id, 'source:1');
+  assert.equal(payload.wireCatalog.inputSourceRef, 'source:1');
+  assert.equal(JSON.parse(payload.input.text).basisSourceIds[0], sourceRef(input, definition));
+  assert.equal(
+    JSON.parse(payload.actor.persona).publicPremise.identity.sourceId,
+    sourceRef(input, definition),
+  );
+  assert(!JSON.stringify(payload.wireCatalog).includes(definition));
+  assert(!calls[0]!.messages.at(-1)!.content.includes(definition));
+  const manifest = adapter.describeSuppliedContext(input);
+  assert.equal(manifest.observations[0]!.sourceId, 'source-1');
+  assert.equal(manifest.observations[0]!.contentHash, input.sources[0]!.contentHash);
+  const player = structuredClone(input);
+  player.input.origin = 'player';
+  player.input.text = JSON.stringify({ sourceId: definition, basisSourceIds: [definition] });
+  await adapter.decide(player);
+  assert.equal(JSON.parse(calls[1]!.messages[1]!.content).input.text, player.input.text);
+  assert(calls[1]!.messages.at(-1)!.content.includes(player.input.text));
 });

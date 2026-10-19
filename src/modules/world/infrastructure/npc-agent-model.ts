@@ -2,6 +2,12 @@ import { actorSelfAgendaContext } from '../domain/actor-self-agenda-context.ts';
 import { projectNpcConversationProgress } from './npc-conversation-progress.ts';
 import { playerReplyTargets } from '../domain/agent-input-interpretation.ts';
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
+import {
+  npcSourceReferences,
+  npcSourceRef,
+  mapNpcSourceFields,
+  npcPersonaSourceReferences,
+} from './npc-source-reference.ts';
 import { NPC_WIRE_PROTOCOL, npcResponseFormat } from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
 import type { NpcSuppliedContext } from '../domain/npc-supplied-context.ts';
@@ -18,7 +24,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v38-self-agenda-context';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v39-short-source-references';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -79,13 +85,14 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-最终模型传输格式：protocol:"npc-wire-v7"，statements、executions、consideration、goals、planIntents、responsibilities、agendaReview、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
+最终模型传输格式：protocol:"npc-wire-v8"，statements、executions、consideration、goals、planIntents、responsibilities、agendaReview、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
 只有服务器npc_agenda_review唤醒时agendaReview必须为{decision:"quiet|update_plan|contact",reason:"仅本人内部判断，不发给玩家",basisSourceIds:[本人合法来源]}。quiet不向玩家发消息且不改变本人实质议程，statements=[]；可保持安静，不要求造计划。update_plan在本轮实际调整本人目标/计划/责任，statements=[]，不能只复制旧状态冒充调整；contact才输出面向玩家的statements，至少一句具体内容，可不新增计划。内部复盘理由不要复述成“暂时无行动”等消息；不使用固定台词。普通玩家消息、事件考虑及其它输入agendaReview为null，不能借quiet逃避回复。新协议planIntents.sourceIds及其显式新goal.sourceIds由服务端机械附加当前input.sourceId；你必须声明真实合法的语义来源，不能凭空写source或省略目标。旧来源完整保留。
+所有sourceId/sourceIds/basisSourceIds/questionSourceId只写wireCatalog.sources中的短ref，例如source:1；当前输入使用wireCatalog.inputSourceRef，不复制hash、不拼definition前缀、不用长raw ID。source编号只在本次snapshot有效，代码精确解引用，不能猜编号。
 你是replyAs这一个人。先回应当前input发言人，参考conversationProgress，不重复索取已经给出的信息。当前消息确实回答未决问题时用related_reply记录相关问题和可选玩家决定；回答问题不等于责任完成，不能把换话题当答应。
 每项executions为{ref:"action_1等schema列出的本轮编号",goal:{kind:"existing",id:"本人可见目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。目标和计划按人物实际意图选择，代码只分配机械编号；来源完整保留且含当前input.sourceId。新执行不要在goals/planIntents重复写一遍。可依赖成功的对白用statements.dependsOnActionIds:["execution:本轮ref"]；没有对应执行不得引用。
 制作数字图片用capability:"media.generate_image"，parameters必须包括{name:"sceneDescription",value:"本人决定的具体画面"}和{name:"purpose",value:"portrait|scene|memorial|evidence中一个"}。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；媒体动作handlesResponsibilityIds必须[]，不能借入队结清实际交付责任。
 制作视频用capability:"media.generate_video"，parameters包括actionDescription和purpose（scene_moment或character_action），也用同样的{name,value}格式；视频执行能力是否可用仍由内核检查。不能用moment.publish冒充生成或私发图片：moment.publish是公开文字动态；item.deliver只交接本人持有的实体物品。现没有可分享的既有图片目录，不猜assetId或链接。计划增量原本就会事务保存，不使用plan.record代替实际工作。
-没有即时执行时用planIntents明确提出本人计划，不输出plans或手写新goalId。create:{kind:"create",ref:"本轮局部编号",goal:{kind:"new",summary,sourceIds}或{kind:"existing",id:"本人可见目标id"},summary,sourceIds,nextStep}；replace:{kind:"replace",ref,planId:"本人已有计划id",summary,sourceIds,nextStep}，服务器保留原目标并记录替换；update:{kind:"update",planId,summary,sourceIds,nextStep}沿原计划；close:{kind:"close",planId,status:"finished|withdrawn",reason,sourceIds}只关闭计划，不代表目标或外部行动完成。nextStep只能wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[缺少的能力或证据]}。goals只修改本人可见已有非终态目标的summary/status/sourceIds/endReason，不创建局部goal_1或输出resultIds；新目标只能在create.goal或executions.goal中明确声明，代码分配真实ID。goals/planIntents未变化时[]（schema无可修改旧目标时goals填null）；不为填字段造目标。不同通道不得同时操作同一目标或替换同一计划；执行中/尚未结束的动作不能被update/close悄悄抹去，finished/withdrawn旧计划不可再改。来源包含当前input.sourceId；不输出伪造结果或期限。
+没有即时执行时用planIntents明确提出本人计划，不输出plans或手写新goalId。create:{kind:"create",ref:"本轮局部编号",goal:{kind:"new",summary,sourceIds}或{kind:"existing",id:"本人可见目标id"},summary,sourceIds,nextStep}；replace:{kind:"replace",ref,planId:"本人已有计划id",summary,sourceIds,nextStep}，服务器保留原目标并记录替换；update:{kind:"update",planId,summary,sourceIds,nextStep}沿原计划；close:{kind:"close",planId,status:"finished|withdrawn",reason,sourceIds}只关闭计划，不代表目标或外部行动完成。nextStep只能wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[缺少的能力或证据]}。goals只修改本人可见已有非终态目标的summary/status/sourceIds/endReason，不创建局部goal_1或输出resultIds；新目标只能在create.goal或executions.goal中明确声明，代码分配真实ID。goals未变化时[]或null都表示无增量，planIntents未变化时[]（schema无可修改旧目标时goals填null）；不为填字段造目标。不同通道不得同时操作同一目标或替换同一计划；执行中/尚未结束的动作不能被update/close悄悄抹去，finished/withdrawn旧计划不可再改。来源包含当前input.sourceId；不输出伪造结果或期限。
 responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply包含schema授权的questionId/questionSourceId/responsibilityId/responsibilityRevision、relation和decision；空引用使用null，不自行拼接对象。
 consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时按相关性考虑或null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。
 邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；todayHours只是对照，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
@@ -439,19 +446,49 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       stateDetailsWithheld: snapshot.redactedStateIds.length > 0,
     },
   };
+  const sourceCatalog = npcSourceReferences(snapshot.sources);
+  const inputSourceRef = npcSourceRef(sourceCatalog, snapshot.input.sourceId)!;
+  const inputText =
+    snapshot.input.origin === 'player'
+      ? snapshot.input.text
+      : (() => {
+          try {
+            return JSON.stringify(
+              mapNpcSourceFields(JSON.parse(snapshot.input.text), sourceCatalog, 'encode'),
+            );
+          } catch {
+            return snapshot.input.text;
+          }
+        })();
+  const wirePayload = () => {
+    const projected = mapNpcSourceFields(payload, sourceCatalog, 'encode') as typeof payload & {
+      wireCatalog?: unknown;
+    };
+    projected.sources = payload.sources.map((s) => ({
+      ...s,
+      id: npcSourceRef(sourceCatalog, s.id)!,
+    }));
+    projected.actor.persona = npcPersonaSourceReferences(payload.actor.persona, sourceCatalog);
+    projected.input.text = inputText;
+    projected.wireCatalog = {
+      sources: snapshot.sources.map((s, i) => ({ ref: sourceCatalog[i]!.ref, kind: s.kind })),
+      inputSourceRef,
+    };
+    return projected;
+  };
   const messages = (): ModelMessage[] => [
     { role: 'system', content: systemFor(snapshot) + WIRE_SYSTEM },
-    { role: 'user', content: JSON.stringify(payload) },
+    { role: 'user', content: JSON.stringify(wirePayload()) },
     {
       role: 'user',
       content:
         snapshot.input.origin === 'player'
-          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${snapshot.input.sourceId}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。`
-          : `当前为服务器${snapshot.input.origin}唤醒，不是玩家新消息。来源仍为${snapshot.input.sourceId}。你是${snapshot.actor.name}，自行决定是否参与或保持安静；不要把任务说明复述成向玩家索取任务。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
+          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。`
+          : `当前为服务器${snapshot.input.origin}唤醒，不是玩家新消息。来源仍为${inputSourceRef}。你是${snapshot.actor.name}，自行决定是否参与或保持安静；不要把任务说明复述成向玩家索取任务。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
     },
   ];
   const fits = () =>
-    JSON.stringify(payload).length <= NPC_AGENT_PAYLOAD_LIMIT &&
+    JSON.stringify(wirePayload()).length <= NPC_AGENT_PAYLOAD_LIMIT &&
     JSON.stringify(messages()).length <= NPC_AGENT_MESSAGE_LIMIT &&
     JSON.stringify(messages()).length + JSON.stringify(responseFormat).length <=
       NPC_AGENT_REQUEST_LIMIT;
@@ -514,7 +551,12 @@ export class NpcAgentModel implements NpcAgentModelPort {
   describeSuppliedContext(snapshot: AgentSnapshot): NpcSuppliedContext {
     const messages = prepare(snapshot);
     const payload = JSON.parse(messages[1]!.content);
-    const ids = new Set((payload.observations as { sourceId: string }[]).map((o) => o.sourceId));
+    const observations = mapNpcSourceFields(
+      payload.observations,
+      npcSourceReferences(snapshot.sources),
+      'decode',
+    ) as { sourceId: string }[];
+    const ids = new Set(observations.map((o) => o.sourceId));
     const manifest: NpcSuppliedContext = {
       schemaVersion: 1,
       promptVersion: NPC_AGENT_PROMPT_VERSION,

@@ -526,13 +526,17 @@ test('native reply assessments can cite only a visible open question and this sh
       resolution: { sourceId: 'answer', quote: '好', at: c.storyAt, kind: 'answer' },
     },
   ];
-  const format = npcResponseFormat(c.state, 'forbidden', { input: c.input, channel: c.channel });
+  const format = npcResponseFormat(c.state, 'forbidden', {
+    input: c.input,
+    channel: c.channel,
+    sources: c.sources,
+  });
   if (format.format !== 'json_schema') throw Error('schema');
   const field: any = (format.schema.properties as any).inputInterpretation;
   const related = field.anyOf.find((n: any) => n.properties.kind.enum.includes('related_reply'));
   const item = related.properties.replies.items.anyOf[0];
   assert.deepEqual(item.properties.questionId.enum, ['current-question']);
-  assert.deepEqual(related.properties.sourceId.enum, [c.input.sourceId]);
+  assert.deepEqual(related.properties.sourceId.enum, ['source:1']);
   assert.deepEqual(related.properties.quote.enum, [c.input.text]);
   type InputJudgmentSchema = { items: { properties: Record<string, { enum?: unknown[] }> } };
   const judgmentFields = format.schema.properties as Record<string, InputJudgmentSchema>;
@@ -540,7 +544,7 @@ test('native reply assessments can cite only a visible open question and this sh
   assert.equal(judgmentFields.replyAssessments, undefined);
   for (const fieldName of ['locationReports']) {
     const judgment: InputJudgmentSchema = judgmentFields[fieldName]!;
-    assert.deepEqual(judgment.items.properties.sourceId!.enum, [c.input.sourceId]);
+    assert.deepEqual(judgment.items.properties.sourceId!.enum, ['source:1']);
     assert.deepEqual(judgment.items.properties.quote!.enum, [c.input.text]);
   }
   assert.ok(JSON.stringify(format.schema).length < 24_000);
@@ -560,7 +564,14 @@ test('non-player or no visible question permits no assessments; long input keeps
     },
   ];
   const field = (input: typeof c.input, state = c.state) => {
-    const format = npcResponseFormat(state, 'optional', { input, channel: c.channel });
+    const format = npcResponseFormat(state, 'optional', {
+      input,
+      channel: c.channel,
+      sources: [
+        ...c.sources.filter((s) => s.id !== input.sourceId),
+        { ...c.sources[0]!, id: input.sourceId },
+      ],
+    });
     if (format.format !== 'json_schema') throw Error('schema');
     return (format.schema.properties as Record<string, Record<string, unknown>>)
       .inputInterpretation!;
@@ -572,7 +583,7 @@ test('non-player or no visible question permits no assessments; long input keeps
   const related = long.anyOf.find((n: any) => n.properties.kind.enum.includes('related_reply'));
   const item = related.properties.replies.items.anyOf[0];
   assert.deepEqual(item.properties.questionId.enum, ['open-question']);
-  assert.deepEqual(related.properties.sourceId.enum, [c.input.sourceId]);
+  assert.deepEqual(related.properties.sourceId.enum, [`source:${c.sources.length}`]);
   assert.equal(related.properties.quote.enum, undefined);
 });
 
@@ -743,7 +754,11 @@ test('provider-safe null judgment collections decode only as explicit empty v2 s
   assert.deepEqual(p.replyAssessments, []);
   assert.deepEqual(p.decisions, []);
   assert.deepEqual(p.locationReports, []);
-  const format = npcResponseFormat(c.state, 'required', { input: c.input, channel: c.channel });
+  const format = npcResponseFormat(c.state, 'required', {
+    input: c.input,
+    channel: c.channel,
+    sources: c.sources,
+  });
   if (format.format !== 'json_schema') throw Error('schema');
   const fields = format.schema.properties as Record<string, { type: string }>;
   for (const name of ['inputInterpretation', 'locationReports'])
@@ -763,7 +778,11 @@ test('provider-safe null judgment collections decode only as explicit empty v2 s
 test('native grammar uses one execution channel and advertises current channel capabilities', () => {
   const { c } = fixture();
   c.channel.allowedCapabilities = ['appointment.propose', 'media.generate_image'];
-  const format = npcResponseFormat(c.state, 'forbidden', { input: c.input, channel: c.channel });
+  const format = npcResponseFormat(c.state, 'forbidden', {
+    input: c.input,
+    channel: c.channel,
+    sources: c.sources,
+  });
   if (format.format !== 'json_schema') throw Error('schema');
   type NativeNode = {
     type?: string;
@@ -856,10 +875,14 @@ test('native completion references are actual visible receipts, not proposed exe
     resultIds: [],
   });
   const withGoal: any = npcResponseFormat(c.state, 'forbidden', c);
-  assert.deepEqual(withGoal.schema.properties.goals.items.properties.id.enum, ['visible-goal']);
-  assert.equal(withGoal.schema.properties.goals.items.properties.resultIds, undefined);
+  assert.deepEqual(withGoal.schema.properties.goals.anyOf[0].items.properties.id.enum, [
+    'visible-goal',
+  ]);
+  assert.equal(withGoal.schema.properties.goals.anyOf[0].items.properties.resultIds, undefined);
   assert(!responsibility.status.enum.includes('fulfilled'));
-  assert(!withGoal.schema.properties.goals.items.properties.status.enum.includes('fulfilled'));
+  assert(
+    !withGoal.schema.properties.goals.anyOf[0].items.properties.status.enum.includes('fulfilled'),
+  );
 });
 
 test('native plans persist as state, never as redundant record-plan execution capability', () => {
@@ -1050,7 +1073,14 @@ test('native player decision identifiers bind current input and visible responsi
     replyToActorId: null,
   };
   const branches = (input = c.input): any => {
-    const format: any = npcResponseFormat(c.state, 'forbidden', { input, channel: c.channel });
+    const format: any = npcResponseFormat(c.state, 'forbidden', {
+      input,
+      channel: c.channel,
+      sources: [
+        ...c.sources.filter((s) => s.id !== input.sourceId),
+        { ...c.sources[0]!, id: input.sourceId },
+      ],
+    });
     return format.schema.properties.inputInterpretation.anyOf.find((n: any) =>
       n.properties.kind.enum.includes('related_reply'),
     );
@@ -1059,9 +1089,9 @@ test('native player decision identifiers bind current input and visible responsi
   const target = first.replies.items.anyOf[0].properties;
   assert.deepEqual(target.responsibilityId.enum, ['request']);
   assert.deepEqual(target.responsibilityRevision.enum, [2]);
-  assert.deepEqual(first.sourceId.enum, ['input']);
+  assert.deepEqual(first.sourceId.enum, [`source:${c.sources.length}`]);
   assert.deepEqual(branches({ ...c.input, sourceId: 'next-input' }).properties.sourceId.enum, [
-    'next-input',
+    `source:${c.sources.length + 1}`,
   ]);
   assert.equal(c.state.decisions.length, 0);
 });
