@@ -620,3 +620,34 @@ test('v11 12-person two-event provider schema remains bounded and handles long u
   if (format.format !== 'json_schema') throw Error('schema');
   assert(JSON.stringify(format.schema).length <= 24_000);
 });
+
+test('opening fragments split each exact clause on Chinese commas, semicolons and real newlines, never letters n or backslashes', () => {
+  const f = informationFixture();
+  const clauses = [
+    '青青请主角去医院看母亲，',
+    '林白语邀请主角见父亲；',
+    '欣欣要求单独谈分手旧事。',
+    '刘胜男要求主角处理工作\n',
+    '舒雅婷说明照看孩子的安排，',
+    '李之之邀请主角去酒馆。',
+  ];
+  f.s.openingContextAuthority!.sourceExcerpt = clauses.join('');
+  const catalog = directorOpeningInformationCatalog(f.s);
+  assert.deepEqual(
+    catalog.information.map((i) => i.text),
+    clauses.map((s) => s.trim()),
+  );
+  const english = 'An invitation concerns an existing plan with no new characters or locations.';
+  f.s.openingContextAuthority!.sourceExcerpt = english;
+  assert.deepEqual(
+    directorOpeningInformationCatalog(f.s).information.map((i) => i.text),
+    [english],
+  );
+  const backslash = String.raw`Existing report contains a literal \n sequence and stays in one sentence.`;
+  f.s.openingContextAuthority!.sourceExcerpt = backslash;
+  assert.deepEqual(
+    directorOpeningInformationCatalog(f.s).information.map((i) => i.text),
+    [backslash],
+  );
+  for (const i of catalog.information) assert(clauses.join('').includes(i.text));
+});

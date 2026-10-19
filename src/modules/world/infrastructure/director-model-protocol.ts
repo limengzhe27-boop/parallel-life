@@ -217,7 +217,7 @@ function openingSourceFragments(text: string, limit: number, count: number): str
       remaining = remaining.slice(end).trim();
     }
   };
-  for (const piece of text.split(/(?<=[。！？!?\n])/u)) {
+  for (const piece of text.split(/(?<=[。！？!?，,；;\n])/u)) {
     pending += piece;
     if (pending.trim().length >= 6) {
       emit(pending);
