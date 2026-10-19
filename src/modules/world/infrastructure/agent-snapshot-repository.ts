@@ -178,6 +178,7 @@ export async function readPrivateAgentSnapshot(
     observations.push({ sourceId: handle, text, kind: observationKind });
   };
   for (const fact of context.facts) {
+    if (fact.narrativeContext) continue; // Authenticated private packet only; never generic channel fact disclosure.
     if (fact.believedByActorId && fact.believedByActorId !== actorId) continue;
     add(
       `fact:${fact.id}`,

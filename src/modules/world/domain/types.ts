@@ -23,6 +23,8 @@ export type Fact = {
   /** Absent only for legacy records; absence must not be interpreted as confirmed truth. */
   kind?: 'canonical' | 'belief';
   believedByActorId?: Id;
+  /** Only the authenticated per-actor narrative inbox may disclose this background knowledge. */
+  narrativeContext?: { policy: 'opening_context_v1'; knowledgeId: string; sourceVersion: number };
   /** A sourced, character-private account of how this person heard a player's line. */
   disclosure?: { fromActorId: Id; sourceMessageId: Id; quote: string };
   /** Witnessed departure observation metadata. */
