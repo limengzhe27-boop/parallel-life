@@ -1,3 +1,5 @@
+import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
+import { readActorStrategyBasis } from '../../src/modules/world/infrastructure/agent-source-resolver.ts';
 import { migrateLegacyWorldInTransaction } from '../../src/modules/world/infrastructure/legacy-world-migration.ts';
 import { readAgentPhoneEntryProbe } from '../../src/modules/world/infrastructure/agent-phone-entry-probe.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
@@ -206,6 +208,15 @@ test('Director catalog staging crosses actual authored opportunity and independe
     node('b', [{ kind: 'not_before', at: time(12) }]),
   ];
   base.openingEventKey = 'always';
+  base.phone.messages = base.actors.map((actor: any, index: number) => ({
+    key: 'own_history_' + index,
+    actorKey: actor.key,
+    origin: 'history',
+    speaker: 'actor',
+    text: 'PRIVATE_GENESIS_HISTORY_' + index,
+    at: '2026-10-11T08:00:00.000Z',
+  }));
+
   const clocks = new PostgresClockStore(app),
     activity = new PostgresClockActivityRepository(app),
     snapshots = new PostgresDirectorSnapshotRepository(app),
@@ -279,6 +290,65 @@ test('Director catalog staging crosses actual authored opportunity and independe
     await clocks.setClock(owner, id, { paused: false, speed: 1 });
     return { owner, id, world };
   }
+  await t.test(
+    'bound publication history reaches only its own NPC and retains source authentication through execution reads',
+    async () => {
+      const h = await fixture();
+      const ownWorld = await worlds.get({ userId: h.owner }, h.id);
+      for (const [i, actor] of ownWorld.actors.entries()) {
+        const state = await app.transaction(
+          h.owner,
+          async (sql) =>
+            (
+              await sql.query(
+                'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND actor_id=$2',
+                [h.id, actor.id],
+              )
+            ).rows[0].document,
+        );
+        const { snapshot } = await readPrivateAgentSnapshot(
+          app,
+          h.owner,
+          ownWorld,
+          actor.id,
+          null,
+          ownWorld.time,
+          state,
+        );
+        assert.ok(
+          snapshot.observations.some(
+            (o) => o.kind === 'speech' && o.text.includes('PRIVATE_GENESIS_HISTORY_' + i),
+          ),
+        );
+        assert.ok(
+          !snapshot.observations.some((o) => o.text.includes('PRIVATE_GENESIS_HISTORY_' + (1 - i))),
+        );
+        const own = ownWorld.messages.find((m) => m.actorId === actor.id)!;
+        const foreign = ownWorld.messages.find((m) => m.actorId !== actor.id)!;
+        const readState = structuredClone(state);
+        readState.knowledgeSourceIds = ['message:' + own.id, 'message:' + foreign.id];
+        const sources = await app.transaction(h.owner, (sql) =>
+          readActorStrategyBasis(sql, h.owner, readState, ownWorld.version, ownWorld.time),
+        );
+        assert.ok(sources.some((s) => s.id === 'message:' + own.id && s.worldVersion === 0));
+        assert.ok(!sources.some((s) => s.id === 'message:' + foreign.id));
+        const forged = structuredClone(ownWorld);
+        forged.messages.find((m) => m.id === own.id)!.text = 'FORGED_HISTORY_MUST_NOT_CROSS';
+        const bad = await readPrivateAgentSnapshot(
+          app,
+          h.owner,
+          forged,
+          actor.id,
+          null,
+          ownWorld.time,
+          state,
+        );
+        assert.ok(
+          !bad.snapshot.observations.some((o) => o.text.includes('FORGED_HISTORY_MUST_NOT_CROSS')),
+        );
+      }
+    },
+  );
   const f = await fixture();
   const calls: { kind: string; payload: any; format: any }[] = [];
   const tasks = [
