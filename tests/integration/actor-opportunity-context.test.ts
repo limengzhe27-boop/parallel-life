@@ -1,3 +1,5 @@
+import { AdvanceOperationRepository } from '../../src/modules/world/infrastructure/advance-operation-repository.ts';
+import { agentAdvanceOperations } from '../../src/server/agent-advance-operations.ts';
 import { createEpisodeRequestsInTransaction } from '../../src/modules/world/infrastructure/agent-narrative-repository.ts';
 import { PostgresAgentRuntimeRepository } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
@@ -448,5 +450,94 @@ test('v9 original Director runner hands protected personal opportunity and known
     assert.ok(intent.text.includes(topic.contentHash));
     assert.equal(intent.kind, 'plan');
     assert.ok(snapshot.sources.find((x) => x.id === intent.sourceId)?.contentHash);
+    if (r.id === requests[0]!.id) {
+      const operationId = randomUUID();
+      const ops = new AdvanceOperationRepository(app);
+      let selections = 0;
+      const recovery = agentAdvanceOperations(app, async () => {
+        selections++;
+        throw Error('RECOVERY_MUST_NOT_SELECT_OR_CALL_MODEL');
+      });
+      await ops.start(f.owner, f.id, operationId);
+      await ops.track(f.owner, f.id, operationId, { kind: 'npc', commandId: input.commandId });
+      let attempt = (
+        await actors.claim(f.owner, {
+          id: randomUUID(),
+          worldId: f.id,
+          actorId: r.actorId,
+          commandId: input.commandId,
+          inputReceiptId: input.id,
+          inputHash: input.inputHash,
+          engineEpoch: 2,
+          expectedWorldVersion: world.version,
+          expectedActorRevision: state.revision,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 120000).toISOString(),
+        })
+      ).attempt;
+      attempt = await actors.markRequestSentWithSources(f.owner, attempt, snapshot);
+      await actors.saveResponse(f.owner, attempt, {
+        kind: 'npc_agent_completion',
+        schemaVersion: 1,
+        snapshot,
+        response: JSON.stringify({
+          statements: [{ text: 'Would a walk together suit you?', dependsOnActionIds: [] }],
+          goals: [],
+          plans: [],
+          actions: [],
+          responsibilities: [],
+          decisions: [],
+          episodeDecision: {
+            requestId: r.id,
+            choice: 'engage',
+            reason: 'My optional personal proposal',
+            sourceIds: [input.id, intent.sourceId],
+          },
+        }),
+      });
+      await ops.finish(
+        f.owner,
+        f.id,
+        operationId,
+        undefined,
+        Error('Controlled interruption after response persisted'),
+      );
+      await clocks.setClock(f.owner, f.id, { paused: true, speed: 0 });
+      const waiting = await recovery.perform(f.owner, f.id, operationId, 'recover');
+      assert.equal(waiting.status, 'recoverable');
+      assert.equal('waitingOn' in waiting ? waiting.waitingOn : undefined, 'clock_or_attention');
+      assert.equal(
+        (await actors.lookup(f.owner, f.id, input.commandId))?.status,
+        'response_received',
+      );
+      const before = await worlds.get({ userId: f.owner }, f.id);
+      assert.equal(
+        before.version,
+        world.version,
+        'paused recovery never commits the protected proposal',
+      );
+      await clocks.setClock(f.owner, f.id, { paused: false, speed: 0 });
+      assert.equal(
+        (await recovery.perform(f.owner, f.id, operationId, 'recover')).status,
+        'complete',
+      );
+      assert.equal((await actors.lookup(f.owner, f.id, input.commandId))?.status, 'committed');
+      const committed = await worlds.get({ userId: f.owner }, f.id);
+      assert.equal(
+        (await recovery.perform(f.owner, f.id, operationId, 'recover')).status,
+        'complete',
+      );
+      assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, committed.version);
+      assert.equal(selections, 0);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS n FROM parallel_life.agent_episode_receipts WHERE world_id=$1 AND actor_id=$2',
+            [f.id, r.actorId],
+          )
+        ).rows[0].n,
+        1,
+      );
+    }
   }
 });

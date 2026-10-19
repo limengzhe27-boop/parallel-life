@@ -29,3 +29,9 @@
 集成基线 c226731d 上补充独立单旅程 tests/integration/actor-opportunity-context.test.ts：复用现 Director 窗口发布夹具，在本地 PG 55587 使用全新 owner/world，原发布实例化→受控 v9 模型经 runDirectorAgent 保存→原 createEpisodeRequests→原人物 input accept→readPrivateAgentSnapshot。三具体字段、本人已授权 topic/contentHash 出现在受保护 plan 材料中；其他人物 PRIVATE_OWN_AGENDA 标记不泄露。1/1 通过（约 0.9 秒），0 网络模型，夹具最终暂停。首次夹具误传静态world.time早于Director.storyAt，被原时间守卫拒绝；改用对应Director snapshot.storyAt后通过，未改守卫。
 
 c5e17fa9：topic查询延后至确实走已选topic路径，缓存同轮读取；旧v8 staging不会额外查询被忽略topic。纯测加入该查询抛错的反例并保持旧hash断言，3/3通过。未动生产或新建SQL。
+
+## 暂停中的原响应恢复（97c58af4 基线）
+
+同一真实 PG 旅程追加原 NPC accept/claim/markRequestSentWithSources/saveResponse，绑定原 advance operation。暂停 clock 后 recover 返回 recoverable + waitingOn=clock_or_attention；attempt 保留 response_received、world.version 不变。恢复 clock 后，恢复相同响应得到 committed/complete；重复 recover 不再次执行，world.version 保持、episode receipt 精确一条。恢复服务的 selector/model 入口调用数为 0。原受控 Director 调用保持一次。
+
+本地 PG55587，隔离合成 owner/world，单旅程 1/1 通过约1.38秒，TypeScript/diff通过。仅测试和报告变更；不修改源码、生产、原存档或调用真实模型。此证据证明短时合法等待不会误判失败；不声称租约过期的真实旧响应可以强行恢复。
