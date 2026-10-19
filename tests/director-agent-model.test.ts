@@ -633,7 +633,7 @@ test('output reference catalogue keeps empty candidates separate from actors and
   assert.equal(ref.authoredEventKey, 'opening_plan');
   assert.match(ref.sourceId, /^authored:[a-f0-9]{64}$/);
   assert.match(system, /没有候选时candidates必须\[\]/);
-  assert(system.includes('作者机会内不填origin/eventRef'));
+  assert(system.includes('作者机会内不填id/origin/eventRef/actors/stagingIntents'));
   const decision = {
     ...f.bounded,
     deferred: [],
@@ -820,7 +820,7 @@ test('Director strict response grammar binds each reference namespace to this im
   if (format.format !== 'json_schema') throw Error('wrong format');
   const root: any = format.schema;
   assert.equal(format.strict, true);
-  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v7']);
+  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v8']);
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
   assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
