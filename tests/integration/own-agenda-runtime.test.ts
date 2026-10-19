@@ -130,6 +130,10 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
     locationReports: null,
     ...more,
   });
+  const v9 = (more: Record<string, unknown> = {}) => {
+    const { focus: _focus, ...body } = v6(more);
+    return { ...body, protocol: 'npc-wire-v9', focusChange: { kind: 'keep' } };
+  };
   function harness(f: F, config: OwnAgendaRuntimeConfig = fast) {
     let phase: 'initial' | 'plans' | 'quiet' | 'unknown' = 'initial';
     const calls: { kind: string; input: any; actor: string }[] = [];
@@ -164,13 +168,13 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           actor = p.state.actorId;
         calls.push({ kind: 'npc', input, actor });
         if (input.type === 'npc_agenda_initialize')
-          return JSON.stringify({ ...v6(), protocol: 'npc-wire-v8', agendaReview: null });
+          return JSON.stringify(v9({ agendaReview: null }));
         assert.equal(input.type, 'npc_agenda_review');
         if (phase === 'unknown' && actor === ACTOR_A) throw Error('SYNTHETIC_LOST_MODEL_RESULT');
         if (phase === 'quiet')
           return JSON.stringify({
-            ...v6(),
-            protocol: 'npc-wire-v8',
+            ...v9(),
+            protocol: 'npc-wire-v9',
             agendaReview: {
               decision: 'quiet',
               reason: 'No new information to share.',
@@ -178,8 +182,8 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
             },
           });
         return JSON.stringify(
-          v6({
-            protocol: 'npc-wire-v8',
+          v9({
+            protocol: 'npc-wire-v9',
             agendaReview: {
               decision: 'contact',
               reason: 'A concrete own arrangement is ready for discussion.',
@@ -189,7 +193,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
               {
                 text: `${actor === ACTOR_A ? '陈列' : '预算'}方案有个需要商量的具体安排。`,
                 dependsOnActionIds: [],
-                requestsPlayerReply: false,
+                requestsPlayerReply: true,
                 questionForResponsibilityId: null,
               },
             ],
@@ -357,6 +361,36 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
         (await attempts(f)).filter((a) => a.sent_at && a.status === 'committed').length,
         4,
         'two initialization attempts and two reviews (Director has its own ledger)',
+      );
+      const beforeFocus = await Promise.all(
+        [ACTOR_A, ACTOR_B].map(
+          async (actorId) => (await store.read(f.owner, { worldId: f.worldId, actorId }))!.focus,
+        ),
+      );
+      assert.ok(beforeFocus.every(Boolean), 'actual outbound reply requests establish focus');
+      h.setPhase('quiet');
+      await h.advance();
+      for (const [i, actorId] of [ACTOR_A, ACTOR_B].entries()) {
+        const state = await store.read(f.owner, { worldId: f.worldId, actorId });
+        assert.deepEqual(
+          state!.focus,
+          beforeFocus[i],
+          'quiet keep never clears an unanswered focus',
+        );
+        assert.equal(state!.goals.length, 1);
+        assert.equal(state!.plans.length, 1);
+      }
+      assert.equal(
+        (await worlds.get({ userId: f.owner }, f.worldId)).messages.filter(
+          (m) => m.role === 'assistant',
+        ).length,
+        2,
+        'private quiet is not an outbound message',
+      );
+      assert.equal(
+        (await attempts(f)).filter((a) => a.sent_at && a.status === 'committed').length,
+        6,
+        'both quiet reviews commit without replacement calls',
       );
     },
   );
