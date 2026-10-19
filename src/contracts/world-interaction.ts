@@ -28,6 +28,43 @@ export const WorldMessageRequestSchema = z.strictObject({
 });
 export type WorldMessageRequest = z.infer<typeof WorldMessageRequestSchema>;
 
+export const WORLD_MESSAGE_PROJECTION_HEADER = 'x-message-receipt-projection';
+export const WORLD_MESSAGE_PROJECTION_VERSION = '1';
+
+export const CommittedTurnMessageSchema = z.strictObject({
+  id: z.string().min(1).max(160),
+  actorId: Id,
+  role: z.enum(['user', 'assistant']),
+  text: z.string().min(1).max(4000),
+  at: Timestamp,
+  sourceEventId: Id,
+  sourceVersion: z.number().int().nonnegative(),
+});
+export type CommittedTurnMessage = z.infer<typeof CommittedTurnMessageSchema>;
+
+export const ChatTurnServerMetricsSchema = z.strictObject({
+  serverReceivedAtEpochMs: z.number().int().nonnegative(),
+  contextPrepareMs: z.number().nonnegative(),
+  upstreamFirstChunkMs: z.number().nonnegative(),
+  modelTotalMs: z.number().nonnegative(),
+  responsePersistMs: z.number().nonnegative(),
+  decodeCompileMs: z.number().nonnegative(),
+  persistAndDecodeWallMs: z.number().nonnegative(),
+  kernelCommitMs: z.number().nonnegative(),
+  serverTotalMs: z.number().nonnegative(),
+  toolCompletionMs: z.number().nonnegative().optional(),
+  schemaBytes: z.number().int().nonnegative(),
+  inputBytes: z.number().int().nonnegative(),
+  outputBytes: z.number().int().nonnegative(),
+  queryCount: z.number().int().nonnegative(),
+  transactionCount: z.number().int().nonnegative(),
+  contextQueryCount: z.number().int().nonnegative(),
+  commitQueryCount: z.number().int().nonnegative(),
+  modelCallCount: z.number().int().nonnegative(),
+  cacheHits: z.number().int().nonnegative(),
+});
+export type ChatTurnServerMetrics = z.infer<typeof ChatTurnServerMetricsSchema>;
+
 export const WorldMessageReceiptSchema = z.strictObject({
   status: z.literal('committed'),
   commandId: Id,
@@ -35,8 +72,20 @@ export const WorldMessageReceiptSchema = z.strictObject({
   actorId: Id,
   version: z.number().int().nonnegative(),
   eventId: Id,
+  messages: z.array(CommittedTurnMessageSchema).max(16).optional(),
+  metrics: ChatTurnServerMetricsSchema.optional(),
 });
 export type WorldMessageReceipt = z.infer<typeof WorldMessageReceiptSchema>;
+
+/** Cached clients keep their original strict 6-field envelope unless projection header is negotiated. */
+export function worldMessageClientReceipt(
+  receipt: WorldMessageReceipt,
+  projectionVersion: string | null,
+): WorldMessageReceipt {
+  if (projectionVersion === WORLD_MESSAGE_PROJECTION_VERSION) return receipt;
+  const { messages: _messages, metrics: _metrics, ...legacy } = receipt;
+  return legacy;
+}
 
 export const InteractEventSchema = z.strictObject({
   id: Id,

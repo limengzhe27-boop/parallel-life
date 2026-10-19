@@ -1,19 +1,31 @@
 import type { FailureDiagnosticInput } from './http-failure-diagnostics.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type { TextModel } from '../modules/ai/application/ports.ts';
-import type { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
+import type { PostgresDatabase, SqlClient } from '../modules/storage/infrastructure/postgres.ts';
 import type { TurnCommand } from '../modules/world/domain/types.ts';
-import { runNpcAgent } from '../modules/world/application/run-agent.ts';
+import { runNpcAgent, type AgentRunPhaseTimings } from '../modules/world/application/run-agent.ts';
 import { PostgresAgentRuntimeRepository } from '../modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
-import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
+import {
+  readPrivateAgentSnapshot,
+  readSnapshotCacheMetrics,
+} from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
 import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { DomainError } from '../modules/world/domain/errors.ts';
 import { validateCommand } from '../modules/world/domain/validation.ts';
 import type { MessageReceiptLookup } from '../contracts/message-receipt-lookup.ts';
+import type {
+  ChatTurnServerMetrics,
+  CommittedTurnMessage,
+} from '../contracts/world-interaction.ts';
+import {
+  classifyChatTurnError,
+  roundDurationMs,
+  type ChatTurnTelemetryRecord,
+} from '../modules/world/domain/chat-turn-metrics.ts';
 import type { AgentAttempt, AgentInputReceipt } from '../modules/world/domain/agent-runtime.ts';
 import type { AgentAttemptStore } from '../modules/world/application/agent-runtime-ports.ts';
 const inputHash = (command: TurnCommand) =>
@@ -270,18 +282,149 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
       await store.lookup(ownerId, command.worldId, command.id),
     );
   }
+  const recentTurnMetrics = new Map<string, ChatTurnServerMetrics>();
+  const recentTurnTelemetry: ChatTurnTelemetryRecord[] = [];
+  const rememberTurnTelemetry = (
+    commandId: string,
+    serverMetrics: ChatTurnServerMetrics,
+    telemetry: ChatTurnTelemetryRecord,
+  ) => {
+    if (recentTurnMetrics.size >= 128) {
+      const oldest = recentTurnMetrics.keys().next().value;
+      if (oldest !== undefined) recentTurnMetrics.delete(oldest);
+    }
+    recentTurnMetrics.set(commandId, serverMetrics);
+    if (recentTurnTelemetry.length >= 128) recentTurnTelemetry.shift();
+    recentTurnTelemetry.push(telemetry);
+  };
+
+  async function readCommittedTurnMessages(
+    ownerId: string,
+    receipt: { worldId: string; actorId: string; eventId: string; version: number },
+  ): Promise<CommittedTurnMessage[]> {
+    const rows = await db.transaction(
+      ownerId,
+      async (sql) =>
+        (
+          await sql.query(
+            `SELECT m.id,m.document,e.id AS event_id,e.version
+             FROM parallel_life.world_messages m
+             JOIN parallel_life.world_events e
+               ON e.world_id=m.world_id AND e.owner_id=m.owner_id AND e.id=m.document->>'sourceEventId'
+             JOIN parallel_life.commands c
+               ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+              AND c.status='succeeded' AND c.result_event_id=e.id
+             WHERE m.world_id=$1 AND m.owner_id=$2 AND m.actor_id=$3 AND e.id=$4 AND e.version=$5
+             ORDER BY m.ordinal ASC`,
+            [receipt.worldId, ownerId, receipt.actorId, receipt.eventId, receipt.version],
+          )
+        ).rows,
+    );
+    const messages: CommittedTurnMessage[] = [];
+    for (const row of rows) {
+      const doc = row.document as {
+        id?: unknown;
+        actorId?: unknown;
+        role?: unknown;
+        text?: unknown;
+        at?: unknown;
+        sourceEventId?: unknown;
+      };
+      if (
+        !doc ||
+        doc.actorId !== receipt.actorId ||
+        doc.sourceEventId !== receipt.eventId ||
+        (doc.role !== 'user' && doc.role !== 'assistant') ||
+        typeof doc.text !== 'string' ||
+        !doc.text.trim() ||
+        typeof doc.at !== 'string'
+      )
+        continue;
+      messages.push({
+        id: String(row.id),
+        actorId: receipt.actorId,
+        role: doc.role,
+        text: doc.text,
+        at: doc.at,
+        sourceEventId: String(row.event_id),
+        sourceVersion: Number(row.version),
+      });
+    }
+    return messages;
+  }
+
   return {
     lookupMessage,
     recoverMessage,
+    readCommittedTurnMessages,
+    readTurnMetrics(commandId: string): ChatTurnServerMetrics | undefined {
+      return recentTurnMetrics.get(commandId);
+    },
+    readRecentTurnTelemetry(): ChatTurnTelemetryRecord[] {
+      return [...recentTurnTelemetry];
+    },
     async sendMessageIfEnabled(ownerId: string, command: TurnCommand) {
       validateCommand(command);
       if (command.origin) throw new DomainError('INVALID_COMMAND');
-      const control = await db.transaction(
+      const serverReceivedAtEpochMs = Date.now();
+      const tTurn0 = performance.now();
+      let phase: 'context' | 'run' = 'context';
+      let queryCount = 0;
+      let transactionCount = 0;
+      let contextQueryCount = 0;
+      let commitQueryCount = 0;
+      let modelCallCount = 0;
+      let schemaBytes = 0;
+      let inputBytes = 0;
+      let outputBytes = 0;
+      let upstreamFirstChunkMs = 0;
+      let contextPrepareMs = 0;
+      let runTimings: AgentRunPhaseTimings = {
+        modelTotalMs: 0,
+        responsePersistMs: 0,
+        decodeCompileMs: 0,
+        persistAndDecodeWallMs: 0,
+        kernelCommitMs: 0,
+      };
+      const cacheHitsBefore = readSnapshotCacheMetrics().actorModulesCacheHits;
+
+      const turnDb: PostgresDatabase = {
+        pool: db.pool,
+        close: () => db.close(),
+        async transaction<T>(
+          txOwnerId: string,
+          run: (client: SqlClient) => Promise<T>,
+        ): Promise<T> {
+          transactionCount += 1;
+          return db.transaction(txOwnerId, async (rawClient) => {
+            const proxyClient = new Proxy(rawClient, {
+              get(target, prop, receiver) {
+                if (prop === 'query') {
+                  return (...args: Parameters<SqlClient['query']>) => {
+                    queryCount += 1;
+                    if (phase === 'context') contextQueryCount += 1;
+                    else commitQueryCount += 1;
+                    return target.query(...args);
+                  };
+                }
+                const value = Reflect.get(target, prop, receiver);
+                return typeof value === 'function' ? value.bind(target) : value;
+              },
+            });
+            return run(proxyClient);
+          });
+        },
+      } as PostgresDatabase;
+
+      const turnStore = new PostgresAgentRuntimeRepository(turnDb);
+      const turnWorlds = new PostgresWorldRepository(turnDb);
+
+      const control = await turnDb.transaction(
         ownerId,
         async (sql) =>
           (
             await sql.query(
-              'SELECT COALESCE(c.engine_epoch,1) AS engine_epoch FROM parallel_life.worlds w LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id WHERE w.id=$1 AND w.owner_id=$2',
+              "SELECT COALESCE(c.engine_epoch,1) AS engine_epoch, w.state->>'deletedAt' AS deleted_at, w.state->>'time' AS world_time FROM parallel_life.worlds w LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id WHERE w.id=$1 AND w.owner_id=$2",
               [command.worldId, ownerId],
             )
           ).rows[0],
@@ -289,15 +432,17 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
       if (!control) throw new DomainError('NOT_FOUND');
       const epoch = Number(control.engine_epoch);
       if (epoch < 2) return null;
-      const initial = await worlds.get({ userId: ownerId }, command.worldId);
+      if (control.deleted_at) throw new DomainError('NOT_FOUND');
+      const initialTime = String(control.world_time);
+      let worldVersionBefore: number | null = command.expectedVersion;
       try {
         const now = new Date().toISOString(),
-          clock = await new PostgresClockStore(db).read(ownerId, command.worldId, now);
+          clock = await new PostgresClockStore(turnDb).read(ownerId, command.worldId, now);
         const storyAt = new Date(
-          Math.max(Date.parse(initial.time), Date.parse(projectStoryTime(clock, now))),
+          Math.max(Date.parse(initialTime), Date.parse(projectStoryTime(clock, now))),
         ).toISOString();
         // Save the accepted player input before any paid request. Replay returns the original clocks and text.
-        const { receipt } = await store.accept(ownerId, {
+        const { receipt } = await turnStore.accept(ownerId, {
           id: randomUUID(),
           worldId: command.worldId,
           commandId: command.id,
@@ -311,9 +456,9 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           storyAt,
           inputHash: inputHash(command),
         });
-        const previous = await store.lookup(ownerId, command.worldId, command.id);
+        const previous = await turnStore.lookup(ownerId, command.worldId, command.id);
         if (previous?.status === 'committed') {
-          const row = await db.transaction(
+          const row = await turnDb.transaction(
             ownerId,
             async (sql) =>
               (
@@ -325,6 +470,68 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           );
           if (!row)
             throw new NpcMessageError('INVALID_STATE', '这条记录需要核对，请稍后再查看。', 409);
+          contextPrepareMs = roundDurationMs(performance.now() - tTurn0);
+          const serverTotalMs = roundDurationMs(performance.now() - tTurn0);
+          const cacheHits = Math.max(
+            0,
+            readSnapshotCacheMetrics().actorModulesCacheHits - cacheHitsBefore,
+          );
+          const serverMetrics: ChatTurnServerMetrics = {
+            serverReceivedAtEpochMs,
+            contextPrepareMs,
+            upstreamFirstChunkMs: 0,
+            modelTotalMs: 0,
+            responsePersistMs: 0,
+            decodeCompileMs: 0,
+            persistAndDecodeWallMs: 0,
+            kernelCommitMs: 0,
+            serverTotalMs,
+            schemaBytes: 0,
+            inputBytes: 0,
+            outputBytes: 0,
+            queryCount,
+            transactionCount,
+            contextQueryCount,
+            commitQueryCount,
+            modelCallCount: 0,
+            cacheHits,
+          };
+          rememberTurnTelemetry(command.id, serverMetrics, {
+            worldId: command.worldId,
+            actorId: command.actorId,
+            commandId: command.id,
+            eventId: String(row.id),
+            worldVersionBefore,
+            worldVersionAfter: Number(row.version),
+            serverReceivedAtEpochMs,
+            timings: {
+              clientSendToServerReceiveMs: null,
+              contextPrepareMs,
+              upstreamFirstChunkMs: 0,
+              modelTotalMs: 0,
+              responsePersistMs: 0,
+              decodeCompileMs: 0,
+              persistAndDecodeWallMs: 0,
+              kernelCommitMs: 0,
+              postCommitToDisplayMs: null,
+              firstMeaningfulReplyMs: null,
+              fullTurnMs: null,
+              toolCompletionMs: 0,
+              serverTotalMs,
+            },
+            schemaBytes: 0,
+            inputBytes: 0,
+            outputBytes: 0,
+            queryCount,
+            transactionCount,
+            contextQueryCount,
+            commitQueryCount,
+            modelCallCount: 0,
+            cacheHits,
+            replay: true,
+            outcome: 'committed',
+            errorCategory: 'none',
+          });
           return {
             status: 'committed' as const,
             commandId: command.id,
@@ -354,8 +561,9 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           );
         if (clock.paused)
           throw new NpcMessageError('INVALID_STATE', '请先继续这段人生，再发送消息。', 409);
-        const world = await worlds.get({ userId: ownerId }, command.worldId);
-        const actor = await store.read(ownerId, {
+        const world = await turnWorlds.get({ userId: ownerId }, command.worldId);
+        worldVersionBefore = world.version;
+        const actor = await turnStore.read(ownerId, {
           worldId: command.worldId,
           actorId: command.actorId,
         });
@@ -366,7 +574,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           (previous.expectedWorldVersion !== world.version ||
             previous.expectedActorRevision !== actor.revision)
         ) {
-          await store.mark(ownerId, previous, 'stale_discarded');
+          await turnStore.mark(ownerId, previous, 'stale_discarded');
           throw new DomainError('VERSION_CONFLICT');
         }
         const snapshot =
@@ -374,7 +582,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
             ? null
             : (
                 await readPrivateAgentSnapshot(
-                  db,
+                  turnDb,
                   ownerId,
                   world,
                   command.actorId,
@@ -383,11 +591,55 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
                   actor,
                 )
               ).snapshot;
+        contextPrepareMs = roundDurationMs(performance.now() - tTurn0);
+        phase = 'run';
+
+        const baseModel = modelFactory();
+        const instrumentedTextModel: TextModel = {
+          async complete(messages, signal, maxTokens, output) {
+            modelCallCount += 1;
+            inputBytes = Buffer.byteLength(JSON.stringify(messages), 'utf8');
+            schemaBytes = output ? Buffer.byteLength(JSON.stringify(output), 'utf8') : 0;
+            const tUpstream0 = performance.now();
+            const text = await baseModel.complete(messages, signal, maxTokens, output);
+            upstreamFirstChunkMs = roundDurationMs(performance.now() - tUpstream0);
+            outputBytes = Buffer.byteLength(text, 'utf8');
+            return text;
+          },
+          ...(baseModel.streamComplete
+            ? {
+                async *streamComplete(messages, signal, output) {
+                  modelCallCount += 1;
+                  inputBytes = Buffer.byteLength(JSON.stringify(messages), 'utf8');
+                  schemaBytes = output ? Buffer.byteLength(JSON.stringify(output), 'utf8') : 0;
+                  const tUpstream0 = performance.now();
+                  let firstSeen = false;
+                  let totalBytes = 0;
+                  for await (const chunk of baseModel.streamComplete!(messages, signal, output)) {
+                    if (!firstSeen && chunk.length > 0) {
+                      firstSeen = true;
+                      upstreamFirstChunkMs = roundDurationMs(performance.now() - tUpstream0);
+                    }
+                    totalBytes += Buffer.byteLength(chunk, 'utf8');
+                    yield chunk;
+                  }
+                  if (!firstSeen) {
+                    upstreamFirstChunkMs = roundDurationMs(performance.now() - tUpstream0);
+                  }
+                  outputBytes = totalBytes;
+                },
+              }
+            : {}),
+        };
+
         const result = await runNpcAgent(
           {
-            attempts: store,
-            model: new NpcAgentModel(modelFactory()),
-            kernel: new PostgresNpcAgentKernel(db, worlds),
+            attempts: turnStore,
+            model: new NpcAgentModel(instrumentedTextModel),
+            kernel: new PostgresNpcAgentKernel(turnDb, turnWorlds),
+            onPhaseTiming: (timings) => {
+              runTimings = timings;
+            },
           },
           ownerId,
           previous ?? {
@@ -405,6 +657,67 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           },
           snapshot,
         );
+        const serverTotalMs = roundDurationMs(performance.now() - tTurn0);
+        const cacheHits = Math.max(
+          0,
+          readSnapshotCacheMetrics().actorModulesCacheHits - cacheHitsBefore,
+        );
+        const serverMetrics: ChatTurnServerMetrics = {
+          serverReceivedAtEpochMs,
+          contextPrepareMs,
+          upstreamFirstChunkMs: roundDurationMs(upstreamFirstChunkMs || runTimings.modelTotalMs),
+          modelTotalMs: roundDurationMs(runTimings.modelTotalMs),
+          responsePersistMs: roundDurationMs(runTimings.responsePersistMs),
+          decodeCompileMs: roundDurationMs(runTimings.decodeCompileMs),
+          persistAndDecodeWallMs: roundDurationMs(runTimings.persistAndDecodeWallMs),
+          kernelCommitMs: roundDurationMs(runTimings.kernelCommitMs),
+          serverTotalMs,
+          schemaBytes,
+          inputBytes,
+          outputBytes,
+          queryCount,
+          transactionCount,
+          contextQueryCount,
+          commitQueryCount,
+          modelCallCount,
+          cacheHits,
+        };
+        rememberTurnTelemetry(command.id, serverMetrics, {
+          worldId: command.worldId,
+          actorId: command.actorId,
+          commandId: command.id,
+          eventId: result.eventId,
+          worldVersionBefore,
+          worldVersionAfter: result.state.projectedWorldVersion,
+          serverReceivedAtEpochMs,
+          timings: {
+            clientSendToServerReceiveMs: null,
+            contextPrepareMs,
+            upstreamFirstChunkMs: serverMetrics.upstreamFirstChunkMs,
+            modelTotalMs: serverMetrics.modelTotalMs,
+            responsePersistMs: serverMetrics.responsePersistMs,
+            decodeCompileMs: serverMetrics.decodeCompileMs,
+            persistAndDecodeWallMs: serverMetrics.persistAndDecodeWallMs,
+            kernelCommitMs: serverMetrics.kernelCommitMs,
+            postCommitToDisplayMs: null,
+            firstMeaningfulReplyMs: null,
+            fullTurnMs: null,
+            toolCompletionMs: 0,
+            serverTotalMs,
+          },
+          schemaBytes,
+          inputBytes,
+          outputBytes,
+          queryCount,
+          transactionCount,
+          contextQueryCount,
+          commitQueryCount,
+          modelCallCount,
+          cacheHits,
+          replay: Boolean(previous),
+          outcome: 'committed',
+          errorCategory: 'none',
+        });
         return {
           status: 'committed' as const,
           commandId: command.id,
@@ -414,6 +727,74 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           version: result.state.projectedWorldVersion,
         };
       } catch (error) {
+        const serverTotalMs = roundDurationMs(performance.now() - tTurn0);
+        if (!contextPrepareMs) contextPrepareMs = serverTotalMs;
+        const cacheHits = Math.max(
+          0,
+          readSnapshotCacheMetrics().actorModulesCacheHits - cacheHitsBefore,
+        );
+        const diagnostic =
+          error && typeof error === 'object'
+            ? (Object.getOwnPropertyDescriptor(error, 'diagnostic')?.value as
+                FailureDiagnosticInput | undefined)
+            : undefined;
+        const category = classifyChatTurnError(error, diagnostic?.stage);
+        const serverMetrics: ChatTurnServerMetrics = {
+          serverReceivedAtEpochMs,
+          contextPrepareMs,
+          upstreamFirstChunkMs: roundDurationMs(upstreamFirstChunkMs || runTimings.modelTotalMs),
+          modelTotalMs: roundDurationMs(runTimings.modelTotalMs),
+          responsePersistMs: roundDurationMs(runTimings.responsePersistMs),
+          decodeCompileMs: roundDurationMs(runTimings.decodeCompileMs),
+          persistAndDecodeWallMs: roundDurationMs(runTimings.persistAndDecodeWallMs),
+          kernelCommitMs: roundDurationMs(runTimings.kernelCommitMs),
+          serverTotalMs,
+          schemaBytes,
+          inputBytes,
+          outputBytes,
+          queryCount,
+          transactionCount,
+          contextQueryCount,
+          commitQueryCount,
+          modelCallCount,
+          cacheHits,
+        };
+        rememberTurnTelemetry(command.id, serverMetrics, {
+          worldId: command.worldId,
+          actorId: command.actorId,
+          commandId: command.id,
+          eventId: null,
+          worldVersionBefore,
+          worldVersionAfter: null,
+          serverReceivedAtEpochMs,
+          timings: {
+            clientSendToServerReceiveMs: null,
+            contextPrepareMs,
+            upstreamFirstChunkMs: serverMetrics.upstreamFirstChunkMs,
+            modelTotalMs: serverMetrics.modelTotalMs,
+            responsePersistMs: serverMetrics.responsePersistMs,
+            decodeCompileMs: serverMetrics.decodeCompileMs,
+            persistAndDecodeWallMs: serverMetrics.persistAndDecodeWallMs,
+            kernelCommitMs: serverMetrics.kernelCommitMs,
+            postCommitToDisplayMs: null,
+            firstMeaningfulReplyMs: null,
+            fullTurnMs: null,
+            toolCompletionMs: 0,
+            serverTotalMs,
+          },
+          schemaBytes,
+          inputBytes,
+          outputBytes,
+          queryCount,
+          transactionCount,
+          contextQueryCount,
+          commitQueryCount,
+          modelCallCount,
+          cacheHits,
+          replay: false,
+          outcome: category === 'unknown' || category === 'response_store' ? 'unknown' : 'failed',
+          errorCategory: category,
+        });
         rethrowMessageError(error);
       }
     },

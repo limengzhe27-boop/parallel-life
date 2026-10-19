@@ -3,8 +3,11 @@ import { runCommittedChatMedia } from './chat-media-tasks.ts';
 import { resolveTurn } from '../modules/world/application/resolve-turn.ts';
 import { NpcMessageError } from './npc-agent-services.ts';
 import {
+  WORLD_MESSAGE_PROJECTION_HEADER,
+  WORLD_MESSAGE_PROJECTION_VERSION,
   WorldMessageRequestSchema,
   WorldMessageReceiptSchema,
+  worldMessageClientReceipt,
 } from '../contracts/world-interaction.ts';
 import { Id } from '../contracts/api.ts';
 import { projectStoryTime } from '../modules/world/domain/clock.ts';
@@ -16,6 +19,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
     const parsedWorldId = Id.safeParse(worldId);
     if (!parsedWorldId.success) throw new HttpError('NOT_FOUND', 404);
     const input = await parseBody(request, WorldMessageRequestSchema);
+    const projectionVersion = request.headers.get(WORLD_MESSAGE_PROJECTION_HEADER);
     // Each execution entry checks ownership and existence itself. Do not hydrate
     // the complete phone projection a second time before accepting the turn.
     try {
@@ -37,7 +41,23 @@ export async function worldMessageRoute(request: Request, worldId: string) {
             }),
           );
         }
-        return json(WorldMessageReceiptSchema.parse(receipt));
+        if (projectionVersion === WORLD_MESSAGE_PROJECTION_VERSION) {
+          const messages = await s.npcAgents.readCommittedTurnMessages?.(s.ownerId, receipt);
+          const metrics = s.npcAgents.readTurnMetrics?.(input.commandId);
+          return json(
+            worldMessageClientReceipt(
+              WorldMessageReceiptSchema.parse({
+                ...receipt,
+                ...(messages ? { messages } : {}),
+                ...(metrics ? { metrics } : {}),
+              }),
+              projectionVersion,
+            ),
+          );
+        }
+        return json(
+          worldMessageClientReceipt(WorldMessageReceiptSchema.parse(receipt), projectionVersion),
+        );
       }
     } catch (error) {
       if (error instanceof NpcMessageError) {
@@ -98,15 +118,40 @@ export async function worldMessageRoute(request: Request, worldId: string) {
           }),
         );
       }
+      const baseReceipt = {
+        status: 'committed' as const,
+        commandId: input.commandId,
+        worldId: result.state.id,
+        actorId: input.actorId,
+        version: result.state.version,
+        eventId: result.event.id,
+      };
+      if (projectionVersion === WORLD_MESSAGE_PROJECTION_VERSION) {
+        const messages = result.state.messages
+          .filter(
+            (m) =>
+              m.sourceEventId === result.event.id &&
+              m.actorId === input.actorId &&
+              (m.role === 'user' || m.role === 'assistant'),
+          )
+          .map((m) => ({
+            id: m.id,
+            actorId: m.actorId,
+            role: m.role as 'user' | 'assistant',
+            text: m.text,
+            at: m.at,
+            sourceEventId: result.event.id,
+            sourceVersion: result.state.version,
+          }));
+        return json(
+          worldMessageClientReceipt(
+            WorldMessageReceiptSchema.parse({ ...baseReceipt, messages }),
+            projectionVersion,
+          ),
+        );
+      }
       return json(
-        WorldMessageReceiptSchema.parse({
-          status: 'committed',
-          commandId: input.commandId,
-          worldId: result.state.id,
-          actorId: input.actorId,
-          version: result.state.version,
-          eventId: result.event.id,
-        }),
+        worldMessageClientReceipt(WorldMessageReceiptSchema.parse(baseReceipt), projectionVersion),
       );
     });
   });

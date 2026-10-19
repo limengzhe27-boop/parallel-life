@@ -1,7 +1,11 @@
 'use client';
 import { useAdvanceRecovery } from './use-advance-recovery.ts';
 import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
-import { committedLocalSend, unprojectedLocalSends } from './send-projection.ts';
+import {
+  committedLocalSend,
+  projectCommittedTurnReceipt,
+  unprojectedLocalSends,
+} from './send-projection.ts';
 import type { WorldMessageReceipt } from '../../contracts/world-interaction.ts';
 import { useWorldTime } from './use-world-time.ts';
 import { PHONE_RUNTIME_POLICY } from './time-experience-policy.ts';
@@ -295,6 +299,11 @@ export function WorldPhoneApp({
       setLocalMessages((current) =>
         current.map((message) => (message.id === commandId ? confirmed : message)),
       );
+      if (receipt.messages?.length) {
+        setData((current) =>
+          current?.id === worldId ? projectCommittedTurnReceipt(current, receipt) : current,
+        );
+      }
     } catch (sendError) {
       if ((sendError as { code?: string })?.code === 'VERSION_CONFLICT') await load();
       setLocalMessages((current) =>

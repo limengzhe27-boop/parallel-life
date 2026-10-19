@@ -89,6 +89,8 @@ import {
   type MemoryCandidateFromBranch,
 } from '../../contracts/memory.ts';
 import {
+  WORLD_MESSAGE_PROJECTION_HEADER,
+  WORLD_MESSAGE_PROJECTION_VERSION,
   WorldMessageReceiptSchema,
   type WorldMessageRequest,
 } from '../../contracts/world-interaction.ts';
@@ -209,6 +211,7 @@ export class LifeClient {
       WorldMessageReceiptSchema,
       {
         method: 'POST',
+        headers: { [WORLD_MESSAGE_PROJECTION_HEADER]: WORLD_MESSAGE_PROJECTION_VERSION },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(WORLD_MESSAGE_TIMEOUT_MS),
       },
