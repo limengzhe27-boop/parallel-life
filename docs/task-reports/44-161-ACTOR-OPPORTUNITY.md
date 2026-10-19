@@ -23,3 +23,9 @@
 配合 liveness161_audit 的 f980df64（Director v9 typed actorTasks 编译新 JSON）。公共内核和 NPC schema 未改，原 v8 decoder 保留。
 
 仍未完成：整体主动开场及持续演绎质量真实验收；初始化缺乏可审计 quiet/update_plan/contact 选择（本轮不碰）；通用受限叙事事实引入能力（如新发生住院/事故）尚缺，不能把作者原稿提升世界事实。邀约、自身意愿等已有能力可演，不以外部事实能力缺失为所有人物静默的理由。
+
+## 追加真实 PG 验证
+
+集成基线 c226731d 上补充独立单旅程 tests/integration/actor-opportunity-context.test.ts：复用现 Director 窗口发布夹具，在本地 PG 55587 使用全新 owner/world，原发布实例化→受控 v9 模型经 runDirectorAgent 保存→原 createEpisodeRequests→原人物 input accept→readPrivateAgentSnapshot。三具体字段、本人已授权 topic/contentHash 出现在受保护 plan 材料中；其他人物 PRIVATE_OWN_AGENDA 标记不泄露。1/1 通过（约 0.9 秒），0 网络模型，夹具最终暂停。首次夹具误传静态world.time早于Director.storyAt，被原时间守卫拒绝；改用对应Director snapshot.storyAt后通过，未改守卫。
+
+c5e17fa9：topic查询延后至确实走已选topic路径，缓存同轮读取；旧v8 staging不会额外查询被忽略topic。纯测加入该查询抛错的反例并保持旧hash断言，3/3通过。未动生产或新建SQL。
