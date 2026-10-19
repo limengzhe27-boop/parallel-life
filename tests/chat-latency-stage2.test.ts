@@ -124,7 +124,8 @@ test('Stage 2 unit: Statement classification & unbound action completion detecti
 
 test('Stage 2 unit: Deterministic IDs meet database constraints and idempotency', () => {
   const evId = deterministicStreamEventId(ATTEMPT_ID);
-  assert.equal(evId, `${ATTEMPT_ID}_ev`);
+  assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(evId));
+  assert.equal(evId, deterministicStreamEventId(ATTEMPT_ID));
   assert.ok(evId.length <= 64);
 
   const segId0 = deterministicStreamSegmentId(ATTEMPT_ID, 0);

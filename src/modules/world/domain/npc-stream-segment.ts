@@ -97,8 +97,31 @@ export function toContractStreamSummary(
   };
 }
 
+function hashHex32(input: string): string {
+  let h1 = 0xdeadbeef,
+    h2 = 0x41c64e6d,
+    h3 = 0x9e3779b9,
+    h4 = 0x85ebca6b;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 2246822507);
+    h4 = Math.imul(h4 ^ ch, 3266489909);
+  }
+  const toHex = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
+  return toHex(h1) + toHex(h2) + toHex(h3) + toHex(h4);
+}
+
 export function deterministicStreamEventId(attemptId: string): string {
-  return `${attemptId}_ev`;
+  const hex = hashHex32(`event:${attemptId}`);
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    '4' + hex.slice(13, 16),
+    'a' + hex.slice(17, 20),
+    hex.slice(20, 32),
+  ].join('-');
 }
 
 export function deterministicStreamSegmentId(attemptId: string, segmentIndex: number): string {
