@@ -447,15 +447,20 @@ test('actual publication semantic wake advances use one protected Director bound
                 ? [{ text: '我愿意考虑参加，尚未完成事件。', dependsOnActionIds: [] }]
                 : [],
             goals: [],
-            plans: [],
-            actions: [],
+            protocol: 'npc-wire-v8',
+            planIntents: [],
+            executions: [],
             responsibilities: [],
-            decisions: [],
-            episodeDecision: {
-              requestId: intent.requestId,
+            agendaReview: null,
+            inputInterpretation: null,
+            focus: null,
+            questionWithdrawals: null,
+            locationReports: null,
+            consideration: {
               choice: options.npcChoice ?? 'quiet',
               reason: '自己的合成安排。',
-              sourceIds: [p.input.sourceId, `definition:${p.state.definitionRef}`],
+              basisSourceIds: [p.input.sourceId],
+              followUp: null,
             },
           });
         }
@@ -1473,7 +1478,7 @@ test('actual publication semantic wake advances use one protected Director bound
   );
 
   await t.test(
-    'v7 original authored handoff lets both NPCs independently create valid explicit plans and messages',
+    'v8 original authored handoff lets both NPCs independently create valid explicit plans and messages',
     async () => {
       const f = await fixture({ emptyAgenda: true, multiActorOpening: true });
       assert.equal(f.world.actors.length, 2);
@@ -1517,7 +1522,7 @@ test('actual publication semantic wake advances use one protected Director bound
         },
         npcResponse(p) {
           return JSON.stringify({
-            protocol: 'npc-wire-v7',
+            protocol: 'npc-wire-v8',
             agendaReview: null,
             consideration: {
               choice: 'engage',
@@ -1542,13 +1547,11 @@ test('actual publication semantic wake advances use one protected Director bound
                   kind: 'new',
                   summary: '考虑本人的方案',
                   sourceIds: [
-                    p.sources.find((s: { id: string }) => s.id.startsWith('episode-intent:')).id,
+                    p.sources.find((s: { kind: string }) => s.kind === 'director_intent').id,
                   ],
                 },
                 summary: '保留本人的安排与待核对信息',
-                sourceIds: [
-                  p.sources.find((s: { id: string }) => s.id.startsWith('definition:')).id,
-                ],
+                sourceIds: [p.sources.find((s: { kind: string }) => s.kind === 'authored').id],
                 nextStep: { kind: 'blocked', missing: ['等待真实信息后再继续'] },
               },
             ],

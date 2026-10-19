@@ -164,13 +164,13 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           actor = p.state.actorId;
         calls.push({ kind: 'npc', input, actor });
         if (input.type === 'npc_agenda_initialize')
-          return JSON.stringify({ ...v6(), protocol: 'npc-wire-v7', agendaReview: null });
+          return JSON.stringify({ ...v6(), protocol: 'npc-wire-v8', agendaReview: null });
         assert.equal(input.type, 'npc_agenda_review');
         if (phase === 'unknown' && actor === ACTOR_A) throw Error('SYNTHETIC_LOST_MODEL_RESULT');
         if (phase === 'quiet')
           return JSON.stringify({
             ...v6(),
-            protocol: 'npc-wire-v7',
+            protocol: 'npc-wire-v8',
             agendaReview: {
               decision: 'quiet',
               reason: 'No new information to share.',
@@ -179,7 +179,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           });
         return JSON.stringify(
           v6({
-            protocol: 'npc-wire-v7',
+            protocol: 'npc-wire-v8',
             agendaReview: {
               decision: 'contact',
               reason: 'A concrete own arrangement is ready for discussion.',
@@ -200,14 +200,10 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
                 goal: {
                   kind: 'new',
                   summary: actor === ACTOR_A ? '考虑陈列方案' : '核对预算方案',
-                  sourceIds: [
-                    p.sources.find((s: { id: string }) => s.id.startsWith('definition:')).id,
-                  ],
+                  sourceIds: [p.sources.find((s: { kind: string }) => s.kind === 'authored').id],
                 },
                 summary: '等真实信息后继续本人安排',
-                sourceIds: [
-                  p.sources.find((s: { id: string }) => s.id.startsWith('definition:')).id,
-                ],
+                sourceIds: [p.sources.find((s: { kind: string }) => s.kind === 'authored').id],
                 nextStep: { kind: 'blocked', missing: ['尚需具体的方案信息'] },
               },
             ],
@@ -560,6 +556,106 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           calls++;
           return JSON.stringify(
             v6({
+              statements: [
+                {
+                  text: '我有一个新的具体安排可以商量。',
+                  dependsOnActionIds: [],
+                  requestsPlayerReply: false,
+                  questionForResponsibilityId: null,
+                },
+              ],
+            }),
+          );
+        },
+      });
+      const deferredKernel = new Proxy(realKernel, {
+        get(target, key) {
+          if (key === 'commit')
+            return async () => {
+              throw Object.assign(Error('NPC_DELIVERY_DEFERRED'), {
+                code: 'NPC_DELIVERY_DEFERRED',
+              });
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      await assert.rejects(
+        () =>
+          runNpcAgent(
+            { attempts: store, model, kernel: deferredKernel },
+            f.owner,
+            p.claim,
+            p.snapshot,
+          ),
+        (e: any) => e.code === 'NPC_DELIVERY_DEFERRED',
+      );
+      const saved = (await attempts(f)).find((a) => a.command_id === ready.commandId)!;
+      assert.equal(saved.status, 'response_received');
+      const before = (
+        await admin.query(
+          'SELECT bucket,count FROM parallel_life.rate_limits WHERE owner_id=$1 ORDER BY bucket',
+          [f.owner],
+        )
+      ).rows;
+      assert.deepEqual(
+        before.map((r) => r.count),
+        [1, 1, 1],
+      );
+      const current = await store.lookup(f.owner, f.worldId, ready.commandId);
+      assert.ok(current);
+      await runNpcAgent({ attempts: store, model, kernel: realKernel }, f.owner, current, null);
+      const after = (
+        await admin.query(
+          'SELECT bucket,count FROM parallel_life.rate_limits WHERE owner_id=$1 ORDER BY bucket',
+          [f.owner],
+        )
+      ).rows;
+      assert.deepEqual(after, before);
+      assert.equal(calls, 1);
+      assert.equal(
+        (await attempts(f)).find((a) => a.id === saved.id)!.response_hash,
+        saved.response_hash,
+      );
+      assert.equal((await attempts(f)).find((a) => a.id === saved.id)!.status, 'committed');
+    },
+  );
+  await t.test(
+    'v8 short-source protected review response resumes with no second model call or budget charge',
+    async () => {
+      const f = await fixture();
+      await prime(f);
+      const ready = await work(f);
+      assert.ok(ready);
+      const p = await prepare(f, ready);
+      let calls = 0;
+      const realKernel = new PostgresNpcAgentKernel(db, worlds);
+      const model = new NpcAgentModel({
+        async complete(messages: ModelMessage[]) {
+          calls++;
+          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          return JSON.stringify(
+            v6({
+              protocol: 'npc-wire-v8',
+              agendaReview: {
+                decision: 'contact',
+                reason: 'Own concrete plan ready for discussion.',
+                basisSourceIds: [p.input.sourceId],
+              },
+              planIntents: [
+                {
+                  kind: 'create',
+                  ref: 'resume-plan',
+                  goal: {
+                    kind: 'new',
+                    summary: '核对本人的陈列安排',
+                    sourceIds: [p.sources.find((s: any) => s.kind === 'authored').id],
+                  },
+                  summary: '保留安排待核对',
+                  sourceIds: [p.sources.find((s: any) => s.kind === 'authored').id],
+                  nextStep: { kind: 'blocked', missing: ['等待方案信息'] },
+                },
+              ],
               statements: [
                 {
                   text: '我有一个新的具体安排可以商量。',
