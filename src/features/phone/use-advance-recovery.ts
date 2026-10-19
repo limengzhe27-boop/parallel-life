@@ -4,6 +4,7 @@ import type { LifeClient } from '../api/client.ts';
 import type { AdvanceOperationReceipt } from '../../contracts/advance-operation.ts';
 import {
   restorePendingAdvances,
+  coalesceAdvanceRecovery,
   advanceRecoveryAction,
   type PendingAdvance,
 } from './advance-recovery-state.ts';
@@ -18,10 +19,11 @@ export function useAdvanceRecovery(
   const persist = useCallback(
     (values: PendingAdvance[]) => {
       if (current.current.worldId !== worldId) return;
+      values = coalesceAdvanceRecovery(values);
       current.current.items = values;
       setItems(values);
       try {
-        sessionStorage.setItem('pl-advance-recovery:' + worldId, JSON.stringify(values.slice(-30)));
+        sessionStorage.setItem('pl-advance-recovery:' + worldId, JSON.stringify(values));
       } catch {
         /* Original receipt remains server-side. */
       }
@@ -77,11 +79,8 @@ export function useAdvanceRecovery(
       if (current.current.worldId !== worldId) return;
       const existing = current.current.items.find((i) => i.key === key);
       if (existing) return existing.receipt?.result;
-      if (current.current.items.length >= 30) {
-        const oldestTerminal = current.current.items.find((i) => i.state === 'failed');
-        if (!oldestTerminal) return;
-        persist(current.current.items.filter((i) => i.id !== oldestTerminal.id));
-      }
+      // Recovery bookkeeping cannot veto unrelated scheduler work. Exact paid
+      // identities remain fenced server-side; repeated observations coalesce.
       const item: PendingAdvance = {
         id: crypto.randomUUID(),
         key,
@@ -106,7 +105,9 @@ export function useAdvanceRecovery(
   );
   const reconcile = useCallback(async () => {
     if (busy.current || current.current.worldId !== worldId) return;
-    const item = current.current.items.find((i) => advanceRecoveryAction(i, Date.now()));
+    const item = [...current.current.items]
+      .filter((i) => advanceRecoveryAction(i, Date.now()))
+      .sort((a, b) => a.nextCheckAt - b.nextCheckAt)[0];
     if (!item) return;
     busy.current = true;
     persist(

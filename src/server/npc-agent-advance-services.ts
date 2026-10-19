@@ -715,10 +715,39 @@ export function npcAgentAdvanceServices(
           storyAt,
         }),
       );
+      // A response still being produced or ready to commit owns its read frame.
+      // A terminal unknown without a saved response fences that Director call,
+      // not every independently qualified actor in the world.
+      const directorFrameProtected =
+        wake.hasPendingDirector &&
+        (await db.transaction(
+          ownerId,
+          async (sql) =>
+            !!(
+              await sql.query(
+                `SELECT 1 FROM parallel_life.director_runtime_attempts
+           WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3
+           AND (status IN ('reserved','request_sent','response_received')
+             OR (status='unknown_after_send' AND response IS NOT NULL)) LIMIT 1`,
+                [worldId, ownerId, engineEpoch],
+              )
+            ).rowCount,
+        ));
+      const independentActorWork = (eligible: readonly AgentCandidate[]) =>
+        !retryCommandId && !directorFrameProtected
+          ? (eligible.find(
+              (candidate) =>
+                !candidate.requiresCoordination &&
+                candidate.channel === 'private' &&
+                candidate.threadId === candidate.actorId &&
+                candidate.resourceIds.length === 1 &&
+                candidate.resourceIds[0] === `wake:${candidate.id}`,
+            ) ?? null)
+          : null;
       // Only the unique per-candidate execution fence may be stripped for this shape check.
       // Real shared resources, original eligibility/blockers and the kernel remain authoritative.
       const independentObservation = (eligible: readonly AgentCandidate[]) => {
-        if (retryCommandId || wake.hasPendingDirector) return null;
+        if (retryCommandId || directorFrameProtected) return null;
         const original = independentObservationWork(
           eligible.flatMap((candidate) => {
             const raw = originalCandidates.get(candidate.id);
@@ -752,6 +781,23 @@ export function npcAgentAdvanceServices(
                     })),
                   guidance: [],
                   reason: '无共享资源的本人收件由本人独立决策，不额外购买全局审批。',
+                };
+              // Continue original eligible actor work even while a different
+              // Director call is unknown. Never rerun that paid call or borrow its intent.
+              const independent = wake.hasPendingDirector
+                ? independentActorWork(input.candidates)
+                : null;
+              if (independent)
+                return {
+                  candidateIds: [independent.id],
+                  guidance: [],
+                  deferred: input.candidates
+                    .filter((c) => c.id !== independent.id)
+                    .map((c) => ({
+                      candidateId: c.id,
+                      reason: '其他人物工作保留，后续按新快照核对。',
+                    })),
+                  reason: '独立人物工作不依赖尚未确认的导演结果。',
                 };
               let decision: DirectorDecision | null;
               try {

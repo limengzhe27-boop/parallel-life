@@ -87,3 +87,58 @@ test('waiting metadata is negotiated without breaking cached strict receipt clie
   assert.equal('waitingOn' in advanceOperationClientReceipt(receipt, null), false);
   assert.equal(receipt.waitingOn, 'clock_or_attention');
 });
+
+test('repeated checks of the same unknown work retain one query identity without losing independent work', async () => {
+  const { coalesceAdvanceRecovery } =
+    await import('../src/features/phone/advance-recovery-state.ts');
+  const items = Array.from({ length: 30 }, (_, n) => ({
+    id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+    key: `idle:${n}`,
+    attempts: 1,
+    nextCheckAt: n,
+    state: 'unknown' as const,
+    receipt: {
+      worldId: '00000000-0000-4000-8000-000000000099',
+      operationId: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+      status: 'unknown' as const,
+      work: [
+        {
+          kind: 'director' as const,
+          commandId: '00000000-0000-4000-8000-000000000098',
+          status: 'unknown_after_send' as const,
+        },
+        {
+          kind: 'npc' as const,
+          commandId: `00000000-0000-4000-8000-${String(n + 100).padStart(12, '0')}`,
+          status: 'committed' as const,
+        },
+      ],
+    },
+  }));
+  const compact = coalesceAdvanceRecovery(items);
+  assert.equal(compact.length, 1);
+  assert.equal(compact[0]?.id, items[29]?.id);
+  assert.equal(advanceRecoveryAction(compact[0]!, 100), 'lookup');
+  assert.equal(restorePendingAdvances(JSON.stringify(items)).length, 1);
+  const separate = {
+    ...items[0]!,
+    receipt: {
+      ...items[0]!.receipt,
+      work: [
+        {
+          kind: 'npc' as const,
+          commandId: '00000000-0000-4000-8000-000000000097',
+          status: 'unknown_after_send' as const,
+        },
+      ],
+    },
+  };
+  assert.equal(coalesceAdvanceRecovery([...items, separate]).length, 2);
+  const running = {
+    ...items[0]!,
+    state: 'running' as const,
+    receipt: { ...items[0]!.receipt, status: 'running' as const },
+  };
+  assert.equal(coalesceAdvanceRecovery([...items, running]).length, 2);
+  assert.equal(items.length, 30);
+});
