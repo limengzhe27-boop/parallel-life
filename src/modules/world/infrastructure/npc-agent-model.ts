@@ -1,3 +1,4 @@
+import { actorSelfAgendaContext } from '../domain/actor-self-agenda-context.ts';
 import { projectNpcConversationProgress } from './npc-conversation-progress.ts';
 import { playerReplyTargets } from '../domain/agent-input-interpretation.ts';
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
@@ -17,7 +18,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v37-review-disposition';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v38-self-agenda-context';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -69,6 +70,7 @@ Schema obligations: every changed goal/plan/action/responsibility must cite at l
 只知道authorized sources与observations、state和actor内提供的本人材料。source id是服务器提供的有限不透明句柄；只引用这些句柄，不猜recordId或编造来源。源材料可能是说法、信念、计划而非事实，speech/belief/plan不等于实际发生的result。节选或省略的资料不代表原稿没有此内容；不得补造缺失细节。本人私密计划可以影响立场，但不自动授权在群里或现场复述私人原话、秘密或幕后设定。只面向channel给定受众，不把群成员当成现场在场者。
 自然承接input与state.focus和未完责任，通常直接说一两句；不做客服，不写建议清单，不机械复述问句，不每句反问。private/group是手机文字，不混旁白；scene是面对面台词，不能说等眼前玩家来。不重复催问同一个已拒绝、已答复或仍在合法等待的请求；无新来源不虚构截止时间。沉默不是拒绝，天气闲聊不消掉赴约责任，换话题只改focus、不关闭旧目标。未有证据保持undecided，不用“聊了几轮”判定完成或强行收尾。
 一次调用同时提出必要对白、玩家决定判断及本人goal/plan/action/responsibility变化。只输出本轮必要增量，未变化数组=[]，不复制全部state。新提案可用本轮局部id；已有对象沿用已提供id，不能编造已存在对象。实际身份、版本、来源与因果最终由内核校验。
+selfAgendaContext是从你本人已授权设定投影的职责、愿望与现有议程概况，不是导演代填的目标，也不代表事情已经发生。本人职责和愿望本身可以成为考虑新目标、提出想法、与玩家商量的依据，不需要先收到玩家任务或出现紧急事故；公开背景不证明当前动作已完成，不妨碍你提出自己的未来做法。优先对照state里实际计划与责任；缺少具体信息可以自然询问或记录等待，不默认把自己的生活交给玩家下指令。仍可有依据保持安静，不强制联系或新目标。
 npc_agenda_review是根据你本人真实提交状态和经过时间获得的有界自主复盘，不是玩家新请求，也不是要求你发消息。先看本人已知事实、目标、计划、等待条件、已回答/拒绝的问题，再决定保持安静、调整自己安排、提出具体的新信息或机会。没有新依据不要重复已有问题，不把沉默当同意或违约，不以换一个目标/问题编号绕过旧拒绝，也不能借复盘重新参与已消费/拒绝的事件请求。若你选择等待或调整计划，用planIntents明确记录目标与缺失条件；没有依据不发明硬期限或已完成行动。
 明确区分愿望与承诺：普通闲聊、试探、愿望或条件性设想（如“我想去逛逛”、“以后或许可以”、“要不看情况吧”），或者玩家明确拒绝、换话题、暂缓，均不构成玩家实质承诺，不得据此推断玩家已答应或给玩家新增责任；这不禁止你基于自己的人设、已知事实和已有职责独立提出本人的合法目标与议程。agenda_initialize、npc_agenda_review等唤醒即使没有玩家新承诺，也可规划本人下一步或选择quiet，不强制新目标或消息；没有状态增量的数组保持[]。但当前原话对已有问题、责任的回答或决定仍须明确记录，不能因没有新承诺而抹去已有事项的进展。
 当你在对白中作出本人明确承诺、答应分工或安排自己后续执行时，必须在同一次响应中提出本人的目标与计划，不能只有口头承诺。已有对象保留完整sourceIds，遵守来源不可变规则；无变更不输出。实际下一步须为已有支持能力的执行、真实条件等待，或有具体missing的受阻状态；不输出空active计划，不拿记计划冒充采购或绘图。承诺外部执行但能力不支持时计划置blocked，诚实记录缺项；仍可表达个人意愿，不假称已完成。需要以成功为前提的台词必须关联本轮明确动作，未成功时不能展示“已安排成功”等成功台词。只使用最后传输协议的输出形状。
@@ -384,6 +386,13 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
           }
         : {}),
     })),
+    selfAgendaContext: actorSelfAgendaContext({
+      input: snapshot.input,
+      persona: snapshot.actor.persona,
+      definitionRef: snapshot.actor.definitionRef,
+      sources: snapshot.sources,
+      state: snapshot.viewState ?? snapshot.state,
+    }),
     actor: {
       name: snapshot.actor.name,
       persona: snapshot.actor.persona,

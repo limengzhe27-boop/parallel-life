@@ -820,7 +820,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v37-review-disposition');
+  assert.equal(payload.promptVersion, 'npc-agent-v38-self-agenda-context');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -919,4 +919,33 @@ test('capability manual follows permission, while media has one native intent sy
   input.channel.allowedCapabilities = ['item.deliver'];
   await adapter.decide(input);
   assert(calls[1]!.messages[0]!.content.includes('可提议item.deliver'));
+});
+
+test('original autonomous model input carries scoped own motivation without seeding state', async () => {
+  const input = snapshot();
+  input.input = {
+    ...input.input,
+    origin: 'wake',
+    text: JSON.stringify({ type: 'npc_agenda_review' }),
+  };
+  input.sources.push({
+    id: 'definition:' + input.actor.definitionRef,
+    kind: 'authored',
+    recordId: input.actor.definitionRef,
+    worldVersion: 0,
+    at: input.storyAt,
+  });
+  input.actor.persona = JSON.stringify({
+    modules: { lifeContext: '采购合伙人', drives: '希望减少浪费' },
+    secret: 'DO_NOT_COPY',
+  });
+  const before = structuredClone(input);
+  const h = capture();
+  await h.adapter.decide(input);
+  const payload = JSON.parse(h.calls[0]!.messages[1]!.content);
+  assert.equal(payload.selfAgendaContext.ownMotivations, '希望减少浪费');
+  assert.equal(payload.selfAgendaContext.authority, 'self_planning_only');
+  assert.equal(payload.selfAgendaContext.existingAgenda.unfinishedGoals, 1);
+  assert.equal(JSON.stringify(payload.selfAgendaContext).includes('DO_NOT_COPY'), false);
+  assert.deepEqual(input, before);
 });
