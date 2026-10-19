@@ -469,7 +469,7 @@ test('oversize context and incomplete observed snapshot fail before any model ca
   const large = {
     ...f.snapshot,
     observations: [
-      { sourceId: 'long', text: 'x'.repeat(65000), kind: 'fact' as const, knownByActorIds: ['a'] },
+      { sourceId: 'long', text: 'x'.repeat(100000), kind: 'fact' as const, knownByActorIds: ['a'] },
     ],
   };
   assert.throws(() => adapter.validateInput(large), { code: 'DIRECTOR_CONTEXT_LIMIT' });
@@ -478,7 +478,7 @@ test('oversize context and incomplete observed snapshot fail before any model ca
     code: 'INVALID_DIRECTOR_PROPOSAL',
   });
   assert.equal(calls, 0);
-  assert.equal(large.observations[0]!.text.length, 65000);
+  assert.equal(large.observations[0]!.text.length, 100000);
 });
 test('structurally impossible complete candidate partition is rejected during preflight before spending', () => {
   const f = fixture();
