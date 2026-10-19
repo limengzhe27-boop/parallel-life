@@ -24,7 +24,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v10';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v11';
+const PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL = 'npc-wire-v10';
 const PREVIOUS_FOCUS_PROTOCOL = 'npc-wire-v9';
 const PREVIOUS_SOURCE_PROTOCOL = 'npc-wire-v8';
 const PREVIOUS_REVIEW_PROTOCOL = 'npc-wire-v7';
@@ -104,6 +105,7 @@ const Wire = z.strictObject({
     PREVIOUS_REVIEW_PROTOCOL,
     PREVIOUS_SOURCE_PROTOCOL,
     PREVIOUS_FOCUS_PROTOCOL,
+    PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -275,7 +277,10 @@ const PreviousFocusWire = PreviousSourceWire.omit({ focus: true }).extend({
   protocol: z.literal(PREVIOUS_FOCUS_PROTOCOL),
   focusChange: FocusChange,
 });
-const ModelWire = PreviousFocusWire.extend({
+const PreviousExecutionProvenanceWire = PreviousFocusWire.extend({
+  protocol: z.literal(PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL),
+});
+const ModelWire = PreviousExecutionProvenanceWire.extend({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
@@ -627,6 +632,43 @@ function transport(value: unknown, convertParameters = true): unknown {
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    const catalog = npcSourceReferences(context.sources);
+    const mapped = mapNpcSourceFields(raw, catalog, 'decode') as Record<string, unknown>;
+    const currentSource = context.sources.filter((source) => source.id === context.input.sourceId);
+    if (currentSource.length !== 1 || currentSource[0]!.kind !== 'accepted_input')
+      throw Error('NPC_V11_INPUT_SOURCE');
+    const goals = PreviousModelWire.shape.goals.parse(transport(mapped.goals ?? [], false));
+    const visibleGoals =
+      context.viewState?.goals.filter(
+        (goal) => !['fulfilled', 'withdrawn'].includes(goal.status),
+      ) ?? [];
+    if (new Set(goals.map((goal) => goal.id)).size !== goals.length)
+      throw Error('NPC_V11_GOAL_UPDATE_DUPLICATE');
+    const bound = goals.map((goal) => {
+      // Only a proposed update to an exact visible, nonterminal existing goal.
+      // This cannot create, reveal, resurrect, complete or retarget a goal.
+      if (!visibleGoals.some((existing) => existing.id === goal.id))
+        throw Error('NPC_V11_GOAL_UPDATE_SCOPE');
+      if (
+        new Set(goal.sourceIds).size !== goal.sourceIds.length ||
+        goal.sourceIds.some(
+          (id) => context.sources.filter((source) => source.id === id).length !== 1,
+        )
+      )
+        throw Error('NPC_V11_DECLARED_SOURCE');
+      return {
+        ...goal,
+        sourceIds: goal.sourceIds.includes(context.input.sourceId)
+          ? [...goal.sourceIds]
+          : [...goal.sourceIds, context.input.sourceId],
+      };
+    });
+    return decodeNpcWire(context, {
+      ...(mapNpcSourceFields({ ...mapped, goals: bound }, catalog, 'encode') as object),
+      protocol: PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL,
+    });
+  }
+  if ('protocol' in raw && raw.protocol === PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL) {
     // v10 adds accepted-input provenance, never a guessed semantic basis. Decode
     // every declared source first so unknown or corrupt references still reject.
     const catalog = npcSourceReferences(context.sources);

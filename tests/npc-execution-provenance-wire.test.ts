@@ -225,11 +225,11 @@ test('v9, v8 and v7 keep their old rejection for executions without current inpu
   );
 });
 
-test('latest grammar is v10, and empty execution output remains quiet without synthetic action', () => {
+test('latest grammar is current, and empty execution output remains quiet without synthetic action', () => {
   const { context, wire } = fixture();
   const format = npcResponseFormat(context.state, 'forbidden', context);
   if (format.format !== 'json_schema') throw Error('schema');
-  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v10']);
+  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v11']);
   context.input = { ...context.input, origin: 'wake', text: 'No relevant new changes' };
   const p = parseAgentProposal(context, {
     ...wire,
