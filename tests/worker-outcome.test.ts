@@ -56,6 +56,46 @@ test('a cancelled handler is unknown, never a silent failure', async () => {
   assert.equal(outcomes[0]!.errorCode, 'UNKNOWN');
 });
 
+test('confirmed pre-submission cancellation remains a known failed task even after abort', async () => {
+  const outcomes: TaskOutcome[] = [];
+  const controller = new AbortController();
+  await runOne(
+    queueWith(outcomes),
+    {
+      media: async () => {
+        controller.abort();
+        throw Object.assign(Error('no provider request sent'), {
+          code: 'CANCELLED',
+          responseOutcome: 'not_sent',
+        });
+      },
+    },
+    controller.signal,
+  );
+  assert.equal(outcomes[0]!.status, 'failed');
+  assert.equal(outcomes[0]!.errorCode, 'CANCELLED');
+});
+
+test('complete HTTP rejection remains known even when the worker then aborts', async () => {
+  const outcomes: TaskOutcome[] = [];
+  const controller = new AbortController();
+  await runOne(
+    queueWith(outcomes),
+    {
+      media: async () => {
+        controller.abort();
+        throw Object.assign(Error('provider rejected'), {
+          code: 'UNAVAILABLE',
+          responseOutcome: 'rejected',
+        });
+      },
+    },
+    controller.signal,
+  );
+  assert.equal(outcomes[0]!.status, 'failed');
+  assert.equal(outcomes[0]!.errorCode, 'UNAVAILABLE');
+});
+
 test('failure diagnostics and persisted duration use elapsed time rather than the wall clock', async (t) => {
   const logs: string[] = [];
   t.mock.method(console, 'error', (line: string) => logs.push(line));

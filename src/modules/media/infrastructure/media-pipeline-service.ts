@@ -21,6 +21,7 @@ function requireActive(signal?: AbortSignal, providerTaskId?: string): void {
   throw Object.assign(new Error('Media execution was cancelled'), {
     code: providerTaskId ? 'STATUS_UNKNOWN' : 'CANCELLED',
     ...(providerTaskId ? { providerTaskId } : {}),
+    ...(!providerTaskId ? { responseOutcome: 'not_sent' as const } : {}),
   });
 }
 

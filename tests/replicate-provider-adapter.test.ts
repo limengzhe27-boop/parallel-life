@@ -142,6 +142,32 @@ test('ReplicateMediaProviderAdapter: pre-submit abort sends nothing', async () =
   assert.equal(calls, 0);
 });
 
+test('ReplicateMediaProviderAdapter: complete HTTP refusal stays rejected after worker abort', async () => {
+  const controller = new AbortController();
+  const adapter = new ReplicateMediaProviderAdapter({
+    apiToken: 'test-token',
+    fetchFn: async () => {
+      controller.abort();
+      return new Response('rate limited', { status: 429 });
+    },
+  });
+  await assert.rejects(
+    adapter.submitImage({
+      deduplicationKey: 'known-refusal',
+      builtPrompt: {
+        ruleVersion: '1.0.0',
+        targetModel: 'flux-schnell',
+        prompt: 'test',
+        aspectRatio: '1:1',
+        outputFormat: 'webp',
+        hasReferenceImage: false,
+      },
+      signal: controller.signal,
+    }),
+    { code: 'RATE_LIMITED', responseOutcome: 'rejected' },
+  );
+});
+
 test('ReplicateMediaProviderAdapter: worker abort during submission is unknown', async () => {
   const controller = new AbortController();
   let calls = 0;

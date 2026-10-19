@@ -53,6 +53,8 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
     this.model = options.model?.trim() || DEFAULT_IMAGE_MODEL;
     this.fetchFn = options.fetchFn ?? globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? 100000;
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs <= 0 || this.timeoutMs > 2147483647)
+      throw Object.assign(new Error('Invalid media provider timeout'), { code: 'INVALID_COMMAND' });
   }
 
   private headers(): Record<string, string> {
@@ -66,6 +68,7 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
     if (params.signal?.aborted)
       throw Object.assign(new Error('Media request cancelled before submission'), {
         code: 'CANCELLED',
+        responseOutcome: 'not_sent' as const,
       });
     const parts: unknown[] = [{ type: 'text', text: promptText(params.builtPrompt) }];
     if (params.referenceImageBytes) {
@@ -97,13 +100,14 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
       throw Object.assign(new Error(`gateway image request failed with ${response.status}`), {
         code: response.status === 429 ? 'RATE_LIMITED' : 'UNAVAILABLE',
         httpStatus: response.status,
+        responseOutcome: 'rejected' as const,
       });
     }
     let body: { choices?: { message?: { content?: unknown } }[] };
     try {
       body = (await response.json()) as typeof body;
     } catch (error) {
-      if (signal.aborted)
+      if (signal.aborted || !(error instanceof SyntaxError))
         throw Object.assign(new Error('Gateway response result is unknown'), {
           code: 'STATUS_UNKNOWN',
           cause: error,
@@ -142,6 +146,7 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
     if (params.signal?.aborted)
       throw Object.assign(new Error('Media request cancelled before submission'), {
         code: 'CANCELLED',
+        responseOutcome: 'not_sent' as const,
       });
     throw Object.assign(new Error('gateway video generation is not wired yet'), {
       code: 'UNAVAILABLE',

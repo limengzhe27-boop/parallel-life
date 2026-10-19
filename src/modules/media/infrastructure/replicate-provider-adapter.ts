@@ -43,6 +43,8 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
     this.baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.fetchFn = options.fetchFn || globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? 15000;
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs <= 0 || this.timeoutMs > 2147483647)
+      throw Object.assign(new Error('Invalid media provider timeout'), { code: 'INVALID_COMMAND' });
   }
 
   private getHeaders(): Record<string, string> {
@@ -62,6 +64,7 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
     if (params.signal?.aborted)
       throw Object.assign(new Error('Media request cancelled before submission'), {
         code: 'CANCELLED',
+        responseOutcome: 'not_sent' as const,
       });
     const {
       builtPrompt,
@@ -120,7 +123,11 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
           new Error(
             `Replicate API error: ${response.status} ${response.statusText} - ${errorText}`,
           ),
-          { code: 'PROVIDER_ERROR', status: response.status },
+          {
+            code: response.status === 429 ? 'RATE_LIMITED' : 'UNAVAILABLE',
+            status: response.status,
+            responseOutcome: 'rejected' as const,
+          },
         );
       }
 
@@ -138,9 +145,15 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
         urls: data.urls,
       };
     } catch (err: unknown) {
+      if ((err as { responseOutcome?: string })?.responseOutcome === 'rejected') throw err;
       const isAbort =
         err instanceof Error && (err.name === 'AbortError' || err.message.includes('abort'));
-      if (signal.aborted || isAbort || (!responseReceived && !(err as { code?: string })?.code)) {
+      if (
+        signal.aborted ||
+        isAbort ||
+        (responseReceived && !(err instanceof SyntaxError) && !(err as { code?: string })?.code) ||
+        (!responseReceived && !(err as { code?: string })?.code)
+      ) {
         // Strict rule: Timeout on POST must be reported as unknown to prevent automatic resubmission
         throw Object.assign(
           new Error('SUBMIT_TIMEOUT_UNKNOWN: Prediction submission timed out. Status uncertain.'),
@@ -155,6 +168,7 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
     if (params.signal?.aborted)
       throw Object.assign(new Error('Media request cancelled before submission'), {
         code: 'CANCELLED',
+        responseOutcome: 'not_sent' as const,
       });
     const {
       builtPrompt,
@@ -206,7 +220,11 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
           new Error(
             `Replicate video API error: ${response.status} ${response.statusText} - ${errorText}`,
           ),
-          { code: 'PROVIDER_ERROR', status: response.status },
+          {
+            code: response.status === 429 ? 'RATE_LIMITED' : 'UNAVAILABLE',
+            status: response.status,
+            responseOutcome: 'rejected' as const,
+          },
         );
       }
 
@@ -224,9 +242,15 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
         urls: data.urls,
       };
     } catch (err: unknown) {
+      if ((err as { responseOutcome?: string })?.responseOutcome === 'rejected') throw err;
       const isAbort =
         err instanceof Error && (err.name === 'AbortError' || err.message.includes('abort'));
-      if (signal.aborted || isAbort || (!responseReceived && !(err as { code?: string })?.code)) {
+      if (
+        signal.aborted ||
+        isAbort ||
+        (responseReceived && !(err instanceof SyntaxError) && !(err as { code?: string })?.code) ||
+        (!responseReceived && !(err as { code?: string })?.code)
+      ) {
         throw Object.assign(
           new Error('SUBMIT_TIMEOUT_UNKNOWN: Video submission timed out. Status uncertain.'),
           { code: 'STATUS_UNKNOWN', originalError: err },

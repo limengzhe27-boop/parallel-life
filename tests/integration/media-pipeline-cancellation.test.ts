@@ -7,7 +7,7 @@ import { adminClient } from '../../scripts/db-admin.mjs';
 import { localConfig } from '../../scripts/local-config.mjs';
 import type { MediaPipelineService } from '../../src/modules/media/infrastructure/media-pipeline-service.ts';
 
-test('accepted media result stays unknown in request, outbox and task, and replay sends no new request', async () => {
+test('accepted media stays unknown while confirmed no-submit remains failed in the original records', async () => {
   const config = await localConfig();
   const queue = new PostgresTaskQueue(
     `postgresql://pl_worker:${config.workerPassword}@127.0.0.1:${config.port}/parallel_life_dev`,
@@ -21,10 +21,16 @@ test('accepted media result stays unknown in request, outbox and task, and repla
   const outboxId = `outbox_${randomUUID()}`;
   const taskId = randomUUID();
   let providerCalls = 0;
+  let nextOutcome: 'unknown' | 'not_sent' = 'unknown';
   const service: Pick<MediaPipelineService, 'executeImagePipeline'> = {
     async executeImagePipeline(params) {
-      providerCalls++;
       assert.ok(params.signal);
+      if (nextOutcome === 'not_sent')
+        throw Object.assign(new Error('cancelled before paid submission'), {
+          code: 'CANCELLED',
+          responseOutcome: 'not_sent' as const,
+        });
+      providerCalls++;
       throw Object.assign(new Error('submitted response lost'), {
         code: 'STATUS_UNKNOWN',
         providerTaskId: 'provider-known-1',
@@ -102,6 +108,78 @@ test('accepted media result stays unknown in request, outbox and task, and repla
       code: 'UPSTREAM_FAILED',
     });
     await queue.finish(replay, { status: 'unknown', errorCode: 'UNKNOWN' });
+    assert.equal(providerCalls, 1);
+
+    // A separate request with trusted no-submit evidence must retain a known
+    // failure in the same original request/outbox/task records.
+    nextOutcome = 'not_sent';
+    const knownCommand = randomUUID();
+    const knownEvent = `event_${randomUUID()}`;
+    const knownRequest = `media_${randomUUID()}`;
+    const knownOutbox = `outbox_${randomUUID()}`;
+    const knownTask = randomUUID();
+    await admin.query(
+      "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,1,$4,'{}','queued')",
+      [knownCommand, worldId, ownerId, `hash_${knownCommand}`],
+    );
+    await admin.query(
+      "INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,2,$4,'{}',now())",
+      [knownEvent, worldId, ownerId, knownCommand],
+    );
+    await admin.query(
+      "INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload,status) VALUES($1,$2,$3,$4,$5,'submitted')",
+      [knownOutbox, worldId, ownerId, knownEvent, { requestId: knownRequest }],
+    );
+    await admin.query(
+      'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+      [
+        knownRequest,
+        worldId,
+        ownerId,
+        {
+          id: knownRequest,
+          worldId,
+          status: 'submitting',
+          prompt: '室内窗边',
+          sourceEventId: knownEvent,
+        },
+      ],
+    );
+    await admin.query(
+      "INSERT INTO parallel_life.tasks(id,owner_id,scope_kind,scope_id,command_id,request_hash,input,status) VALUES($1,$2,'media',$3,$4,$5,$6,'queued')",
+      [
+        knownTask,
+        ownerId,
+        knownRequest,
+        randomUUID(),
+        'media-known-no-submit',
+        { requestId: knownRequest },
+      ],
+    );
+    const knownLease = await queue.claimForOwner(knownTask, ownerId, ['media']);
+    assert.ok(knownLease);
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(handler(knownLease, controller.signal), {
+      code: 'CANCELLED',
+      responseOutcome: 'not_sent',
+    });
+    await queue.finish(knownLease, { status: 'failed', errorCode: 'CANCELLED' });
+    const knownDocument = (
+      await admin.query('SELECT document FROM parallel_life.world_media_requests WHERE id=$1', [
+        knownRequest,
+      ])
+    ).rows[0].document;
+    const knownOutboxStatus = (
+      await admin.query('SELECT status FROM parallel_life.outbox_jobs WHERE id=$1', [knownOutbox])
+    ).rows[0].status;
+    const knownTaskStatus = (
+      await admin.query('SELECT status FROM parallel_life.tasks WHERE id=$1', [knownTask])
+    ).rows[0].status;
+    assert.equal(knownDocument.status, 'failed');
+    assert.equal(knownDocument.errorCode, 'CANCELLED');
+    assert.equal(knownOutboxStatus, 'failed');
+    assert.equal(knownTaskStatus, 'failed');
     assert.equal(providerCalls, 1);
   } finally {
     await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [ownerId]);

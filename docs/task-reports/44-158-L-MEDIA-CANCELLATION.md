@@ -8,6 +8,8 @@ The task worker supplied an `AbortSignal`, but the media handler did not pass it
 
 - Pass the optional signal through the original image/video pipeline and the Yibu and Replicate providers. A signal already aborted before submission sends no provider request.
 - Once a submission might have reached a provider, aborted or uncertain transport results become `STATUS_UNKNOWN`. Preserve a provider task ID when a receipt was received. An explicit HTTP rejection or fully received malformed response remains a known failure.
+- A trusted `responseOutcome` distinguishes cancellation before any provider request (`not_sent`) and an explicit HTTP refusal (`rejected`). The handler and original worker preserve these as known failures even if the abort signal subsequently fires. This prevents pre-submit cancellation from being mislabeled as a possible paid request.
+- A network or body-stream failure after a successful HTTP status remains unknown; a complete JSON syntax error remains a known malformed response. Provider timeouts are validated as finite positive integer durations before any request.
 - Propagate cancellation through status polling and asset download. Poll exhaustion after accepted submission is also unknown, since the provider may still finish.
 - Record an uncertain result as `unknown` on `world_media_requests` and its original Outbox job. The handler then raises the existing `UPSTREAM_FAILED` worker code so the original task is marked `unknown`, with no automatic second purchase. A later task cannot resubmit an already-unknown request.
 
@@ -16,6 +18,7 @@ The task worker supplied an `AbortSignal`, but the media handler did not pass it
 - Focused adapter, pipeline, and new PostgreSQL cancellation tests: 24 passed. Existing adjacent media tests: 19 passed.
 - `npm run check`: 3432 passed, 0 failed. `npm run typecheck` and `npm run check:boundaries` passed. `git diff --check` passed.
 - The new PostgreSQL test verifies request and Outbox unknown state, preserved provider task ID, and no new provider call on replay. It uses the original queue status mapping rather than invoking a paid provider.
+- Follow-up focused tests verify known no-submit failure in request/Outbox/task, worker classification after abort, HTTP rejection after abort, partial body uncertainty, and invalid timeout configuration. 37 focused tests passed after the follow-up; `npm run typecheck` passed.
 - `npm run build`: passed, including TypeScript and route generation.
 
 ## Limits and integration notes

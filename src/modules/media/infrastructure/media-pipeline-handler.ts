@@ -205,7 +205,11 @@ export function createMediaPipelineHandler(
         });
       }
     } catch (err: any) {
-      const unknown = err?.code === 'STATUS_UNKNOWN' || signal?.aborted;
+      // A preflight cancellation never reached a provider, and a complete HTTP
+      // rejection is definitive even if the worker signal aborts afterwards.
+      const knownOutcome =
+        err?.responseOutcome === 'not_sent' || err?.responseOutcome === 'rejected';
+      const unknown = !knownOutcome && (err?.code === 'STATUS_UNKNOWN' || signal?.aborted);
       const errorCode = unknown ? 'STATUS_UNKNOWN' : err?.code || 'GENERATION_FAILED';
       const errorMessage = unknown
         ? 'provider-result-unconfirmed'

@@ -46,6 +46,7 @@ export async function runOne(
       upstreamDurationMs?: number;
       stage?: unknown;
       httpStatus?: unknown;
+      responseOutcome?: 'not_sent' | 'rejected';
     };
     /*
      * A swallowed handler error is undiagnosable: a domain rule violation and an
@@ -61,11 +62,14 @@ export async function runOne(
           (error as Error)?.name);
     /* Our own shutdown cancelled the call: the upstream may still have completed,
        so the outcome is unknown (never a silent failure and never auto-retried). */
+    const definite =
+      failure.responseOutcome === 'not_sent' || failure.responseOutcome === 'rejected';
     const uncertain =
-      combined.aborted ||
-      failure.code === 'CANCELLED' ||
-      failure.code === 'TIMEOUT' ||
-      failure.code === 'UPSTREAM_FAILED';
+      !definite &&
+      (combined.aborted ||
+        failure.code === 'CANCELLED' ||
+        failure.code === 'TIMEOUT' ||
+        failure.code === 'UPSTREAM_FAILED');
     const timing = (value: unknown) =>
       typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 2147483647
         ? Math.round(value)

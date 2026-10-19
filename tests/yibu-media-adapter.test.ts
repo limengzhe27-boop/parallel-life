@@ -124,5 +124,68 @@ test('明确的上游 HTTP 拒绝仍是已知失败', async () => {
   });
   await assert.rejects(adapter.submitImage({ deduplicationKey: 'reject', builtPrompt: prompt }), {
     code: 'RATE_LIMITED',
+    responseOutcome: 'rejected',
   });
+});
+
+test('完整 HTTP 拒绝后即使收到取消，也不会变为不明结果', async () => {
+  const controller = new AbortController();
+  const adapter = new YibuMediaProviderAdapter({
+    apiKey: 'test-key',
+    fetchFn: async () => {
+      controller.abort();
+      return new Response('rejected', { status: 503 });
+    },
+  });
+  await assert.rejects(
+    adapter.submitImage({
+      deduplicationKey: 'rejected-after-abort',
+      builtPrompt: prompt,
+      signal: controller.signal,
+    }),
+    { code: 'UNAVAILABLE', responseOutcome: 'rejected' },
+  );
+});
+
+test('无效的媒体超时配置在发送请求前拒绝', () => {
+  assert.throws(() => new YibuMediaProviderAdapter({ apiKey: 'test-key', timeoutMs: Infinity }), {
+    code: 'INVALID_COMMAND',
+  });
+});
+
+test('网关成功响应但流读取中断时，不能当作完整的错误响应', async () => {
+  const adapter = new YibuMediaProviderAdapter({
+    apiKey: 'test-key',
+    fetchFn: async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new TypeError('stream closed');
+        },
+      }) as never,
+  });
+  await assert.rejects(adapter.submitImage({ deduplicationKey: 'partial', builtPrompt: prompt }), {
+    code: 'STATUS_UNKNOWN',
+  });
+});
+
+test('完整响应的错误 JSON 仍是已知格式错误', async () => {
+  const adapter = new YibuMediaProviderAdapter({
+    apiKey: 'test-key',
+    fetchFn: async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError('invalid json');
+        },
+      }) as never,
+  });
+  await assert.rejects(
+    adapter.submitImage({ deduplicationKey: 'malformed', builtPrompt: prompt }),
+    {
+      code: 'UNAVAILABLE',
+    },
+  );
 });
