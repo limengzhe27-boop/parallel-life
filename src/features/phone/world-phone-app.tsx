@@ -2,6 +2,7 @@
 import { useAdvanceRecovery } from './use-advance-recovery.ts';
 import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
 import {
+  applyStreamSegmentToWorld,
   committedLocalSend,
   projectCommittedTurnReceipt,
   unprojectedLocalSends,
@@ -240,6 +241,7 @@ export function WorldPhoneApp({
     commandId: string,
     replacing?: string,
     photo?: PhonePhoto,
+    updateOp?: (patch: { canInterrupt?: boolean }) => void,
   ) {
     if (automatic) await liveTimeRef.current.startConversation();
     const unresolved = localMessages.find(
@@ -281,14 +283,43 @@ export function WorldPhoneApp({
         confirmedSendVersion.current.worldId === worldId ? confirmedSendVersion.current.version : 0,
       );
       rememberCommand(currentVersion);
+      let firstSegmentReceived = false;
+      const tSend = performance.now();
       // One submission owns one immutable identity. A 409 may be BUSY, a prior receipt,
       // or a late paid result, not permission to mutate and resubmit that command.
-      const receipt = await client.sendWorldMessage(worldId, {
-        commandId,
-        actorId,
-        text,
-        expectedVersion: currentVersion,
-      });
+      const receipt = await client.sendWorldMessage(
+        worldId,
+        {
+          commandId,
+          actorId,
+          text,
+          expectedVersion: currentVersion,
+        },
+        {
+          onSegment: (segment) => {
+            if (!firstSegmentReceived) {
+              firstSegmentReceived = true;
+              const firstMeaningfulReplyMs = Math.round(performance.now() - tSend);
+              void firstMeaningfulReplyMs;
+            }
+            confirmedSendVersion.current = {
+              worldId,
+              version: Math.max(confirmedSendVersion.current.version, segment.version),
+            };
+            setLocalMessages((current) =>
+              current.map((message) =>
+                message.id === commandId ? { ...message, status: 'sent' } : message,
+              ),
+            );
+            updateOp?.({ canInterrupt: true });
+            setData((current) =>
+              current?.id === worldId ? applyStreamSegmentToWorld(current, segment) : current,
+            );
+          },
+        },
+      );
+      const fullTurnMs = Math.round(performance.now() - tSend);
+      void fullTurnMs;
       const confirmed = committedLocalSend(worldId, entry, receipt);
       committedSends.current[commandId] = receipt;
       confirmedSendVersion.current = {
@@ -947,8 +978,8 @@ export function WorldPhoneApp({
               void load();
               return { status: 'committed' };
             }}
-            onSendMessage={async (actorId, text, commandId, photo) => {
-              await deliverMessage(actorId, text, commandId, undefined, photo);
+            onSendMessage={async (actorId, text, commandId, photo, updateOp) => {
+              await deliverMessage(actorId, text, commandId, undefined, photo, updateOp);
               return { status: 'committed' };
             }}
             onRetryMessage={async (messageId, commandId) => {

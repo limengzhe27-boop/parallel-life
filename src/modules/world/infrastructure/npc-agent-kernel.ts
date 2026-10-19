@@ -43,6 +43,11 @@ import {
   beginAgentCommitInTransaction,
   finishAgentCommitInTransaction,
 } from './agent-runtime-repository.ts';
+import {
+  deterministicStreamEventId,
+  deterministicStreamMessageId,
+  deterministicStreamUserMessageId,
+} from '../domain/npc-stream-segment.ts';
 import { compactWorldState, PostgresWorldRepository } from './postgres-world-repository.ts';
 import type { WorldEffect, WorldEvent } from '../domain/types.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
@@ -217,7 +222,22 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             code: 'AGENT_REVISION_CONFLICT',
           });
       }
-      const eventId = randomUUID(),
+      const allSegmentRows = (
+        await sql.query(
+          `SELECT segment_index, message_id, source_event_id, message_at, status
+           FROM parallel_life.agent_attempt_stream_segments
+           WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3
+           ORDER BY segment_index ASC`,
+          [attempt.worldId, ownerId, attempt.id],
+        )
+      ).rows;
+      const committedSegmentRows = allSegmentRows.filter((row) => row.status === 'committed');
+      const eventId =
+          committedSegmentRows.length > 0
+            ? String(committedSegmentRows[0]!.source_event_id)
+            : allSegmentRows.length > 0
+              ? deterministicStreamEventId(attempt.id)
+              : randomUUID(),
         occurredAt = new Date().toISOString();
       const executionWorld = (
         await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
@@ -1398,11 +1418,21 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           });
         }
       }
-      for (const statement of accepted.statements) {
+      const acceptedOriginalIndices = new Set<number>();
+      for (const [statementIndex, statement] of accepted.statements.entries()) {
+        const originalIndex = proposal.statements.indexOf(statement);
+        const segIdx = originalIndex >= 0 ? originalIndex : statementIndex;
+        acceptedOriginalIndices.add(segIdx);
+        const existingSegRow = allSegmentRows.find((r) => Number(r.segment_index) === segIdx);
+        const messageId = existingSegRow
+          ? String(existingSegRow.message_id)
+          : allSegmentRows.length > 0
+            ? deterministicStreamMessageId(eventId, segIdx)
+            : randomUUID();
         const text = statement.text;
         effects.push({
           type: 'message.received',
-          id: randomUUID(),
+          id: messageId,
           actorId: attempt.actorId,
           text,
         });
@@ -1558,6 +1588,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         };
         await this.worlds.commitInTransaction(sql, { userId: ownerId }, command, event, undefined, {
           legacyProgress: false,
+          finalizePrefixEvent: committedSegmentRows.length > 0,
         });
       } else {
         // Do not force an empty or fabricated message to satisfy the legacy character-turn contract.
@@ -1711,6 +1742,45 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
           [attempt.worldId, command.id, eventId, compact],
         );
+      }
+      if (allSegmentRows.length > 0) {
+        const userMessageId = deterministicStreamUserMessageId(eventId);
+        const targetVersion = attempt.expectedWorldVersion + 1;
+        for (const segRow of allSegmentRows) {
+          const segIdx = Number(segRow.segment_index);
+          if (acceptedOriginalIndices.has(segIdx)) {
+            await sql.query(
+              `UPDATE parallel_life.agent_attempt_stream_segments
+               SET status='committed',
+                   completion_status='completed',
+                   source_event_id=$4,
+                   source_version=$5,
+                   user_message_id=$6,
+                   message_at=COALESCE(message_at, $7),
+                   updated_at=now()
+               WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND segment_index=$8`,
+              [
+                attempt.worldId,
+                ownerId,
+                attempt.id,
+                eventId,
+                targetVersion,
+                userMessageId,
+                at,
+                segIdx,
+              ],
+            );
+          } else if (segRow.status === 'withheld_dependency' || segRow.status === 'persisted') {
+            await sql.query(
+              `UPDATE parallel_life.agent_attempt_stream_segments
+               SET status='aborted_error',
+                   completion_status='completed',
+                   updated_at=now()
+               WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND segment_index=$4`,
+              [attempt.worldId, ownerId, attempt.id, segIdx],
+            );
+          }
+        }
       }
       await finishAgentCommitInTransaction(sql, ownerId, {
         attempt,

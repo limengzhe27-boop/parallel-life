@@ -8,6 +8,7 @@ import { canReadGroupMessage } from '../domain/experience-rules.ts';
 import { authoredMaterialCanonicalJson } from '../domain/authored-agent-material.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { loadGroupRead } from './group-repository.ts';
+import { isStreamPrefixWorldVersion } from './npc-stream-segment-repository.ts';
 
 export type ActorGroupObservationFrame = {
   worldId: string;
@@ -79,8 +80,18 @@ export async function readActorGroupObservationSourcesInTransaction(
     !world.state.actors.some((a: { id: string }) => a.id === frame.actorId)
   )
     fail('ACTOR_GROUP_OBSERVATION_FORBIDDEN');
+  const isPrefix =
+    world &&
+    (await isStreamPrefixWorldVersion(
+      sql,
+      owner,
+      frame.worldId,
+      frame.actorId,
+      frame.worldVersion,
+      world.version,
+    ));
   if (
-    world.version !== frame.worldVersion ||
+    (world.version !== frame.worldVersion && !isPrefix) ||
     world.engine_epoch !== frame.engineEpoch ||
     Date.parse(frame.storyAt) < Date.parse(world.state.time)
   )
@@ -91,7 +102,7 @@ export async function readActorGroupObservationSourcesInTransaction(
     read.group.ownerId !== owner ||
     read.world.id !== frame.worldId ||
     read.world.ownerId !== owner ||
-    read.world.version !== frame.worldVersion
+    (read.world.version !== frame.worldVersion && !isPrefix)
   )
     fail('ACTOR_GROUP_OBSERVATION_FORBIDDEN');
   const committed = (

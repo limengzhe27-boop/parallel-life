@@ -1170,7 +1170,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   // 微信单聊对话视图
   // -------------------------------------------------------------------------
   const disabled =
-    operation?.busy ||
+    (operation?.busy && !operation?.canInterrupt) ||
     (operation?.status === 'accepted' && operation.signature === text) ||
     messages.some((m) => m.role === 'user' && (m.status === 'unknown' || m.status === 'pending'));
   const relatedInvitation = findRelatedInvitation(data.invitations, actor.id, data.referenceTime);
@@ -1840,7 +1840,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           if (!value || !actions.sendMessage || disabled) return;
           playSendSound();
           setDraft(key, '');
-          await run(key, text, (id) => actions.sendMessage!(actor.id, value, id));
+          await run(key, text, (id, updateOp) =>
+            actions.sendMessage!(actor.id, value, id, undefined, updateOp),
+          );
         }}
       >
         <div

@@ -75,6 +75,17 @@ export interface NpcAgentModel {
   validateInput?(snapshot: AgentSnapshot): void;
   /** Raw result is durably recorded before parsing. Invalid output is a known result, not unknown. */
   decide(snapshot: AgentSnapshot, signal?: AbortSignal): Promise<unknown>;
+  /**
+   * Optional streaming decision entrypoint for incremental statement extraction.
+   * Calls onEvent sequentially as each statement element closes in the wire JSON stream.
+   */
+  decideStream?(
+    snapshot: AgentSnapshot,
+    onEvent: (
+      event: import('../domain/npc-stream-segment.ts').NpcParsedStreamEvent,
+    ) => Promise<void> | void,
+    signal?: AbortSignal,
+  ): Promise<unknown>;
 }
 /** Persistent claim is committed before any model request. Implementations release the DB connection. */
 export interface AgentAttemptStore {

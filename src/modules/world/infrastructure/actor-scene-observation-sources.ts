@@ -7,6 +7,7 @@ import { authoredMaterialCanonicalJson } from '../domain/authored-agent-material
 import { scenePresent, scenePrivateThought } from '../domain/scene-runtime.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { loadScene } from './scene-repository.ts';
+import { isStreamPrefixWorldVersion } from './npc-stream-segment-repository.ts';
 
 export type ActorSceneObservationFrame = {
   worldId: string;
@@ -86,8 +87,18 @@ export async function readActorSceneObservationSourcesInTransaction(
     !world.state.actors.some((a: { id: string }) => a.id === frame.actorId)
   )
     reject('ACTOR_SCENE_OBSERVATION_FORBIDDEN');
+  const isPrefix =
+    world &&
+    (await isStreamPrefixWorldVersion(
+      sql,
+      ownerId,
+      frame.worldId,
+      frame.actorId,
+      frame.worldVersion,
+      world.version,
+    ));
   if (
-    world.version !== frame.worldVersion ||
+    (world.version !== frame.worldVersion && !isPrefix) ||
     Date.parse(frame.storyAt) < Date.parse(world.state.time)
   )
     reject('ACTOR_SCENE_OBSERVATION_VERSION_CONFLICT');

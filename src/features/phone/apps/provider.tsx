@@ -12,6 +12,7 @@ import { errorText } from './helpers.ts';
 import { mergeIncomingDraft } from './appointment-link.ts';
 export type Operation = {
   busy?: boolean;
+  canInterrupt?: boolean;
   status?: 'accepted' | 'committed' | 'failed';
   error?: string;
   errorCode?: string;
@@ -41,7 +42,10 @@ type Context = {
   run: (
     key: string,
     signature: string,
-    action: (id: string) => Promise<PhoneActionReceipt>,
+    action: (
+      id: string,
+      updateOp?: (patch: Partial<Operation>) => void,
+    ) => Promise<PhoneActionReceipt>,
   ) => Promise<PhoneActionReceipt | undefined>;
 };
 const AppsContext = createContext<Context | null>(null);
@@ -117,7 +121,10 @@ function WorldApps({
   async function run(
     key: string,
     signature: string,
-    action: (id: string) => Promise<PhoneActionReceipt>,
+    action: (
+      id: string,
+      updateOp?: (patch: Partial<Operation>) => void,
+    ) => Promise<PhoneActionReceipt>,
   ) {
     const prior = opRef.current[key];
     if (prior?.busy) return;
@@ -134,7 +141,9 @@ function WorldApps({
     const startedResult = resultsRef.current?.[commandId];
     setOp(key, { busy: true, signature, commandId, startedResult });
     try {
-      const receipt = await action(commandId);
+      const receipt = await action(commandId, (patch) => {
+        setOp(key, { ...opRef.current[key], ...patch });
+      });
       if (!receipt || !['accepted', 'committed'].includes(receipt.status))
         throw new Error('Invalid receipt');
       const currentResult = resultsRef.current?.[commandId];

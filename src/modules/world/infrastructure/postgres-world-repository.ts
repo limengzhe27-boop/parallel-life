@@ -63,7 +63,7 @@ const fingerprint = (command: TurnCommand) =>
  * scope) and the turn itself (branch scope, as an episode). Sources are real rows, so
  * the provenance trigger accepts them and a correction can point back at them.
  */
-async function storeTurnMemories(
+export async function storeTurnMemories(
   sql: SqlClient,
   ownerId: string,
   state: WorldState,
@@ -527,12 +527,29 @@ export class PostgresWorldRepository implements WorldRepository {
     command: TurnCommand,
     event: WorldEvent,
     progress?: { goalKeys: string[]; assessments: EventGoalAssessment[] },
-    options: { legacyProgress?: boolean } = {},
+    options: {
+      legacyProgress?: boolean;
+      finalizePrefixEvent?: boolean;
+      skipMemories?: boolean;
+    } = {},
   ) {
-    const current = await this.owned(sql, command.worldId, true),
-      saved = await this.saved(sql, command);
-    if (saved) return saved;
-    if (current.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+    const current = await this.owned(sql, command.worldId, true);
+    if (options.finalizePrefixEvent) {
+      const cmdRow = (
+        await sql.query(
+          'SELECT request_hash,result_event_id FROM parallel_life.commands WHERE world_id=$1 AND id=$2 FOR UPDATE',
+          [command.worldId, command.id],
+        )
+      ).rows[0];
+      if (!cmdRow || cmdRow.request_hash !== fingerprint(command))
+        throw new DomainError('IDEMPOTENCY_CONFLICT');
+      if (cmdRow.result_event_id !== event.id || current.version !== command.expectedVersion + 1)
+        throw new DomainError('VERSION_CONFLICT');
+    } else {
+      const saved = await this.saved(sql, command);
+      if (saved) return saved;
+      if (current.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+    }
     if (command.origin === 'director') {
       const cancelled = (
         await sql.query(
@@ -576,7 +593,17 @@ export class PostgresWorldRepository implements WorldRepository {
       )
         throw new DomainError('INVALID_COMMAND', 'Invalid accepted input basis');
     }
-    const hydrated = await PostgresWorldRepository.hydrateInTransaction(sql, current);
+    const rawHydrated = await PostgresWorldRepository.hydrateInTransaction(sql, current);
+    const hydrated = options.finalizePrefixEvent
+      ? {
+          ...rawHydrated,
+          version: command.expectedVersion,
+          messages: rawHydrated.messages.filter((m) => m.sourceEventId !== event.id),
+          appointments: rawHydrated.appointments.filter((a) => a.sourceEventId !== event.id),
+          mediaRequests: rawHydrated.mediaRequests.filter((m) => m.sourceEventId !== event.id),
+          facts: rawHydrated.facts.filter((f) => f.sourceEventId !== event.id),
+        }
+      : rawHydrated;
     validateCharacterEffects(
       command.actorId,
       parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
@@ -589,26 +616,38 @@ export class PostgresWorldRepository implements WorldRepository {
     )
       throw new DomainError('INVALID_PROPOSAL', 'Disclosure policy version required');
     const { state, jobs } = applyEvent(hydrated, event);
-    await sql.query(
-      "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
-      [
-        command.id,
-        command.worldId,
-        session.userId,
-        command.expectedVersion,
-        fingerprint(command),
-        command,
-      ],
-    );
-    await sql.query(
-      'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
-      [event.id, state.id, session.userId, event.version, command.id, event, event.occurredAt],
-    );
-    for (const message of state.messages.filter((x) => x.sourceEventId === event.id))
+    if (options.finalizePrefixEvent) {
       await sql.query(
-        'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
-        [message.id, state.id, session.userId, message.actorId, message],
+        'UPDATE parallel_life.world_events SET payload=$4,occurred_at=$5 WHERE id=$1 AND world_id=$2 AND owner_id=$3',
+        [event.id, state.id, session.userId, event, event.occurredAt],
       );
+      for (const message of state.messages.filter((x) => x.sourceEventId === event.id))
+        await sql.query(
+          'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING',
+          [message.id, state.id, session.userId, message.actorId, message],
+        );
+    } else {
+      await sql.query(
+        "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
+        [
+          command.id,
+          command.worldId,
+          session.userId,
+          command.expectedVersion,
+          fingerprint(command),
+          command,
+        ],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [event.id, state.id, session.userId, event.version, command.id, event, event.occurredAt],
+      );
+      for (const message of state.messages.filter((x) => x.sourceEventId === event.id))
+        await sql.query(
+          'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
+          [message.id, state.id, session.userId, message.actorId, message],
+        );
+    }
     for (const appointment of state.appointments.filter((x) => x.sourceEventId === event.id))
       await sql.query(
         'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
@@ -659,7 +698,9 @@ export class PostgresWorldRepository implements WorldRepository {
   branch 作用域（来源=真实消息/事件 id）。抽取不额外调用模型；同一句话重复
   出现时由写入层合并来源。
   */
-    await storeTurnMemories(sql, session.userId, state, event);
+    if (!options.skipMemories) {
+      await storeTurnMemories(sql, session.userId, state, event);
+    }
     const snapshot = compactWorldState(state);
     /* A clear failure beats an opaque CHECK violation that rolls back everything. */
     if (JSON.stringify(snapshot).length >= 262144)

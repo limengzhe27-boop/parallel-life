@@ -1,4 +1,5 @@
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
+import { isStreamPrefixWorldVersion } from './npc-stream-segment-repository.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ConsumedSceneObservationSource } from '../domain/actor-observation-candidate.ts';
 
@@ -41,9 +42,19 @@ export async function readConsumedSceneObservationSourcesInTransaction(
       [frame.worldId, owner],
     )
   ).rows[0];
+  const isPrefix =
+    world &&
+    (await isStreamPrefixWorldVersion(
+      sql,
+      owner,
+      frame.worldId,
+      frame.actorId,
+      frame.worldVersion,
+      world.version,
+    ));
   if (
     !world ||
-    world.version !== frame.worldVersion ||
+    (world.version !== frame.worldVersion && !isPrefix) ||
     world.engine_epoch !== frame.engineEpoch ||
     world.state.id !== frame.worldId ||
     world.state.ownerId !== owner ||

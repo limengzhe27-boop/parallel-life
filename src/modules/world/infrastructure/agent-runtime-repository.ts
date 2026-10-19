@@ -798,7 +798,12 @@ export class PostgresAgentRuntimeRepository
       await world(sql, ownerId, expected.worldId);
       const row = await loadAttempt(sql, ownerId, expected);
       if (row.response_hash) {
-        if (row.response_hash !== digest) fail('RESPONSE_CONFLICT');
+        if (
+          row.response_hash !== digest &&
+          !(row.status === 'committed' && (row.response as { partialStream?: unknown } | null)?.partialStream)
+        ) {
+          fail('RESPONSE_CONFLICT');
+        }
         return attempt(row);
       }
       if (
@@ -849,7 +854,26 @@ export async function beginAgentCommitInTransaction(
   if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
     fail('ENGINE_EPOCH_CONFLICT');
   if (!row.live || row.status !== 'response_received') fail('ATTEMPT_STALE');
-  if (w.version !== expected.expectedWorldVersion) fail('VERSION_CONFLICT');
+  if (w.version !== expected.expectedWorldVersion) {
+    const ownPrefix =
+      w.version === expected.expectedWorldVersion + 1 &&
+      (
+        await sql.query(
+          `SELECT 1 FROM parallel_life.agent_attempt_stream_segments s
+           JOIN parallel_life.world_events e ON e.world_id=s.world_id AND e.owner_id=s.owner_id AND e.id=s.source_event_id
+           WHERE s.world_id=$1 AND s.owner_id=$2 AND s.attempt_id=$3 AND s.status='committed'
+             AND e.command_id=$4 AND e.version=$5 LIMIT 1`,
+          [
+            expected.worldId,
+            ownerId,
+            expected.id,
+            expected.commandId,
+            expected.expectedWorldVersion + 1,
+          ],
+        )
+      ).rowCount;
+    if (!ownPrefix) fail('VERSION_CONFLICT');
+  }
   const current = (
     await sql.query(
       'SELECT revision,document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 FOR UPDATE',

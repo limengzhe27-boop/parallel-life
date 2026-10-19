@@ -654,4 +654,47 @@ export class NpcAgentModel implements NpcAgentModelPort {
       responseFormatFor(snapshot),
     );
   }
+
+  async decideStream(
+    snapshot: AgentSnapshot,
+    onEvent: (
+      event: import('../domain/npc-stream-segment.ts').NpcParsedStreamEvent,
+    ) => Promise<void> | void,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    if (
+      !this.model.streamComplete ||
+      snapshot.channel.kind !== 'private' ||
+      snapshot.input.origin !== 'player'
+    ) {
+      return this.decide(snapshot, signal);
+    }
+    const messages = this.prepared.get(snapshot)?.messages ?? prepare(snapshot);
+    this.prepared.delete(snapshot);
+    signal?.throwIfAborted();
+    const { NpcStreamParser } = await import('./npc-stream-parser.ts');
+    const parser = new NpcStreamParser({
+      channelKind: snapshot.channel.kind,
+      inputOrigin: snapshot.input.origin,
+      existingResponsibilityIds: snapshot.state.responsibilities
+        .filter((r) => !['withdrawn', 'expired', 'fulfilled'].includes(r.status))
+        .map((r) => r.id),
+    });
+    try {
+      const stream = this.model.streamComplete(messages, signal, responseFormatFor(snapshot));
+      for await (const chunk of stream) {
+        signal?.throwIfAborted();
+        const events = parser.pushChunk(chunk);
+        for (const event of events) {
+          await onEvent(event);
+        }
+      }
+      return parser.rawText;
+    } catch (error) {
+      if (error && typeof error === 'object') {
+        (error as { partialResponseText?: string }).partialResponseText = parser.rawText;
+      }
+      throw error;
+    }
+  }
 }

@@ -37,6 +37,21 @@ export async function runNpcAgent(
     model: NpcAgentModel;
     kernel: AgentKernel;
     onPhaseTiming?: (timings: AgentRunPhaseTimings) => void;
+    onStreamStart?: (attempt: AgentAttempt, snapshot: AgentSnapshot) => void;
+    onStreamEvent?: (
+      attempt: AgentAttempt,
+      snapshot: AgentSnapshot,
+      event: import('../domain/npc-stream-segment.ts').NpcParsedStreamEvent,
+    ) => Promise<void> | void;
+    onPrefixFailureSeal?: (
+      attempt: AgentAttempt,
+      snapshot: AgentSnapshot,
+      error: unknown,
+    ) => Promise<{
+      eventId: string;
+      state: import('../domain/agent-runtime.ts').ActorAgentState;
+      results: import('../domain/agent-runtime.ts').AgentActionResult[];
+    } | null>;
   },
   ownerId: string,
   claim: Parameters<AgentAttemptStore['claim']>[1],
@@ -160,10 +175,18 @@ export async function runNpcAgent(
         isOwnAgendaReviewInput(executionSnapshot.input)
       )
         throw Object.assign(Error('OWN_AGENDA_BUDGET_WAIT'), { code: 'OWN_AGENDA_BUDGET_WAIT' });
+      deps.onStreamStart?.(attempt, executionSnapshot);
       let responseObtained = false;
       try {
         const tModel0 = performance.now();
-        response = await deps.model.decide(executionSnapshot, signal);
+        response =
+          deps.model.decideStream && deps.onStreamEvent
+            ? await deps.model.decideStream(
+                executionSnapshot,
+                (event) => deps.onStreamEvent!(attempt, executionSnapshot!, event),
+                signal,
+              )
+            : await deps.model.decide(executionSnapshot, signal);
         phaseTimings.modelTotalMs = performance.now() - tModel0;
         responseObtained = true;
         const tPersist0 = performance.now();
@@ -195,6 +218,12 @@ export async function runNpcAgent(
         if (!saveOutcome.ok) throw saveOutcome.saveError;
         attempt = saveOutcome.saved;
       } catch (error) {
+        if (deps.onPrefixFailureSeal && executionSnapshot) {
+          const sealed = await deps
+            .onPrefixFailureSeal(attempt, executionSnapshot, error)
+            .catch(() => null);
+          if (sealed) return sealed;
+        }
         attachAgentFailure(error, responseObtained ? 'response_store' : 'model', attempt);
         // Conservatively retain uncertainty if response storage or transport failed after send.
         // A failing mark must not trigger another model invocation or hide the original failure.
@@ -214,6 +243,12 @@ export async function runNpcAgent(
         } else await deps.attempts.mark(ownerId, attempt, 'unknown_after_send').catch(() => {});
         throw error;
       }
+      if (attempt.status === 'committed' && deps.onPrefixFailureSeal && executionSnapshot) {
+        const sealed = await deps
+          .onPrefixFailureSeal(attempt, executionSnapshot, Error('SUPERSEDED'))
+          .catch(() => null);
+        if (sealed) return sealed;
+      }
     }
     if (attempt.status === 'stale_discarded') throw new AgentRunError('ATTEMPT_STALE');
     if (attempt.status === 'invalid_output') throw new AgentRunError('ATTEMPT_INVALID');
@@ -232,6 +267,12 @@ export async function runNpcAgent(
     } catch (error) {
       phaseTimings.persistAndDecodeWallMs =
         phaseTimings.responsePersistMs + phaseTimings.decodeCompileMs;
+      if (deps.onPrefixFailureSeal && executionSnapshot) {
+        const sealed = await deps
+          .onPrefixFailureSeal(attempt, executionSnapshot, error)
+          .catch(() => null);
+        if (sealed) return sealed;
+      }
       attachAgentFailure(error, 'decode', attempt);
       if (attempt.status !== 'committed')
         await deps.attempts.mark(ownerId, attempt, 'invalid_output');
@@ -248,6 +289,12 @@ export async function runNpcAgent(
       phaseTimings.kernelCommitMs = performance.now() - tCommit0;
       return committed;
     } catch (error) {
+      if (deps.onPrefixFailureSeal && executionSnapshot) {
+        const sealed = await deps
+          .onPrefixFailureSeal(attempt, executionSnapshot, error)
+          .catch(() => null);
+        if (sealed) return sealed;
+      }
       attachAgentFailure(error, 'commit', attempt);
       if (attempt.status !== 'committed' && isKnownConflict(error))
         await deps.attempts.mark(ownerId, attempt, 'stale_discarded');

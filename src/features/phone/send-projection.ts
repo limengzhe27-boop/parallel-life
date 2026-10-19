@@ -1,4 +1,7 @@
-import type { WorldMessageReceipt } from '../../contracts/world-interaction.ts';
+import type {
+  CommittedStreamSegmentEventContract,
+  WorldMessageReceipt,
+} from '../../contracts/world-interaction.ts';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import type { PhoneMessage } from './apps/types.ts';
 
@@ -103,6 +106,72 @@ export function projectCommittedTurnReceipt(
       if (Date.parse(message.at) > Date.parse(nextTime)) nextTime = message.at;
     }
   }
+  return {
+    ...current,
+    version: nextVersion,
+    time: nextTime,
+    messages: nextMessages,
+  };
+}
+
+/**
+ * Projects a single committed stream segment directly onto the WorldPhone state.
+ * Both the user bubble (if present in segment) and the NPC reply bubble are
+ * deduplicated by message.id, so subsequent segments or the final turn receipt
+ * can be applied idempotently without duplicate bubbles.
+ */
+export function applyStreamSegmentToWorld(
+  current: WorldPhone,
+  segment: CommittedStreamSegmentEventContract,
+): WorldPhone {
+  if (current.id !== segment.worldId) throw Error('MESSAGE_RECEIPT_IDENTITY_MISMATCH');
+  const currentVersion = current.version ?? 0;
+  const existingIds = new Set(current.messages.map((m) => m.id));
+  const freshMessages: WorldPhone['messages'] = [];
+
+  if (segment.userMessage && !existingIds.has(segment.userMessage.id)) {
+    existingIds.add(segment.userMessage.id);
+    freshMessages.push({
+      id: segment.userMessage.id,
+      actorId: segment.userMessage.actorId,
+      role: segment.userMessage.role,
+      text: segment.userMessage.text,
+      at: segment.userMessage.at,
+    });
+  }
+
+  if (segment.message && !existingIds.has(segment.message.id)) {
+    existingIds.add(segment.message.id);
+    freshMessages.push({
+      id: segment.message.id,
+      actorId: segment.message.actorId,
+      role: segment.message.role,
+      text: segment.message.text,
+      at: segment.message.at,
+    });
+  }
+
+  const nextVersion = Math.max(currentVersion, segment.version);
+  if (freshMessages.length === 0) {
+    return nextVersion === currentVersion ? current : { ...current, version: nextVersion };
+  }
+
+  let nextMessages: WorldPhone['messages'];
+  if (segment.version < currentVersion) {
+    const merged = [...current.messages, ...freshMessages];
+    merged.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+    nextMessages = merged;
+  } else {
+    nextMessages = [...current.messages, ...freshMessages];
+  }
+
+  let nextTime = current.time;
+  if (segment.version >= currentVersion) {
+    for (const message of freshMessages) {
+      if (Date.parse(message.at) > Date.parse(nextTime)) nextTime = message.at;
+    }
+  }
+
   return {
     ...current,
     version: nextVersion,

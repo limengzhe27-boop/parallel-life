@@ -133,6 +133,7 @@ export type PhoneActions = AppointmentWaitPhoneActions & {
     text: string,
     commandId: string,
     photo?: PhonePhoto,
+    updateOp?: (patch: { canInterrupt?: boolean }) => void,
   ) => Promise<PhoneActionReceipt>;
   retryMessage?: (messageId: string, commandId: string) => Promise<PhoneActionReceipt>;
   markRead?: (actorId: string) => Promise<void>;

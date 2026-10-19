@@ -27,7 +27,20 @@ import {
   type ChatTurnTelemetryRecord,
 } from '../modules/world/domain/chat-turn-metrics.ts';
 import type { AgentAttempt, AgentInputReceipt } from '../modules/world/domain/agent-runtime.ts';
-import type { AgentAttemptStore } from '../modules/world/application/agent-runtime-ports.ts';
+import type {
+  AgentAttemptStore,
+  AgentSnapshot,
+} from '../modules/world/application/agent-runtime-ports.ts';
+import type {
+  CommittedStreamSegmentEvent,
+  NpcStreamTurnSummary,
+} from '../modules/world/domain/npc-stream-segment.ts';
+import {
+  persistAndCommitStreamSegment,
+  readStreamSegmentsForCommand,
+  recordStreamSegmentError,
+  sealCommittedStreamPrefix,
+} from '../modules/world/infrastructure/npc-stream-segment-repository.ts';
 const inputHash = (command: TurnCommand) =>
   createHash('sha256')
     .update(
@@ -353,17 +366,45 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
     return messages;
   }
 
+  const activeActorStreams = new Map<
+    string,
+    {
+      attempt: AgentAttempt;
+      snapshot: AgentSnapshot;
+      controller: AbortController;
+    }
+  >();
+
+  async function readStreamSegments(
+    ownerId: string,
+    worldId: string,
+    commandId: string,
+  ): Promise<{
+    segments: import('../modules/world/domain/npc-stream-segment.ts').NpcStreamSegmentCredential[];
+    messages: import('../modules/world/domain/npc-stream-segment.ts').CommittedStreamMessageProjection[];
+    summary: NpcStreamTurnSummary | null;
+  }> {
+    return readStreamSegmentsForCommand(db, ownerId, worldId, commandId);
+  }
+
   return {
     lookupMessage,
     recoverMessage,
     readCommittedTurnMessages,
+    readStreamSegments,
     readTurnMetrics(commandId: string): ChatTurnServerMetrics | undefined {
       return recentTurnMetrics.get(commandId);
     },
     readRecentTurnTelemetry(): ChatTurnTelemetryRecord[] {
       return [...recentTurnTelemetry];
     },
-    async sendMessageIfEnabled(ownerId: string, command: TurnCommand) {
+    async sendMessageIfEnabled(
+      ownerId: string,
+      command: TurnCommand,
+      options?: {
+        onSegment?: (segment: CommittedStreamSegmentEvent) => Promise<void> | void;
+      },
+    ) {
       validateCommand(command);
       if (command.origin) throw new DomainError('INVALID_COMMAND');
       const serverReceivedAtEpochMs = Date.now();
@@ -418,6 +459,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
 
       const turnStore = new PostgresAgentRuntimeRepository(turnDb);
       const turnWorlds = new PostgresWorldRepository(turnDb);
+      const actorStreamKey = `${ownerId}:${command.worldId}:${command.actorId}`;
 
       const control = await turnDb.transaction(
         ownerId,
@@ -436,6 +478,26 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
       const initialTime = String(control.world_time);
       let worldVersionBefore: number | null = command.expectedVersion;
       try {
+        // User interruption: if an earlier streaming turn on the same actor has already committed
+        // >= 1 prefix segments, abort its remainder and seal its committed prefix at V+1 / R+1
+        // so the new player message can proceed without BUSY deadlock.
+        const inFlight = activeActorStreams.get(actorStreamKey);
+        if (inFlight && inFlight.attempt.commandId !== command.id) {
+          const sealedInFlight = await sealCommittedStreamPrefix(turnDb, ownerId, {
+            attempt: inFlight.attempt,
+            snapshot: inFlight.snapshot,
+            completionStatus: 'superseded',
+          });
+          if (sealedInFlight.sealed) {
+            inFlight.controller.abort(
+              Object.assign(Error('SUPERSEDED_BY_USER_INTERRUPT'), {
+                code: 'SUPERSEDED_BY_USER_INTERRUPT',
+              }),
+            );
+            activeActorStreams.delete(actorStreamKey);
+          }
+        }
+
         const now = new Date().toISOString(),
           clock = await new PostgresClockStore(turnDb).read(ownerId, command.worldId, now);
         const storyAt = new Date(
@@ -632,31 +694,99 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
             : {}),
         };
 
-        const result = await runNpcAgent(
-          {
-            attempts: turnStore,
-            model: new NpcAgentModel(instrumentedTextModel),
-            kernel: new PostgresNpcAgentKernel(turnDb, turnWorlds),
-            onPhaseTiming: (timings) => {
-              runTimings = timings;
+        const streamAbortController = new AbortController();
+        let result: Awaited<ReturnType<typeof runNpcAgent>>;
+        try {
+          result = await runNpcAgent(
+            {
+              attempts: turnStore,
+              model: new NpcAgentModel(instrumentedTextModel),
+              kernel: new PostgresNpcAgentKernel(turnDb, turnWorlds),
+              onPhaseTiming: (timings) => {
+                runTimings = timings;
+              },
+              onStreamStart: (attempt, execSnapshot) => {
+                activeActorStreams.set(actorStreamKey, {
+                  attempt,
+                  snapshot: execSnapshot,
+                  controller: streamAbortController,
+                });
+              },
+              onStreamEvent: async (attempt, execSnapshot, event) => {
+                if (streamAbortController.signal.aborted) return;
+                if (event.kind === 'statement') {
+                  const segOutcome = await persistAndCommitStreamSegment(
+                    turnDb,
+                    turnWorlds,
+                    ownerId,
+                    {
+                      attempt,
+                      snapshot: execSnapshot,
+                      statement: event.statement,
+                      unitKind: event.unitKind,
+                    },
+                  );
+                  if (segOutcome.outcome === 'committed') {
+                    await options?.onSegment?.(segOutcome.event);
+                  } else if (segOutcome.outcome === 'superseded') {
+                    streamAbortController.abort(
+                      Object.assign(Error(segOutcome.reason), { code: segOutcome.reason }),
+                    );
+                  }
+                } else if (event.kind === 'statement_error') {
+                  await recordStreamSegmentError(turnDb, ownerId, {
+                    attempt,
+                    segmentIndex: event.segmentIndex,
+                  });
+                }
+              },
+              onPrefixFailureSeal: async (attempt, execSnapshot, err) => {
+                const isSuperseded =
+                  streamAbortController.signal.aborted ||
+                  (err as { code?: unknown } | null)?.code === 'SUPERSEDED_BY_USER_INTERRUPT';
+                const sealed = await sealCommittedStreamPrefix(turnDb, ownerId, {
+                  attempt,
+                  snapshot: execSnapshot,
+                  completionStatus: isSuperseded ? 'superseded' : 'partial_interrupted',
+                  failureCode: String(
+                    (err as { code?: unknown } | null)?.code ??
+                      (err as Error | null)?.message ??
+                      'STREAM_INTERRUPTED',
+                  ),
+                  partialRawText: (err as { partialResponseText?: string } | null)
+                    ?.partialResponseText,
+                });
+                if (!sealed.sealed) return null;
+                return {
+                  eventId: sealed.eventId,
+                  state: sealed.state,
+                  results: [],
+                };
+              },
             },
-          },
-          ownerId,
-          previous ?? {
-            id: randomUUID(),
-            worldId: command.worldId,
-            actorId: command.actorId,
-            commandId: command.id,
-            inputReceiptId: receipt.id,
-            engineEpoch: epoch,
-            expectedWorldVersion: world.version,
-            expectedActorRevision: actor.revision,
-            inputHash: receipt.inputHash,
-            token: randomUUID(),
-            leaseUntil: new Date(Date.now() + 240_000).toISOString(),
-          },
-          snapshot,
-        );
+            ownerId,
+            previous ?? {
+              id: randomUUID(),
+              worldId: command.worldId,
+              actorId: command.actorId,
+              commandId: command.id,
+              inputReceiptId: receipt.id,
+              engineEpoch: epoch,
+              expectedWorldVersion: world.version,
+              expectedActorRevision: actor.revision,
+              inputHash: receipt.inputHash,
+              token: randomUUID(),
+              leaseUntil: new Date(Date.now() + 240_000).toISOString(),
+            },
+            snapshot,
+            streamAbortController.signal,
+          );
+        } finally {
+          const currentActive = activeActorStreams.get(actorStreamKey);
+          if (currentActive?.attempt.commandId === command.id) {
+            activeActorStreams.delete(actorStreamKey);
+          }
+        }
         const serverTotalMs = roundDurationMs(performance.now() - tTurn0);
         const cacheHits = Math.max(
           0,

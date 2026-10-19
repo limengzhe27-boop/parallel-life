@@ -30,6 +30,8 @@ export type WorldMessageRequest = z.infer<typeof WorldMessageRequestSchema>;
 
 export const WORLD_MESSAGE_PROJECTION_HEADER = 'x-message-receipt-projection';
 export const WORLD_MESSAGE_PROJECTION_VERSION = '1';
+export const WORLD_MESSAGE_STREAM_HEADER = 'x-message-stream';
+export const WORLD_MESSAGE_STREAM_VERSION = '1';
 
 export const CommittedTurnMessageSchema = z.strictObject({
   id: z.string().min(1).max(160),
@@ -41,6 +43,30 @@ export const CommittedTurnMessageSchema = z.strictObject({
   sourceVersion: z.number().int().nonnegative(),
 });
 export type CommittedTurnMessage = z.infer<typeof CommittedTurnMessageSchema>;
+
+export const NpcStreamTurnSummarySchema = z.strictObject({
+  completionStatus: z.enum(['streaming', 'completed', 'partial_interrupted', 'superseded']),
+  committedSegmentCount: z.number().int().nonnegative(),
+  totalSegmentCount: z.number().int().nonnegative(),
+});
+export type NpcStreamTurnSummaryContract = z.infer<typeof NpcStreamTurnSummarySchema>;
+
+export const CommittedStreamSegmentEventSchema = z.strictObject({
+  attemptId: Id,
+  commandId: Id,
+  worldId: Id,
+  actorId: Id,
+  eventId: Id,
+  version: z.number().int().nonnegative(),
+  segmentIndex: z.number().int().nonnegative(),
+  segmentId: z.string().min(1).max(160),
+  unitKind: z.enum(['independent_statement', 'dependent_statement']),
+  status: z.literal('committed'),
+  completionStatus: z.enum(['streaming', 'completed', 'partial_interrupted', 'superseded']),
+  message: CommittedTurnMessageSchema,
+  userMessage: CommittedTurnMessageSchema.optional(),
+});
+export type CommittedStreamSegmentEventContract = z.infer<typeof CommittedStreamSegmentEventSchema>;
 
 export const ChatTurnServerMetricsSchema = z.strictObject({
   serverReceivedAtEpochMs: z.number().int().nonnegative(),
@@ -74,8 +100,30 @@ export const WorldMessageReceiptSchema = z.strictObject({
   eventId: Id,
   messages: z.array(CommittedTurnMessageSchema).max(16).optional(),
   metrics: ChatTurnServerMetricsSchema.optional(),
+  streamSummary: NpcStreamTurnSummarySchema.optional(),
 });
 export type WorldMessageReceipt = z.infer<typeof WorldMessageReceiptSchema>;
+
+export const WorldMessageStreamEventSchema = z.discriminatedUnion('type', [
+  z.strictObject({
+    type: z.literal('segment'),
+    segment: CommittedStreamSegmentEventSchema,
+  }),
+  z.strictObject({
+    type: z.literal('complete'),
+    receipt: WorldMessageReceiptSchema,
+  }),
+  z.strictObject({
+    type: z.literal('error'),
+    error: z.strictObject({
+      code: z.string(),
+      message: z.string(),
+      retryable: z.boolean(),
+      requestId: z.string(),
+    }),
+  }),
+]);
+export type WorldMessageStreamEvent = z.infer<typeof WorldMessageStreamEventSchema>;
 
 /** Cached clients keep their original strict 6-field envelope unless projection header is negotiated. */
 export function worldMessageClientReceipt(
@@ -83,7 +131,7 @@ export function worldMessageClientReceipt(
   projectionVersion: string | null,
 ): WorldMessageReceipt {
   if (projectionVersion === WORLD_MESSAGE_PROJECTION_VERSION) return receipt;
-  const { messages: _messages, metrics: _metrics, ...legacy } = receipt;
+  const { messages: _messages, metrics: _metrics, streamSummary: _streamSummary, ...legacy } = receipt;
   return legacy;
 }
 

@@ -91,7 +91,12 @@ import {
 import {
   WORLD_MESSAGE_PROJECTION_HEADER,
   WORLD_MESSAGE_PROJECTION_VERSION,
+  WORLD_MESSAGE_STREAM_HEADER,
+  WORLD_MESSAGE_STREAM_VERSION,
+  CommittedStreamSegmentEventSchema,
   WorldMessageReceiptSchema,
+  type CommittedStreamSegmentEventContract,
+  type WorldMessageReceipt,
   type WorldMessageRequest,
 } from '../../contracts/world-interaction.ts';
 // Chat allows the server's 85s model deadline plus persistence; director advance
@@ -204,18 +209,124 @@ export class LifeClient {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(id)}`, WorldPhoneSchema);
   }
-  async sendWorldMessage(worldId: string, input: WorldMessageRequest) {
+  async sendWorldMessage(
+    worldId: string,
+    input: WorldMessageRequest,
+    options?: {
+      onSegment?: (segment: CommittedStreamSegmentEventContract) => void;
+    },
+  ): Promise<WorldMessageReceipt> {
     await this.connect();
-    return this.request(
-      `/worlds/${encodeURIComponent(worldId)}/messages`,
-      WorldMessageReceiptSchema,
-      {
+    if (!options?.onSegment) {
+      return this.request(
+        `/worlds/${encodeURIComponent(worldId)}/messages`,
+        WorldMessageReceiptSchema,
+        {
+          method: 'POST',
+          headers: { [WORLD_MESSAGE_PROJECTION_HEADER]: WORLD_MESSAGE_PROJECTION_VERSION },
+          body: JSON.stringify(input),
+          signal: AbortSignal.timeout(WORLD_MESSAGE_TIMEOUT_MS),
+        },
+      );
+    }
+
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    if (this.csrf) headers.set('X-CSRF-Token', this.csrf);
+    headers.set(WORLD_MESSAGE_PROJECTION_HEADER, WORLD_MESSAGE_PROJECTION_VERSION);
+    headers.set(WORLD_MESSAGE_STREAM_HEADER, WORLD_MESSAGE_STREAM_VERSION);
+
+    let response: Response;
+    try {
+      response = await this.transport(`/api/v1/worlds/${encodeURIComponent(worldId)}/messages`, {
         method: 'POST',
-        headers: { [WORLD_MESSAGE_PROJECTION_HEADER]: WORLD_MESSAGE_PROJECTION_VERSION },
+        headers,
+        credentials: 'same-origin',
+        cache: 'no-store',
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(WORLD_MESSAGE_TIMEOUT_MS),
-      },
-    );
+      });
+    } catch {
+      throw new ApiFailure('UNAVAILABLE', '连接暂时中断，内容仍保留在这里。请再试一次。');
+    }
+
+    if (!response.ok) {
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        throw new ApiFailure('UNAVAILABLE', '暂时没有收到完整结果，请重试。');
+      }
+      const parsed = ApiErrorSchema.safeParse(body);
+      if (parsed.success)
+        throw new ApiFailure(
+          parsed.data.error.code,
+          parsed.data.error.message,
+          parsed.data.error.requestId,
+        );
+      throw new ApiFailure('UNAVAILABLE', '暂时无法完成，请稍后再试。');
+    }
+
+    if (!response.body) {
+      throw new ApiFailure('UNAVAILABLE', '未收到响应流。');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let finalReceipt: WorldMessageReceipt | undefined;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (value) {
+          buffer += decoder.decode(value, { stream: !done });
+        }
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, newlineIndex).trim();
+          buffer = buffer.slice(newlineIndex + 1);
+          if (!line) continue;
+          let parsedLine: unknown;
+          try {
+            parsedLine = JSON.parse(line);
+          } catch {
+            throw new ApiFailure('INVALID_AI_OUTPUT', '流式分段格式异常');
+          }
+          if (typeof parsedLine === 'object' && parsedLine !== null && 'type' in parsedLine) {
+            const ev = parsedLine as {
+              type: string;
+              segment?: unknown;
+              receipt?: unknown;
+              error?: unknown;
+            };
+            if (ev.type === 'segment') {
+              const seg = CommittedStreamSegmentEventSchema.parse(ev.segment);
+              options.onSegment(seg);
+            } else if (ev.type === 'complete') {
+              finalReceipt = WorldMessageReceiptSchema.parse(ev.receipt);
+            } else if (ev.type === 'error') {
+              const err = ev.error as
+                | { code?: string; message?: string; requestId?: string }
+                | undefined;
+              throw new ApiFailure(
+                (err?.code as ApiErrorBody['error']['code']) || 'UNAVAILABLE',
+                err?.message || '暂时无法完成，请稍后再试。',
+                err?.requestId,
+              );
+            }
+          }
+        }
+        if (done) break;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (!finalReceipt) {
+      throw new ApiFailure('UNAVAILABLE', '流式响应在完成前回合已终止。');
+    }
+    return finalReceipt;
   }
   async readWorldRecords(worldId: string) {
     await this.connect();

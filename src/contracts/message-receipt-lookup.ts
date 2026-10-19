@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { Id } from './api.ts';
-import { WorldMessageReceiptSchema } from './world-interaction.ts';
+import {
+  CommittedTurnMessageSchema,
+  NpcStreamTurnSummarySchema,
+  WorldMessageReceiptSchema,
+} from './world-interaction.ts';
 
 /** Absence of a receipt is not evidence that an upstream request failed. */
 export const MessageReceiptLookupSchema = z.discriminatedUnion('status', [
@@ -19,6 +23,9 @@ export const MessageReceiptLookupSchema = z.discriminatedUnion('status', [
     commandId: Id,
     worldId: Id,
     actorId: Id,
+    messages: z.array(CommittedTurnMessageSchema).max(16).optional(),
+    streamSummary: NpcStreamTurnSummarySchema.optional(),
   }),
 ]);
 export type MessageReceiptLookup = z.infer<typeof MessageReceiptLookupSchema>;
+
