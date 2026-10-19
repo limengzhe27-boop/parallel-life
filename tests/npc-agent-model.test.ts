@@ -819,7 +819,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v30-runtime-resource-scope');
+  assert.equal(payload.promptVersion, 'npc-agent-v31-semantic-execution-intents');
   assert.match(system, /每轮在mediaDecision中作明确选择/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -912,7 +912,8 @@ test('capability manual follows permission, while media has one native intent sy
   assert(!system.includes('可提议item.deliver'));
   assert(!system.includes('可提议media.share'));
   assert(!system.includes('durationSeconds?:5|6'));
-  assert(system.includes('mediaDecision.parameters始终是上文的具名对象'));
+  assert(system.includes('parameters:{sceneDescription,purpose:'));
+  assert(system.includes('代码分配新的goal/plan/action机械编号'));
   input.channel.allowedCapabilities = ['item.deliver'];
   await adapter.decide(input);
   assert(calls[1]!.messages[0]!.content.includes('可提议item.deliver'));

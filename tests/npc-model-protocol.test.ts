@@ -777,3 +777,62 @@ test('native action edits are scoped to visible nonterminal actions, never new o
   const scoped: any = npcResponseFormat(c.state, 'forbidden', c);
   assert.deepEqual(scoped.schema.properties.actions.items.properties.id.enum, ['waiting']);
 });
+
+test('v3 compiles explicit compact action and local statement ref through original kernel; v2 remains protected', () => {
+  const { c, wire } = fixture();
+  c.viewState = structuredClone(c.state);
+  const raw = {
+    ...wire,
+    protocol: 'npc-wire-v3',
+    mediaDecision: { kind: 'not_requested' },
+    statements: [{ text: '邀请发给你了，你看看。', dependsOnActionIds: ['execution:invite'] }],
+    executions: [
+      {
+        ref: 'invite',
+        goal: { kind: 'new', summary: '商量分工', sourceIds: ['input'] },
+        plan: { summary: '发出邀请等待确认', sourceIds: ['input'], supersedesPlanId: null },
+        action: {
+          capability: 'appointment.propose',
+          targetIds: [],
+          parameters: [
+            { name: 'title', value: '商量分工' },
+            { name: 'at', value: '2026-10-18T10:00:00.000Z' },
+          ],
+          preconditions: [],
+          dependsOnActionIds: [],
+          handlesResponsibilityIds: [],
+          sourceIds: ['input'],
+        },
+      },
+    ],
+  };
+  const proposal = parseAgentProposal(c, raw);
+  assert.equal(proposal.actions.length, 1);
+  assert.match(proposal.actions[0]!.id, /^execution-action:/);
+  assert.equal(proposal.plans[0]!.nextActionId, proposal.actions[0]!.id);
+  assert.deepEqual(proposal.statements[0]!.dependsOnActionIds, [proposal.actions[0]!.id]);
+  assert.equal(proposal.goals[0]!.status, 'active');
+  assert.deepEqual(proposal.goals[0]!.resultIds, []);
+  assert.deepEqual(parseAgentProposal(c, raw), proposal);
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        statements: [{ text: '已发', dependsOnActionIds: ['execution:absent'] }],
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () => parseAgentProposal(c, { ...raw, protocol: 'npc-wire-v2' }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+});
+
+test('native completion references are actual visible receipts, not proposed execution names', () => {
+  const { c } = fixture();
+  const format: any = npcResponseFormat(c.state, 'forbidden', c);
+  const responsibility = format.schema.properties.responsibilities.items.properties;
+  assert.deepEqual(responsibility.resolutionResultId, { type: 'null' });
+  assert(!responsibility.status.enum.includes('fulfilled'));
+  assert(!format.schema.properties.goals.items.properties.status.enum.includes('fulfilled'));
+});

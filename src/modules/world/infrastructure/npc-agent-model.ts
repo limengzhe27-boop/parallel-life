@@ -16,7 +16,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v30-runtime-resource-scope';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v31-semantic-execution-intents';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -82,27 +82,16 @@ PlayerDecision只对当前输入确实针对的responsibility作判断：accepte
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v2"，必含consideration（对象或null）、mediaDecision（必为对象）、statements/goals/plans/actions/responsibilities/decisions六数组，非媒体新增动作完整放executions；按原生schema返回所有属性，没有值的可选属性填null；当前无合法判断项的集合由schema限定为null，服务端仅将其表示为空集合，代码只去掉可选null。mediaDecision只选一个：不请求{kind:"not_requested"}；本人不愿提供{kind:"decline"}；愿意现在生成{kind:"generate_image",goalSummary:"本人的目的",planSummary:"本人的拍摄或绘图计划",parameters:{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence"},basisSourceIds:[本次input.sourceId]}。视频使用kind:"generate_video"与parameters:{actionDescription,purpose:"scene_moment|character_action"}。不填goal/plan/action编号或execution，数字图片生成后原系统会送入本次聊天和相册，不需要item.deliver虚构草图道具，也不需要另提发给玩家的动作；不在executions填写媒体动作，原生schema只允许非媒体能力。代码只绑定机械编号和引用，画面、意愿与依据必须你本人明确提出。涉及入队成功才可显示的对白可依赖media:current；普通准备台词不等于素材完成。暂不提供已有素材分享，因为本轮无获授权可分享的素材目录。仅非媒体executions.action.parameters使用[{name,value}]，不使用动态对象；name只用该能力参数名（如appointment.propose的title/at）。mediaDecision.parameters始终是上文的具名对象，不是此数组。focus及replyAssessments/questionWithdrawals/locationReports可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
-consideration非null时为{choice:"engage|decline|defer|need_information|quiet",reason:"本人实际依据",basisSourceIds:[]}；basisSourceIds只可引用已提供来源。coordination的npc_episode_consideration必须非null，即使不说话也明确quiet/defer/need_information与理由，不以statements=[]代替选择。不强迫参与；缺本人授权事件意图时明确need_information，不猜未授权全局剧本。普通player带manifest但无关时仍可null；responseContract.considerationAllowed=false时必须null，即使episodeFollowUps含旧请求、本人以前need_information、当前想继续参与，也不得重新输出旧consideration。旧机会已经考虑，后续用本人goal/plan/责任与当前对白继续，而不是重新消费请求。
-consideration选择need_information或defer时必须同时明确followUp:{waitingOn:"player|self|world"或null,missing:["本人确实需要的信息或条件"]}，代码绑定本人当前request的等待责任，不发明期限或自动催问。quiet若仍有待办也可给followUp，否则可省略。followUp不是玩家同意。若决定询问玩家，可以在statements自然提问；若选择安静，依然保存等待去向。不要另造同名followup责任。
-plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/actionIds/nextActionId/triggers/missingConditions，代码由单个nextStep精确绑定：
-- action: {kind:"action",actionId:"本轮actions或已有本人action的真实id"}。同时给真实支持能力的action；仅记录计划不能冒充执行。
-- reconsider: {kind:"reconsider",conditions:[合法非空条件],missing:[]}。条件须有真实依据，不能为唤醒造时限。
-- wait: {kind:"wait",conditions:[],missing:["具体缺什么"]}。不能确定来源时诚实缺条件，不造未来sourceId。
-- blocked: {kind:"blocked",missing:["具体未支持的能力或缺少证据"]}。
-- closed: {kind:"closed",status:"finished|withdrawn",reason:"有证据的原因"}，原结束与结果规则仍适用。
-不要把空actions、空条件、空missing的旧active计划照抄到plans。无变化不输出，已有计划有相关新输入时沿原id与完整旧sourceIds调整；不能只在对白中宣布已改安排而忽略计划。普通拒绝、协商或暂缓不产生新承诺，但对已有责任须准确记录决定，不能因引用前面的空数组示例而丢掉变更。
-邀约时间：worldContext.time.localDateTime是当地时间，storyAt的Z是UTC，不能把UTC小时直接拼接+08:00。responseContract.todayHours仅为代码换算的当天整点对照，不代表约定或建议；只有输入明确指定且尚未过去的时间才可选择。
-邀约真实下一步：appointment.propose的parameters为{title,at:根据明确时间换算的带时区ISO,placeId:已有地点id}，goalId必须指向已有state.goals或本轮goals中的实际对象，若新目标必须同时输出{id,summary,status:"active",sourceIds:[本次input.sourceId],resultIds:[]}，不得只在plan/action写一个不存在的goalId。sourceIds引用本次输入；对应plan.nextStep.actionId为该action.id。邀请仍未获玩家确认，不能说玩家已答应或到场。缺明确时间可以先询问并记录wait，不能凭空补日期。即使本人愿意也不能用plan.record冒充已发邀约或物理工作。
-本轮新增非媒体可执行动作时，必须用executions（可选数组）将目标、计划与动作收在一个对象，而不要分别在goals/plans/actions重复它们。每项：
-{goal:{kind:"new",id:"g",summary:"本人实际目标",sourceIds:[合法来源]}或{kind:"existing",id:"本人已有目标id"},plan:{id:"p",summary:"本人计划",sourceIds:[合法来源]},action:{id:"a",capability:"本轮允许能力",targetIds:[],parameters:[{name:"参数名称",value:"明确的参数值"}],preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[合法来源]}}。
-代码只绑定goalId/nextActionId/status等引用，不帮你补动作参数、地点或时间。executions中action整个对象不可缺少。普通goals/plans/actions仍用于无动作的等待、修订或撤回，勿重复execution内的同id对象。若要说“邀请已发送”，statements.dependsOnActionIds必须引用action.id，执行失败则不能显示成功台词。不能执行就明确blocked/wait，不得只写plan.nextStep.actionId却actions为空。executions=[]或省略均不意味已执行。
-goals只用于实际目标增量：{id,summary,status:"active|deferred|fulfilled|withdrawn",sourceIds:[],resultIds:[],endReason?}。
-actions仅用于state.actions中已有非终态动作的非执行修改（waiting/blocked/withdrawn）；没有可修改动作时按schema填null，不新增id或修改failed/succeeded/withdrawn终态，新增非媒体可执行动作必须放executions，媒体只放mediaDecision，不能拆散目标/计划/动作：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"waiting|blocked|withdrawn"}。
-responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|fulfilled|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?:{at,sourceId},resolutionResultId?,endReason?}。
-decisions:{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId,quote}。statements:{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}。
-focus可省略/null或{channel:"private|group|scene",threadId,subjectId:null或id,questionSourceId:null或id,replyToActorId:null或id}。所有问号表示可选键，竖线表示枚举择一。
-coordination安静的合法格式：{"protocol":"npc-wire-v2","consideration":{"choice":"quiet","reason":"当前安排不宜新增联系","basisSourceIds":[]},"mediaDecision":{"kind":"not_requested"},"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
+最终模型传输格式：protocol:"npc-wire-v3"。原生schema决定键和类型；可选属性没有值时填null。statements/goals/plans/responsibilities/decisions只提交必要增量，未变化填[]，schema指定null的集合填null。不要复制整套旧state，不要输出episodeDecision、revision或自行编造执行回执。
+先以replyAs身份回应input发言人，结合conversationProgress承接已答问题；当前消息已经回答旧问题时提交replyAssessments，不重新索取已给信息。玩家决定用decisions记录，回答与完成责任不同；承担下一步时更新本人计划和等待对象，不能用“已发好了”替代真实动作。
+mediaDecision仅代表本人的实际意愿：{kind:"not_requested"}、{kind:"decline"}，或愿意现在制作时{kind:"generate_image",goalSummary,planSummary,parameters:{sceneDescription,purpose:"portrait|scene|memorial|evidence"},basisSourceIds:[当前input.sourceId]}。视频为generate_video与parameters:{actionDescription,purpose:"scene_moment|character_action"}。画面与意愿由本人判断，不能凭空添加玩家同意或相机/费用限制。生成的是数字图片，原系统完成后会自动送到本次聊天和相册；不需要交接实体道具，不需要发朋友圈，不需要另一条发送动作。准备台词可先说，但不能声称尚未完成的素材已发出。入队依赖使用statements.dependsOnActionIds:["media:current"]，这也不证明图片生成成功。没有授权既有素材目录，不提议分享不存在的素材。
+非媒体即时执行只放executions，每项为{ref:"本轮局部引用",goal:{kind:"existing",id:"本人可见已有目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许的非媒体能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。ref只用于本轮引用，不是数据库id。目标与计划来源完整保留合法依据并含当前input.sourceId。代码分配新的goal/plan/action机械编号并沿用原内核执行，不能在goals/plans/actions重复这套执行图；沿用旧目标时选existing，不重建同一个目标。需要替换旧计划时supersedesPlanId指向该目标原计划，而不是本轮ref。不替换时填null。成功才可展示的对白用dependsOnActionIds:["execution:本轮ref"]；无该意图不得引用。不能从台词猜动作或凭空填时间地点。
+媒体只放mediaDecision，非媒体只放executions。moment.publish是公开朋友圈文字动态，不是制作或私发图片；item.deliver只交接本人实际持有的实体物品。公开发布与私聊发送不是同一件事，不能用发布空白动态冒充已发送一张草图。
+无即时动作的目标/等待/修改仍用goals/plans：goals为{id,summary,status:"active|deferred|withdrawn|fulfilled",sourceIds:[],resultIds:[],endReason?}；plans为{id,goalId,summary,sourceIds:[],nextStep,supersedesPlanId?}。nextStep只能wait:{kind:"wait",conditions:[],missing:[具体缺少的信息]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[真实缺少的能力或证据]}、closed:{kind:"closed",status:"finished|withdrawn",reason}。已有计划沿原id修改时不要supersedes自己；没有相关变化就省略。不得建立空active计划或拿plan.record冒充外部工作。actions仅用于原有非终态动作的waiting/blocked/withdrawn修改，无对象时null。
+responsibilities为{id,subject:{kind:"appointment|matter|episode|request",id},summary,status,waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,resolutionResultId?,endReason?}。已有来源完整保留。fulfilled和resolutionResultId只能引用本轮之前内核已经确认、确实能解决此责任的回执，不能引用execution的ref、新动作编号、对白、发布动态提案。若只是收到了预算答复，承接自己的设计工作并保留实际交付责任，不伪造完成。decisions为{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId:当前input.sourceId,quote:当前原话逐字片段}。
+consideration无机会授权时必须null；coordination的npc_episode_consideration必须显式给出{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}。普通player有episodeManifest时按相关性选择或null。不能把旧episodeFollowUps当新请求。defer/need_information必须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定等待责任；不额外重复创建此followup，不强迫参加或编造期限。quiet并不等于忽略当前玩家问题。
+邀约时间依worldContext.time.localDateTime与明确指定的时间，todayHours只是代码换算，不是建议的约定。没有明确时间就询问并等待，不自行补“两小时后”。appointment.propose参数title/at/已有placeId，执行成功也仅代表待回应邀请，不代表接受、到场或整段完成。
+statements为{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}。replyAssessments、questionWithdrawals、locationReports和focus遵守原有当前来源、逐字引用、同渠道及知情边界；没有必要变更就null或[]。原内核仍负责权限、来源、时间、动作前提、回执与事务，不能以文本声明取代。
 `;
 
 /** Permission-scoped instructions; this is not intent routing or action selection. */
@@ -129,7 +118,10 @@ function responseFormatFor(snapshot: AgentSnapshot) {
       : snapshot.episodeManifest
         ? 'optional'
         : 'forbidden',
-    { input: snapshot.input, channel: snapshot.channel },
+    {
+      input: snapshot.input,
+      channel: snapshot.channel,
+    },
   );
 }
 
@@ -267,8 +259,8 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       considerationRequired,
       considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
       executionProposal:
-        'executions[{goal,plan,action}] binds references only; parameters and sources must be explicit',
-      planNextStepKinds: ['action', 'reconsider', 'wait', 'blocked', 'closed'],
+        'executions[{ref,goal,plan,action}] contains explicit semantic intent; server assigns new IDs and binds execution:ref, never chooses the action',
+      planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
       // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
       todayHours: snapshot.channel.allowedCapabilities.includes('appointment.propose')
         ? Array.from({ length: 24 }, (_, hour) => {

@@ -282,7 +282,7 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
       const f = await fixture();
 
       const proposal = {
-        protocol: 'npc-wire-v2',
+        protocol: 'npc-wire-v3',
         consideration: null,
         goals: [],
         plans: [],

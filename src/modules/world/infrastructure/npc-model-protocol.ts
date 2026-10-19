@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
+import { NativeExecutionIntentSchema, compileNpcExecutionIntents } from './npc-execution-intent.ts';
 import { validPlayerEpisodeManifest } from '../domain/player-episode-manifest.ts';
 import { isActorEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
 import {
@@ -11,7 +12,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v2';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v3';
+const PREVIOUS_NATIVE_PROTOCOL = 'npc-wire-v2';
 const LEGACY_NPC_WIRE_PROTOCOL = 'npc-wire-v1';
 const Id = z.string().min(1).max(240);
 const Text = z.string().trim().min(1).max(12000);
@@ -45,7 +47,12 @@ const Execution = z.strictObject({
       sourceIds: z.array(Id).min(1).max(64),
     }),
   ]),
-  plan: z.strictObject({ id: Id, summary: Text, sourceIds: z.array(Id).min(1).max(64) }),
+  plan: z.strictObject({
+    id: Id,
+    summary: Text,
+    sourceIds: z.array(Id).min(1).max(64),
+    supersedesPlanId: Id.optional(),
+  }),
   action: z.strictObject({
     id: Id,
     capability: Id,
@@ -68,7 +75,7 @@ const MediaDecision = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('share_existing'), execution: Execution }),
 ]);
 const Wire = z.strictObject({
-  protocol: z.enum([LEGACY_NPC_WIRE_PROTOCOL, NPC_WIRE_PROTOCOL]),
+  protocol: z.enum([LEGACY_NPC_WIRE_PROTOCOL, PREVIOUS_NATIVE_PROTOCOL, NPC_WIRE_PROTOCOL]),
   consideration: z
     .strictObject({
       choice: z.enum(['engage', 'decline', 'defer', 'need_information', 'quiet']),
@@ -116,12 +123,6 @@ const ParameterEntries = z
     }),
   )
   .max(32);
-const ModelExecution = Execution.extend({
-  action: Execution.shape.action.extend({
-    parameters: ParameterEntries,
-    preconditions: AgentProposalSchema.shape.actions.element.shape.preconditions,
-  }),
-});
 // The model and decoder reuse canonical proposal shapes; only transport references/parameters differ.
 const ModelWire = Wire.extend({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
@@ -159,7 +160,7 @@ const ModelWire = Wire.extend({
   replyAssessments: AgentProposalSchema.shape.replyAssessments,
   questionWithdrawals: AgentProposalSchema.shape.questionWithdrawals,
   locationReports: AgentProposalSchema.shape.locationReports,
-  executions: z.array(ModelExecution).max(16).optional(),
+  executions: z.array(NativeExecutionIntentSchema).max(16).optional(),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
@@ -257,6 +258,23 @@ export function npcResponseFormat(
   const executionItem = (executions.anyOf?.[0] ?? executions).items!;
   scopeGoal(executionItem);
   if (current) {
+    const realResultIds = [
+      ...new Set(
+        (state.actions ?? [])
+          .filter((action) => action.status === 'succeeded' && action.resultId)
+          .map((action) => action.resultId!),
+      ),
+    ];
+    const responsibility = properties.responsibilities!.items!.properties!;
+    if (realResultIds.length) {
+      const result = responsibility.resolutionResultId!.anyOf!.find((x) => x.type === 'string')!;
+      result.enum = realResultIds;
+      properties.goals!.items!.properties!.resultIds!.items!.enum = realResultIds;
+    } else {
+      responsibility.resolutionResultId = { type: 'null' };
+      responsibility.status!.enum = ['open', 'waiting', 'deferred', 'withdrawn', 'expired'];
+      properties.goals!.items!.properties!.status!.enum = ['active', 'deferred', 'withdrawn'];
+    }
     const mutableIds = (state.actions ?? [])
       .filter((action) => !['succeeded', 'failed', 'withdrawn'].includes(action.status))
       .map((action) => action.id);
@@ -396,13 +414,40 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   )
     return raw;
   let normalized: unknown = raw;
-  if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+  if (
+    'protocol' in raw &&
+    (raw.protocol === NPC_WIRE_PROTOCOL || raw.protocol === PREVIOUS_NATIVE_PROTOCOL)
+  ) {
+    const compact =
+      raw.protocol === NPC_WIRE_PROTOCOL
+        ? compileNpcExecutionIntents(context, 'executions' in raw ? (raw.executions ?? []) : [])
+        : null;
+    if (raw.protocol === NPC_WIRE_PROTOCOL && 'actions' in raw && Array.isArray(raw.actions)) {
+      const mutable = new Set(
+        (context.viewState?.actions ?? [])
+          .filter((action) => !['succeeded', 'failed', 'withdrawn'].includes(action.status))
+          .map((action) => action.id),
+      );
+      if (
+        raw.actions.some(
+          (action) =>
+            !action ||
+            typeof action !== 'object' ||
+            !('id' in action) ||
+            !mutable.has(String(action.id)) ||
+            !('status' in action) ||
+            !['waiting', 'blocked', 'withdrawn'].includes(String(action.status)),
+        )
+      )
+        throw Error('NPC_EXECUTION_EDIT_SCOPE');
+    }
     const intent = NativeMediaIntentSchema.parse('mediaDecision' in raw ? raw.mediaDecision : null);
     const execution = compileNpcMediaIntent(context, intent);
     const statements = 'statements' in raw ? raw.statements : null;
     if (!Array.isArray(statements)) throw Error('NPC_MEDIA_STATEMENTS');
     normalized = {
       ...raw,
+      ...(compact ? { executions: compact.executions } : {}),
       mediaDecision: { kind: intent.kind, execution },
       statements: statements.map((statement) => {
         if (
@@ -414,6 +459,11 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
         return {
           ...statement,
           dependsOnActionIds: statement.dependsOnActionIds.map((id: unknown) => {
+            if (compact && typeof id === 'string' && id.startsWith('execution:')) {
+              const actionId = compact.actionIdsByRef[id.slice('execution:'.length)];
+              if (!actionId) throw Error('NPC_EXECUTION_DEPENDENCY_WITHOUT_INTENT');
+              return actionId;
+            }
             if (id !== NPC_MEDIA_CURRENT_REF) return id;
             if (!execution) throw Error('NPC_MEDIA_DEPENDENCY_WITHOUT_INTENT');
             return execution.action.id;
