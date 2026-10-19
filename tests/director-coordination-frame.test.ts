@@ -92,3 +92,28 @@ test('persistent questions are part of the real Director frame, independent of t
   assert.notEqual(directorCoordinationFrameHash(changed), pending);
   assert.equal(original.focus.length, 0);
 });
+
+test('Director accepts the same persisted NPC continuation contract after the first actor turn', () => {
+  const s = snapshot();
+  const c = {
+    version: 1 as const,
+    decision: 'await_condition' as const,
+    reason: 'Wait for the actual supplied schedule condition.',
+    sourceIds: ['s'],
+    planIds: [],
+    questionIds: [],
+    conditions: [{ kind: 'at_or_after' as const, at: '2026-10-15T10:00:00Z', sourceId: 's' }],
+    decidedAt: s.storyAt,
+    sourceInputId: 'own-input',
+    basisHash: 'a'.repeat(64),
+  };
+  s.actorStates[0]!.continuation = c;
+  const first = directorCoordinationFrameHash(s);
+  assert.match(first, /^[a-f0-9]{64}$/);
+  const matured = structuredClone(s);
+  matured.storyAt = '2026-10-15T10:00:00Z';
+  assert.notEqual(directorCoordinationFrameHash(matured), first);
+  const malformed = structuredClone(s);
+  (malformed.actorStates[0]!.continuation as any).untrusted = 'extra';
+  assert.throws(() => directorCoordinationFrameHash(malformed));
+});

@@ -1,3 +1,4 @@
+import { ActorContinuationSchema } from './agent-proposal-schema.ts';
 import {
   OpeningContextReviewSchema,
   OpeningContextAuthoritySchema,
@@ -153,6 +154,12 @@ const Episode = z
   .strict();
 const State = z
   .object({
+    continuation: ActorContinuationSchema.extend({
+      version: z.literal(1),
+      decidedAt: Time,
+      sourceInputId: Key,
+      basisHash: Hash,
+    }).optional(),
     schemaVersion: z.literal(1),
     worldId: Key,
     actorId: Key,
@@ -531,6 +538,7 @@ function temporalFrame(snapshot: DirectorSnapshot) {
     for (const item of items) if (item.kind === 'at_or_after' && item.at) times.push(item.at);
   };
   for (const state of snapshot.actorStates) {
+    conditions(state.continuation?.conditions ?? []);
     for (const plan of state.plans) conditions(plan.triggers);
     for (const action of state.actions) conditions(action.preconditions);
     for (const responsibility of state.responsibilities) {
