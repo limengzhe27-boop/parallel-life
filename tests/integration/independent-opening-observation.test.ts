@@ -582,7 +582,18 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
   }
   assert.equal(npcCalls, 0, 'protected pending Director frame must not be bypassed');
   assert.equal(directorCalls, 0, 'pending request must not be repurchased');
-  await directors.mark(f.owner, protectedClaim.attempt, 'cancelled_before_send');
+  const sent = await directors.mark(f.owner, protectedClaim.attempt, 'request_sent');
+  await services.advanceIfEnabled(f.owner, f.id);
+  assert.equal(npcCalls, 0, 'in-flight Director read frame must remain protected');
+  assert.equal(directorCalls, 0, 'in-flight Director is not repurchased');
+  await directors.mark(f.owner, sent, 'unknown_after_send');
+  const unknownBefore = (
+    await admin.query('SELECT * FROM parallel_life.director_runtime_attempts WHERE id=$1', [
+      sent.id,
+    ])
+  ).rows[0];
+  assert.equal(unknownBefore.response, null);
+
   // Deterministic preflight rejection uses the real runner's claim/cancel path.
   // It is not a provider failure and must not prevent another actor's legal work.
   const originalValidate = NpcAgentModel.prototype.validateInput;
@@ -664,6 +675,16 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
     )
   ).rows;
   assert.equal(rows.length, 2);
+  assert.deepEqual(
+    (
+      await admin.query('SELECT * FROM parallel_life.director_runtime_attempts WHERE id=$1', [
+        sent.id,
+      ])
+    ).rows[0],
+    unknownBefore,
+    'independent NPC work preserves the original unknown paid Director receipt',
+  );
+
   assert.ok(
     rows.every((r) => r.n === 1),
     'second batch must not re-buy the first actor observation',
