@@ -1,3 +1,10 @@
+import {
+  readOwnAgendaReviewWorkInTransaction,
+  ownAgendaReviewInputText,
+  DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
+  type OwnAgendaRuntimeConfig,
+  type OwnAgendaReviewWork,
+} from '../modules/world/infrastructure/own-agenda-review-authority.ts';
 import { admitDirectorCandidates } from '../modules/world/application/director-candidate-admission.ts';
 import { canConsiderAuthoredEvent } from '../modules/world/domain/director-runtime.ts';
 import {
@@ -37,7 +44,11 @@ import type { AdvanceResult } from '../modules/world/application/advance-world.t
 import { DomainError } from '../modules/world/domain/errors.ts';
 import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { createAgentScheduleSources } from '../modules/world/application/agent-schedule-collectors.ts';
-import { scheduleAgents } from '../modules/world/application/schedule-agents.ts';
+import {
+  scheduleAgents,
+  agentScopeBlocks,
+  type RegisteredAgentCandidateSource,
+} from '../modules/world/application/schedule-agents.ts';
 import { runNpcAgent } from '../modules/world/application/run-agent.ts';
 import { commitDueAgentArrival } from '../modules/world/infrastructure/agent-arrival-continuation.ts';
 import {
@@ -168,9 +179,10 @@ export function npcAgentAdvanceServices(
   modelFactory: () => TextModel,
   directorSnapshots: DirectorSnapshotReader,
   batchOptions: Partial<AgentAdvanceBatchPolicy> = {},
+  agendaConfig: OwnAgendaRuntimeConfig = DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
 ) {
   const worlds = new PostgresWorldRepository(db),
-    attempts = new PostgresAgentRuntimeRepository(db),
+    attempts = new PostgresAgentRuntimeRepository(db, agendaConfig),
     directors = new PostgresDirectorRuntimeRepository(db),
     awareness = new PostgresWorldAwarenessRepository(db);
   const policy = agentAdvanceBatchPolicy(batchOptions);
@@ -374,7 +386,10 @@ export function npcAgentAdvanceServices(
           appointments: world.appointments.filter((a) => a.participantIds.includes(state.actorId)),
         })),
       );
-      const sources = createAgentScheduleSources({
+      const agendaReviews = new Map<string, OwnAgendaReviewWork>();
+      const commandForCandidate = (candidate: AgentCandidate) =>
+        agendaReviews.get(candidate.id)?.commandId ?? agentWakeCommandId(worldId, candidate.id);
+      const registrations = createAgentScheduleSources({
         worldId,
         engineEpoch,
         worldVersion: world.version,
@@ -383,7 +398,10 @@ export function npcAgentAdvanceServices(
         activeAttempts: read.prior,
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
-      }).map((registration) => ({
+      });
+      const wrap = (
+        registration: RegisteredAgentCandidateSource,
+      ): RegisteredAgentCandidateSource => ({
         ...registration,
         source: {
           async collect(owner: string, id: string) {
@@ -392,9 +410,7 @@ export function npcAgentAdvanceServices(
               blockers = [...collection.blockers];
             for (const candidate of collection.candidates) {
               if (batch?.handledActorIds.has(candidate.actorId)) continue;
-              const prior = read.prior.find(
-                (a) => a.commandId === agentWakeCommandId(worldId, candidate.id),
-              );
+              const prior = read.prior.find((a) => a.commandId === commandForCandidate(candidate));
               if (prior?.status === 'committed') continue;
               // An invalid/stale result is a known failed attempt, not permission to buy a replacement.
               // The blocker names only this semantic candidate, preserving other actors and matters.
@@ -418,7 +434,50 @@ export function npcAgentAdvanceServices(
             return { candidates, blockers };
           },
         },
-      }));
+      });
+      const sources = registrations.map(wrap);
+      const existingCollections = await Promise.all(
+        sources.map((s) => s.source.collect(ownerId, worldId)),
+      );
+      const allBlockers = existingCollections.flatMap((c) => c.blockers);
+      const priorityActors = new Set(
+        existingCollections
+          .flatMap((c) => c.candidates)
+          .filter((c) => !allBlockers.some((b) => agentScopeBlocks(b.scope, c)))
+          .map((c) => c.actorId),
+      );
+      for (const actor of actors) {
+        const actorId = actor.snapshot.state.actorId;
+        if (
+          batch?.handledActorIds.has(actorId) ||
+          actor.snapshot.state.revision === 0 ||
+          priorityActors.has(actorId)
+        )
+          continue;
+        const work = await db.transaction(ownerId, (sql) =>
+          readOwnAgendaReviewWorkInTransaction(sql, ownerId, {
+            worldId,
+            actorId,
+            worldVersion: world.version,
+            config: agendaConfig,
+            hasPriorityWork: priorityActors.has(actorId),
+            snapshot: actor.snapshot,
+          }),
+        );
+        if (!work) continue;
+        agendaReviews.set(work.candidate.id, work);
+        sources.push(
+          wrap({
+            id: `agenda_review:${actorId}`,
+            failureScope: { kind: 'actor', actorId },
+            source: {
+              async collect() {
+                return { candidates: [work.candidate], blockers: [] };
+              },
+            },
+          }),
+        );
+      }
       let deferredInitializationCandidateIds: string[] = [];
       let directorDeliveryDeferred = false;
       const coordinate = async (
@@ -742,17 +801,13 @@ export function npcAgentAdvanceServices(
           )
         )
           throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
-        const existing = await attempts.lookup(
-          ownerId,
-          worldId,
-          agentWakeCommandId(worldId, candidate.id),
-        );
+        const existing = await attempts.lookup(ownerId, worldId, commandForCandidate(candidate));
         const recovering = existing?.status === 'response_received';
         const reservation = recovering ? undefined : batch?.reserveModel();
         if (batch && !recovering && !reservation) return quiet(storyAt);
         try {
           batch?.actorStarted(candidate.actorId);
-          const commandId = agentWakeCommandId(worldId, candidate.id);
+          const commandId = commandForCandidate(candidate);
           const initialization =
             candidate.source === 'agenda_initialize'
               ? read.agendaInitializeGrants.find(
@@ -761,16 +816,22 @@ export function npcAgentAdvanceServices(
               : undefined;
           if (candidate.source === 'agenda_initialize' && !initialization)
             throw new DomainError('INVALID_COMMAND');
-          const text = initialization
-            ? agendaInitializeInputText(initialization)
-            : JSON.stringify({
-                type: 'npc_own_condition_ready',
-                candidateId: candidate.id,
-                source: candidate.source,
-                actionId: candidate.actionId,
-                basisSourceIds: candidate.sourceIds,
-                nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
-              });
+          const agendaReview =
+            candidate.source === 'agenda_review' ? agendaReviews.get(candidate.id) : undefined;
+          if (candidate.source === 'agenda_review' && !agendaReview)
+            throw new DomainError('INVALID_COMMAND');
+          const text = agendaReview
+            ? ownAgendaReviewInputText(agendaReview.grant)
+            : initialization
+              ? agendaInitializeInputText(initialization)
+              : JSON.stringify({
+                  type: 'npc_own_condition_ready',
+                  candidateId: candidate.id,
+                  source: candidate.source,
+                  actionId: candidate.actionId,
+                  basisSourceIds: candidate.sourceIds,
+                  nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
+                });
           const { receipt } = await attempts.accept(ownerId, {
             id: randomUUID(),
             worldId,
@@ -825,6 +886,8 @@ export function npcAgentAdvanceServices(
               snapshot,
             );
           } catch (error) {
+            if ((error as { code?: unknown })?.code === 'OWN_AGENDA_BUDGET_WAIT')
+              return quiet(storyAt);
             if ((error as { code?: unknown })?.code === 'NPC_DELIVERY_DEFERRED')
               return quiet(storyAt);
             if (batch) {

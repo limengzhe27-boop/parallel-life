@@ -56,11 +56,16 @@ export function admitDirectorCandidates(input: {
     const extras = current.candidates.filter(
       (c) => !pending.candidates.some((saved) => saved.id === c.id),
     );
-    return preserved && extras.every((c) => c.source === 'agenda_initialize')
+    return preserved &&
+      extras.every((c) => ['agenda_initialize', 'agenda_review'].includes(c.source))
       ? keep(pending.candidates.map((saved) => current.candidates.find((c) => c.id === saved.id)!))
       : keep(current.candidates);
   }
   return input.qualifiedOpeningAtBootstrap && !input.explicitRetry
-    ? keep(current.candidates.filter((c) => c.source !== 'agenda_initialize'))
+    ? keep(
+        current.candidates.filter(
+          (c) => !['agenda_initialize', 'agenda_review'].includes(c.source),
+        ),
+      )
     : keep(current.candidates);
 }

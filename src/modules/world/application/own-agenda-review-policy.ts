@@ -145,6 +145,33 @@ export function ownAgendaReviewFamilyId(
   return `agenda-review:${hash}`;
 }
 
+/** Shared time window for fresh admission and explicitly authenticated zero-send recovery. */
+export function ownAgendaReviewWindow(
+  anchor: OwnAgendaReviewAnchor,
+  policy: OwnAgendaReviewPolicy,
+  quietStreak: number,
+): Window {
+  if (
+    !positive(policy.storyGapMs) ||
+    !positive(policy.realGapMs) ||
+    !positive(policy.maxRealGapMs) ||
+    policy.maxRealGapMs < policy.realGapMs ||
+    !Number.isFinite(policy.quietBackoffMultiplier) ||
+    policy.quietBackoffMultiplier < 1 ||
+    !Number.isSafeInteger(quietStreak) ||
+    quietStreak < 0
+  )
+    fail();
+  const realGap = Math.min(
+    policy.maxRealGapMs,
+    Math.ceil(policy.realGapMs * policy.quietBackoffMultiplier ** quietStreak),
+  );
+  return {
+    nextReviewStoryAt: iso(instant(anchor.committedStoryAt) + policy.storyGapMs),
+    nextReviewRealAt: iso(instant(anchor.committedRealAt) + realGap),
+  };
+}
+
 /**
  * Computes permission to consider one's own agenda. No clock tick becomes a story fact,
  * contact reason, user deadline, episode request, model call, or budget reservation.
@@ -205,8 +232,7 @@ export function evaluateOwnAgendaReview(
   if (input.paused) return { status: 'not_due', reason: 'paused' };
   if (!anchor) return { status: 'not_due', reason: 'missing_anchor' };
   const familyId = ownAgendaReviewFamilyId(identity, anchor, digest);
-  const anchorStory = instant(anchor.committedStoryAt),
-    anchorReal = instant(anchor.committedRealAt);
+
   if (input.hasPriorityWork) return { status: 'priority_work', familyId };
   const prior = input.attempts.filter((a) => a.familyId === familyId);
   const unknown = prior.filter((a) => a.status === 'unknown_after_send');
@@ -253,16 +279,8 @@ export function evaluateOwnAgendaReview(
       familyId,
       attemptIds: identities(prior),
     };
-  // Overflowing an exponent saturates at the configured cap, never wraps or becomes unbounded.
-  const realGap = Math.min(
-    policy.maxRealGapMs,
-    Math.ceil(policy.realGapMs * policy.quietBackoffMultiplier ** input.quietStreak),
-  );
-  const window = {
-    nextReviewStoryAt: iso(anchorStory + policy.storyGapMs),
-    nextReviewRealAt: iso(anchorReal + realGap),
-  };
-  if (storyNow < anchorStory + policy.storyGapMs || realNow < anchorReal + realGap)
+  const window = ownAgendaReviewWindow(anchor, policy, input.quietStreak);
+  if (storyNow < instant(window.nextReviewStoryAt) || realNow < instant(window.nextReviewRealAt))
     return { status: 'not_due', reason: 'time_window', familyId, window };
   const exhausted = (['owner', 'world', 'actor'] as const).filter(
     (scope) => input.budgets[scope].remaining === 0,

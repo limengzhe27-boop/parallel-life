@@ -97,6 +97,7 @@ const Candidate = z
     source: z.enum([
       'opening',
       'agenda_initialize',
+      'agenda_review',
       'authored_event',
       'actor_plan',
       'responsibility',

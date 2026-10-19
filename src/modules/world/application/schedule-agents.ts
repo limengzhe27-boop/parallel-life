@@ -186,6 +186,7 @@ function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandi
     [
       'opening',
       'agenda_initialize',
+      'agenda_review',
       'authored_event',
       'actor_plan',
       'responsibility',

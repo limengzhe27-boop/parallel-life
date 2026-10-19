@@ -224,9 +224,12 @@ test('actual publication semantic wake advances use one protected Director bound
       multi?: boolean;
       legacy?: boolean;
       emptyAgenda?: boolean;
+      multiActorOpening?: boolean;
     } = {},
   ) {
     const content = structuredClone(base);
+    if (options.multiActorOpening)
+      content.candidates[0].actorKeys = content.actors.map((a: any) => a.key);
     if (options.proof)
       content.candidates.push(node('fallback', [], { conditionKeys: ['alternative_evidence'] }));
     if (options.multi)
@@ -409,6 +412,8 @@ test('actual publication semantic wake advances use one protected Director bound
       response?: (p: any, index: number) => Promise<string> | string;
       propose?: string;
       npcChoice?: 'quiet' | 'engage';
+      npcResponse?: (p: any) => Promise<string> | string;
+      maxActors?: number;
       wire?: boolean;
     } = {},
   ) {
@@ -435,6 +440,7 @@ test('actual publication semantic wake advances use one protected Director bound
               decisions: [],
             });
           assert.equal(intent.type, 'npc_episode_consideration');
+          if (options.npcResponse) return options.npcResponse(p);
           return JSON.stringify({
             statements:
               options.npcChoice === 'engage'
@@ -522,7 +528,9 @@ test('actual publication semantic wake advances use one protected Director bound
         return JSON.stringify(quiet(p));
       },
     };
-    const service = npcAgentAdvanceServices(app, () => model, snapshots, { maxActors: 1 });
+    const service = npcAgentAdvanceServices(app, () => model, snapshots, {
+      maxActors: options.maxActors ?? 1,
+    });
     return {
       calls,
       director: () => calls.filter((c) => c.kind === 'director'),
@@ -1464,6 +1472,120 @@ test('actual publication semantic wake advances use one protected Director bound
     },
   );
 
+  await t.test(
+    'v6 original authored handoff lets both NPCs independently create valid explicit plans and messages',
+    async () => {
+      const f = await fixture({ emptyAgenda: true, multiActorOpening: true });
+      assert.equal(f.world.actors.length, 2);
+      const h = harness(f, {
+        maxActors: 2,
+        response(p) {
+          const event = p.wireCatalog.events.find((e: any) => e.authoredEventKey === 'always');
+          const actors = p.wireCatalog.actors.filter((a: any) =>
+            f.world.actors.some((known: any) => known.id === a.actorId),
+          );
+          return JSON.stringify({
+            protocol: 'director-wire-v4',
+            mode: 'bounded_opportunity',
+            candidates: p.wireCatalog.candidates.map((c: any) => ({
+              ref: c.ref,
+              decision: 'defer',
+              reason: 'Original opening before fallback.',
+            })),
+            events: p.wireCatalog.events.map((e: any) => ({
+              eventRef: e.ref,
+              decision: e.ref === event.ref ? 'consider' : 'defer',
+              reason: 'Explicit source-bound evaluation.',
+            })),
+            opportunities: [
+              {
+                id: 'two-people',
+                title: 'Original two-person opening',
+                description: 'Both people independently consider their own arrangement.',
+                playerImpact: 'Player has not agreed.',
+                actors: actors.map((a: any) => a.ref),
+                places: [],
+                activity: 'conversation',
+                origin: { kind: 'authored', eventRef: event.ref },
+                stagingIntents: actors.map((a: any) => ({
+                  actorRef: a.ref,
+                  kind: 'future_task',
+                  task: 'Consider your own involvement; do not assume an outcome.',
+                })),
+                actorTopics: null,
+              },
+            ],
+            audit: { reason: 'Source-bound two-person opportunity.', sourceRefs: [event.ref] },
+          });
+        },
+        npcResponse(p) {
+          return JSON.stringify({
+            protocol: 'npc-wire-v6',
+            consideration: {
+              choice: 'engage',
+              reason: 'My independent intention.',
+              basisSourceIds: [p.input.sourceId],
+              followUp: null,
+            },
+            statements: [
+              {
+                text: '我有一个具体方案，想和你商量。',
+                dependsOnActionIds: [],
+                requestsPlayerReply: false,
+                questionForResponsibilityId: null,
+              },
+            ],
+            goals: [],
+            planIntents: [
+              {
+                kind: 'create',
+                ref: 'consider',
+                goal: { kind: 'new', summary: '考虑本人的方案', sourceIds: [p.input.sourceId] },
+                summary: '保留本人的安排与待核对信息',
+                sourceIds: [p.input.sourceId],
+                nextStep: { kind: 'blocked', missing: ['等待真实信息后再继续'] },
+              },
+            ],
+            executions: [],
+            responsibilities: [],
+            inputInterpretation: null,
+            focus: null,
+            questionWithdrawals: null,
+            locationReports: null,
+          });
+        },
+      });
+      const result = await h.advance();
+      assert.equal(result?.played, 2);
+      assert.equal(h.director().length, 1);
+      const episodes = await directors.readEpisodes(f.owner, f.id);
+      assert.equal(episodes.length, 1);
+      assert.equal(episodes[0]!.status, 'active');
+      assert.deepEqual(episodes[0]!.resultIds, []);
+      for (const actor of f.world.actors) {
+        const state = await app.transaction(
+          f.owner,
+          async (sql) =>
+            (
+              await sql.query(
+                'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3',
+                [f.id, f.owner, actor.id],
+              )
+            ).rows[0].document,
+        );
+        assert.equal(state.goals.length, 1);
+        assert.equal(state.plans.length, 1);
+        assert.equal(state.plans[0].goalId, state.goals[0].id);
+        assert.match(state.goals[0].id, /^plan-intent-goal:/);
+        assert.equal(state.episodeParticipations[0].choice, 'engage');
+      }
+      assert.equal(
+        (await worlds.get({ userId: f.owner }, f.id)).messages.filter((m) => m.role === 'assistant')
+          .length,
+        2,
+      );
+    },
+  );
   await t.test(
     'v4 paid filtered bootstrap resumes its exact saved scope after attention deferral without another director call',
     async () => {

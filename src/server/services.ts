@@ -1,3 +1,4 @@
+import { npcAgendaRuntimeConfig } from './npc-agenda-runtime-config.ts';
 import { PublicationOpeningRepository } from '../modules/settings/infrastructure/publication-opening-repository.ts';
 import { advancePublicationOpening } from '../modules/settings/application/advance-publication-opening.ts';
 import { PostgresClockActivityRepository } from '../modules/world/infrastructure/clock-activity-repository.ts';
@@ -103,6 +104,7 @@ function createServices() {
         ['maxElapsedMs', process.env.NPC_ADVANCE_BATCH_MAX_ELAPSED_MS],
       ].flatMap(([key, value]) => (value === undefined ? [] : [[key!, Number(value)]])),
     ),
+    npcAgendaRuntimeConfig(process.env),
   );
   return {
     db,

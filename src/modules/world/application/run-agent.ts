@@ -1,3 +1,4 @@
+import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
@@ -95,6 +96,7 @@ export async function runNpcAgent(
         executionSnapshot.episodeManifest !== undefined ||
         isActorEpisodeConsiderationInput(executionSnapshot.input) ||
         isAgendaInitializeInput(executionSnapshot.input) ||
+        isOwnAgendaReviewInput(executionSnapshot.input) ||
         executionSnapshot.sources.some((source) =>
           source.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX),
         )
@@ -118,8 +120,21 @@ export async function runNpcAgent(
         await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send').catch(() => {});
       else if (isKnownConflict(error))
         await deps.attempts.mark(ownerId, attempt, 'stale_discarded').catch(() => {});
+      if (
+        isOwnAgendaReviewInput(executionSnapshot.input) &&
+        !['EPISODE_DELIVERY_DEFERRED', 'NPC_DELIVERY_DEFERRED'].includes(
+          String((error as { code?: unknown })?.code),
+        ) &&
+        !isKnownConflict(error)
+      )
+        await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send');
       throw error;
     }
+    if (
+      attempt.status === 'cancelled_before_send' &&
+      isOwnAgendaReviewInput(executionSnapshot.input)
+    )
+      throw Object.assign(Error('OWN_AGENDA_BUDGET_WAIT'), { code: 'OWN_AGENDA_BUDGET_WAIT' });
     try {
       response = await deps.model.decide(executionSnapshot, signal);
       attempt = await deps.attempts.saveResponse(ownerId, attempt, {

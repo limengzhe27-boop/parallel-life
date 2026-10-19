@@ -302,7 +302,8 @@ export function npcResponseFormat(
       >
     >,
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
-  current?: Pick<AgentValidationContext, 'input' | 'channel'>,
+  current?: Pick<AgentValidationContext, 'input' | 'channel'> &
+    Partial<Pick<AgentValidationContext, 'sources'>>,
 ): ModelOutputOptions {
   if (NPC_RESPONSE_FORMAT.format !== 'json_schema') throw Error('NPC_RESPONSE_SCHEMA');
   type SchemaNode = {
@@ -498,6 +499,32 @@ export function npcResponseFormat(
       }
       properties.inputInterpretation = { anyOf: branches };
     }
+  }
+  if (current) {
+    // Source handles come from this authorized snapshot, never guessed aliases.
+    // Share the enum once to avoid multiplying the provider schema budget.
+    const ids = [...new Set([current.input.sourceId, ...(current.sources ?? []).map((s) => s.id)])];
+    const scopeBasis = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return;
+      if (Array.isArray(value)) {
+        value.forEach(scopeBasis);
+        return;
+      }
+      const node = value as SchemaNode;
+      if (node.properties?.sourceIds)
+        node.properties.sourceIds = { $ref: '#/$defs/npc_authorized_basis' };
+      Object.values(node).forEach(scopeBasis);
+    };
+    scopeBasis(schema);
+    schema.$defs = {
+      ...((schema.$defs ?? {}) as Record<string, unknown>),
+      npc_authorized_basis: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 64,
+        items: { type: 'string', enum: ids },
+      },
+    };
   }
   return { ...NPC_RESPONSE_FORMAT, schema };
 }

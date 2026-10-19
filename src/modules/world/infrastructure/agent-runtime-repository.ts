@@ -1,3 +1,10 @@
+import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
+import {
+  requireOwnAgendaReviewAuthorityInTransaction,
+  DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
+  type OwnAgendaRuntimeConfig,
+} from './own-agenda-review-authority.ts';
+import { reserveOwnAgendaBudgetInTransaction } from './own-agenda-budget-repository.ts';
 import { requireAgendaInitializeInputInTransaction } from './actor-agenda-initialization-repository.ts';
 import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
@@ -252,6 +259,7 @@ export async function acceptAgentInputInTransaction(
   sql: SqlClient,
   ownerId: string,
   input: AgentInputReceipt,
+  agendaConfig: OwnAgendaRuntimeConfig = DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
 ): Promise<{ receipt: AgentInputReceipt; replay: boolean }> {
   key(input.id);
   key(input.worldId);
@@ -283,6 +291,10 @@ export async function acceptAgentInputInTransaction(
   if (w.version !== input.expectedWorldVersion) fail('VERSION_CONFLICT');
   if (input.recipientActorId !== null) actorExists(w, input.recipientActorId);
   await requireAgendaInitializeInputInTransaction(sql, ownerId, input);
+  await requireOwnAgendaReviewAuthorityInTransaction(sql, ownerId, input, {
+    phase: 'accept',
+    config: agendaConfig,
+  });
   await sql.query(
     'INSERT INTO parallel_life.agent_input_receipts(id,world_id,owner_id,command_id,input_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
     [input.id, input.worldId, ownerId, input.commandId, input.inputHash, json(input, 60000)],
@@ -424,8 +436,13 @@ export class PostgresAgentRuntimeRepository
   implements AgentAttemptStore, AgentInputStore, AgentStateReader
 {
   private readonly db: PostgresDatabase;
-  constructor(db: PostgresDatabase) {
+  private readonly agendaConfig: OwnAgendaRuntimeConfig;
+  constructor(
+    db: PostgresDatabase,
+    agendaConfig: OwnAgendaRuntimeConfig = DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
+  ) {
     this.db = db;
+    this.agendaConfig = agendaConfig;
   }
   lookup(ownerId: string, worldId: string, commandId: string): Promise<AgentAttempt | null> {
     return this.db.transaction(ownerId, async (sql) => {
@@ -441,7 +458,7 @@ export class PostgresAgentRuntimeRepository
   }
   accept(ownerId: string, input: AgentInputReceipt) {
     return this.db.transaction(ownerId, (sql) =>
-      acceptAgentInputInTransaction(sql, ownerId, input),
+      acceptAgentInputInTransaction(sql, ownerId, input, this.agendaConfig),
     );
   }
   read(ownerId: string, identity: AgentIdentity): Promise<ActorAgentState | null> {
@@ -494,7 +511,14 @@ export class PostgresAgentRuntimeRepository
             sql,
             ownerId,
             old,
-            requireInputAuthority,
+            async (tx, owner, receipt, actor, version) => {
+              await requireInputAuthority(tx, owner, receipt, actor, version);
+              await requireOwnAgendaReviewAuthorityInTransaction(tx, owner, receipt, {
+                phase: 'claim',
+                holder: old,
+                config: this.agendaConfig,
+              });
+            },
           );
           return { attempt: attempt(resumed), replay: false };
         }
@@ -524,6 +548,10 @@ export class PostgresAgentRuntimeRepository
       )
         fail('INVALID_INPUT');
       await requireInputAuthority(sql, ownerId, r, input.actorId, input.expectedWorldVersion);
+      await requireOwnAgendaReviewAuthorityInTransaction(sql, ownerId, r, {
+        phase: 'claim',
+        config: this.agendaConfig,
+      });
       if (
         !(await sql.query('SELECT $1::timestamptz>clock_timestamp() AS live', [input.leaseUntil]))
           .rows[0].live
@@ -584,7 +612,12 @@ export class PostgresAgentRuntimeRepository
         episodeDelivery = isEpisodeConsiderationInput(receipt);
         // The immutable accepted body, not a mutable prepared snapshot, decides
         // whether author-source validation is mandatory before any paid send.
-        if ((isEpisodeConsiderationInput(receipt) || isAgendaInitializeInput(receipt)) && !snapshot)
+        if (
+          (isEpisodeConsiderationInput(receipt) ||
+            isAgendaInitializeInput(receipt) ||
+            isOwnAgendaReviewInput(receipt)) &&
+          !snapshot
+        )
           fail('INPUT_SCOPE_FORBIDDEN');
         await requireAgendaInitializeInputInTransaction(
           sql,
@@ -672,6 +705,47 @@ export class PostgresAgentRuntimeRepository
             if (strategy.some((source) => !actual.some((item) => isDeepStrictEqual(source, item))))
               fail('AGENT_REVISION_CONFLICT');
           }
+        }
+      }
+      if (status === 'request_sent' && snapshot && isOwnAgendaReviewInput(snapshot.input)) {
+        const receipt = (
+          await sql.query(
+            'SELECT document FROM parallel_life.agent_input_receipts WHERE id=$1 AND world_id=$2 AND owner_id=$3',
+            [expected.inputReceiptId, expected.worldId, ownerId],
+          )
+        ).rows[0]?.document as AgentInputReceipt;
+        let ready = true;
+        try {
+          await requireOwnAgendaReviewAuthorityInTransaction(sql, ownerId, receipt, {
+            phase: 'send',
+            holder: row,
+            snapshot,
+            config: this.agendaConfig,
+          });
+        } catch (error) {
+          if ((error as { code?: unknown })?.code !== 'OWN_AGENDA_REVIEW_NOT_READY') throw error;
+          ready = false;
+        }
+        const reservation = ready
+          ? await reserveOwnAgendaBudgetInTransaction(
+              sql,
+              ownerId,
+              expected.worldId,
+              expected.actorId,
+              this.agendaConfig.budgets,
+              new Date().toISOString(),
+              expected.id,
+            )
+          : null;
+        if (!reservation || reservation.status === 'budget_wait') {
+          const cancelled = (
+            await sql.query(
+              "UPDATE parallel_life.agent_attempts SET status='cancelled_before_send',updated_at=now() WHERE id=$1 AND status='reserved' RETURNING *",
+              [expected.id],
+            )
+          ).rows[0];
+          if (!cancelled) fail('ATTEMPT_STALE');
+          return attempt(cancelled);
         }
       }
       if (status === 'request_sent' && snapshot)
@@ -797,6 +871,10 @@ export async function beginAgentCommitInTransaction(
     expected.actorId,
     expected.expectedWorldVersion,
   );
+  await requireOwnAgendaReviewAuthorityInTransaction(sql, ownerId, receipt, {
+    phase: 'commit',
+    holder: row,
+  });
   await sql.query(
     "SELECT set_config('app.agent_engine_epoch',$1,true),set_config('app.agent_world_id',$2,true),set_config('app.agent_commit_attempt_id',$3,true)",
     [String(expected.engineEpoch), expected.worldId, expected.id],

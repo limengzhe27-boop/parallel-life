@@ -105,7 +105,22 @@ export type AgentActionResult = AgentIdentity & {
   evidenceSourceIds: string[];
   /** Only the executing capability can certify completion; recording a plan never does. */
   completedGoalIds?: string[];
-  outputRefs?: { kind: 'appointment' | 'plan' | 'matter' | 'place' | 'journey' | 'media' | 'asset' | 'item' | 'activity' | 'relationship' | 'moment' | 'moment_interaction'; id: string }[];
+  outputRefs?: {
+    kind:
+      | 'appointment'
+      | 'plan'
+      | 'matter'
+      | 'place'
+      | 'journey'
+      | 'media'
+      | 'asset'
+      | 'item'
+      | 'activity'
+      | 'relationship'
+      | 'moment'
+      | 'moment_interaction';
+    id: string;
+  }[];
 };
 export type AgentConversationFocus = {
   channel: 'private' | 'group' | 'scene';
@@ -225,6 +240,7 @@ export type AgentCandidate = AgentIdentity & {
   source:
     | 'opening'
     | 'agenda_initialize'
+    | 'agenda_review'
     | 'authored_event'
     | 'actor_plan'
     | 'responsibility'
