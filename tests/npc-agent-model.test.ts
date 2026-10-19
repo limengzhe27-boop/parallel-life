@@ -714,10 +714,15 @@ test('group report is supplied only as authorized private recall and does not AC
     const manifest = adapter.describeSuppliedContext(input);
     await adapter.decide(input);
     assert.equal(manifest.observations.length, channel === 'private' ? 1 : 0);
+    const payload = JSON.parse(calls[0]!.messages[1]!.content);
+    const records =
+      channel === 'private'
+        ? payload.presentationContext.internalContext.map(
+            (entry: { observation: unknown }) => entry.observation,
+          )
+        : payload.observations;
     assert.ok(
-      JSON.parse(calls[0]!.messages[1]!.content).observations.some(
-        (o: { sourceId: string }) => o.sourceId === sourceRef(input, 'group:observed'),
-      ),
+      records.some((o: { sourceId: string }) => o.sourceId === sourceRef(input, 'group:observed')),
     );
   }
 });
@@ -852,7 +857,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v42-goal-update-input-provenance');
+  assert.equal(payload.promptVersion, 'npc-agent-v43-presentation-context');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -1078,8 +1083,86 @@ test('director suggestions remain nonbinding third-party guidance, not adopted f
     kind: 'system',
     trigger: 'coordination',
   });
-  assert.equal(payload.observations[0].text, hint, 'do not edit or invent director story content');
+  assert.deepEqual(payload.observations, []);
+  assert.equal(payload.presentationContext.internalContext[0].role, 'reported_plan');
+  assert.equal(
+    payload.presentationContext.internalContext[0].observation.text,
+    hint,
+    'do not edit or invent director story content',
+  );
   assert.match(calls[0]!.messages[0]!.content, /reconsider from your own stance/);
   assert.match(calls[0]!.messages[0]!.content, /system不是私聊收件人/);
   assert.deepEqual(input, before);
+});
+
+test('private result evidence survives presentation separation with exact source and kind', async () => {
+  const input = snapshot();
+  input.sources.push({
+    id: 'result',
+    kind: 'action_result',
+    usage: 'private_strategy',
+    recordId: 'result',
+    worldVersion: 8,
+    at: input.storyAt,
+  });
+  input.observations.push({
+    sourceId: 'result',
+    kind: 'result',
+    evidenceKind: 'adjudicated_result',
+    text: '只裁定本次行动，没有裁定整个事件。',
+    learnedAt: input.storyAt,
+  });
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.observations, wireExpected(input, [input.observations[0]]));
+  assert.deepEqual(payload.presentationContext.internalContext, [
+    {
+      role: 'private_result',
+      observation: wireExpected(input, input.observations[1]),
+    },
+  ]);
+  assert.equal(payload.responseContract.protocol, 'npc-wire-v11');
+});
+
+test('internal private recall uses the same bounded pool and final supplied-context manifest', async () => {
+  for (const oversized of [false, true]) {
+    const input = snapshot();
+    input.sources.push({
+      id: 'recall',
+      kind: 'group_message',
+      usage: 'private_strategy',
+      recordId: 'recall',
+      worldVersion: 8,
+      at: input.storyAt,
+      contentHash: 'a'.repeat(64),
+    });
+    input.observations.push({
+      sourceId: 'recall',
+      kind: 'speech',
+      evidenceKind: 'actor_report',
+      text: oversized ? 'x'.repeat(60000) : '过去的群聊，不能证明已执行。',
+    });
+    input.actorObservationInbox = {
+      sourceIds: ['recall'],
+      sceneIds: [],
+      groupIds: ['group'],
+      omittedSourceIds: [],
+    };
+    const original = structuredClone(input);
+    const { adapter, calls } = capture();
+    const manifest = adapter.describeSuppliedContext(input);
+    await adapter.decide(input);
+    const payload = JSON.parse(calls[0]!.messages[1]!.content);
+    assert.equal(payload.presentationContext.internalContext.length, oversized ? 0 : 1);
+    assert.equal(manifest.observations.length, oversized ? 0 : 1);
+    assert.equal(JSON.stringify(payload).length <= NPC_AGENT_PAYLOAD_LIMIT, true);
+    assert.equal(
+      payload.observations.some(
+        (o: { sourceId: string }) => o.sourceId === sourceRef(input, 'recall'),
+      ),
+      false,
+    );
+    assert.deepEqual(input, original);
+  }
 });

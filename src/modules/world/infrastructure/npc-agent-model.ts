@@ -1,5 +1,6 @@
 import { actorSelfAgendaContext } from '../domain/actor-self-agenda-context.ts';
 import { projectNpcConversationProgress } from './npc-conversation-progress.ts';
+import { npcPresentationContext } from './npc-presentation-context.ts';
 import { playerReplyTargets } from '../domain/agent-input-interpretation.ts';
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
 import {
@@ -24,7 +25,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v42-goal-update-input-provenance';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v43-presentation-context';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -37,6 +38,7 @@ const SYSTEM = `
 先确认发言身份：replyAs是服务器绑定的本轮唯一回应人物，其actorId与state.actorId一致，name是本人姓名。conversationParticipants由服务器确定本轮发言者和收件范围；private的interlocutor与recipient都是玩家，audienceActorIds包含本人只是授权上下文范围，不是让本人给自己发消息。group和scene的recipient是当前频道，不能推断成与某个人私聊。你以这个NPC本人的立场回应，不扮演玩家，不是替玩家润色原话的助手。回复中的“我”指replyAs本人，“你”按当前渠道指正在交流的对方，不能把玩家的第一人称愿望、犹豫或问题移植成本人的经历或决定。
 input.speaker=player时，input.text是玩家此刻对你说的原话，不是你的台词草稿；先理解其诉求，再结合本人人设、关系与已知事实作出本人的回应。可以赞同、拒绝、追问、暂缓或表达不同意见，不要求照着示例回答，也不要求为了区别玩家而唱反调。不要仅改写或复述玩家问题来冒充回应。需要引用时明确是在引用对方，不把引用当成本人已作决定。
 input.speaker=system时，本轮是wake或coordination的服务器提示，不是玩家新发言，不得将它认作玩家同意、玩家原话或人物已说的话。最后一条user消息是同一input.sourceId所绑定的当前原话或唤醒原因的独立呈现，不增加新事实或授权；system不是私聊收件人，不是需要你回复的玩家。由replyAs本人判断是否向conversationParticipants.recipient联系，不能把唤醒原因当回复草稿。observations中的历史speech保留原有发言人标记；“主角：”属于玩家，人物姓名前缀属于相应人物，不是本轮新输入。没有明确发言人时保持不确定，不从人称猜作者。state中的目标、计划和责任属于replyAs本人，既不是玩家目标，也不等于已执行成果。channel只限定当下渠道和受众，private的threadId或audienceActorIds不表示玩家正在自言自语。以下来源、知情、权限与结果规则仍全部适用。
+observations保留渠道证据；presentationContext.internalContext单独提供导演未来建议、原稿建议、人物计划或本人私密材料。role只说明材料用途，不改变原observation.kind、evidenceKind与来源权限。private_result仍是原裁定结果，private_historical_recall仍是过去的发言，不因移动分组变成计划或新的事实。speech不保证是本人说的话，不从source.kind或人称猜发言者。内部材料用于本人形成做法，不是发给收件人的台词。主动联系时，从本人动机和已授权事件材料中选择对收件人有价值的新信息、具体提议或分歧；不汇报后台目标、待考虑任务和准备如何发消息。导演建议不保证玩家参与，也不证明行动已经发生。只有方向而缺少事件具体内容时，不补造事件经过、他人隐私或玩家承诺；可基于本人已有材料提出自己的做法，或保持安静。
 actorObservationInbox是你本人在过去实际获准现场或群聊中尚未提供给成功回合的记录。它们属于本人私密回忆，不是此刻新发生的事，也不授予对群聊/其他现场披露的权利；按learnedAt与retrievedAt区分历史和当前。可以重考已有安排或保持安静，不要为每条记录发消息，不凭台词判断实际执行成功。
 sceneObservationContext只描述本现场实际授权的记录与容量省略，不代表新发生或已经阅读全部历史。observations的player_report/actor_report是人物说法，不证明真实位置或行动完成；adjudicated_result是对应现场行动的实际裁定，不证明整段事件完成。eventOccurredAt为事件记录的现实时间，storyAt/learnedAt为故事记录及当时获知时间，retrievedAt仅是本轮读取时间，不得把旧记录说成刚发生。未提供的记录不等于不存在，也不许推断被隐去的内容。
 episodeResults是服务器读取的本人真实子步骤回执。invitation_accepted只证明玩家接受该次邀请，invitation_declined只证明该次邀请被拒绝，不能关闭整段事件或其他人物的责任；travel_started只证明本人出发，arrived只证明本人到达。overallOutcome=not_certified始终不证明整段剧情成功或失败。结合本人目标、已有决定和本轮输入自然承接、调整安排，不反复询问已经答复的邀请，不凭结果编号编造完成资格。这些是本人私密策略上下文，不能向其他渠道转述私人邀约或推测他人去向。
@@ -488,7 +490,19 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
           }
         })();
   const wirePayload = () => {
-    const projected = mapNpcSourceFields(payload, sourceCatalog, 'encode') as typeof payload & {
+    // Partition only the final retained records; budget trimming still operates on
+    // the original ordered pool and never duplicates or rewrites source content.
+    const presentation = npcPresentationContext({
+      observations: payload.observations,
+      sources: snapshot.sources,
+      channelKind: snapshot.channel.kind,
+      recalledSourceIds: snapshot.actorObservationInbox?.sourceIds,
+    });
+    const projected = mapNpcSourceFields(
+      { ...payload, ...presentation },
+      sourceCatalog,
+      'encode',
+    ) as typeof payload & {
       wireCatalog?: unknown;
     };
     projected.sources = payload.sources.map((s) => ({
@@ -579,7 +593,12 @@ export class NpcAgentModel implements NpcAgentModelPort {
     const messages = prepare(snapshot);
     const payload = JSON.parse(messages[1]!.content);
     const observations = mapNpcSourceFields(
-      payload.observations,
+      [
+        ...payload.observations,
+        ...payload.presentationContext.internalContext.map(
+          (entry: { observation: { sourceId: string } }) => entry.observation,
+        ),
+      ],
       npcSourceReferences(snapshot.sources),
       'decode',
     ) as { sourceId: string }[];
