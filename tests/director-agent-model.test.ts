@@ -1021,3 +1021,19 @@ test('v4 has explicit empty assessments when there are no eligible events', asyn
   if (format.format !== 'json_schema') throw Error('wrong format');
   assert.equal((format.schema as any).properties.events.maxItems, 0);
 });
+
+test('wire actor names follow scoped IDs rather than independent cast order', async () => {
+  const { directorWireCatalog } =
+    await import('../src/modules/world/infrastructure/director-model-protocol.ts');
+  const { snapshot } = fixture();
+  snapshot.cast = [...snapshot.cast!].reverse();
+  assert.deepEqual(directorWireCatalog(snapshot).actors, [
+    { ref: 'actor:1', actorId: 'a', name: 'A' },
+    { ref: 'actor:2', actorId: 'b', name: 'B' },
+  ]);
+  snapshot.cast = undefined;
+  assert.deepEqual(directorWireCatalog(snapshot).actors, [
+    { ref: 'actor:1', actorId: 'a' },
+    { ref: 'actor:2', actorId: 'b' },
+  ]);
+});

@@ -99,7 +99,14 @@ export function directorWireCatalog(snapshot: DirectorSnapshot) {
       ref: `candidate:${i + 1}`,
       candidateId: c.id,
     })),
-    actors: snapshot.boundary.actorIds.map((id, i) => ({ ref: `actor:${i + 1}`, actorId: id })),
+    actors: snapshot.boundary.actorIds.map((id, i) => ({
+      ref: `actor:${i + 1}`,
+      actorId: id,
+      // Bind the semantic identity to the same scoped ref; cast order is not a mapping.
+      ...(snapshot.cast?.find((actor) => actor.id === id)
+        ? { name: snapshot.cast.find((actor) => actor.id === id)!.name }
+        : {}),
+    })),
     places: snapshot.boundary.placeIds.map((id, i) => ({ ref: `place:${i + 1}`, placeId: id })),
     sources: sources.map((id, i) => ({ ref: `source:${i + 1}`, sourceId: id })),
     events: materials

@@ -46,3 +46,11 @@ N5在原request_sent同一事务对rate_limits按owner/world/actor固定次序�
 P1/P2聚焦81、N5真实PG14、N7真实PG12已由执行者记录。root接线新增真实PG6项通过：F真实quiet→原advance两NPC v6独立计划/消息；一人unknown不阻他人；预算竞争零发送取消及跨CAS同family恢复；protected raw恢复一次模型一次预算；原CAS恢复和伪family/transport拒绝。root纯114及check3564/build通过。原作者事件/恢复回归26/26通过，含原Director→两份人物请求→两个NPC原生v6计划/消息/active事件，未知/旧协议/付费恢复负向保持；最终type通过。真实模型验收与部署待候选READY，尚未将本报告等同正式交付。
 
 未完成/不冒称：未来policy升版需要显式历史兼容；reserved崩溃接管及已付费raw跨CAS重基仍受保护；own_agenda不重新开启已消费/拒绝的episode请求；既有paid-invalid保留，不能靠强行重发修复。可靠持续离线后台执行者仍是原154后续项，返回会沿原入口有界接续，不编造离线已发生事项。
+
+## Real acceptance follow-up: missing public premise
+
+Candidate cfdd1cec cold start used three text calls. The Director committed the authored opening and two addressed requests; both NPC outputs were valid quiet decisions without dangling plan references. This is not natural multi-actor acceptance. Consumed requests remain immutable. A subsequent elapsed-time browsing check made zero additional model calls and produced no messages.
+
+Diagnosis: selected life modules dropped definition-bound publicSetting and protagonistPublicIdentity. The Director's actor refs also lacked explicit names and its per-actor tasks omitted shared discussion context. Root adds ref/name mapping without changing scoped IDs or ordering, and requires self-contained future interaction tasks. N8 separately restores only approved public premise fields beside life modules. No global manuscript, secrets, other actors' private plans, player location or expected outcomes are broadcast. Existing paid snapshots and source hashes remain unchanged.
+
+Formal production remains dfcc614d. The candidate is not yet promoted or declared accepted.
