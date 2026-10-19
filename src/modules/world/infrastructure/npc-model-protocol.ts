@@ -374,6 +374,39 @@ export const NPC_RESPONSE_FORMAT: ModelOutputOptions = {
   strict: true,
   schema: strictSchema(z.toJSONSchema(ModelWire)) as Record<string, unknown>,
 };
+/** Mechanical grammar factoring only; unequal condition scopes never share a definition. */
+export function shareNpcConditionSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const definitions = schema.$defs as Record<string, any> | undefined;
+  const next = definitions?.npc_plan_next_step;
+  const condition = next?.anyOf?.find(
+    (choice: any) => choice.properties?.kind?.enum?.[0] === 'reconsider',
+  )?.properties?.conditions?.items;
+  if (!condition || !Array.isArray(condition.anyOf) || definitions?.npc_condition !== undefined)
+    return structuredClone(schema);
+  const signature = JSON.stringify(condition);
+  let count = 0;
+  const replace = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(replace);
+    if (!value || typeof value !== 'object') return value;
+    const node = value as Record<string, unknown>;
+    if (
+      Array.isArray(node.anyOf) &&
+      node.anyOf.length === condition.anyOf.length &&
+      JSON.stringify(node) === signature
+    ) {
+      count++;
+      return { $ref: '#/$defs/npc_condition' };
+    }
+    return Object.fromEntries(Object.entries(node).map(([key, child]) => [key, replace(child)]));
+  };
+  const factored = replace(schema) as Record<string, unknown>;
+  if (count < 2) return structuredClone(schema);
+  factored.$defs = {
+    ...(factored.$defs as Record<string, unknown>),
+    npc_condition: structuredClone(condition),
+  };
+  return factored;
+}
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
 export function npcResponseFormat(
   state: Pick<AgentValidationContext['state'], 'goals' | 'questions'> &
@@ -646,9 +679,11 @@ export function npcResponseFormat(
   }
   return {
     ...NPC_RESPONSE_FORMAT,
-    schema: npcSourceReferenceSchema(
-      schema as Record<string, unknown>,
-      npcSourceReferences(current?.sources ?? []),
+    schema: shareNpcConditionSchema(
+      npcSourceReferenceSchema(
+        schema as Record<string, unknown>,
+        npcSourceReferences(current?.sources ?? []),
+      ),
     ),
   };
 }
