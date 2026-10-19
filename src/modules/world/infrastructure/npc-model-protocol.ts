@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NativePlanIntentsSchema, compileNpcPlanIntents } from './npc-plan-intent.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
@@ -17,7 +18,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v5';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v6';
+const PREVIOUS_INTERPRETATION_PROTOCOL = 'npc-wire-v5';
 const PREVIOUS_SINGLE_ACTION_PROTOCOL = 'npc-wire-v4';
 const PREVIOUS_EXECUTION_PROTOCOL = 'npc-wire-v3';
 const PREVIOUS_NATIVE_PROTOCOL = 'npc-wire-v2';
@@ -87,6 +89,7 @@ const Wire = z.strictObject({
     PREVIOUS_NATIVE_PROTOCOL,
     PREVIOUS_EXECUTION_PROTOCOL,
     PREVIOUS_SINGLE_ACTION_PROTOCOL,
+    PREVIOUS_INTERPRETATION_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -223,9 +226,16 @@ const Interpretation = z.discriminatedUnion('kind', [
     replies: z.array(InputReply).min(1).max(16),
   }),
 ]);
-const ModelWire = PreviousModelWire.omit({ decisions: true, replyAssessments: true }).extend({
-  protocol: z.literal(NPC_WIRE_PROTOCOL),
+const PreviousInterpretationWire = PreviousModelWire.omit({
+  decisions: true,
+  replyAssessments: true,
+}).extend({
+  protocol: z.literal(PREVIOUS_INTERPRETATION_PROTOCOL),
   inputInterpretation: Interpretation.nullable(),
+});
+const ModelWire = PreviousInterpretationWire.omit({ plans: true }).extend({
+  protocol: z.literal(NPC_WIRE_PROTOCOL),
+  planIntents: NativePlanIntentsSchema,
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
@@ -311,18 +321,61 @@ export function npcResponseFormat(
     properties.consideration = object;
   }
   const goalIds = state.goals.filter((goal) => goal.status === 'active').map((g) => g.id);
-  const scopeGoal = (execution: SchemaNode) => {
+  const scopeGoal = (execution: SchemaNode, allowedIds = goalIds) => {
     const alternatives = execution.properties?.goal?.anyOf;
     if (!alternatives) throw Error('NPC_RESPONSE_SCHEMA');
     const usable = alternatives.filter((g) => {
       if (g.properties!.kind!.enum?.[0] !== 'existing') return true;
-      if (!goalIds.length) return false;
-      g.properties!.id!.enum = goalIds;
+      if (!allowedIds.length) return false;
+      g.properties!.id!.enum = allowedIds;
       return true;
     });
     const first = usable[0];
     if (!first) throw Error('NPC_RESPONSE_SCHEMA');
     execution.properties!.goal = usable.length === 1 ? first : { anyOf: usable };
+  };
+  const editableGoals = state.goals
+    .filter((g) => !['fulfilled', 'withdrawn'].includes(g.status))
+    .map((g) => g.id);
+  if (editableGoals.length) properties.goals!.items!.properties!.id!.enum = editableGoals;
+  else properties.goals = { type: 'null' };
+  const planVariants = properties.planIntents!.items!.anyOf!;
+  const validPlans = (state.plans ?? []).filter(
+    (p) =>
+      editableGoals.includes(p.goalId) &&
+      !['finished', 'withdrawn'].includes(p.status) &&
+      p.actionIds.every((id) =>
+        state.actions?.some(
+          (a) => a.id === id && a.goalId === p.goalId && a.status !== 'executing',
+        ),
+      ),
+  );
+  const safeUpdates = validPlans.filter((p) =>
+    p.actionIds.every((id) =>
+      state.actions?.some(
+        (a) => a.id === id && ['succeeded', 'failed', 'withdrawn'].includes(a.status),
+      ),
+    ),
+  );
+  const nextStep = planVariants.find((p) => p.properties!.kind!.enum?.[0] === 'create')!.properties!
+    .nextStep!;
+  schema.$defs = {
+    ...((schema.$defs ?? {}) as Record<string, unknown>),
+    npc_plan_next_step: nextStep,
+  };
+  properties.planIntents!.items = {
+    anyOf: planVariants.filter((p) => {
+      const kind = p.properties!.kind!.enum?.[0];
+      if (p.properties!.nextStep) p.properties!.nextStep = { $ref: '#/$defs/npc_plan_next_step' };
+      if (kind === 'create') {
+        scopeGoal(p, editableGoals);
+        return true;
+      }
+      const ids = (kind === 'replace' ? validPlans : safeUpdates).map((p) => p.id);
+      if (!ids.length) return false;
+      p.properties!.planId!.enum = ids;
+      return true;
+    }),
   };
   const executions = properties.executions!;
   const executionItem = (executions.anyOf?.[0] ?? executions).items!;
@@ -492,9 +545,65 @@ function transport(value: unknown, convertParameters = true): unknown {
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
+  if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    const value = transport(raw, false) as Record<string, unknown>;
+    const visibleGoals =
+      context.viewState?.goals.filter((g) => !['fulfilled', 'withdrawn'].includes(g.status)) ?? [];
+    if (value.goals === null && visibleGoals.length === 0) value.goals = [];
+    const { planIntents, ...native } = ModelWire.parse(value);
+    const planChanges = compileNpcPlanIntents(context, planIntents);
+    if (new Set(native.goals.map((g) => g.id)).size !== native.goals.length)
+      throw Error('NPC_PLAN_GOAL_UPDATE_DUPLICATE');
+    for (const goal of native.goals)
+      if (
+        !visibleGoals.some((g) => g.id === goal.id) ||
+        !goal.sourceIds.includes(context.input.sourceId) ||
+        new Set(goal.sourceIds).size !== goal.sourceIds.length ||
+        goal.sourceIds.some((id) => context.sources.filter((s) => s.id === id).length !== 1)
+      )
+        throw Error('NPC_PLAN_GOAL_UPDATE_FORBIDDEN');
+    const base = AgentProposalSchema.parse(
+      decodeNpcWire(context, {
+        ...native,
+        protocol: PREVIOUS_INTERPRETATION_PROTOCOL,
+        plans: [],
+      }),
+    );
+    const executionGoalIds = new Set(base.plans.map((p) => p.goalId));
+    const executionPlanIds = new Set(base.plans.map((p) => p.id));
+    const replacements = new Set(
+      base.plans.flatMap((p) => (p.supersedesPlanId ? [p.supersedesPlanId] : [])),
+    );
+    const generatedIds = new Set([...base.goals, ...base.plans, ...base.actions].map((p) => p.id));
+    for (const plan of planChanges.plans) {
+      if (
+        executionGoalIds.has(plan.goalId) ||
+        executionPlanIds.has(plan.id) ||
+        replacements.has(plan.id) ||
+        (plan.supersedesPlanId &&
+          (replacements.has(plan.supersedesPlanId) || executionPlanIds.has(plan.supersedesPlanId)))
+      )
+        throw Error('NPC_PLAN_EXECUTION_CONFLICT');
+      const goalUpdate = base.goals.find((g) => g.id === plan.goalId);
+      if (
+        goalUpdate &&
+        ((goalUpdate.status === 'withdrawn' && !['finished', 'withdrawn'].includes(plan.status)) ||
+          (goalUpdate.status !== 'active' && plan.status === 'active'))
+      )
+        throw Error('NPC_PLAN_GOAL_STATUS_CONFLICT');
+    }
+    if ([...planChanges.goals, ...planChanges.plans].some((p) => generatedIds.has(p.id)))
+      throw Error('NPC_PLAN_OBJECT_CONFLICT');
+    return AgentProposalSchema.parse({
+      ...base,
+      goals: [...base.goals, ...planChanges.goals],
+      plans: [...base.plans, ...planChanges.plans],
+    });
+  }
   if (
     'protocol' in raw &&
-    (raw.protocol === NPC_WIRE_PROTOCOL || raw.protocol === PREVIOUS_SINGLE_ACTION_PROTOCOL)
+    (raw.protocol === PREVIOUS_INTERPRETATION_PROTOCOL ||
+      raw.protocol === PREVIOUS_SINGLE_ACTION_PROTOCOL)
   ) {
     // Native v4 has one action channel. No disposition flag competes with an
     // execution, and models cannot author completion receipts or terminal success.
@@ -502,13 +611,13 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     // The scoped native grammar offers null when no player-decision items are
     // authorized. This is an empty transport collection, not a guessed decision.
     if (nativeTransport.decisions === null) nativeTransport.decisions = [];
-    const current = raw.protocol === NPC_WIRE_PROTOCOL;
+    const current = raw.protocol === PREVIOUS_INTERPRETATION_PROTOCOL;
     const parsed = current
-      ? ModelWire.parse(nativeTransport)
+      ? PreviousInterpretationWire.parse(nativeTransport)
       : PreviousModelWire.parse(nativeTransport);
     let native: z.infer<typeof PreviousModelWire>;
     if (current) {
-      const { inputInterpretation, ...body } = parsed as z.infer<typeof ModelWire>;
+      const { inputInterpretation, ...body } = parsed as z.infer<typeof PreviousInterpretationWire>;
       const replies = interpretCurrentPlayerInput(context, inputInterpretation);
       native = {
         ...body,

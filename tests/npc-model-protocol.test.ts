@@ -847,9 +847,19 @@ test('native completion references are actual visible receipts, not proposed exe
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
   const responsibility = format.schema.properties.responsibilities.items.properties;
   assert.equal(responsibility.resolutionResultId, undefined);
-  assert.equal(format.schema.properties.goals.items.properties.resultIds, undefined);
+  assert.equal(format.schema.properties.goals.type, 'null');
+  c.state.goals.push({
+    id: 'visible-goal',
+    summary: 'Current intention',
+    status: 'active',
+    sourceIds: ['input'],
+    resultIds: [],
+  });
+  const withGoal: any = npcResponseFormat(c.state, 'forbidden', c);
+  assert.deepEqual(withGoal.schema.properties.goals.items.properties.id.enum, ['visible-goal']);
+  assert.equal(withGoal.schema.properties.goals.items.properties.resultIds, undefined);
   assert(!responsibility.status.enum.includes('fulfilled'));
-  assert(!format.schema.properties.goals.items.properties.status.enum.includes('fulfilled'));
+  assert(!withGoal.schema.properties.goals.items.properties.status.enum.includes('fulfilled'));
 });
 
 test('native plans persist as state, never as redundant record-plan execution capability', () => {
