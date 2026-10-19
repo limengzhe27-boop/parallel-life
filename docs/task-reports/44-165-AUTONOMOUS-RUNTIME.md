@@ -25,3 +25,9 @@ Chrome获用户授权，使用当前生产构建及真实数据库/模型配置�
 断点继续处理：scheduleAgents将coordinate异常转为coordination_failed，服务coordinated=true后跳过后续协调，导致原失败被投影成quiet。现在只对真正错误向原operation透传；已有paid pending/known-invalid保留原作用域。另将bootstrap/opening_context原导演执行前移，避免为首次开场先装配全NPC上下文；同一snapshot事务复用opening authority与人物材料，不跨事务缓存，不省略执行前验证。
 
 旧unknown仅在新相关认证证据出现时退休旧执行资格，原付费身份保留；时间/无关版本变化不构成新授权。已集成bac5f345、8101cd91、68613a72。仍待完整页面主动开场/后续实测及正式部署，当前不可标已交付。
+
+## 候选交付验证
+- Chrome原UI测试档479df414：零玩家输入，1次导演committed确认6份各自知情，3位NPC自动committed；实际锁屏看见林白语、李之之两条新生成消息及新邀约，第三位在离开页面时完成。累计4次文字、0图，测试档已原clock store暂停。不是人工advance，不是用户原档证明。
+- 本地连生产DB跨网读取很慢，先前全量上下文加45秒准入窗口导致无模型空转；已前移开场与模型工作slot准入，已入队的slot不因准备时间被后续预算拒绝，后续新工作仍受原预算。轻量观察候选仅缩小水合对象，原完整snapshot/来源/调度/内核不省略；有pending导演时保持原全量保护。
+- 实测仍发现李之之把历史照片表述为刚发；第一条邀请内容贴近预置原话。内容质量和长期后续未验收，不以新消息数量宣称完整演绎通过。
+- check3824/build通过；原入口PG（含读取错误透传、protected导演、unknown隔离、多人物消费）通过；生产99迁移校验一致无新增SQL。正式部署与公网验收下一步，仍未完成交付。
