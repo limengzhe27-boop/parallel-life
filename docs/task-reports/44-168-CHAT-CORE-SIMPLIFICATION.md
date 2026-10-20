@@ -165,3 +165,9 @@ PG连续旅程16/16通过（并发6、恢复9、stage2 1）：A首段后B插入A
 - 当前协议兼容修复对已有受保护旧付费结果的恢复仍需专项覆盖，不能重买替代。
 - 真实后续整体延迟仍有波动；没有声称每条消息45秒内或速度SLA。
 - 173连续多人物/旧opening authority夹具待更新；related-effect实际取消事件、v14旧partial回执等既有清单保留。
+
+### 第十批上线接续与未通过项
+
+业务a9b2d107 / dpl_GMdBwxzaWaaEVM58wdCX9RwNbooK精确READY绑定Nu，check3873/build最终通过，103生产一致，173冻结测试2/2集成。公网原advance合成档v39→41（31.381s），无新消息；health/workbench200。审查调用记录发现本次新增NPC committed2、invalid_output1、director committed1：离线复用原响应parse通过，validateActorContinuation明确INVALID_ACTOR_CONTINUATION。旧索图计划复查输出await_response同时附无授权at_place条件，未执行生图、未重买。该失败未解决，下一步精简continuation按决策类型的条件契约，不能再称公网所有人物通过。本批总43文字/0图，所有合成档暂停。
+
+小迪173冻结结果测试已进本次业务提交，主表/报告原镜像继续由其维护；本次未覆盖或提交其未冻结文档变化。

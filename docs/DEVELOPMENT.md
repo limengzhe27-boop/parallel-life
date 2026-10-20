@@ -2875,3 +2875,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第十批root扩展domain/actor-opportunity-context.ts及其单测：真实后续导演任务为本地展示角，NPC仍重复架子颜色；发现结构化参与机会只接受director-wire-v9，当前v14走旧纯文本路径。统一现行/已存同形协议解码，不增加新模型阶段。新增资格成熟与等待并存的准入，保留已评同上下文防重。
 
 44-168第十批待上线：root main已修复未评窗口有限接续、原条件成熟不被他人等待挡住、成功结果已有等待责任不重复复盘、消息发言者/触发源分离、currentOpportunity绑定及v14结构化任务接线。真实无输入双人开场+原作者时间条件后新展示角议题，原advance三条消息；39文字/0图、合成档暂停，无用户档写。check3873、PG窗口3/173结果2、模型及collector聚焦通过；旧director协议夹具失败保留。103生产迁移一致，build/READY公网待最终记录。长期所有事件耗尽后的创作、自由语义重复、旧付费协议恢复等未结清；173仅冻结测试集成，其报告/任务行由小迪维护。
+
+44-168第十批已部署但整体未通过：a9b2d107 / dpl_GMdBwxzaWaaEVM58wdCX9RwNbooK精确READY绑定Nu；check3873/build/生产103一致，PG窗口3及173结果2通过。真实无输入双人开场+原时间条件后新展示角议题已观察；公网原advance v39→41无新消息且另有一条旧索图计划INVALID_ACTOR_CONTINUATION（原响应离线复核），未重买/未生图。总43文字/0图，合成档暂停。整体继续进行中，不能以API200宣称公网全通过；下一步精简continuation决策/条件契约，长期创作/自由语义重复/渣男体验原档持续验收留清单。
