@@ -1,3 +1,4 @@
+import { npcChangeObject } from './helpers/npc-response-schema.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
@@ -6,7 +7,6 @@ import { parseAgentProposal } from '../src/modules/world/infrastructure/agent-pr
 import {
   decodeNpcWire,
   npcResponseFormat,
-  NPC_WIRE_PROTOCOL,
 } from '../src/modules/world/infrastructure/npc-model-protocol.ts';
 function fixture() {
   const state = emptyActorAgentState({ worldId: 'world', actorId: 'actor' }, 'def', 3);
@@ -209,8 +209,8 @@ test('v5 protected completions preserve previous local identifiers and fail genu
 test('scoped v6 grammar offers only visible editable old IDs and fits current provider envelope', () => {
   const { c } = existing();
   const format: any = npcResponseFormat(c.viewState!, 'forbidden', c);
-  const properties = format.schema.properties;
-  assert.deepEqual(properties.protocol.enum, [NPC_WIRE_PROTOCOL]);
+  const properties = npcChangeObject(format.schema).properties;
+  assert.deepEqual(format.schema.properties.protocol.enum, ['npc-wire-v15']);
   assert.deepEqual(
     new Set(format.schema.$defs.npc_authorized_basis.items.enum),
     new Set(c.sources.map((_, i) => `source:${i + 1}`)),
@@ -228,8 +228,8 @@ test('scoped v6 grammar offers only visible editable old IDs and fits current pr
   );
   const c0 = fixture().c;
   const empty: any = npcResponseFormat(c0.viewState!, 'forbidden', c0);
-  assert.equal(empty.schema.properties.goals.type, 'null');
-  assert.equal(empty.schema.properties.planIntents.items.anyOf.length, 1);
+  assert.equal(npcChangeObject(empty.schema).properties.goals.type, 'null');
+  assert.equal(npcChangeObject(empty.schema).properties.planIntents.items.anyOf.length, 1);
   assert(JSON.stringify(format.schema).length < 32_000);
   const raw = fixture();
   assert.doesNotThrow(() => parseAgentProposal(raw.c, { ...raw.wire, goals: null }));

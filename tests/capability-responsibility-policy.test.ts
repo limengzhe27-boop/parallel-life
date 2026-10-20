@@ -89,9 +89,19 @@ test('native schema and kernel contract agree for all offered supported handling
     }
     if (!v || typeof v !== 'object') return;
     const n = v as any;
-    if (n.properties?.capability?.enum && n.properties?.handlesResponsibilityIds)
+    if (n.properties?.capability?.enum) {
+      if (!n.properties.handlesResponsibilityIds) {
+        // Immediate actions omit this mutation entirely, rather than accepting
+        // an unbounded undeclared responsibility field.
+        assert.equal(n.additionalProperties, false);
+      }
       for (const capability of n.properties.capability.enum)
-        found.set(capability, n.properties.handlesResponsibilityIds.maxItems);
+        found.set(
+          capability,
+          n.properties.handlesResponsibilityIds?.maxItems ??
+            (n.properties.handlesResponsibilityIds ? undefined : 0),
+        );
+    }
     Object.values(n).forEach(visit);
   };
   visit(format.schema);

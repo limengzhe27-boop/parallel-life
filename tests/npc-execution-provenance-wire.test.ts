@@ -229,7 +229,7 @@ test('latest grammar is current, and empty execution output remains quiet withou
   const { context, wire } = fixture();
   const format = npcResponseFormat(context.state, 'forbidden', context);
   if (format.format !== 'json_schema') throw Error('schema');
-  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v14']);
+  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v15']);
   context.input = { ...context.input, origin: 'wake', text: 'No relevant new changes' };
   const p = parseAgentProposal(context, {
     ...wire,

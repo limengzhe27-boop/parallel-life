@@ -1,3 +1,4 @@
+import { npcChangeObject } from './helpers/npc-response-schema.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
@@ -185,14 +186,14 @@ test('v7 provider grammar binds review scope and source validation remains expli
     player = fixture(false);
   const a: any = npcResponseFormat(own.c.viewState!, 'forbidden', own.c),
     b: any = npcResponseFormat(player.c.viewState!, 'forbidden', player.c);
-  assert.deepEqual(a.schema.properties.protocol.enum, ['npc-wire-v14']);
-  assert.equal(a.schema.properties.agendaReview.type, 'object');
-  assert.deepEqual(a.schema.properties.agendaReview.properties.decision.enum, [
+  assert.deepEqual(a.schema.properties.protocol.enum, ['npc-wire-v15']);
+  assert.equal(npcChangeObject(a.schema).properties.agendaReview.type, 'object');
+  assert.deepEqual(npcChangeObject(a.schema).properties.agendaReview.properties.decision.enum, [
     'quiet',
     'update_plan',
     'contact',
   ]);
-  assert.equal(b.schema.properties.agendaReview.type, 'null');
+  assert.equal(npcChangeObject(b.schema).properties.agendaReview.type, 'null');
   reject(own.c, { ...own.wire, agendaReview: null });
   reject(own.c, {
     ...own.wire,

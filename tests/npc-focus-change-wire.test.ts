@@ -1,3 +1,4 @@
+import { npcChangeObject } from './helpers/npc-response-schema.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
@@ -145,9 +146,13 @@ test('v9 schema has required discriminated focusChange and exact source-ref valu
   if (f.format !== 'json_schema') throw Error('schema');
   const s: any = f.schema;
   assert.equal(s.properties.focus, undefined);
-  assert(s.required.includes('focusChange'));
-  assert.deepEqual(s.properties.protocol.enum, ['npc-wire-v14']);
-  const set = s.properties.focusChange.anyOf.find((x: any) => x.properties.kind.enum[0] === 'set');
+  const changes = npcChangeObject(s);
+  assert(changes.required.includes('focusChange'));
+  assert.equal(changes.properties.focus, undefined);
+  assert.deepEqual(s.properties.protocol.enum, ['npc-wire-v15']);
+  const set = changes.properties.focusChange.anyOf.find(
+    (x: any) => x.properties.kind.enum[0] === 'set',
+  );
   assert.equal(
     set.properties.value.properties.questionSourceId.anyOf[0].$ref,
     '#/$defs/npc_source_ref',

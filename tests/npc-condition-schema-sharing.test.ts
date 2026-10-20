@@ -124,7 +124,7 @@ test('condition factoring does not overwrite reserved definitions or manufacture
   };
   assert.deepEqual(shareNpcConditionSchema(absent), absent);
 });
-test('real NPC response schema shares common conditions without changing v14 transport or reschedule parameters', () => {
+test('current NPC response schema shares common conditions and preserves scoped reschedule parameters', () => {
   const at = '2026-10-19T09:00:00.000Z',
     state = emptyActorAgentState({ worldId: 'world', actorId: 'actor' }, 'definition', 1);
   state.goals = [
@@ -176,7 +176,7 @@ test('real NPC response schema shares common conditions without changing v14 tra
   });
   if (format.format !== 'json_schema') throw Error('schema');
   const schema: any = format.schema;
-  assert.deepEqual(schema.properties.protocol.enum, ['npc-wire-v14']);
+  assert.deepEqual(schema.properties.protocol.enum, ['npc-wire-v15']);
   assert(schema.$defs.npc_condition);
   const expanded: any = inline(schema);
   const nodes = (v: any): any[] =>

@@ -13,3 +13,7 @@
 审查注意已报告root：required consideration的外层changes若仍允许null，schema会允许decoder拒绝的缺选择输出；agendaReview mandatory wake同理。修正归root，不在此测试迁移中隐藏。
 
 无模型、生产、SQL或部署。整体check/build及真实验收由root完成。
+
+## 追加7文件适配
+
+经root授权，已将上列7文件的当前native schema检查迁移到v15及changes结构；历史v6/v7/v9/v11等输入fixture及对应语义仍不变。新增仅测试helper npcChangeObject，兼容changes明确object和nullable union两个合法外层形态。即时media不暴露handlesResponsibilityIds，并明确断言additionalProperties=false；不将“未找到能力”当通过。当前聚焦60/60通过（含未修改npc-source-reference）。待root修正required scope外层changes后补充外层非空断言。
