@@ -1,3 +1,4 @@
+import { acceptsAgentCommitVersion } from './agent-commit-version.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -382,30 +383,11 @@ export async function persistAndCommitStreamSegment(
     const isFirstCommit = priorCommitted.length === 0;
     const currentWorldVersion = Number(worldRow.version);
 
-    if (isFirstCommit) {
-      if (currentWorldVersion !== attempt.expectedWorldVersion) {
-        await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
-        return { outcome: 'superseded' as const, reason: 'VERSION_CONFLICT' };
-      }
-    } else {
-      const ownsPrefixVersion =
-        currentWorldVersion === attempt.expectedWorldVersion + 1 &&
-        (
-          await sql.query(
-            'SELECT 1 FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3 AND command_id=$4 AND version=$5',
-            [
-              attempt.worldId,
-              ownerId,
-              eventId,
-              attempt.commandId,
-              attempt.expectedWorldVersion + 1,
-            ],
-          )
-        ).rowCount === 1;
-      if (!ownsPrefixVersion) {
-        await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
-        return { outcome: 'superseded' as const, reason: 'VERSION_CONFLICT' };
-      }
+    if (
+      !(await acceptsAgentCommitVersion(sql, ownerId, attempt, currentWorldVersion, !isFirstCommit))
+    ) {
+      await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
+      return { outcome: 'superseded' as const, reason: 'VERSION_CONFLICT' };
     }
 
     const occurredAt = new Date().toISOString();

@@ -17,6 +17,7 @@ import {
   initializeActorAgentStateInTransaction,
   switchAgentEngineEpochInTransaction,
   beginAgentCommitInTransaction,
+  beginAgentCommitFrameInTransaction,
   finishAgentCommitInTransaction,
 } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 const at = '2026-10-15T07:00:00.000Z';
@@ -325,6 +326,44 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
       await assert.rejects(
         () => app.transaction(f.owner, (sql) => beginAgentCommitInTransaction(sql, f.owner, a)),
         /ATTEMPT_STALE/,
+      );
+    },
+  );
+  await t.test(
+    'commit frame keeps the locked baseline and finish checks lease expiry after admission',
+    async () => {
+      const f = await fixture();
+      let a = (await claim(f, { leaseUntil: new Date(Date.now() + 800).toISOString() })).attempt;
+      a = await store.mark(f.owner, a, 'request_sent');
+      a = await store.saveResponse(f.owner, a, { text: 'ready' });
+      const eventId = randomUUID();
+      await assert.rejects(
+        () =>
+          app.transaction(f.owner, async (sql) => {
+            const frame = await beginAgentCommitFrameInTransaction(sql, f.owner, a);
+            assert.equal(frame.receipt.id, a.inputReceiptId);
+            assert.equal(frame.world.version, 0);
+            assert.equal(frame.state.revision, 0);
+            const working = structuredClone(frame.world);
+            working.time = '2030-01-01T00:00:00.000Z';
+            assert.equal(frame.world.time, at);
+            await writeWorld(sql, f, a, eventId);
+            await sql.query('SELECT pg_sleep($1)', [
+              Math.max(0, (Date.parse(a.leaseUntil) - Date.now()) / 1000) + 0.05,
+            ]);
+            await finishAgentCommitInTransaction(sql, f.owner, {
+              attempt: a,
+              eventId,
+              state: { ...f.state, revision: 1, projectedWorldVersion: 1 },
+              results: [],
+            });
+          }),
+        /ATTEMPT_STALE/,
+      );
+      assert.equal(
+        (await admin.query('SELECT version FROM parallel_life.worlds WHERE id=$1', [f.worldId]))
+          .rows[0].version,
+        0,
       );
     },
   );

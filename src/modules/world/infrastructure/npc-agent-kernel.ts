@@ -43,7 +43,7 @@ import { projectEpisodeRequestInTransaction } from './agent-narrative-repository
 import { requireActiveAgentDeliveryInTransaction } from './agent-delivery-activity.ts';
 import { validateActorEpisodeIntentSnapshotInTransaction } from './actor-episode-intent-repository.ts';
 import {
-  beginAgentCommitInTransaction,
+  beginAgentCommitFrameInTransaction,
   finishAgentCommitInTransaction,
 } from './agent-runtime-repository.ts';
 import {
@@ -211,13 +211,9 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           results: accepted.results,
         };
       }
-      const current = await beginAgentCommitInTransaction(sql, ownerId, attempt, options);
-      const receivedInput = (
-        await sql.query(
-          'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND id=$3',
-          [attempt.worldId, ownerId, attempt.inputReceiptId],
-        )
-      ).rows[0]?.document;
+      const frame = await beginAgentCommitFrameInTransaction(sql, ownerId, attempt, options);
+      const current = frame.state;
+      const receivedInput = frame.receipt;
       const inputSource = snapshot.sources.find((source) => source.id === snapshot.input.sourceId);
       if (
         !receivedInput ||
@@ -359,12 +355,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         if (options.mediaPrefix)
           return { eventId, state: earlyTransition!.stateAfter, results: earlyResults };
       }
-      const executionWorld = (
-        await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
-          attempt.worldId,
-          ownerId,
-        ])
-      ).rows[0].state as import('../domain/types.ts').WorldState;
+      // Executors mutate their working state; the locked event baseline stays unchanged.
+      const executionWorld = structuredClone(frame.world);
       const worldTime = executionWorld.time;
       const at = new Date(
         Math.max(
@@ -454,13 +446,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           )
             throw new AgentValidationError('APPOINTMENT_PROPOSAL');
           if (placeId !== undefined) {
-            const places =
-              (
-                await sql.query(
-                  "SELECT state->'space'->'places' AS places FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2",
-                  [attempt.worldId, ownerId],
-                )
-              ).rows[0]?.places ?? [];
+            const places = frame.world.space?.places ?? [];
             if (
               !snapshot.worldContext?.boundary.placeIds.includes(placeId as string) ||
               places.filter((p: { id: string }) => p.id === placeId).length !== 1
@@ -1614,12 +1600,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         });
       }
       const positionKnowledge: import('../domain/world-awareness.ts').ActorPositionKnowledge[] = [];
-      const bounded = (
-        await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
-          attempt.worldId,
-          ownerId,
-        ])
-      ).rows[0].state;
+      const bounded = frame.world;
       if (proposal.locationReports?.length) {
         const audience = await readLocationReportAudience(
           sql,
@@ -1752,12 +1733,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             )[],
           },
         };
-        const world = (
-          await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
-            attempt.worldId,
-            ownerId,
-          ])
-        ).rows[0].state;
+        const world = frame.world;
         const next = applyAgentStateEvent(world, event),
           compact = compactWorldState(next);
         const requestHash = createHash('sha256')

@@ -1,3 +1,5 @@
+import { acceptsAgentCommitVersion } from './agent-commit-version.ts';
+import type { WorldState } from '../domain/types.ts';
 import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import {
   requireOwnAgendaReviewAuthorityInTransaction,
@@ -125,6 +127,9 @@ async function loadAttempt(sql: SqlClient, ownerId: string, expected: AgentAttem
       [expected.id, expected.worldId, ownerId],
     )
   ).rows[0];
+  return checkedAttemptRow(row, expected);
+}
+function checkedAttemptRow(row: any, expected: AgentAttempt) {
   if (!row) fail('NOT_FOUND');
   const actual = attempt(row);
   for (const field of [
@@ -847,12 +852,12 @@ export class PostgresAgentRuntimeRepository
 }
 
 /** No BEGIN/COMMIT or external call. Root must use this SqlClient for every following world write. */
-export async function beginAgentCommitInTransaction(
+export async function beginAgentCommitFrameInTransaction(
   sql: SqlClient,
   ownerId: string,
   expected: AgentAttempt,
   options: { mediaPrefix?: boolean } = {},
-): Promise<ActorAgentState> {
+): Promise<{ state: ActorAgentState; world: WorldState; receipt: AgentInputReceipt }> {
   const w = await world(sql, ownerId, expected.worldId),
     row = await loadAttempt(sql, ownerId, expected);
   if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
@@ -873,26 +878,8 @@ export async function beginAgentCommitInTransaction(
     ).rowCount
   )
     fail('SUPERSEDED_BY_USER_INTERRUPT');
-  if (w.version !== expected.expectedWorldVersion) {
-    const ownPrefix =
-      w.version === expected.expectedWorldVersion + 1 &&
-      (
-        await sql.query(
-          `SELECT 1 FROM parallel_life.agent_attempt_stream_segments s
-           JOIN parallel_life.world_events e ON e.world_id=s.world_id AND e.owner_id=s.owner_id AND e.id=s.source_event_id
-           WHERE s.world_id=$1 AND s.owner_id=$2 AND s.attempt_id=$3 AND s.status='committed'
-             AND e.command_id=$4 AND e.version=$5 LIMIT 1`,
-          [
-            expected.worldId,
-            ownerId,
-            expected.id,
-            expected.commandId,
-            expected.expectedWorldVersion + 1,
-          ],
-        )
-      ).rowCount;
-    if (!ownPrefix) fail('VERSION_CONFLICT');
-  }
+  if (!(await acceptsAgentCommitVersion(sql, ownerId, expected, Number(w.version))))
+    fail('VERSION_CONFLICT');
   const current = (
     await sql.query(
       'SELECT revision,document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 FOR UPDATE',
@@ -922,7 +909,16 @@ export async function beginAgentCommitInTransaction(
     "SELECT set_config('app.agent_engine_epoch',$1,true),set_config('app.agent_world_id',$2,true),set_config('app.agent_commit_attempt_id',$3,true)",
     [String(expected.engineEpoch), expected.worldId, expected.id],
   );
-  return current.document;
+  return { state: current.document, world: { ...w.state, version: Number(w.version) }, receipt };
+}
+/** Compatibility for callers that only need the actor; admission has one implementation. */
+export async function beginAgentCommitInTransaction(
+  sql: SqlClient,
+  ownerId: string,
+  expected: AgentAttempt,
+  options: { mediaPrefix?: boolean } = {},
+): Promise<ActorAgentState> {
+  return (await beginAgentCommitFrameInTransaction(sql, ownerId, expected, options)).state;
 }
 /** Finish only after the actual world event, command receipt and all projections were written in this UoW. */
 export async function finishAgentCommitInTransaction(
@@ -941,11 +937,37 @@ export async function finishAgentCommitInTransaction(
       .id !== expected.id
   )
     fail('ATOMIC_COMMIT_REQUIRED');
-  const document = stateShape(state),
-    w = await world(sql, ownerId, expected.worldId),
-    row = await loadAttempt(sql, ownerId, expected);
-  if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
-    fail('ENGINE_EPOCH_CONFLICT');
+  const document = stateShape(state);
+  // Read the actual post-write evidence together, while preserving the original row locks
+  // and evaluating lease expiry now rather than reusing the admission-time boolean.
+  const head = (
+    await sql.query(
+      `SELECT w.version, to_jsonb(a) AS attempt, a.lease_until>clock_timestamp() AS live,
+        COALESCE(r.engine_epoch,1) AS engine_epoch,
+        EXISTS(SELECT 1 FROM parallel_life.world_events e JOIN parallel_life.commands c
+          ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+          AND c.status='succeeded' AND c.result_event_id=e.id
+          WHERE e.world_id=w.id AND e.owner_id=w.owner_id AND e.id=$4 AND e.version=w.version
+            AND e.command_id=$5 AND c.expected_version=$6 AND e.payload->'data'->>'actorId'=$7) AS evidence
+       FROM parallel_life.worlds w JOIN parallel_life.agent_attempts a
+         ON a.world_id=w.id AND a.owner_id=w.owner_id AND a.id=$3
+       LEFT JOIN parallel_life.agent_runtime_worlds r ON r.world_id=w.id AND r.owner_id=w.owner_id
+       WHERE w.id=$1 AND w.owner_id=$2 FOR UPDATE OF w,a`,
+      [
+        expected.worldId,
+        ownerId,
+        expected.id,
+        eventId,
+        expected.commandId,
+        expected.expectedWorldVersion,
+        expected.actorId,
+      ],
+    )
+  ).rows[0];
+  if (!head) fail('NOT_FOUND');
+  const w = { version: Number(head.version) };
+  const row = checkedAttemptRow({ ...head.attempt, live: head.live }, expected);
+  if (Number(head.engine_epoch) !== expected.engineEpoch) fail('ENGINE_EPOCH_CONFLICT');
   if (!row.live || row.status !== 'response_received') fail('ATTEMPT_STALE');
   if (
     w.version !== expected.expectedWorldVersion + 1 ||
@@ -955,21 +977,7 @@ export async function finishAgentCommitInTransaction(
     state.projectedWorldVersion !== w.version
   )
     fail('AGENT_REVISION_CONFLICT');
-  const evidence = (
-    await sql.query(
-      "SELECT e.id FROM parallel_life.world_events e JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id=$3 AND e.version=$4 AND e.command_id=$5 AND c.expected_version=$6 AND e.payload->'data'->>'actorId'=$7",
-      [
-        expected.worldId,
-        ownerId,
-        eventId,
-        w.version,
-        expected.commandId,
-        expected.expectedWorldVersion,
-        expected.actorId,
-      ],
-    )
-  ).rows[0];
-  if (!evidence) fail('INVALID_COMMIT_SOURCE');
+  if (!head.evidence) fail('INVALID_COMMIT_SOURCE');
   const saved = await sql.query(
     'UPDATE parallel_life.actor_agent_states SET revision=$4,projected_world_version=$5,document=$6,updated_at=now() WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND revision=$7',
     [
