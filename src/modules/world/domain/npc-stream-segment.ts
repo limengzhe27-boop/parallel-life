@@ -216,6 +216,7 @@ export function classifyNpcStreamStatement(input: {
 }
 
 export type NpcParsedStreamEvent =
+  | { kind: 'execution_intents'; protocol: string; executions: unknown[] }
   | {
       kind: 'statement';
       statement: NpcStreamStatementDraft;

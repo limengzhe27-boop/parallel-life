@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NPC_WIRE_PROTOCOL } from './npc-model-protocol.ts';
 import {
   classifyNpcStreamStatement,
   type NpcParsedStreamEvent,
@@ -45,6 +46,11 @@ export class NpcStreamParser {
   private priorDependentSeen = false;
   private haltedByError = false;
   private executionCapabilities: string[] = [];
+  private readonly seenCriticalKeys = new Set<string>();
+  private protocol: string | null = null;
+  private statementsComplete = false;
+  private parsedExecutions: unknown[] | null = null;
+  private executionIntentsEmitted = false;
 
   constructor(options: {
     channelKind: 'private' | 'group' | 'scene';
@@ -88,6 +94,18 @@ export class NpcStreamParser {
           this.inString = false;
           const rawStringToken = this.rawBuffer.slice(this.stringStart, this.cursor + 1);
           this.stringStart = -1;
+          if (
+            this.activeTopLevelKey === 'protocol' &&
+            this.braceDepth === 1 &&
+            this.bracketDepth === 0
+          ) {
+            try {
+              this.protocol = JSON.parse(rawStringToken) as string;
+              this.emitExecutionIntents(events);
+            } catch {
+              // The full protocol parser rejects malformed strings.
+            }
+          }
           if (
             this.braceDepth === 1 &&
             this.bracketDepth === 0 &&
@@ -135,6 +153,18 @@ export class NpcStreamParser {
           this.awaitingTopLevelValueForKey = null;
           this.activeTopLevelKey = key;
           this.topLevelValueStart = this.cursor;
+          if (['protocol', 'statements', 'executions'].includes(key)) {
+            if (this.seenCriticalKeys.has(key)) {
+              this.haltedByError = true;
+              events.push({
+                kind: 'statement_error',
+                segmentIndex: this.nextSegmentIndex,
+                code: 'STREAM_DUPLICATE_TOP_LEVEL_KEY',
+              });
+              break;
+            }
+            this.seenCriticalKeys.add(key);
+          }
           if (key === 'statements') {
             if (ch === '[') {
               this.inStatementsArray = true;
@@ -227,6 +257,23 @@ export class NpcStreamParser {
       ) {
         this.inStatementsArray = false;
         this.statementsBracketDepth = 0;
+        try {
+          const values = JSON.parse(this.rawBuffer.slice(this.topLevelValueStart, this.cursor + 1));
+          this.statementsComplete = z.array(StatementWireElementSchema).safeParse(values).success;
+        } catch {
+          this.statementsComplete = false;
+        }
+        this.emitExecutionIntents(events);
+      }
+
+      if (
+        this.activeTopLevelKey === 'executions' &&
+        ch === ']' &&
+        this.bracketDepth === 0 &&
+        this.braceDepth === 1
+      ) {
+        this.recordParsedExecutions(this.rawBuffer.slice(this.topLevelValueStart, this.cursor + 1));
+        this.emitExecutionIntents(events);
       }
 
       // Top-level property ends at ',' (braceDepth === 1, bracketDepth === 0) or root '}' (braceDepth === 0, bracketDepth === 0)
@@ -238,6 +285,7 @@ export class NpcStreamParser {
         if (this.activeTopLevelKey === 'executions' && this.topLevelValueStart !== -1) {
           const rawValue = this.rawBuffer.slice(this.topLevelValueStart, this.cursor).trim();
           this.recordParsedExecutions(rawValue);
+          this.emitExecutionIntents(events);
         }
         this.activeTopLevelKey = null;
         this.topLevelValueStart = -1;
@@ -254,6 +302,7 @@ export class NpcStreamParser {
     try {
       const parsed = JSON.parse(rawValue) as unknown;
       if (!Array.isArray(parsed)) return;
+      this.parsedExecutions = parsed;
       const caps: string[] = [];
       for (const item of parsed) {
         const cap = (item as { action?: { capability?: unknown } } | null)?.action?.capability;
@@ -265,6 +314,23 @@ export class NpcStreamParser {
     } catch {
       // Full wire parser will reject invalid executions on turn completion.
     }
+  }
+
+  private emitExecutionIntents(events: NpcParsedStreamEvent[]): void {
+    if (
+      this.executionIntentsEmitted ||
+      this.haltedByError ||
+      !this.statementsComplete ||
+      this.protocol !== NPC_WIRE_PROTOCOL ||
+      this.parsedExecutions === null
+    )
+      return;
+    this.executionIntentsEmitted = true;
+    events.push({
+      kind: 'execution_intents',
+      protocol: this.protocol,
+      executions: this.parsedExecutions,
+    });
   }
 
   private parseAndClassifyStatement(
