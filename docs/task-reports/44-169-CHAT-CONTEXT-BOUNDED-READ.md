@@ -4,7 +4,7 @@
 
 - 任务 ID：`44-169-CHAT-CONTEXT-BOUNDED-READ`
 - Agent ID：`dsh-context-bounded169-20261020`
-- 开发基线：`11f570cf`（已含 `06f1777b` 的上下文去重、NPC v15、即时媒体免目标计划、模型输入复用）；交付前已 rebase 到最新 main `551760f7`
+- 开发基线：`11f570cf`；契约/实现已由主 Agent 集成为 main `e5b02e13`（有界读取）与 `e79a6c0f`（邀约响应/引用修复）。本分支基于 `e79a6c0f`，只新增最终边界与媒体接线验证、报告。
 - 独立工作树：`/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/chat-context-bounded-169`
 - 分支：`codex/chat-context-bounded-169`
 - 状态：待主 Agent 验收；公共聊天入口未切换，未部署
@@ -24,14 +24,14 @@
 
 它不是完整 `WorldState`：新类型 `PrivateChatWorld` 只包含聊天消费者实际依赖的字段，并附带 `ChatContextCompleteness` 说明哪些是完整、哪些是有界、哪些仍需原媒体解析器。旧入口可用它替换 `turnWorlds.get`，不再每次加载全部消息、事实、约定、便签和媒体请求。
 
-同一 600 条历史、104 条事实、53 条约定的真实 PG 夹具（含新增的邀约响应核对）：
+同一 600 条历史、104 条事实、55 条约定的真实 PG 夹具（有界读取选中 50 条，含新增的邀约响应核对）：
 
 | 指标 | 完整 hydrate | 有界读取 | 变化 |
 |---|---:|---:|---:|
 | SQL 查询数 | 4 | 5 | **+1（邀约响应核对）** |
-| 返回行数 | 759 | 334 | **-56%** |
-| 世界 JSON 字节 | 181,227 | 75,606 | **-58%** |
-| 单次墙钟 | 约 84ms | 约 85ms | 本地夹具内无稳定差异 |
+| 返回行数 | 761 | 336 | **-56%** |
+| 世界 JSON 字节 | 181,719 | 76,098 | **-58%** |
+| 单次墙钟 | 约 90.7ms | 约 91.0ms | 本地夹具内无稳定差异 |
 
 短对话夹具（2 条作者开场 + 1 条初始约定）：4 vs 5 查询、4 vs 4 行、2,244 vs 2,196 字节、约 6.2 vs 6.5ms，基本持平。**本批真正减少的是加载行数和字节数；邀约响应核对使有约定世界的查询数增加 1。没有证明整体回复速度提升，本地小样本不是 SLA。**
 
@@ -112,7 +112,7 @@ export type ChatContextRead = {
 | 场景 | 覆盖 |
 |---|---|
 | 普通短对话 | 2 条作者开场、0 运行消息；运行窗口不误报有更多；返回顺序正确 |
-| 长历史世界 | 600 条运行消息、104 facts、53 appointments；窗口/计数/hasMore 正确 |
+| 长历史世界 | 600 条运行消息、104 facts、55 appointments；窗口/计数/hasMore 正确 |
 | 很早仍有效的承诺/拒绝/暂缓/问题/计划/约定/责任 | actor state 完整返回；旧计划、旧责任、旧问题、旧 decision 均在 |
 | 当前明确引用很早的消息 | `message:old` 即使超出 200 窗口也精准返回 |
 | 明确引用的旧事实/约定 | `fact:old`、`appointment:old` 精准返回 |
@@ -151,8 +151,8 @@ const fits = () => {
 
 `JSON.stringify({context,userText})` 的固定包装正好是 24 字符；因此第二个预算不再重复序列化 context。结果：
 
-- JSON.stringify：435 → 290 次（-33%）；
-- `actorContext`：约 3.95–4.04ms → 2.77–3.03ms/次（同夹具，单次样本，有波动）；
+- JSON.stringify：435 → 约 298 次（约 -31%）；
+- `actorContext`：约 3.95–4.04ms → 约 2.9–3.0ms/次（同夹具，单次样本，有波动）；
 - 原 8 项 `actor-context.test.ts` 全部通过，包括 escape-heavy 预算和历史选择顺序测试。
 
 没有继续做“增量长度累计”优化：它需要同时保持中文/转义/数组分隔和每个 append/pop 的精确长度，收益约 1–2ms/轮，语义风险高于本批价值；留作后续。
@@ -249,14 +249,21 @@ try {
 
 ## 实际修改范围
 
-新增：
+已由主 Agent 集成到 main：
 
 - `src/modules/world/application/chat-context-read.ts`
 - `src/modules/world/infrastructure/chat-context-read-repository.ts`
-- `tests/integration/chat-context-bounded-read.test.ts`
+- `src/modules/world/application/actor-context.ts`
+- `src/modules/world/infrastructure/agent-snapshot-repository.ts`
+- `src/modules/world/domain/scene-matter-policy.ts`
+
+本批在 `e79a6c0f` 之上新增：
+
+- `tests/integration/chat-context-bounded-read.test.ts`（扩展边界/邀约/媒体隔离）
+- `tests/integration/chat-context-media-wiring.test.ts`
 - 本报告
 
-类型/纯逻辑收窄：
+类型/纯逻辑说明：
 
 - `src/modules/world/application/actor-context.ts`：`PrivateChatWorld` 类型 + 预算单次序列化；选择顺序/裁剪语义不变。
 - `src/modules/world/infrastructure/agent-snapshot-repository.ts`：参数收窄为 `PrivateChatWorld`（`WorldState` 仍可直接传入），新增可选 `referencedSourceIds` 并传给媒体 resolver。
@@ -266,12 +273,13 @@ try {
 
 ## 验证
 
-- 新真实 PG 夹具：1/1 通过（含短对话、长历史、旧有效事项、旧引用、作者混合、他人隔离、媒体边界、缺失/不可见、旧邀约响应/初始约定终止、300 条持久引用、显式引用超限、事项证据超限、attendance 回退）。
-- 代码提交：`8b99929f`（rebase 到 `551760f7` 后）；报告随后续 docs 提交冻结。
+- 新真实 PG 上下文夹具：1/1 通过（含短对话、长历史、旧有效事项、旧引用、作者混合、他人隔离、旧邀约 accept/cancel/reschedule、初始约定终止、300 条持久引用、state >768 回退、显式引用超限、matter 事件 >512 回退、linked facts 超限、stateUnresolved 不泄露、actorState 缺失、DB 错误不被吞、attendance 回退）。
+- 新媒体接线夹具：1/1 通过（pending/completed/failed 区分、本人旧结果可读、他人/他世界/缺失不越权、历史结果不新增行动）。
+- 集成代码：`e5b02e13` / `e79a6c0f`（main）；本批测试/报告提交待冻结。
 - `tests/actor-context.test.ts`：8/8 通过。
-- 聚焦回归：`chat-latency-stage1`、`actor-media-result-context`、`actor-media-context-wiring`、`actor-situation` 及新增测试：**28/28 通过**。
+- 聚焦回归：`chat-latency-stage1`、`actor-media-result-context`、`actor-media-context-wiring`、`actor-situation` 及两个新增测试：**29/29 通过**。
 - `npm test`：**3854/3854 通过，0 fail，0 skipped**。
-- `npm run check:boundaries`：695 files 通过。
+- `npm run check:boundaries`：696 files 通过。
 - `npm run typecheck`：0 errors。
 - `npm run build`：通过。
 - 0 真实付费模型、0 生产数据库写、0 部署。
@@ -279,8 +287,8 @@ try {
 ## 风险、未完成与后续优化
 
 1. **查询数在约定世界增加 1**：完整 hydrate 4 条；有界读取 5 条（多出邀约响应核对），无约定/短对话仍 4 条。减少的是行数/字节。若主 Agent 要进一步减往返，可把 messages/facts/appointments 用 JSON 聚合合并为 1–2 条，但会增加 SQL 复杂度，本批未做。
-2. **本地耗时没有稳定下降**：单次夹具内 83–91ms vs 83–91ms，差异在噪声内。生产网络下 58% 字节减少可能有益，但本批不宣称延迟 SLA。
-3. **媒体结果不在本读取内**：仍由原 `readActorMediaCompletionContext` 读取；接线需传 `referencedSourceIds`。现有媒体完成/失败/处理中测试保持通过。
+2. **本地耗时没有稳定下降**：单次夹具内约 90–91ms，两者差异在噪声内。生产网络下 58% 字节减少可能有益，但本批不宣称延迟 SLA。
+3. **媒体结果不在本读取内**：仍由原 `readActorMediaCompletionContext` 读取；接线需传 `referencedSourceIds`。新媒体接线夹具已验证 pending/completed/failed、本人/他人/他世界/缺失及历史结果不新增行动。
 4. **历史 attendance**：抛 `CHAT_CONTEXT_FULL_HYDRATE_REQUIRED`，必须回退完整 hydrate；这是有意的正确性保护，不是已完成优化。
 5. **旧邀请响应**：已用原 `applyInvitationEvent` 逐条核对，并在无法一致应用时回退；真实旧档仍需主 Agent 验收，尤其是响应与 attendance/其他约定事件的交互。
 6. **事实有界**：只读 genesis/legacy + 最近 80 + matter 关联 + 显式引用，不声称“世界中只有这些事实”。下游 prompt 已有“省略不代表不存在”约束；如发现某类旧事实对人物判断关键，应加入精确引用或专门关联，而不是把窗口调大。

@@ -68,6 +68,10 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
   const oldAppointmentId = randomUUID();
   const initialAppointmentId = randomUUID();
   const staleAppointmentId = randomUUID();
+  const acceptAppointmentId = randomUUID();
+  const rescheduleAppointmentId = randomUUID();
+  const badAppointmentId = randomUUID();
+  const rescheduleAt = '2026-10-21T09:00:00.000Z';
   const messageIdsByVersion = new Map<number, string>();
   const secretFactId = randomUUID();
   const secretMessageId = randomUUID();
@@ -374,6 +378,40 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         id: staleAppointmentId,
         title: '投影仍旧的约定',
         at: earlyAt,
+        participantIds: [actorId],
+        sourceEventId: early.eventId,
+        status: 'proposed',
+      }),
+      'proposed',
+    ],
+  );
+  await admin.query(
+    'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document,status) VALUES($1,$2,$3,$4,$5)',
+    [
+      acceptAppointmentId,
+      worldId,
+      owner,
+      JSON.stringify({
+        id: acceptAppointmentId,
+        title: '待接受的历史约定',
+        at: '2026-10-22T09:00:00.000Z',
+        participantIds: [actorId],
+        sourceEventId: early.eventId,
+        status: 'proposed',
+      }),
+      'proposed',
+    ],
+  );
+  await admin.query(
+    'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document,status) VALUES($1,$2,$3,$4,$5)',
+    [
+      rescheduleAppointmentId,
+      worldId,
+      owner,
+      JSON.stringify({
+        id: rescheduleAppointmentId,
+        title: '待改期的历史约定',
+        at: '2026-10-23T09:00:00.000Z',
         participantIds: [actorId],
         sourceEventId: early.eventId,
         status: 'proposed',
@@ -712,58 +750,66 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
 
   // Invitation responses exist only in history while the appointment projection is stale.
   // The bounded reader must apply the original domain rule, not trust the projection.
-  await admin.query('BEGIN');
-  try {
-    const insertResponse = async (version: number, appointmentId: string) => {
-      const commandId = randomUUID();
-      const eventId = randomUUID();
-      commandIds.push(commandId);
-      await admin.query(
-        `INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status,result_event_id,result_state)
-         VALUES($1,$2,$3,$4,$5,$6,'succeeded',$7,$8)`,
-        [
-          commandId,
+  const insertInvitationResponse = async (
+    version: number,
+    appointmentId: string,
+    operation: 'accept' | 'cancel' | 'reschedule',
+    at?: string,
+  ) => {
+    const commandId = randomUUID();
+    const eventId = randomUUID();
+    await admin.query(
+      `INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status,result_event_id,result_state)
+       VALUES($1,$2,$3,$4,$5,$6,'succeeded',$7,$8)`,
+      [
+        commandId,
+        worldId,
+        owner,
+        version - 1,
+        createHash('sha256').update(`${worldId}:response:${version}`).digest('hex'),
+        '{}',
+        eventId,
+        '{}',
+      ],
+    );
+    await admin.query(
+      'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [
+        eventId,
+        worldId,
+        owner,
+        version,
+        commandId,
+        JSON.stringify({
+          schemaVersion: 1,
+          type: 'invitation.responded',
+          id: eventId,
           worldId,
-          owner,
-          version - 1,
-          createHash('sha256').update(`${worldId}:response:${version}`).digest('hex'),
-          '{}',
-          eventId,
-          '{}',
-        ],
-      );
-      await admin.query(
-        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
-        [
-          eventId,
-          worldId,
-          owner,
           version,
           commandId,
-          JSON.stringify({
-            schemaVersion: 1,
-            type: 'invitation.responded',
-            id: eventId,
-            worldId,
-            version,
+          occurredAt: END,
+          storyTime: END,
+          data: {
             commandId,
-            occurredAt: END,
-            storyTime: END,
-            data: {
-              commandId,
-              worldId,
-              id: appointmentId,
-              expectedVersion: version - 1,
-              operation: 'cancel',
-            },
-          }),
-          END,
-        ],
-      );
-    };
-    await insertResponse(601, initialAppointmentId);
-    await insertResponse(602, staleAppointmentId);
-    await admin.query('UPDATE parallel_life.worlds SET version=602 WHERE id=$1 AND owner_id=$2', [
+            worldId,
+            id: appointmentId,
+            expectedVersion: version - 1,
+            operation,
+            ...(at ? { at } : {}),
+          },
+        }),
+        END,
+      ],
+    );
+    return commandId;
+  };
+  await admin.query('BEGIN');
+  try {
+    await insertInvitationResponse(601, initialAppointmentId, 'cancel');
+    await insertInvitationResponse(602, staleAppointmentId, 'cancel');
+    await insertInvitationResponse(603, acceptAppointmentId, 'accept');
+    await insertInvitationResponse(604, rescheduleAppointmentId, 'reschedule', rescheduleAt);
+    await admin.query('UPDATE parallel_life.worlds SET version=604 WHERE id=$1 AND owner_id=$2', [
       worldId,
       owner,
     ]);
@@ -780,14 +826,112 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     worldId,
     actorId,
   });
-  const appointmentStatus = (
-    world: { appointments: { id: string; status?: string }[] },
+  const appointment = (
+    world: {
+      appointments: { id: string; status?: string; at?: string; responseVersion?: number }[];
+    },
     id: string,
-  ) => world.appointments.find((appointment) => appointment.id === id)?.status;
-  assert.equal(appointmentStatus(fullAfterResponses, initialAppointmentId), 'cancelled');
-  assert.equal(appointmentStatus(boundedAfterResponses.world, initialAppointmentId), 'cancelled');
-  assert.equal(appointmentStatus(fullAfterResponses, staleAppointmentId), 'cancelled');
-  assert.equal(appointmentStatus(boundedAfterResponses.world, staleAppointmentId), 'cancelled');
+  ) => world.appointments.find((item) => item.id === id);
+  assert.equal(appointment(fullAfterResponses, initialAppointmentId)?.status, 'cancelled');
+  assert.equal(appointment(boundedAfterResponses.world, initialAppointmentId)?.status, 'cancelled');
+  assert.equal(appointment(fullAfterResponses, staleAppointmentId)?.status, 'cancelled');
+  assert.equal(appointment(boundedAfterResponses.world, staleAppointmentId)?.status, 'cancelled');
+  const accepted = appointment(fullAfterResponses, acceptAppointmentId);
+  const boundedAccepted = appointment(boundedAfterResponses.world, acceptAppointmentId);
+  assert.equal(boundedAccepted?.status, accepted?.status);
+  assert.equal(boundedAccepted?.status, 'confirmed');
+  assert.equal(boundedAccepted?.responseVersion, accepted?.responseVersion);
+  const rescheduled = appointment(fullAfterResponses, rescheduleAppointmentId);
+  const boundedRescheduled = appointment(boundedAfterResponses.world, rescheduleAppointmentId);
+  assert.equal(boundedRescheduled?.status, rescheduled?.status);
+  assert.equal(boundedRescheduled?.status, 'proposed');
+  assert.equal(boundedRescheduled?.at, rescheduled?.at);
+  assert.equal(boundedRescheduled?.at, rescheduleAt);
+  assert.equal(boundedRescheduled?.responseVersion, rescheduled?.responseVersion);
+
+  // A response sequence that cannot be reconciled must fall back, not be guessed.
+  await admin.query('BEGIN');
+  let badCommandId = '';
+  try {
+    await admin.query(
+      'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document,status) VALUES($1,$2,$3,$4,$5)',
+      [
+        badAppointmentId,
+        worldId,
+        owner,
+        JSON.stringify({
+          id: badAppointmentId,
+          title: '无法一致应用的约定',
+          at: '2026-10-24T09:00:00.000Z',
+          participantIds: [actorId],
+          sourceEventId: early.eventId,
+          status: 'confirmed',
+        }),
+        'confirmed',
+      ],
+    );
+    badCommandId = await insertInvitationResponse(605, badAppointmentId, 'accept');
+    await admin.query('UPDATE parallel_life.worlds SET version=605 WHERE id=$1 AND owner_id=$2', [
+      worldId,
+      owner,
+    ]);
+    await admin.query('COMMIT');
+  } catch (error) {
+    await admin.query('ROLLBACK');
+    throw error;
+  }
+  await assert.rejects(
+    readChatContextWorld(base, owner, { worldId, actorId }),
+    (error: any) =>
+      error instanceof ChatContextFallbackError && error.reason === 'invitation-reconciliation',
+  );
+  await admin.query('BEGIN');
+  try {
+    await admin.query('DELETE FROM parallel_life.commands WHERE world_id=$1 AND id=$2', [
+      worldId,
+      badCommandId,
+    ]);
+    await admin.query('DELETE FROM parallel_life.world_appointments WHERE world_id=$1 AND id=$2', [
+      worldId,
+      badAppointmentId,
+    ]);
+    await admin.query('UPDATE parallel_life.worlds SET version=604 WHERE id=$1 AND owner_id=$2', [
+      worldId,
+      owner,
+    ]);
+    await admin.query('COMMIT');
+  } catch (error) {
+    await admin.query('ROLLBACK');
+    throw error;
+  }
+
+  // Database/permission failures are not converted into a bounded-read fallback.
+  const failingDb = {
+    pool: base.pool,
+    close: () => base.close(),
+    async transaction<T>(transactionOwner: string, run: (sql: SqlClient) => Promise<T>) {
+      return base.transaction(transactionOwner, async (sql) => {
+        const proxy = new Proxy(sql, {
+          get(target, prop, receiver) {
+            if (prop === 'query') {
+              return (...args: Parameters<SqlClient['query']>) => {
+                if (String(args[0]).includes('invitation.responded'))
+                  return Promise.reject(Error('DB_DOWN'));
+                return target.query(...args);
+              };
+            }
+            const value = Reflect.get(target, prop, receiver);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+        return run(proxy);
+      });
+    },
+  } as PostgresDatabase;
+  await assert.rejects(
+    readChatContextWorld(failingDb, owner, { worldId, actorId }),
+    (error: any) => error?.message === 'DB_DOWN' && !(error instanceof ChatContextFallbackError),
+  );
 
   // Caller-supplied refs are optional and explicitly capped; over the cap we fall back.
   await assert.rejects(
@@ -823,7 +967,101 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     manyReferences.world.messages.some((message) => message.id === messageIdsByVersion.get(300)),
   );
 
-  // Matter-linked evidence beyond the deterministic 200 row cap is a fallback, not silent loss.
+  // Missing/invisible durable-state references are reported, not leaked or silently omitted.
+  const unresolvedHandles = [...manyHandles, `message:${secretMessageId}`, `fact:${secretFactId}`];
+  await admin.query(
+    "UPDATE parallel_life.actor_agent_states SET document=jsonb_set(document,'{knowledgeSourceIds}',$3::jsonb) WHERE world_id=$1 AND owner_id=$2 AND actor_id=$4",
+    [worldId, owner, JSON.stringify(unresolvedHandles), actorId],
+  );
+  const unresolvedState = await readChatContextWorld(base, owner, { worldId, actorId });
+  assert.ok(
+    unresolvedState.completeness.referenced.stateUnresolved.includes(`message:${secretMessageId}`),
+  );
+  assert.ok(
+    unresolvedState.completeness.referenced.stateUnresolved.includes(`fact:${secretFactId}`),
+  );
+  assert.equal(
+    unresolvedState.world.messages.some((message) => message.id === secretMessageId),
+    false,
+  );
+  assert.equal(
+    unresolvedState.world.facts.some((fact) => fact.id === secretFactId),
+    false,
+  );
+
+  // More than 768 durable-state required refs is an explicit fallback, not a slice.
+  const overflowHandles = [
+    ...manyHandles,
+    ...Array.from({ length: 470 }, (_, index) => `fact:missing-${index}`),
+  ];
+  assert.ok(overflowHandles.length > 768);
+  await admin.query(
+    "UPDATE parallel_life.actor_agent_states SET document=jsonb_set(document,'{knowledgeSourceIds}',$3::jsonb) WHERE world_id=$1 AND owner_id=$2 AND actor_id=$4",
+    [worldId, owner, JSON.stringify(overflowHandles), actorId],
+  );
+  await assert.rejects(
+    readChatContextWorld(base, owner, { worldId, actorId }),
+    (error: any) =>
+      error instanceof ChatContextFallbackError && error.reason === 'state-reference-limit',
+  );
+  await admin.query(
+    "UPDATE parallel_life.actor_agent_states SET document=jsonb_set(document,'{knowledgeSourceIds}',$3::jsonb) WHERE world_id=$1 AND owner_id=$2 AND actor_id=$4",
+    [worldId, owner, JSON.stringify(manyHandles), actorId],
+  );
+
+  // More than 512 matter/choice event ids is an explicit fallback.
+  const mattersBefore = (
+    await admin.query(
+      "SELECT state->'matters' AS matters FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2",
+      [worldId, owner],
+    )
+  ).rows[0].matters as unknown[];
+  const overflowMatter = {
+    id: 'overflow-matter',
+    worldId,
+    span: 'pursuit',
+    title: '事项事件溢出',
+    description: '仅用于边界验证',
+    status: 'in_progress',
+    assertion: 'player_statement',
+    visibility: 'player_visible',
+    relatedActorIds: [actorId],
+    source: {
+      kind: 'actor_proposal',
+      actorId,
+      eventId: early.eventId,
+      eventVersion: 1,
+      at: earlyAt,
+    },
+    version: 1,
+    createdAt: earlyAt,
+    updatedAt: earlyAt,
+    pursuitProgress: {
+      milestones: Array.from({ length: 513 }, (_, index) => ({
+        matterId: 'overflow-matter',
+        title: `milestone-${index}`,
+        eventId: `milestone-${index}`,
+        eventVersion: 1,
+        at: earlyAt,
+      })),
+      nextOpportunityIds: [],
+    },
+  };
+  await admin.query(
+    "UPDATE parallel_life.worlds SET state=jsonb_set(state,'{matters}',$3::jsonb) WHERE id=$1 AND owner_id=$2",
+    [worldId, owner, JSON.stringify([...mattersBefore, overflowMatter])],
+  );
+  await assert.rejects(
+    readChatContextWorld(base, owner, { worldId, actorId }),
+    (error: any) =>
+      error instanceof ChatContextFallbackError && error.reason === 'linked-evidence-limit',
+  );
+  await admin.query(
+    "UPDATE parallel_life.worlds SET state=jsonb_set(state,'{matters}',$3::jsonb) WHERE id=$1 AND owner_id=$2",
+    [worldId, owner, JSON.stringify(mattersBefore)],
+  );
+
+  // Matter-linked facts beyond the deterministic 200 row cap is a fallback, not silent loss.
   await admin.query('BEGIN');
   try {
     for (let index = 0; index < 201; index++) {
@@ -871,7 +1109,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         commandId,
         worldId,
         owner,
-        602,
+        604,
         createHash('sha256').update(`${worldId}:attendance`).digest('hex'),
         '{}',
         eventId,
@@ -884,7 +1122,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         eventId,
         worldId,
         owner,
-        603,
+        605,
         commandId,
         JSON.stringify({
           type: 'turn.resolved',
@@ -894,7 +1132,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         END,
       ],
     );
-    await admin.query('UPDATE parallel_life.worlds SET version=603 WHERE id=$1 AND owner_id=$2', [
+    await admin.query('UPDATE parallel_life.worlds SET version=605 WHERE id=$1 AND owner_id=$2', [
       worldId,
       owner,
     ]);
@@ -909,5 +1147,42 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
       actorId,
     }),
     (error: any) => error instanceof ChatContextFallbackError && error.reason === 'attendance',
+  );
+
+  // Missing actor state stays missing; the bounded reader never initializes or fabricates it.
+  const missingOwner = randomUUID();
+  const missingWorldId = randomUUID();
+  const missingActorId = randomUUID();
+  await new IdentityRepository(base).ensureGuest(missingOwner);
+  await new PostgresWorldRepository(base).initialize(
+    { userId: missingOwner },
+    {
+      schemaVersion: 1,
+      id: missingWorldId,
+      ownerId: missingOwner,
+      version: 0,
+      title: '44-169 missing actor state fixture',
+      time: START,
+      actors: [{ id: missingActorId, name: '未准备人物', persona: '状态行不存在。' }],
+      facts: [],
+      messages: [],
+      appointments: [],
+      mediaRequests: [],
+    },
+  );
+  const missing = await readChatContextWorld(base, missingOwner, {
+    worldId: missingWorldId,
+    actorId: missingActorId,
+  });
+  assert.equal(missing.actorState, null);
+  assert.equal(missing.completeness.actorState, 'missing');
+  assert.equal(
+    (
+      await admin.query(
+        'SELECT COUNT(*)::int AS count FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3',
+        [missingWorldId, missingOwner, missingActorId],
+      )
+    ).rows[0].count,
+    0,
   );
 });
