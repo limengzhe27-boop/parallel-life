@@ -1102,6 +1102,7 @@ export function npcAgentAdvanceServices(
                   source: candidate.source,
                   actionId: candidate.actionId,
                   basisSourceIds: candidate.sourceIds,
+                  ...(candidate.planReview ? { planReview: candidate.planReview } : {}),
                   nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
                 });
           const { receipt } = await attempts.accept(ownerId, {

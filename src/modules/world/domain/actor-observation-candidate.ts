@@ -25,6 +25,19 @@ const invalid = (): never => {
   });
 };
 
+/** Initial incoming-message summaries belong to opening context, not a new observation wake. */
+function initialMessagePresentation(text: string): boolean {
+  try {
+    const packet = JSON.parse(text);
+    if (packet.method !== 'authored_initial_context' || typeof packet.text !== 'string')
+      return false;
+    const premise = JSON.parse(packet.text);
+    return premise.type === 'received_opening_information' && premise.executionEvidence === false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Pure candidate construction, not a new scheduler or an execution/payment grant. No actor
  * projected-version heuristic: same-commit observations can remain pending until truly supplied.
@@ -82,6 +95,16 @@ export async function collectPendingSceneObservationCandidates(
       Date.parse(source.at) > Date.parse(input.storyAt)
     )
       invalid();
+    if (
+      narrative &&
+      input.observations?.some(
+        (o) =>
+          o.sourceId === source.id &&
+          o.evidenceKind === 'authored_context' &&
+          initialMessagePresentation(o.text),
+      )
+    )
+      continue;
     const previous = visible.get(source.id);
     if (previous && previous.contentHash !== source.contentHash) invalid();
     visible.set(source.id, source);

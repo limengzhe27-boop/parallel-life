@@ -41,6 +41,23 @@ export function episodeDispatchAttempt(row: {
   };
 }
 
+/** Transport failure is not pending executable work, nor a new payment grant. */
+export function episodeRequestWorkState(
+  requestId: string,
+  attempts: readonly EpisodeDispatchAttempt[],
+): 'available' | 'in_flight' | 'paid_terminal' {
+  const prior = attempts.filter((a) => a.requestId === requestId);
+  if (prior.some((a) => a.status === 'committed' && !a.playerManifest))
+    throw new DomainError('INVALID_PROPOSAL', 'EPISODE_CONSUMPTION_RECEIPT_MISSING');
+  if (
+    prior.some((a) =>
+      ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(a.status),
+    )
+  )
+    return 'in_flight';
+  return prior.some((a) => a.paid) ? 'paid_terminal' : 'available';
+}
+
 /** One eligibility calculation for dispatch and the read-only phone hint. No claim or execution. */
 export function eligibleEpisodeDispatches(
   worldId: string,
@@ -52,9 +69,7 @@ export function eligibleEpisodeDispatches(
   return requests.flatMap((request) => {
     if (!episodeExecutionAllows(attention)) return [];
     const prior = attempts.filter((a) => a.requestId === request.id);
-    if (prior.some((a) => a.status === 'committed' && !a.playerManifest))
-      throw new DomainError('INVALID_PROPOSAL', 'EPISODE_CONSUMPTION_RECEIPT_MISSING');
-    if (prior.some((a) => a.paid)) return [];
+    if (episodeRequestWorkState(request.id, attempts) !== 'available') return [];
     if (
       attempts.some(
         (a) =>

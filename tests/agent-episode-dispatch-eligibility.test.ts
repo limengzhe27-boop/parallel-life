@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   eligibleEpisodeDispatches,
+  episodeRequestWorkState,
   episodeDispatchAttempt,
   type EpisodeDispatchAttempt,
 } from '../src/modules/world/infrastructure/agent-episode-dispatch-eligibility.ts';
@@ -393,4 +394,18 @@ test('old opening envelopes keep their exact shape without a default continuatio
   assert.deepEqual(OpeningStatusSchema.parse(legacy), legacy);
   assert.deepEqual(OpeningStatusSchema.parse(opening), opening);
   assert.equal('continuation' in OpeningStatusSchema.parse(legacy), false);
+});
+
+test('paid terminal does not occupy work, but cannot be dispatched again; unknown still waits', () => {
+  for (const status of ['invalid_output', 'stale_discarded']) {
+    const attempts = [attempt({ status, paid: true })];
+    assert.equal(episodeRequestWorkState('request-a', attempts), 'paid_terminal');
+    assert.deepEqual(eligible([request()], attempts), []);
+    assert.equal(eligible([request('request-b', actorA)], attempts).length, 1);
+  }
+  assert.equal(
+    episodeRequestWorkState('request-a', [attempt({ status: 'unknown_after_send', paid: true })]),
+    'in_flight',
+  );
+  assert.equal(episodeRequestWorkState('request-a', [attempt()]), 'available');
 });

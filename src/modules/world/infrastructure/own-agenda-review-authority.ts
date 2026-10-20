@@ -1,3 +1,4 @@
+import { hasPendingEpisodeWork } from './episode-pending-work-repository.ts';
 import { continuationReviewAdmission } from '../domain/continuation-review-admission.ts';
 import { actorContinuationBasis } from '../domain/actor-continuation.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
@@ -409,11 +410,8 @@ export async function readOwnAgendaReviewWorkInTransaction(
       Date.parse(f.realAt) < Date.parse(evidence.lastPresentedRealAt) + config.policy.realGapMs
     )
       return null;
-    const pendingEpisode = await sql.query(
-      "SELECT 1 FROM parallel_life.agent_episode_requests WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND status='pending' LIMIT 1",
-      [input.worldId, owner, input.actorId],
-    );
-    if (pendingEpisode.rowCount) return null;
+    if (await hasPendingEpisodeWork(sql, owner, input.worldId, f.engine_epoch, input.actorId))
+      return null;
     const priority =
       input.hasPriorityWork ??
       (input.snapshot ? await priorityWork(sql, owner, f, input.snapshot) : false);

@@ -271,6 +271,8 @@ export type AgentCandidate = AgentIdentity & {
   priority: number;
   reason: string;
   requiresCoordination: boolean;
+  /** The exact private plan/result selected by the existing scheduler. */
+  planReview?: { planId: string; goalId: string; result?: AgentActionResult };
 };
 
 export function emptyActorAgentState(

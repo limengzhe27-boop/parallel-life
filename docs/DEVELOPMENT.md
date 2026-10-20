@@ -2885,3 +2885,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第十一批待上线：c6e9708d已推送，旧媒体入队成功后续归原媒体生命周期，当前continuation去除非条件等待无用条件，正式世界正常entry恢复manual暂停；clock原PG12、小迪174冻结pending/条件3、check3875/build通过，生产103一致。现有Chrome渣男体验f573d541恢复原08:32锚点，未发玩家消息；原advance首轮0调用，随后页面正常调度真实新增李之之/青青两条消息，未读7→9，8次新文字attempt committed。内容仍重复复述、未证明有意义持续推进，旧pending失败、媒体完成失败后续与长期议程仍未完成；不创建替代世界。
 
 44-168第十一批有限交付已部署：c6e9708d / dpl_21ez8GPndyiVgb6T7zMtwPW644Qh精确READY绑定Nu；原档f573d541刷新后两条新增通知保留、时间继续10:32，health200。旧索图重复复盘与等待字段、正常进入恢复已修；持续推进内容仍重复等待，整体44-168不勾完成，旧pending失败接续/媒体完整worker后续/长期议程继续未完成。
+
+44-168第十二批进行中：root-simplify168/main e266cb70；公共事件请求执行分类、own-agenda/narrative-wake、观察候选及对应聚焦测试由root独占。修正paid invalid pending错误占位、开场历史报告重复唤醒；继续实际结果与自主议程接续。小迪负责新独立媒体worker与旧夹具验收，公共源只读。现有f573d541原档验收，不重建世界、不重买旧失败。
+
+44-168第十二批待上线、总体未完成：原开场received_opening_information仅保留知情不重复观察唤醒；付费失败pending不再占可执行工作，原派发/个人议程/导演共用分类；计划复盘携带明确对象与真实结果。check3877/build、聚焦116、原PG窗口1通过；原f573d541正常advance零文字/零图片/零新消息，持续主动未通过，不靠重复购买。旧失败恢复、全员无意图后的有效议程及媒体worker接续仍未完成。

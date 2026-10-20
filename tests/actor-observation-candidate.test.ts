@@ -170,3 +170,26 @@ test('authorized private group recall uses the original observation wake and exa
   input.sources[0]!.usage = 'channel_context';
   assert.deepEqual(await collect(input), []);
 });
+
+test('opening message presentation stays knowledge, without a second autonomous observation wake', async () => {
+  const input = fixture();
+  input.sources = [
+    { ...input.sources[0]!, id: 'narrative:entry', kind: 'world_event', usage: 'private_strategy' },
+  ];
+  const text = (type: string) =>
+    JSON.stringify({
+      method: 'authored_initial_context',
+      text: JSON.stringify({ type, executionEvidence: false, content: '原稿中已呈现的消息' }),
+    });
+  input.observations = [
+    {
+      sourceId: 'narrative:entry',
+      evidenceKind: 'authored_context',
+      text: text('received_opening_information'),
+    },
+  ];
+  assert.deepEqual(await collect(input), []);
+  assert.equal(input.observations.length, 1);
+  input.observations[0]!.text = text('established_fact');
+  assert.equal((await collect(input)).length, 1);
+});

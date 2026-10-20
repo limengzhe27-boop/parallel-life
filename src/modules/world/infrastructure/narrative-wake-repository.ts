@@ -1,3 +1,4 @@
+import { hasPendingEpisodeWork } from './episode-pending-work-repository.ts';
 import { admitDirectorOpportunity } from '../domain/director-opportunity-admission.ts';
 import { readOpeningContextAuthority } from './opening-context-repository.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
@@ -227,11 +228,10 @@ export async function readDirectorNarrativeWakeInTransaction(
       await sql.query(
         `SELECT
        COALESCE((SELECT jsonb_agg(ep.document) FROM parallel_life.shared_episodes ep WHERE ep.world_id=$1 AND ep.owner_id=$2),'[]'::jsonb) episodes,
-       EXISTS(SELECT 1 FROM parallel_life.agent_episode_requests r WHERE r.world_id=$1 AND r.owner_id=$2 AND r.engine_epoch=$3 AND r.status='pending') pending_requests,
        EXISTS(SELECT 1 FROM parallel_life.actor_agent_states s WHERE s.world_id=$1 AND s.owner_id=$2 AND (
          EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'questions','[]'::jsonb)) q WHERE q->>'status'='open') OR
          EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'responsibilities','[]'::jsonb)) r WHERE r->>'status' IN ('open','waiting')))) pending_player_work`,
-        [input.worldId, ownerId, input.engineEpoch],
+        [input.worldId, ownerId],
       )
     ).rows[0];
     const episodes = load?.episodes ?? [];
@@ -243,7 +243,7 @@ export async function readDirectorNarrativeWakeInTransaction(
         !previousEpisodes.some((p: { id: string; status: string }) => p.id === e.id && terminal(p)),
     );
     const outstanding =
-      !!load?.pending_requests ||
+      (await hasPendingEpisodeWork(sql, ownerId, input.worldId, input.engineEpoch)) ||
       !!load?.pending_player_work ||
       episodes.some((e: { status: string }) => ['proposed', 'active'].includes(e.status));
     unseen = unseen.filter((q) => {

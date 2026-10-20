@@ -888,6 +888,11 @@ test('a real terminal next action wakes one plan review without completing the g
     const candidates = (await collect(v, 'actor_plan')).candidates;
     const c = candidates.find((c) => c.actionId === null);
     assert.ok(c);
+    assert.deepEqual(c.planReview, {
+      planId: a.snapshot.state.plans[0]!.id,
+      goalId: a.snapshot.state.plans[0]!.goalId,
+      result,
+    });
     assert.equal(a.snapshot.state.goals[0]!.status, 'active');
     v.consumedCandidateIds = [c.id];
     assert.equal(

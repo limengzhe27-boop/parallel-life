@@ -262,6 +262,7 @@ async function candidate(
     responsibilities: readonly AgentResponsibility[];
     episodeIds?: string[];
     semantic: unknown;
+    planReview?: AgentCandidate['planReview'];
     reason: string;
   },
 ): Promise<AgentCandidate> {
@@ -290,6 +291,7 @@ async function candidate(
     source: input.source,
     episodeId: episodes.length === 1 ? episodes[0]! : null,
     actionId: input.actionId,
+    ...(input.planReview ? { planReview: input.planReview } : {}),
     resourceIds,
     channel: snapshot.channel.kind,
     threadId: snapshot.channel.threadId,
@@ -474,6 +476,11 @@ async function planReconsiderations(
       await candidate(view, context, {
         source: 'actor_plan',
         actionId: null,
+        planReview: {
+          planId: plan.id,
+          goalId: plan.goalId,
+          ...(completedStep ? { result: completedStep } : {}),
+        },
         episodeIds: refs.map((f) => f.episodeId),
         sourceIds,
         responsibilities: [],
