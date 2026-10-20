@@ -18,10 +18,7 @@ export type PhoneContact = {
   };
   avatarUrl?: string;
   avatarKind?:
-    | 'authorized-photo'
-    | 'character-illustration'
-    | 'generic-illustration'
-    | 'publication-art';
+    'authorized-photo' | 'character-illustration' | 'generic-illustration' | 'publication-art';
   avatarLabel?: string;
   unread: number;
 };
@@ -32,6 +29,8 @@ export type PhoneMessage = {
   text: string;
   at: string;
   status: 'pending' | 'sent' | 'failed' | 'unknown';
+  /** A durable NPC prefix exists, but this reply did not finish. Not a failed user send. */
+  replyInterrupted?: boolean;
   /** Initial server-verified history does not become a new notification. */
   initialRead?: boolean;
   /** Authored preset contents never count as runtime delivery. */

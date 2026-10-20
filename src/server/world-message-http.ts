@@ -10,6 +10,7 @@ import {
   WorldMessageRequestSchema,
   WorldMessageReceiptSchema,
   worldMessageClientReceipt,
+  committedMessageEvents,
 } from '../contracts/world-interaction.ts';
 import { toContractStreamSummary } from '../modules/world/domain/npc-stream-segment.ts';
 import { Id } from '../contracts/api.ts';
@@ -94,7 +95,9 @@ export async function worldMessageRoute(request: Request, worldId: string) {
                 );
                 completeReceipt = {
                   ...receipt,
-                  ...(messages ? { messages } : {}),
+                  ...(messages
+                    ? { messages, messageEvents: committedMessageEvents(messages) }
+                    : {}),
                   ...(metrics ? { metrics } : {}),
                   ...(streamData?.summary
                     ? { streamSummary: toContractStreamSummary(streamData.summary) }
@@ -254,7 +257,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
             worldMessageClientReceipt(
               WorldMessageReceiptSchema.parse({
                 ...receipt,
-                ...(messages ? { messages } : {}),
+                ...(messages ? { messages, messageEvents: committedMessageEvents(messages) } : {}),
                 ...(metrics ? { metrics } : {}),
                 ...(streamData?.summary
                   ? { streamSummary: toContractStreamSummary(streamData.summary) }

@@ -332,7 +332,17 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
              JOIN parallel_life.commands c
                ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
               AND c.status='succeeded' AND c.result_event_id=e.id
-             WHERE m.world_id=$1 AND m.owner_id=$2 AND m.actor_id=$3 AND e.id=$4 AND e.version=$5
+             WHERE m.world_id=$1 AND m.owner_id=$2 AND m.actor_id=$3 AND e.version<=$5
+               AND (e.id=$4 AND e.version=$5 OR EXISTS (
+                 SELECT 1 FROM parallel_life.agent_attempts a
+                 JOIN parallel_life.world_events final ON final.world_id=a.world_id
+                   AND final.owner_id=a.owner_id AND final.id=a.event_id AND final.version=$5
+                 WHERE a.world_id=m.world_id AND a.owner_id=m.owner_id AND a.actor_id=m.actor_id
+                   AND a.event_id=$4 AND a.status='committed'
+                   AND e.payload#>>'{data,stream,attemptId}'=a.id
+                   AND e.payload#>>'{data,stream,parentCommandId}'=a.command_id
+                   AND e.payload#>>'{data,actorId}'=a.actor_id
+                   AND c.expected_version=e.version-1))
              ORDER BY m.ordinal ASC`,
             [receipt.worldId, ownerId, receipt.actorId, receipt.eventId, receipt.version],
           )
@@ -351,7 +361,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
       if (
         !doc ||
         doc.actorId !== receipt.actorId ||
-        doc.sourceEventId !== receipt.eventId ||
+        doc.sourceEventId !== row.event_id ||
         (doc.role !== 'user' && doc.role !== 'assistant') ||
         typeof doc.text !== 'string' ||
         !doc.text.trim() ||
@@ -788,9 +798,10 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
                 }
               },
               onPrefixFailureSeal: async (attempt, execSnapshot, err) => {
-                const isSuperseded =
-                  streamAbortController.signal.aborted ||
-                  (err as { code?: unknown } | null)?.code === 'SUPERSEDED_BY_USER_INTERRUPT';
+                const stopCode =
+                  (streamAbortController.signal.reason as { code?: unknown } | undefined)?.code ??
+                  (err as { code?: unknown } | null)?.code;
+                const isSuperseded = stopCode === 'SUPERSEDED_BY_USER_INTERRUPT';
                 const sealed = await sealCommittedStreamPrefix(turnDb, ownerId, {
                   attempt,
                   snapshot: execSnapshot,

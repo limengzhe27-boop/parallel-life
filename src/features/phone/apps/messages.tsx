@@ -1723,6 +1723,13 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 <Links links={m.links} open={open} />
               </div>
             </div>
+            {m.replyInterrupted && (
+              <small
+                style={{ alignSelf: 'flex-start', marginLeft: 48, color: '#64748b', fontSize: 12 }}
+              >
+                这次回复中途结束，已收到的消息已保存。
+              </small>
+            )}
             {m.status === 'pending' && (
               <small
                 style={{

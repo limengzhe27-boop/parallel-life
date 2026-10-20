@@ -5,6 +5,7 @@ import {
   WorldMessageReceiptSchema,
   WorldMessageRequestSchema,
   worldMessageClientReceipt,
+  committedMessageEvents,
 } from '../../../../../../../contracts/world-interaction.ts';
 import { MessageReceiptLookupSchema } from '../../../../../../../contracts/message-receipt-lookup.ts';
 import { toContractStreamSummary } from '../../../../../../../modules/world/domain/npc-stream-segment.ts';
@@ -46,7 +47,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           );
           completeReceipt = {
             ...current,
-            ...(messages ? { messages } : {}),
+            ...(messages ? { messages, messageEvents: committedMessageEvents(messages) } : {}),
             ...(metrics ? { metrics } : {}),
             ...(streamData?.summary
               ? { streamSummary: toContractStreamSummary(streamData.summary) }

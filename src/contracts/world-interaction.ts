@@ -29,7 +29,7 @@ export const WorldMessageRequestSchema = z.strictObject({
 export type WorldMessageRequest = z.infer<typeof WorldMessageRequestSchema>;
 
 export const WORLD_MESSAGE_PROJECTION_HEADER = 'x-message-receipt-projection';
-export const WORLD_MESSAGE_PROJECTION_VERSION = '1';
+export const WORLD_MESSAGE_PROJECTION_VERSION = '2';
 export const WORLD_MESSAGE_STREAM_HEADER = 'x-message-stream';
 export const WORLD_MESSAGE_STREAM_VERSION = '1';
 
@@ -98,7 +98,12 @@ export const WorldMessageReceiptSchema = z.strictObject({
   actorId: Id,
   version: z.number().int().nonnegative(),
   eventId: Id,
-  messages: z.array(CommittedTurnMessageSchema).max(16).optional(),
+  messages: z.array(CommittedTurnMessageSchema).max(65).optional(),
+  /** Server-authenticated event ownership for independently appended units of this request. */
+  messageEvents: z
+    .array(z.strictObject({ eventId: Id, version: z.number().int().positive() }))
+    .max(65)
+    .optional(),
   metrics: ChatTurnServerMetricsSchema.optional(),
   streamSummary: NpcStreamTurnSummarySchema.optional(),
 });
@@ -131,7 +136,13 @@ export function worldMessageClientReceipt(
   projectionVersion: string | null,
 ): WorldMessageReceipt {
   if (projectionVersion === WORLD_MESSAGE_PROJECTION_VERSION) return receipt;
-  const { messages: _messages, metrics: _metrics, streamSummary: _streamSummary, ...legacy } = receipt;
+  const {
+    messages: _messages,
+    messageEvents: _events,
+    metrics: _metrics,
+    streamSummary: _streamSummary,
+    ...legacy
+  } = receipt;
   return legacy;
 }
 
@@ -162,3 +173,15 @@ export const InteractResponseSchema = z.strictObject({
     .optional(),
 });
 export type InteractResponse = z.infer<typeof InteractResponseSchema>;
+
+/** Only build this from messages read through the authenticated command/attempt ledger. */
+export function committedMessageEvents(messages: readonly CommittedTurnMessage[]) {
+  return [
+    ...new Map(
+      messages.map((m) => [
+        m.sourceEventId,
+        { eventId: m.sourceEventId, version: m.sourceVersion },
+      ]),
+    ).values(),
+  ];
+}

@@ -36,7 +36,8 @@ export function unprojectedLocalSends(
       !receipt ||
       !projected.some(
         (m) =>
-          m.id === `${receipt.eventId}_user` &&
+          m.id ===
+            (receipt.messages?.find((p) => p.role === 'user')?.id ?? `${receipt.eventId}_user`) &&
           m.role === 'user' &&
           m.actorId === message.actorId &&
           m.text === message.text,
@@ -65,13 +66,23 @@ export function projectCommittedTurnReceipt(
   if (current.id !== receipt.worldId) throw Error('MESSAGE_RECEIPT_IDENTITY_MISMATCH');
   const currentVersion = current.version ?? 0;
   const incoming = receipt.messages ?? [];
+  const events = new Map(
+    (receipt.messageEvents ?? [{ eventId: receipt.eventId, version: receipt.version }]).map((e) => [
+      e.eventId,
+      e.version,
+    ]),
+  );
+  if (
+    events.size !== (receipt.messageEvents?.length ?? 1) ||
+    [...events.values()].some((v) => v > receipt.version)
+  )
+    throw Error('MESSAGE_RECEIPT_IDENTITY_MISMATCH');
   for (const message of incoming) {
     if (
       message.actorId !== receipt.actorId ||
-      message.sourceEventId !== receipt.eventId ||
-      message.sourceVersion !== receipt.version ||
+      events.get(message.sourceEventId) !== message.sourceVersion ||
       !message.id.trim() ||
-      (message.role === 'user' && message.id !== `${receipt.eventId}_user`)
+      (message.role === 'user' && message.id !== `${message.sourceEventId}_user`)
     )
       throw Error('MESSAGE_RECEIPT_IDENTITY_MISMATCH');
   }
@@ -93,7 +104,7 @@ export function projectCommittedTurnReceipt(
     return nextVersion === currentVersion ? current : { ...current, version: nextVersion };
   }
   let nextMessages: WorldPhone['messages'];
-  if (receipt.version < currentVersion) {
+  if (receipt.version < currentVersion || (receipt.messageEvents?.length ?? 0) > 1) {
     const merged = [...current.messages, ...freshMessages];
     merged.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
     nextMessages = merged;

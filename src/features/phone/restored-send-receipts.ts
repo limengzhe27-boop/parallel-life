@@ -1,6 +1,7 @@
 import type { PhoneMessage } from './apps/types.ts';
 import type { SendCommand } from './chat-send-state.ts';
 import type { MessageReceiptLookup } from '../../contracts/message-receipt-lookup.ts';
+import type { WorldMessageReceipt } from '../../contracts/world-interaction.ts';
 
 /** Reconcile exact commands; only protected saved responses may be replayed, never resent. */
 export async function reconcileRestoredSendReceipts(
@@ -12,6 +13,7 @@ export async function reconcileRestoredSendReceipts(
     worldId: string,
     command: Omit<SendCommand, 'worldId'>,
   ) => Promise<MessageReceiptLookup>,
+  onCommitted?: (receipt: WorldMessageReceipt, command: SendCommand) => void,
 ): Promise<Record<string, 'committed' | 'failed'>> {
   const updates: Record<string, 'committed' | 'failed'> = {};
   const pending = messages.filter(
@@ -44,6 +46,7 @@ export async function reconcileRestoredSendReceipts(
           )
             continue;
         }
+        if (result.status === 'committed') onCommitted?.(result, command);
         if (result.status === 'committed' || result.status === 'failed')
           updates[m.id] = result.status;
       } catch {

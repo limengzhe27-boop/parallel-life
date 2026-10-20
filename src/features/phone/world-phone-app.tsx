@@ -1,4 +1,5 @@
 'use client';
+import { annotatePartialReplies, restorePartialReplyCommands } from './partial-replies.ts';
 import { useAdvanceRecovery } from './use-advance-recovery.ts';
 import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
 import {
@@ -166,6 +167,109 @@ export function WorldPhoneApp({
   }, [automatic, data, worldId]);
   const sendCommands = useRef<Record<string, SendCommand>>({});
   const committedSends = useRef<Record<string, WorldMessageReceipt>>({});
+  const [partialReceipts, setPartialReceipts] = useState<Record<string, WorldMessageReceipt>>({});
+  const partialCommands = useRef<Record<string, SendCommand>>({});
+  const partialWorld = useRef(worldId);
+  partialWorld.current = worldId;
+  const observeReplyReceipt = useCallback(
+    (receipt: WorldMessageReceipt, command: SendCommand) => {
+      if (
+        partialWorld.current !== worldId ||
+        receipt.worldId !== worldId ||
+        command.worldId !== worldId ||
+        receipt.commandId !== command.commandId ||
+        receipt.actorId !== command.actorId
+      )
+        return;
+      const partial = receipt.streamSummary?.completionStatus === 'partial_interrupted';
+      if (partial) partialCommands.current[command.commandId] = command;
+      else delete partialCommands.current[command.commandId];
+      setPartialReceipts((current) => {
+        const next = { ...current };
+        if (partial) next[receipt.commandId] = receipt;
+        else delete next[receipt.commandId];
+        return next;
+      });
+      try {
+        sessionStorage.setItem(
+          `pl-reply-lookup:${worldId}`,
+          JSON.stringify(Object.values(partialCommands.current).slice(-20)),
+        );
+      } catch {
+        /* Current-screen receipt remains visible. */
+      }
+    },
+    [worldId],
+  );
+  useEffect(() => {
+    let active = true;
+    setPartialReceipts({});
+    partialCommands.current = {};
+    let commands: SendCommand[] = [];
+    try {
+      commands = restorePartialReplyCommands(
+        sessionStorage.getItem(`pl-reply-lookup:${worldId}`),
+        worldId,
+      );
+    } catch {
+      /* Storage unavailable. */
+    }
+    partialCommands.current = Object.fromEntries(commands.map((c) => [c.commandId, c]));
+    const outstanding = new Set(commands.map((c) => c.commandId));
+    let reading = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let checks = 0;
+    async function reconcile() {
+      if (!active || reading || !outstanding.size) return;
+      reading = true;
+      const batch = commands.filter((c) => outstanding.has(c.commandId));
+      let cursor = 0;
+      async function read() {
+        while (active && cursor < batch.length) {
+          const command = batch[cursor++]!;
+          try {
+            const { worldId: id, ...input } = command;
+            const receipt = await receiptClient.lookup(id, input);
+            if (!active) return;
+            if (receipt.status === 'committed') {
+              observeReplyReceipt(receipt, command);
+              outstanding.delete(command.commandId);
+            } else if (receipt.status === 'failed') {
+              outstanding.delete(command.commandId);
+              delete partialCommands.current[command.commandId];
+            }
+          } catch {
+            /* Read only. An unknown result never authorizes resubmission. */
+          }
+        }
+      }
+      try {
+        await Promise.all(Array.from({ length: Math.min(3, batch.length) }, read));
+      } finally {
+        reading = false;
+      }
+      if (active && outstanding.size && ++checks < 12)
+        timer = setTimeout(
+          () => {
+            void reconcile();
+          },
+          Math.min(60000, 5000 * 2 ** Math.min(checks - 1, 4)),
+        );
+    }
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (timer) clearTimeout(timer);
+      checks = 0;
+      void reconcile();
+    };
+    void reconcile();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [worldId, receiptClient, observeReplyReceipt]);
   const confirmedSendVersion = useRef({ worldId, version: 0 });
   const [recoveryWorld, setRecoveryWorld] = useState<string>();
   const restoredSends = useRef<PhoneMessage[]>([]);
@@ -260,7 +364,12 @@ export function WorldPhoneApp({
     };
     function rememberCommand(expectedVersion: number) {
       sendCommands.current[commandId] = { worldId, commandId, actorId, text, expectedVersion };
+      partialCommands.current[commandId] = sendCommands.current[commandId]!;
       try {
+        sessionStorage.setItem(
+          `pl-reply-lookup:${worldId}`,
+          JSON.stringify(Object.values(partialCommands.current).slice(-20)),
+        );
         sessionStorage.setItem(
           `pl-send:${worldId}`,
           storeSendMessages(
@@ -321,6 +430,8 @@ export function WorldPhoneApp({
       const fullTurnMs = Math.round(performance.now() - tSend);
       void fullTurnMs;
       const confirmed = committedLocalSend(worldId, entry, receipt);
+      const originalCommand = sendCommands.current[commandId];
+      if (originalCommand) observeReplyReceipt(receipt, originalCommand);
       committedSends.current[commandId] = receipt;
       confirmedSendVersion.current = {
         worldId,
@@ -465,6 +576,7 @@ export function WorldPhoneApp({
           sendCommands.current,
           (id, input) => receiptClient.lookup(id, input),
           (id, input) => receiptClient.recover(id, input),
+          observeReplyReceipt,
         );
         if (!active) return;
         const originals = new Map(saved.map((m) => [m.id, m]));
@@ -503,7 +615,7 @@ export function WorldPhoneApp({
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onReturn);
     };
-  }, [worldId, recoveryWorld, receiptClient, load]);
+  }, [worldId, recoveryWorld, receiptClient, load, observeReplyReceipt]);
 
   useEffect(() => {
     if (data?.id !== worldId) return;
@@ -999,6 +1111,7 @@ export function WorldPhoneApp({
                 throw new ApiFailure('UNKNOWN', '暂时无法核对，原消息仍待确认。请稍后再核对。');
               }
               if (result.status === 'committed') {
+                observeReplyReceipt(result, original);
                 setLocalMessages((current) =>
                   current.filter((message) => message.id !== messageId),
                 );
@@ -1045,6 +1158,7 @@ export function WorldPhoneApp({
               return { status: receipt.status };
             }}
             onExperienceBusy={setExperienceBusy}
+            replyReceipts={Object.values(partialReceipts)}
             localMessages={unprojectedLocalSends(
               localMessages,
               data.messages,
@@ -1081,6 +1195,7 @@ export function WorldPhoneSurface({
   onUploadPhoto,
   onSaveNote,
   localMessages = [],
+  replyReceipts = [],
   loading = false,
   loadError,
   wechatActorKey,
@@ -1102,6 +1217,7 @@ export function WorldPhoneSurface({
   onUploadPhoto?: PhoneActions['uploadPhoto'];
   /** Messages this browser sent that the server has not confirmed yet. */
   localMessages?: readonly PhoneMessage[];
+  replyReceipts?: readonly WorldMessageReceipt[];
   onSaveNote?: PhoneActions['saveNote'];
   loading?: boolean;
   loadError?: string;
@@ -1356,10 +1472,11 @@ export function WorldPhoneSurface({
   const phoneData: PhoneAppsData = useMemo(
     () => ({
       ...basePhoneData,
+      messages: annotatePartialReplies(basePhoneData.messages, replyReceipts),
       notes: onSaveNote ? basePhoneData.notes : notes,
       referenceTime: currentReferenceTime,
     }),
-    [basePhoneData, notes, currentReferenceTime, onSaveNote],
+    [basePhoneData, notes, currentReferenceTime, onSaveNote, replyReceipts],
   );
 
   async function performWait(input: AppointmentWaitRequest) {
