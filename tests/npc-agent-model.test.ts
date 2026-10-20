@@ -852,8 +852,8 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /明确区分愿望与承诺/);
   assert.match(system, /普通闲聊、试探、愿望或条件性设想/);
   assert.match(system, /不构成玩家实质承诺/);
-  assert.match(system, /当你在对白中作出本人明确承诺、答应分工或安排自己后续执行/);
-  assert.match(system, /必须在同一次响应中提出本人的目标与计划/);
+  assert.match(system, /需要跨轮持续跟进的本人安排才建立目标与计划/);
+  assert.match(system, /即时生图不建目标与计划/);
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
