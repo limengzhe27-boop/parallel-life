@@ -309,7 +309,7 @@ export function sceneMatterResultFact(
   };
 }
 export function witnessedMatterResult(
-  state: WorldState,
+  state: Pick<WorldState, 'id' | 'facts'>,
   matter: WorldMatter,
   actorId: string,
 ): Fact | undefined {

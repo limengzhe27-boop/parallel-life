@@ -2,7 +2,7 @@ import { resultAckPrefix } from '../domain/matter-progression.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { witnessedMatterResult } from '../domain/scene-matter-policy.ts';
 import { DomainError } from '../domain/errors.ts';
-import type { WorldState } from '../domain/types.ts';
+import type { PrivateChatWorld } from './chat-context-read.ts';
 import type { ActorContext } from './ports.ts';
 import { rankAndBudgetMemories } from '../../memory/domain/algorithms.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
@@ -33,7 +33,7 @@ function relevance(text: string, words: string[]): number {
 
 /** Filter before ranking; private records cannot influence retrieval or consume its budget. */
 export function actorContext(
-  state: WorldState,
+  state: PrivateChatWorld,
   actorId: string,
   userText = '',
   memoryRecords: MemoryRecord[] = [],
@@ -58,9 +58,17 @@ export function actorContext(
     choices: [],
     retrievedMemories: [],
   };
-  const fits = () =>
-    JSON.stringify(context).length <= ACTOR_CONTEXT_LIMIT &&
-    JSON.stringify({ context, userText }).length <= ACTOR_INPUT_LIMIT;
+  const userTextJsonLength = JSON.stringify(userText).length;
+  const fits = () => {
+    // JSON.stringify({context,userText}) is exactly this wrapper around the
+    // context JSON: {"context":<context>,"userText":<userText>}. Compute the
+    // context string once instead of serializing it twice for the two budgets.
+    const contextLength = JSON.stringify(context).length;
+    return (
+      contextLength <= ACTOR_CONTEXT_LIMIT &&
+      contextLength + userTextJsonLength + 24 <= ACTOR_INPUT_LIMIT
+    );
+  };
   if (!fits()) context.actor.persona = legacyPersonaExcerpt(actor.persona, userText, 2000);
   if (!fits())
     throw new DomainError('INVALID_COMMAND', 'Character identity exceeds context budget');

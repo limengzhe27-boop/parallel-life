@@ -14,6 +14,7 @@ import { emptyActorAgentState } from '../domain/agent-runtime.ts';
 import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
 import { actorContext } from '../application/actor-context.ts';
 import type { ActorContext } from '../application/ports.ts';
+import type { PrivateChatWorld } from '../application/chat-context-read.ts';
 import type { WorldState } from '../domain/types.ts';
 import { loadActorMemories } from '../../memory/infrastructure/memory-store.ts';
 import { readPublicationActorModules } from '../../settings/infrastructure/publication-social-repository.ts';
@@ -161,11 +162,12 @@ async function readPublicationActorModulesCached(
 export async function readPrivateAgentSnapshot(
   db: PostgresDatabase,
   ownerId: string,
-  world: WorldState,
+  world: PrivateChatWorld,
   actorId: string,
   input: AgentInputReceipt | null,
   storyAt: string,
   state: ActorAgentState | null,
+  options: { referencedSourceIds?: readonly string[] } = {},
 ): Promise<{ snapshot: AgentSnapshot; seed: ActorAgentState | null }> {
   if (
     world.ownerId !== ownerId ||
@@ -617,6 +619,7 @@ export async function readPrivateAgentSnapshot(
       result.snapshot,
       memories.blockedSources,
       narrative,
+      options.referencedSourceIds,
     );
     return result;
   });
@@ -647,6 +650,7 @@ async function attachAgentWorldContextInTransaction(
   preloadedNarrative?: Awaited<
     ReturnType<typeof readActorNarrativeObservationSourcesInTransaction>
   >,
+  extraReferencedSourceIds?: readonly string[],
 ): Promise<AgentSnapshot> {
   const awareness = await new PostgresWorldAwarenessRepository(txDb).readActorAwareness(
     ownerId,
@@ -857,7 +861,12 @@ async function attachAgentWorldContextInTransaction(
     );
   }
   const media = await readActorMediaCompletionContextInTransaction(sql, ownerId, contextual, {
-    referencedSourceIds: contextual.sources.map((source) => source.id),
+    referencedSourceIds: [
+      ...new Set([
+        ...contextual.sources.map((source) => source.id),
+        ...(extraReferencedSourceIds ?? []),
+      ]),
+    ],
     skipEmptyHeadCheck: true,
   });
   if (media.sources.length) {
