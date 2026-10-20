@@ -1,11 +1,12 @@
 import { DomainError } from '../domain/errors.ts';
 import { mergeAppointments } from '../domain/genesis-links.ts';
 import { openingMessagesForDisplay } from '../domain/opening-time.ts';
+import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { ActorAgentState } from '../domain/agent-runtime.ts';
 import type { Appointment, Fact, Message, StoryChoice, WorldState } from '../domain/types.ts';
 import type { WorldMatter } from '../domain/matters.ts';
-import { CHAT_CONTEXT_FULL_HYDRATE_REQUIRED } from '../application/chat-context-read.ts';
+import { ChatContextFallbackError } from '../application/chat-context-read.ts';
 import type {
   ChatContextCompleteness,
   ChatContextRead,
@@ -19,8 +20,10 @@ const DEFAULT_RECENT_FACTS = 80;
 const MAX_RECENT_FACTS = 200;
 const DEFAULT_TERMINAL_APPOINTMENTS = 20;
 const MAX_TERMINAL_APPOINTMENTS = 50;
-const MAX_REFERENCED_IDS = 256;
-const MAX_LINKED_FACT_IDS = 128;
+const MAX_EXPLICIT_REFS = 256;
+const MAX_STATE_REFS = 768;
+const MAX_LINKED_EVENT_IDS = 512;
+const LINKED_FACT_LIMIT = 200;
 
 function clamp(value: number | undefined, fallback: number, min: number, max: number) {
   if (!Number.isSafeInteger(value) || value === undefined) return fallback;
@@ -35,10 +38,7 @@ function sourceId(value: unknown): string | null {
 }
 
 function uniqueSourceIds(values: readonly unknown[] = []): string[] {
-  return [...new Set(values.map(sourceId).filter((id): id is string => Boolean(id)))].slice(
-    0,
-    MAX_REFERENCED_IDS,
-  );
+  return [...new Set(values.map(sourceId).filter((id): id is string => Boolean(id)))];
 }
 
 function stripPrefix(id: string, prefixes: readonly string[]) {
@@ -115,7 +115,7 @@ function matterEventIds(matters: WorldMatter[], choices: StoryChoice[]): string[
     if (choice.nextStep?.sourceEventId) ids.add(choice.nextStep.sourceEventId);
     if (choice.recoveryStep?.sourceEventId) ids.add(choice.recoveryStep.sourceEventId);
   }
-  return [...ids].filter((id) => id.length <= 240).slice(0, MAX_LINKED_FACT_IDS);
+  return [...ids].filter((id) => id.length <= 240);
 }
 
 function dedupeById<T extends { id: string }>(items: T[]): T[] {
@@ -156,6 +156,8 @@ export async function readChatContextWorld(
     MAX_TERMINAL_APPOINTMENTS,
   );
   const explicitRefs = uniqueSourceIds(input.referencedSourceIds);
+  if (explicitRefs.length > MAX_EXPLICIT_REFS)
+    throw new ChatContextFallbackError('explicit-reference-limit');
 
   return db.transaction(ownerId, async (sql) => {
     const row = (
@@ -183,10 +185,7 @@ export async function readChatContextWorld(
     ).rows[0];
     if (!row) throw new DomainError('NOT_FOUND');
     if ((row.state as { deletedAt?: string }).deletedAt) throw new DomainError('NOT_FOUND');
-    if (row.needs_attendance_replay)
-      throw Object.assign(Error(CHAT_CONTEXT_FULL_HYDRATE_REQUIRED), {
-        code: CHAT_CONTEXT_FULL_HYDRATE_REQUIRED,
-      });
+    if (row.needs_attendance_replay) throw new ChatContextFallbackError('attendance');
     const state = row.state as WorldState;
     const worldVersion = Number(row.version);
     if (state.id !== input.worldId || state.ownerId !== ownerId) throw new DomainError('NOT_FOUND');
@@ -204,28 +203,38 @@ export async function readChatContextWorld(
     const initialTime = typeof row.initial_time === 'string' ? row.initial_time : state.time;
     const actorState = (row.actor_state as ActorAgentState | null) ?? null;
     const stateHandles = collectActorHandles(actorState);
-
+    const stateRequired = uniqueSourceIds(
+      stateHandles.filter(
+        (id) =>
+          id.startsWith('message:') ||
+          id.startsWith('opening:') ||
+          id.startsWith('fact:') ||
+          id.startsWith('appointment:'),
+      ),
+    );
+    if (stateRequired.length > MAX_STATE_REFS)
+      throw new ChatContextFallbackError('state-reference-limit');
+    const stateDeferred = uniqueSourceIds(
+      stateHandles.filter(
+        (id) => id.startsWith('media-result:') || id.startsWith('action-result:'),
+      ),
+    );
     const messageRefs = uniqueSourceIds([
       ...explicitRefs,
-      ...stateHandles.filter((id) => id.startsWith('message:') || id.startsWith('opening:')),
-    ])
-      .map((id) => stripPrefix(id, ['message:', 'opening:']) ?? id)
-      .slice(0, MAX_REFERENCED_IDS);
+      ...stateRequired.filter((id) => id.startsWith('message:') || id.startsWith('opening:')),
+    ]).map((id) => stripPrefix(id, ['message:', 'opening:']) ?? id);
     const factRefs = uniqueSourceIds([
       ...explicitRefs,
-      ...stateHandles.filter((id) => id.startsWith('fact:')),
-    ])
-      .map((id) => stripPrefix(id, ['fact:']) ?? id)
-      .slice(0, MAX_REFERENCED_IDS);
+      ...stateRequired.filter((id) => id.startsWith('fact:')),
+    ]).map((id) => stripPrefix(id, ['fact:']) ?? id);
     const appointmentRefs = uniqueSourceIds([
       ...explicitRefs,
-      ...stateHandles.filter((id) => id.startsWith('appointment:')),
-    ])
-      .map((id) => stripPrefix(id, ['appointment:']) ?? id)
-      .slice(0, MAX_REFERENCED_IDS);
+      ...stateRequired.filter((id) => id.startsWith('appointment:')),
+    ]).map((id) => stripPrefix(id, ['appointment:']) ?? id);
     const explicitDeferred = explicitRefs.filter(
       (id) => id.startsWith('media-result:') || id.startsWith('action-result:'),
     );
+    const deferredToExistingResolver = uniqueSourceIds([...explicitDeferred, ...stateDeferred]);
 
     const openingMessages = openingMessagesForDisplay(
       initialMessages,
@@ -304,6 +313,8 @@ export async function readChatContextWorld(
     );
     const actorChoices = (state.choices ?? []).filter((choice) => choice.actorId === input.actorId);
     const linkedFactEventIds = matterEventIds(visibleMatters, actorChoices);
+    if (linkedFactEventIds.length > MAX_LINKED_EVENT_IDS)
+      throw new ChatContextFallbackError('linked-evidence-limit');
     const factRows = (
       await sql.query(
         `WITH recent AS (
@@ -352,7 +363,8 @@ export async function readChatContextWorld(
              )
              AND (NOT(p.document ? 'believedByActorId') OR p.document->>'believedByActorId'=$7)
              AND NOT(p.document ? 'narrativeContext')
-           LIMIT 200
+           ORDER BY p.ordinal ASC,p.id ASC
+           LIMIT $8
          )
          SELECT * FROM recent UNION ALL SELECT * FROM exact UNION ALL SELECT * FROM linked`,
         [
@@ -363,6 +375,7 @@ export async function readChatContextWorld(
           factRefs,
           linkedFactEventIds,
           input.actorId,
+          LINKED_FACT_LIMIT + 1,
         ],
       )
     ).rows as {
@@ -371,6 +384,8 @@ export async function readChatContextWorld(
       document: Fact;
       ordinal: string | number;
     }[];
+    if (factRows.filter((row) => row.bucket === 'linked').length > LINKED_FACT_LIMIT)
+      throw new ChatContextFallbackError('linked-evidence-limit');
     const recentFactRows = factRows.filter((row) => row.bucket === 'recent');
     const recentHasMore = recentFactRows.length > recentFactLimit;
     if (recentHasMore) recentFactRows.pop();
@@ -442,7 +457,64 @@ export async function readChatContextWorld(
         )
         .map((row) => row.document),
     );
-    const appointments = mergeAppointments(initialAppointments, runtimeAppointments);
+    let appointments = mergeAppointments(initialAppointments, runtimeAppointments);
+    const appointmentById = new Map(
+      appointments.map((appointment) => [appointment.id, appointment]),
+    );
+    const mergedAppointmentIds = [...appointmentById.keys()];
+    if (mergedAppointmentIds.length) {
+      const responseRows = (
+        await sql.query(
+          `SELECT e.version,e.payload
+           FROM parallel_life.world_events e
+           JOIN parallel_life.commands c
+             ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+            AND c.status='succeeded' AND c.result_event_id=e.id
+           WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version<=$3
+             AND e.payload->>'type'='invitation.responded'
+             AND e.payload->'data'->>'id'=ANY($4::text[])
+           ORDER BY e.version ASC`,
+          [input.worldId, ownerId, worldVersion, mergedAppointmentIds],
+        )
+      ).rows as { version: number; payload: InvitationEvent }[];
+      const responses = new Map<string, InvitationEvent[]>();
+      for (const row of responseRows) {
+        const id = row.payload?.data?.id;
+        if (typeof id !== 'string') continue;
+        const list = responses.get(id) ?? [];
+        list.push(row.payload);
+        responses.set(id, list);
+      }
+      for (const appointment of appointments) {
+        const events = responses.get(appointment.id);
+        if (!events?.length) continue;
+        let current = {
+          ...state,
+          time: state.time,
+          version: appointment.responseVersion ?? 0,
+          appointments: [{ ...appointment }],
+        } as WorldState;
+        let changed = false;
+        for (const event of events) {
+          if (
+            appointment.responseVersion !== undefined &&
+            event.version <= appointment.responseVersion
+          )
+            continue;
+          try {
+            current = applyInvitationEvent(
+              { ...current, time: event.storyTime, version: event.data.expectedVersion },
+              event,
+            );
+            changed = true;
+          } catch {
+            throw new ChatContextFallbackError('invitation-reconciliation');
+          }
+        }
+        if (changed) appointmentById.set(appointment.id, current.appointments[0]!);
+      }
+      appointments = [...appointmentById.values()];
+    }
     const appointmentIds = new Set(appointments.map((appointment) => appointment.id));
     const explicitAppointmentRefs = explicitRefs.filter((id) => {
       const raw = stripPrefix(id, ['appointment:']) ?? id;
@@ -456,6 +528,18 @@ export async function readChatContextWorld(
       ...explicitDeferred,
     ]);
     const unresolved = explicitRefs.filter((id) => !explicitResolved.has(id));
+    const stateRequiredResolved = stateRequired.filter((id) => {
+      const raw = stripPrefix(id, ['message:', 'opening:', 'fact:', 'appointment:']) ?? id;
+      return (
+        runtimeMessageIds.has(raw) ||
+        openingIds.has(raw) ||
+        factIds.has(raw) ||
+        appointmentIds.has(raw)
+      );
+    });
+    const stateRequiredUnresolved = stateRequired.filter(
+      (id) => !stateRequiredResolved.includes(id),
+    );
     const completeness: ChatContextCompleteness = {
       world: 'complete_compact_state',
       actorState: actorState ? 'complete' : 'missing',
@@ -495,10 +579,13 @@ export async function readChatContextWorld(
       attendanceReplay: 'bounded_reader_throws_when_required',
       notes: 'not_loaded_not_used_by_private_chat_context',
       referenced: {
-        requested: explicitRefs,
-        resolved: explicitRefs.filter((id) => explicitResolved.has(id)),
-        deferredToExistingResolver: explicitDeferred,
-        unresolved,
+        explicitRequested: explicitRefs,
+        explicitResolved: explicitRefs.filter((id) => explicitResolved.has(id)),
+        explicitUnresolved: unresolved,
+        stateRequired,
+        stateResolved: stateRequiredResolved,
+        stateUnresolved: stateRequiredUnresolved,
+        deferredToExistingResolver,
       },
     };
 

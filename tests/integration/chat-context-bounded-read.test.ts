@@ -18,7 +18,7 @@ import {
   readPrivateAgentSnapshot,
 } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
 import { readChatContextWorld } from '../../src/modules/world/infrastructure/chat-context-read-repository.ts';
-import { CHAT_CONTEXT_FULL_HYDRATE_REQUIRED } from '../../src/modules/world/application/chat-context-read.ts';
+import { ChatContextFallbackError } from '../../src/modules/world/application/chat-context-read.ts';
 import { actorContext } from '../../src/modules/world/application/actor-context.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
@@ -66,6 +66,9 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
   const oldFactId = randomUUID();
   const linkedFactId = randomUUID();
   const oldAppointmentId = randomUUID();
+  const initialAppointmentId = randomUUID();
+  const staleAppointmentId = randomUUID();
+  const messageIdsByVersion = new Map<number, string>();
   const secretFactId = randomUUID();
   const secretMessageId = randomUUID();
   const openingIds = [randomUUID(), randomUUID()];
@@ -174,7 +177,16 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
       at: START,
       sourceEventId: `genesis:${worldId}`,
     })),
-    appointments: [],
+    appointments: [
+      {
+        id: initialAppointmentId,
+        title: '作者初始约定',
+        at: earlyAt,
+        participantIds: [actorId],
+        sourceEventId: `genesis:${worldId}`,
+        status: 'proposed',
+      },
+    ],
   };
   await admin.query(
     'DELETE FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
@@ -200,7 +212,6 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
   const short = await readChatContextWorld(shortCounter.db, owner, {
     worldId,
     actorId,
-    inputText: '短对话开场。',
   });
   const shortMs = performance.now() - shortStart;
   const shortBytes = Buffer.byteLength(JSON.stringify(short.world));
@@ -213,7 +224,9 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     short.world.messages.map((message) => message.id),
     openingIds,
   );
-  assert.equal(short.world.appointments.length, 0);
+  assert.equal(short.world.appointments.length, 1);
+  assert.equal(short.world.appointments[0]?.id, initialAppointmentId);
+  assert.equal(short.world.appointments[0]?.status, 'proposed');
 
   const state = await new PostgresAgentRuntimeRepository(base).read(owner, { worldId, actorId });
   assert.ok(state);
@@ -268,6 +281,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         at,
       ],
     );
+    if (actor === actorId) messageIdsByVersion.set(version, messageId);
     await admin.query(
       'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
       [
@@ -348,6 +362,23 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         sourceEventId: early.eventId,
         kind: 'canonical',
       }),
+    ],
+  );
+  await admin.query(
+    'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document,status) VALUES($1,$2,$3,$4,$5)',
+    [
+      staleAppointmentId,
+      worldId,
+      owner,
+      JSON.stringify({
+        id: staleAppointmentId,
+        title: '投影仍旧的约定',
+        at: earlyAt,
+        participantIds: [actorId],
+        sourceEventId: early.eventId,
+        status: 'proposed',
+      }),
+      'proposed',
     ],
   );
   for (let version = 2; version <= 600; version++) {
@@ -501,7 +532,6 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
   const bounded = await readChatContextWorld(boundedDb, owner, {
     worldId,
     actorId,
-    inputText: '你还记得很早之前的约定吗？',
   });
   const boundedMs = performance.now() - boundedStart;
   const boundedBytes = Buffer.byteLength(JSON.stringify(bounded.world));
@@ -546,7 +576,6 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
   const referenced = await readChatContextWorld(base, owner, {
     worldId,
     actorId,
-    inputText: '你还记得很早之前的约定吗？',
     referencedSourceIds: [
       `message:${oldMessageId}`,
       `fact:${oldFactId}`,
@@ -566,7 +595,13 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     'media-result:missing-media',
     'action-result:missing-action',
   ]);
-  assert.equal(referenced.completeness.referenced.unresolved.length, 2);
+  assert.equal(referenced.completeness.referenced.explicitUnresolved.length, 2);
+  assert.ok(
+    referenced.completeness.referenced.stateRequired.some((id) => id === `message:${oldMessageId}`),
+  );
+  assert.ok(
+    referenced.completeness.referenced.stateResolved.some((id) => id === `message:${oldMessageId}`),
+  );
   assert.equal(
     referenced.world.facts.some((fact) => fact.id === secretFactId),
     false,
@@ -675,6 +710,155 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     }),
   );
 
+  // Invitation responses exist only in history while the appointment projection is stale.
+  // The bounded reader must apply the original domain rule, not trust the projection.
+  await admin.query('BEGIN');
+  try {
+    const insertResponse = async (version: number, appointmentId: string) => {
+      const commandId = randomUUID();
+      const eventId = randomUUID();
+      commandIds.push(commandId);
+      await admin.query(
+        `INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status,result_event_id,result_state)
+         VALUES($1,$2,$3,$4,$5,$6,'succeeded',$7,$8)`,
+        [
+          commandId,
+          worldId,
+          owner,
+          version - 1,
+          createHash('sha256').update(`${worldId}:response:${version}`).digest('hex'),
+          '{}',
+          eventId,
+          '{}',
+        ],
+      );
+      await admin.query(
+        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [
+          eventId,
+          worldId,
+          owner,
+          version,
+          commandId,
+          JSON.stringify({
+            schemaVersion: 1,
+            type: 'invitation.responded',
+            id: eventId,
+            worldId,
+            version,
+            commandId,
+            occurredAt: END,
+            storyTime: END,
+            data: {
+              commandId,
+              worldId,
+              id: appointmentId,
+              expectedVersion: version - 1,
+              operation: 'cancel',
+            },
+          }),
+          END,
+        ],
+      );
+    };
+    await insertResponse(601, initialAppointmentId);
+    await insertResponse(602, staleAppointmentId);
+    await admin.query('UPDATE parallel_life.worlds SET version=602 WHERE id=$1 AND owner_id=$2', [
+      worldId,
+      owner,
+    ]);
+    await admin.query('COMMIT');
+  } catch (error) {
+    await admin.query('ROLLBACK');
+    throw error;
+  }
+  const fullAfterResponses = await new PostgresWorldRepository(base).get(
+    { userId: owner },
+    worldId,
+  );
+  const boundedAfterResponses = await readChatContextWorld(base, owner, {
+    worldId,
+    actorId,
+  });
+  const appointmentStatus = (
+    world: { appointments: { id: string; status?: string }[] },
+    id: string,
+  ) => world.appointments.find((appointment) => appointment.id === id)?.status;
+  assert.equal(appointmentStatus(fullAfterResponses, initialAppointmentId), 'cancelled');
+  assert.equal(appointmentStatus(boundedAfterResponses.world, initialAppointmentId), 'cancelled');
+  assert.equal(appointmentStatus(fullAfterResponses, staleAppointmentId), 'cancelled');
+  assert.equal(appointmentStatus(boundedAfterResponses.world, staleAppointmentId), 'cancelled');
+
+  // Caller-supplied refs are optional and explicitly capped; over the cap we fall back.
+  await assert.rejects(
+    readChatContextWorld(base, owner, {
+      worldId,
+      actorId,
+      referencedSourceIds: Array.from({ length: 257 }, (_, index) => `message:missing-${index}`),
+    }),
+    (error: any) =>
+      error instanceof ChatContextFallbackError && error.reason === 'explicit-reference-limit',
+  );
+
+  // Persistent state references above the old 256 cap are read exactly, not sliced.
+  const manyHandles = Array.from({ length: 300 }, (_, index) => {
+    const messageId = messageIdsByVersion.get(index + 1);
+    return messageId ? `message:${messageId}` : null;
+  }).filter((id): id is string => Boolean(id));
+  assert.equal(manyHandles.length, 300);
+  await admin.query(
+    "UPDATE parallel_life.actor_agent_states SET document=jsonb_set(document,'{knowledgeSourceIds}',$3::jsonb) WHERE world_id=$1 AND owner_id=$2 AND actor_id=$4",
+    [worldId, owner, JSON.stringify(manyHandles), actorId],
+  );
+  const manyReferences = await readChatContextWorld(base, owner, {
+    worldId,
+    actorId,
+  });
+  assert.ok(manyReferences.completeness.referenced.stateRequired.length >= 300);
+  assert.ok(manyReferences.completeness.referenced.stateResolved.length >= 300);
+  assert.ok(
+    manyReferences.world.messages.some((message) => message.id === messageIdsByVersion.get(1)),
+  );
+  assert.ok(
+    manyReferences.world.messages.some((message) => message.id === messageIdsByVersion.get(300)),
+  );
+
+  // Matter-linked evidence beyond the deterministic 200 row cap is a fallback, not silent loss.
+  await admin.query('BEGIN');
+  try {
+    for (let index = 0; index < 201; index++) {
+      const factId = randomUUID();
+      await admin.query(
+        'INSERT INTO parallel_life.world_facts(id,world_id,owner_id,ordinal,document) VALUES($1,$2,$3,$4,$5)',
+        [
+          factId,
+          worldId,
+          owner,
+          factOrdinal++,
+          JSON.stringify({
+            id: factId,
+            text: `事项证据溢出 ${index}`,
+            visibility: { kind: 'world' },
+            sourceEventId: early.eventId,
+            kind: 'canonical',
+          }),
+        ],
+      );
+    }
+    await admin.query('COMMIT');
+  } catch (error) {
+    await admin.query('ROLLBACK');
+    throw error;
+  }
+  await assert.rejects(
+    readChatContextWorld(base, owner, {
+      worldId,
+      actorId,
+    }),
+    (error: any) =>
+      error instanceof ChatContextFallbackError && error.reason === 'linked-evidence-limit',
+  );
+
   // Legacy attendance worlds keep the existing full-hydrate path instead of a stale projection.
   await admin.query('BEGIN');
   try {
@@ -687,7 +871,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         commandId,
         worldId,
         owner,
-        600,
+        602,
         createHash('sha256').update(`${worldId}:attendance`).digest('hex'),
         '{}',
         eventId,
@@ -700,7 +884,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         eventId,
         worldId,
         owner,
-        601,
+        603,
         commandId,
         JSON.stringify({
           type: 'turn.resolved',
@@ -710,7 +894,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
         END,
       ],
     );
-    await admin.query('UPDATE parallel_life.worlds SET version=601 WHERE id=$1 AND owner_id=$2', [
+    await admin.query('UPDATE parallel_life.worlds SET version=603 WHERE id=$1 AND owner_id=$2', [
       worldId,
       owner,
     ]);
@@ -723,8 +907,7 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     readChatContextWorld(base, owner, {
       worldId,
       actorId,
-      inputText: '旧存档是否仍可读？',
     }),
-    (error: any) => error?.code === CHAT_CONTEXT_FULL_HYDRATE_REQUIRED,
+    (error: any) => error instanceof ChatContextFallbackError && error.reason === 'attendance',
   );
 });

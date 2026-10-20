@@ -9,6 +9,24 @@ import type { Id, WorldState } from '../domain/types.ts';
  */
 export const CHAT_CONTEXT_FULL_HYDRATE_REQUIRED = 'CHAT_CONTEXT_FULL_HYDRATE_REQUIRED';
 
+export type ChatContextFallbackReason =
+  | 'attendance'
+  | 'invitation-reconciliation'
+  | 'explicit-reference-limit'
+  | 'state-reference-limit'
+  | 'linked-evidence-limit';
+
+/** The bounded reader could not prove complete, source-correct input; caller must use full hydrate. */
+export class ChatContextFallbackError extends Error {
+  readonly code = CHAT_CONTEXT_FULL_HYDRATE_REQUIRED;
+  readonly reason: ChatContextFallbackReason;
+  constructor(reason: ChatContextFallbackReason) {
+    super(`${CHAT_CONTEXT_FULL_HYDRATE_REQUIRED}:${reason}`);
+    this.name = 'ChatContextFallbackError';
+    this.reason = reason;
+  }
+}
+
 export type PrivateChatWorld = Pick<
   WorldState,
   | 'id'
@@ -71,10 +89,14 @@ export type ChatContextCompleteness = {
   /** Notes are not part of NPC private-chat context and are intentionally absent. */
   notes: 'not_loaded_not_used_by_private_chat_context';
   referenced: {
-    requested: string[];
-    resolved: string[];
+    explicitRequested: string[];
+    explicitResolved: string[];
+    explicitUnresolved: string[];
+    /** message/fact/appointment handles required by the actor's durable state. */
+    stateRequired: string[];
+    stateResolved: string[];
+    stateUnresolved: string[];
     deferredToExistingResolver: string[];
-    unresolved: string[];
   };
 };
 
@@ -87,7 +109,6 @@ export type ChatContextRead = {
 export type ChatContextReadInput = {
   worldId: Id;
   actorId: Id;
-  inputText: string;
   /**
    * Exact source handles explicitly referenced by the caller (for example a
    * replied-to message, a saved fact, an old appointment, or a media result).
