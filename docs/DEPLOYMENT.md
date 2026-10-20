@@ -1,3 +1,9 @@
+## 2026-10-20 · 44-166 自然索图与独立图片消息
+
+业务 `e20fc0c1523366a29b4213d946d799a43f649d49` / `dpl_Cobr6L1cV8u6anCA7yyAKwPLCXM6` READY，Vercel API精确SHA与正式Nu别名一致。NPC同次模型自然准备回应，媒体原事务保存后任务与回执投影并行。生成图片单独气泡，无剧情标签/标题卡片；不按同event每句对白重复挂图。流式入口复用HTTP错误投影，明确版本冲突不再伪装传输未知。无SQL新增，生产100迁移一致。
+
+check3834/build、媒体原PG15、静态媒体4、最终聚焦15通过。独立官方测试档一次真实索图27s文字/42s整轮/80s图片；原Chrome手机390与PC通过，实际1024²PNG。公网验证文字与图独立、资产200/1731680字节。测试档暂停，用户档未写。进一步时延、完整输出前启动媒体、原165长期主动与发送准入未全完成，见166报告。
+
 ## 2026-10-20 · 44-164 增量消息流式呈现（Stage 2）
 
 业务 `a5fce517` / `dpl_HprcPBKsRwScBb4h9SNGNvaGMsfA` 正式 Nu 精确 READY，别名 `https://parallel-life-nu.vercel.app` 已核实。单次 NPC 模型调用的增量流式通信全链路打通。OpenAICompatibleTextModel.streamComplete 增量消费、闭合 statement 对象流式提取（杜绝未闭合 JSON 碎片呈现）、独立对白与依赖动作严格隔离。分段凭据在同一事务中先持久化到 `parallel_life.agent_attempt_stream_segments` 并提交 `world_events` 与 `world_messages`（Persist-Before-Present），再通过 NDJSON 响应向客户端逐段推送。同一 attempt 支持 V+1 前缀版本递进，与外部写/用户新消息打断围栏（旧流迟到 chunk 隔离、未提交分段自动标记 `superseded_by_interrupt`、已提交分段正式封存且 actor 不陷入 BUSY）。
