@@ -6,6 +6,11 @@ import type { TurnCommand } from '../modules/world/domain/types.ts';
 import { runNpcAgent, type AgentRunPhaseTimings } from '../modules/world/application/run-agent.ts';
 import { PostgresAgentRuntimeRepository } from '../modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
+import { readChatContextWorld } from '../modules/world/infrastructure/chat-context-read-repository.ts';
+import {
+  ChatContextFallbackError,
+  type ChatContextRead,
+} from '../modules/world/application/chat-context-read.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
 import {
   readPrivateAgentSnapshot,
@@ -624,12 +629,29 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           );
         if (clock.paused)
           throw new NpcMessageError('INVALID_STATE', '请先继续这段人生，再发送消息。', 409);
-        const world = await turnWorlds.get({ userId: ownerId }, command.worldId);
+        // Only fresh context preparation uses a bounded read. Paid response recovery
+        // keeps its existing full-world path and immutable snapshot.
+        let bounded: ChatContextRead | null = null;
+        if (!previous) {
+          try {
+            bounded = await readChatContextWorld(turnDb, ownerId, {
+              worldId: command.worldId,
+              actorId: command.actorId,
+            });
+          } catch (error) {
+            if (!(error instanceof ChatContextFallbackError)) throw error;
+            console.info(JSON.stringify({ scope: 'chat-context-fallback', reason: error.reason }));
+          }
+        }
+        const world =
+          bounded?.world ?? (await turnWorlds.get({ userId: ownerId }, command.worldId));
         worldVersionBefore = world.version;
-        const actor = await turnStore.read(ownerId, {
-          worldId: command.worldId,
-          actorId: command.actorId,
-        });
+        const actor = bounded
+          ? bounded.actorState
+          : await turnStore.read(ownerId, {
+              worldId: command.worldId,
+              actorId: command.actorId,
+            });
         if (!actor)
           throw new NpcMessageError('INVALID_STATE', '人物状态尚未准备完成，请稍后再进入。', 409);
         if (
@@ -652,6 +674,10 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
                   receipt,
                   storyAt,
                   actor,
+                  {
+                    referencedSourceIds:
+                      bounded?.completeness.referenced.deferredToExistingResolver,
+                  },
                 )
               ).snapshot;
         contextPrepareMs = roundDurationMs(performance.now() - tTurn0);

@@ -61,3 +61,11 @@ check3854/build、原runtime真实PG34通过；生产100迁移checksum一致，�
 未完成：目标人物已变化时的可答复对象范围；付费后无关写入冲突；169有界读取接线；持续自主推进与媒体提前完成措辞。
 
 第三批正式部署：4c1fbe996973d25eb8e806bd1588a422040fa8b4 / dpl_8XA3Z3gxFNeJ6PD1zSPp4vBjwnUq 精确READY、Nu别名一致。公网原消息接口同客户端v15，林悦/刘航分别提交v16/v17，一次成功无重试，全轮7.229s/4.696s；本批累计4文字/0图，合成档已暂停。check3854/build/runtimePG34/生产100迁移校验及公网health/workbench200通过。仅完成付费前无关世界变化准入；目标人物更新后的旧选择范围、付费后无关冲突、169接线及持续主动仍未完成。
+
+## 第四批：有界读取实际接线与提交冲突审查
+
+root已集成169冻结实现e5b02e13/e79a6c0f，未覆盖小迪工作树新增补测。npc-agent-services的新请求准备使用readChatContextWorld，actor state缺失仍原错误；仅ChatContextFallbackError进入完整hydrate回退并记录reason，数据库/权限等错误原样传播。之前已有attempt恢复仍原完整读取，claim/kernel/媒体/流式执行仓储不变。无新helper/队列/缓存/SQL。当前check3854通过，boundedPG/streamPG通过；native-service九子项在旧private fixture UNKNOWN_SOURCE失败，eaf8f3e4隔离基线复现同样九项，不算通过。
+
+付费后冲突下一步明确：receipt.expectedWorldVersion、attempt/snapshot基线保持不可变；实际appendBaseVersion/commitVersion须在原commitFrame明确分离，并从原command/event/segment凭据恢复。所有实际事件/结果/人物投影版本与finish共同接线，媒体来源核验仍按模型基线。不可将临时改写的attempt传给校验器。当前流式反复补全同一event，若其他event已插入，不能回头改历史prefix；完整并发需将后续变化演进为独立追加事件并统一回执/重放协议。群聊0074有实际SQL约束不能仅改TS。本批不删保护、不另建纯聊天提交旁路，不宣称付费后冲突已解决。
+
+第四批接续：集成小迪最终50d77b00为10eef235，新增边界及真实snapshot媒体接线PG2/2通过。check3854/build通过（最终追加仅测试/报告无业务变化）；本地真实原HTTP合成档c6717814一次模型保存v18，首段18.857s、serverTotal28.520s、contextQuery61/commit167/总228、事务12；相较前同人物样本230/13仅是查询减少证据，不是延迟SLA。合成档已暂停，0用户档写，待部署。
