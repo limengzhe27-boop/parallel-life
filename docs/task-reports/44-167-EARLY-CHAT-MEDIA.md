@@ -5,7 +5,7 @@
 ## 实际断点
 166文字流式已存在，但原HTTP只在完整sendMessageIfEnabled结束后启动媒体。媒体builder无条件50mm portrait lens覆盖自拍相机几何。
 
-## 当前实现（开发中，尚未交付）
+## 实现（已集成上线）
 - 同次模型输出：protocol/statements/executions优先；完整合法execution数组到齐发出内部事件，不推断用户关键词，不额外模型调用。
 - 独立无依赖生图动作由原PostgresNpcAgentKernel进行原权限/来源/租约/版本/可用能力校验、原事务及Outbox提交；复用已提交文字prefix event。原attempt保持streaming，原HTTP启动原持久任务并通过Next after保留其生命周期。
 - final复用早期动作/结果/图片request，禁止修改已经接受的执行；原媒体document与Outbox幂等复用不重置ready/unknown。suffix失败seal保留已执行proposal/result/计划。
@@ -36,3 +36,8 @@
 - 本批待提交/部署READY/公网新消息和资产读取核验，完成后更新本节。
 
 最终新图08ec260c视觉确认本人持手机对镜自拍；无第三人拍摄写真。check3843/3843通过，build5通过，原PG正常/中断/ready先到/重放幂等通过，媒体旧来源5项通过，迁移100/100一致。进入部署阶段。
+
+## 正式部署及公网闭环
+业务a41744146f0978ef4d4027c7acce6a6eab78809c，dpl_ECpuMWtp9wPhdq3vKEGARibphoMK READY，精确SHA与parallel-life-nu.vercel.app别名核实。
+公网原入口复用同独立合成档再次索图，命令8313d9ba-b5f4-40a9-b46b-eb24ec3cfe2b：首文字10.332s，完整回合11.729s，新图片读取34.997s；版本2正常保存，旧图片来源不再触发VERSION_CONFLICT，未将旧图当新图。新资产8036d7eb-ed9f-4bca-b464-2bb695e89b45通过原资产API200，视觉确认持手机对镜自拍。文字与图两条消息，测试档已暂停。公网计时是单次样本，非稳定SLA。
+正式环境本批交付完成。以上部署前“待”项均以本节为准；进一步首回复时延/模型输出次序稳定性，以及165长期主动演绎仍待后续处理。
