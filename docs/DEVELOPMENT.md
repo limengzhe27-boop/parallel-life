@@ -2817,3 +2817,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第五批进行中：root唯一实现输入基线/实际追加版本分离，范围agent-commit-version、agent-runtime-repository、npc-agent-kernel、npc-stream-segment-repository、actor-media-result-context-repository及必要原stream测试/报告。小迪只读消费者清查及独立新测试，勿改公共实现。本批先证明首prefix前其他人物纯私聊可安全追加，prefix后交错保持拒绝不改历史；不改immutable attempt。
 
 44-168第五批待真实验收：模型基线/实际追加版本分离；root增加agent-source-resolver与actor-observation-consumption-repository消费者修正。限定无事件绑定私聊首段前其他人物纯交流；共享变化保持严格，首段后交错封存不改历史。check3856/真实PG35通过，生产100一致；真实验收/部署待完成。小迪170专属测试报告不覆盖。
+
+44-168第五批正式部署：eb2589041a3d492e34c3ab0e045955f1b48c5561 / dpl_F7pnpD2jsef2LsXnM2j5FMHRVptv 精确READY并绑定Nu。公网真实并发：两个NPC同模型v21分别committed v22/v23，后者实际append基线22、模型仍21；5.271s/9.073s，无重试，合成档暂停。本批共4文字/0图；check3856/build/真实PG35、生产100迁移一致、health/workbench200。仅完成无绑定私聊首段前其他人物纯交流冲突；事件绑定、首段后交错后缀、持续主动仍未完成。
