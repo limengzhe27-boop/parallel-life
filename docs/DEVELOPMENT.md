@@ -2853,3 +2853,15 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168公网阻塞定位：root扩展agent-runtime-repository.ts的requireInputAuthority群聊查询；生产活动记录显示15表重复成员来源join持续执行超过90秒并阻塞renew_task，尚未调用模型。改为一次认证成员来源再检查输入/执行双时点，保留权限证据。171文件不动。
 
 44-168第八批交付：1e1c6698577704d5cb72c8b4befa14af802dc1ac / dpl_3bSW2Usvak4pujip5HHM3arXLBby精确READY绑定Nu；生产103/103一致。check3865/build通过，native实际追加PG3/3，协议30；旧scene actor_left_presence失败基线已复现未掩盖。原15表群聊权限查询阻塞超过90秒，改为认证来源一次再检查双时点，同生产合成档只读666ms。原零调用失败任务经原恢复入口完成v35，本地真实模型1次；公网接续原群真实模型1次，v36输入/v37回复，8.001s，历史可读，测试档暂停。本批累计10次真实文字/0图，无用户档写。完成群/现场限定无关私聊追加与群权限查询精简；相关共享effect分离、人物事件选择遗漏、长期主动及模型输出稳定性仍未完成。171状态/测试由小迪维护，不修改其文件。
+
+44-168第九批进行中：root-simplify168/main33ce096c唯一集成；独占npc-agent-model.ts、npc-model-protocol.ts、domain/agent-kernel.ts、必要episode生命周期/advance调度接线、tests/npc-model-protocol.test.ts、tests/npc-agent-model.test.ts、NEW tests/integration/episode-choice-continuation168.test.ts及168报告。目标同次模型显式事件选择、不增加调用，以及受保护结果自动恢复复用统一提交准入、不以无关世界版本丢弃或全局阻塞。只读agenda_gap_review审查，无写文件。小迪171/后续新专属验收文件不改。
+
+44-168第九批扩展root独占application/agent-schedule-collectors.ts与tests/agent-schedule-collectors.test.ts：已证实nextAction有真实terminal结果后原action候选跳过、reconsider候选也跳过。复用actor_plan候选，按真实result身份一次性重新考虑下一步，不自动完结/生成消息；同结果去重。
+
+44-168第九批root继续维护既有tests/integration/player-episode-manifest.test.ts：旧用例允许携带事件时漏选择成功，现按明确选择契约改为已知无效且不自动重买；显式quiet仍可正常聊天、不冒充参与。非小迪171文件。
+
+44-168第九批真实模型已输出engage，但continuation act未引用计划/行动，现有plain Error被HTTP误报UNKNOWN。root扩展domain/actor-continuation.ts，把确定无效输出归原AgentValidationError；不改原响应、不自动重买。精确说明普通提问属于await_response，不额外创造计划。
+
+44-168第九批root扩展domain/agent-plan-next-step.ts、tests/player-episode-manifest.test.ts、tests/npc-execution-contract.test.ts：终态next-step仅标待重评，真实结果资格仍由collector证明；更新旧允许漏选择断言。当前输出移除continuation.act重复声明，动作由executions/planIntents表达；历史decode仍保留act，避免新增兼容链。
+
+44-168 batch9 delivered: 922f8d06 / dpl_HUMhQCJYqpwagnkPD7kCzdygDhXH READY on Nu, migrations103 verified; check3867/build/PG9, delegated171+172 tests16/typecheck passed. Real synthetic episode engage + appointment + no-input advance produced a new reply; public group v39 succeeded in7.642s. Total9 text/0image, all synthetic worlds paused. Long-term autonomy, all-quiet lifecycle, repeated confirmation/persona consistency and related-effect admission remain OPEN. Frozen171/172 tests and reports integrated by root; no worker worktree edits.

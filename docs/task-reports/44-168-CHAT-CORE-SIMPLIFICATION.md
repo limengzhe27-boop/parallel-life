@@ -117,3 +117,19 @@ PG连续旅程16/16通过（并发6、恢复9、stage2 1）：A首段后B插入A
 第八批公网阻塞定位：3985b554/0103已上线，群聊原PUT120秒超时、无新NPC或导演attempt。a9735ba7增加不含正文的阶段日志并READY。合成任务通过原取消入口停止；原零调用恢复因世界已推进VERSION_CONFLICT，未改历史或强行重试。新合成群同样停在claim前，pg_stat_activity证明requireInputAuthority群聊15表来源连接执行超过90秒，renew_task等待其事务锁；并非模型慢。将group和membership来源认证各自MATERIALIZED一次，复用四个时间点资格检查，原身份/事件版本/成功command/遗忘来源核验不变。同一生产合成档只读权限查询666ms，原native实际追加PG3/3通过。未声称全轮耗时同比改善。旧挂起合成查询被明确取消，测试脚本finally暂停；无用户存档写。check/build及修复后真实公网验收继续。
 
 44-168第八批交付：1e1c6698577704d5cb72c8b4befa14af802dc1ac / dpl_3bSW2Usvak4pujip5HHM3arXLBby精确READY绑定Nu；生产103/103一致。check3865/build通过，native实际追加PG3/3，协议30；旧scene actor_left_presence失败基线已复现未掩盖。原15表群聊权限查询阻塞超过90秒，改为认证来源一次再检查双时点，同生产合成档只读666ms。原零调用失败任务经原恢复入口完成v35，本地真实模型1次；公网接续原群真实模型1次，v36输入/v37回复，8.001s，历史可读，测试档暂停。本批累计10次真实文字/0图，无用户档写。完成群/现场限定无关私聊追加与群权限查询精简；相关共享effect分离、人物事件选择遗漏、长期主动及模型输出稳定性仍未完成。171状态/测试由小迪维护，不修改其文件。
+
+## 第九批：明确事件选择与真实结果继续（等待公网验收）
+
+业务922f8d06。服务器episodeManifest与coordination共用required consideration，schema/decoder/kernel一致；同次模型可engage/decline/defer/need_information/quiet，不允许口头承接而缺记录，无机会普通聊天仍可changes=null。当前模型输出移除continuation.act重复声明，执行由既有executions/planIntents负责；旧act仍可解码，非法continuation用原AgentValidationError而非UNKNOWN。
+
+原advance的受保护response_received不再因世界版本不同直接丢弃，交统一kernel判断无关追加与真实依赖冲突；查实终态才继续，存储失败不吞。真正deferred paid frame全局保护暂留，未声称任意跨人物相关变化可重放。
+
+原actor_plan收集器对nextAction匹配本人可信真实resultId/outcome时提供一次重新考虑；指纹含结果证据、无时钟/无关版本，旧执行地点不再阻止结果后反思；人物自行更新/关闭计划，结果不自动等于整个事件完成。无结果的terminal标签不授予资格。
+
+必要验证：协议/收集器/选择70通过；原manifest真实PG9通过（含advance恢复无第二模型、已知无效选择不自动购买、暂缓条件重评）；check3867/build通过。独立只读审查指出旧执行trigger应与结果重评分离，已修，最终collector通过。
+
+真实调用：首个合成回应engage但continuation.act无计划，已保存原响应离线核对、没有重买该请求；正确归类已知无效。第二个合成明确engage保存、事件消费成功；扩展旅程又复现重复act后精简当前输出。最终合成806aeb6b经原私聊两次真实模型产生engage和正式appointment.propose；停止玩家输入后原advance三次真实模型（含导演/人物）产生新人物协调回复并初始化另一人物议程，world v5、played1，无手工消息/结果。所有合成档finally暂停。本轮本地累计8次真实文字、0图。该旅程未证明所有后续来自terminal result候选，结果后重评为确定性测试证据；观察到重复确认与角色分工表述不一致，持续质量未过关。
+
+仍未完成：全quiet且无未来条件时的有依据持续议程，长期多事件体验、重复确认/角色立场一致性、相关共享变化的独立文本/失效行动提交，旧v14回执状态兼容。小迪172/171冻结专项测试正在接入；未修改其工作树。
+
+第九批上线：922f8d063db335d11326d9af517da0f3b113b63e / dpl_HUMhQCJYqpwagnkPD7kCzdygDhXH精确READY并绑定Nu，生产103/103迁移一致。公网原合成群下一轮真实调用成功保存v39，7.642s、历史读取完整，结束暂停；这是普通聊天回归，不冒充公网作者事件长期旅程。本轮共9次真实文字、0图。小迪301a3068/275c0766的三个新增测试已接入，当前代码聚焦16/16、typecheck通过，报告镜像保留；不重复购买或运行已通过全量套件。以上明确选择、真实结果候选、自动恢复修改已交付，长期主动体验仍按上述缺口继续，不能标全部完成。
