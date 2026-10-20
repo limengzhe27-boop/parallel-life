@@ -286,20 +286,17 @@ export class PostgresWorldAwarenessRepository {
     return this.db.transaction(owner, async (sql) => {
       const world = (
         await sql.query(
-          'SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR SHARE',
+          `SELECT w.state,w.version,
+         (SELECT e.id FROM parallel_life.world_events e
+           WHERE e.world_id=w.id AND e.owner_id=w.owner_id AND e.version=w.version) AS source_id
+         FROM parallel_life.worlds w WHERE w.id=$1 AND w.owner_id=$2 FOR SHARE`,
           [worldId, owner],
         )
       ).rows[0];
       if (!world || !(world.state as WorldState).actors.some((a) => a.id === actorId))
         throw Error('AWARENESS_ACTOR_NOT_FOUND');
       const state = { ...world.state, version: world.version } as WorldState;
-      const sourceId =
-        (
-          await sql.query(
-            'SELECT id FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version=$3',
-            [worldId, owner, world.version],
-          )
-        ).rows[0]?.id ?? null;
+      const sourceId = world.source_id ?? null;
       if (world.version > 0 && !sourceId) throw Error('AWARENESS_EVENT_GAP');
       const savedBoundary = (
         await sql.query(

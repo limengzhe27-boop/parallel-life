@@ -18,6 +18,11 @@ export type ActorMediaResultRead = {
   limit?: number;
   /** Exact source reauthorization does not depend on a recent-result recall window. */
   requestIds?: readonly string[];
+  /**
+   * The private snapshot reader has already checked the world head in this transaction.
+   * With no media rows there is nothing to authorize, so skip the second head read.
+   */
+  skipEmptyHeadCheck?: boolean;
 };
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const instant = (value: unknown): value is string =>
@@ -41,6 +46,31 @@ export async function readActorMediaResultContextInTransaction(
     throw new DomainError('INVALID_COMMAND');
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 64)
     throw new DomainError('INVALID_COMMAND');
+  // Read the bounded result window first. Version/engine checks and the forget
+  // snapshot are only needed when there is media evidence to authorize; with no
+  // rows the caller gets an empty view without extra round trips.
+  const rows = (
+    await sql.query(
+      `SELECT r.id,r.action_id,r.source_event_id,r.world_version,r.document,e.payload
+ FROM parallel_life.agent_action_results r
+ JOIN parallel_life.world_events e ON e.world_id=r.world_id AND e.owner_id=r.owner_id AND e.id=r.source_event_id AND e.version=r.world_version
+ JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+ JOIN parallel_life.agent_attempts a ON a.world_id=e.world_id AND a.owner_id=e.owner_id AND a.event_id=e.id AND a.actor_id=r.actor_id AND a.status='committed' AND a.engine_epoch=$4
+ WHERE r.world_id=$1 AND r.owner_id=$2 AND r.actor_id=$3 AND r.world_version<=$5 AND r.document->>'outcome'='succeeded'
+ AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(r.document->'outputRefs')='array' THEN r.document->'outputRefs' ELSE '[]'::jsonb END) ref WHERE ref->>'kind'='media' AND ($7::text[] IS NULL OR ref->>'id'=ANY($7::text[])))
+ ORDER BY r.world_version DESC,r.id LIMIT $6`,
+      [
+        input.worldId,
+        owner,
+        input.actorId,
+        input.engineEpoch,
+        input.worldVersion,
+        limit,
+        input.requestIds ?? null,
+      ],
+    )
+  ).rows;
+  if (!rows.length && input.skipEmptyHeadCheck) return { completed: [], pending: [] };
   const world = (
     await sql.query(
       'SELECT w.version,w.state,c.engine_epoch FROM parallel_life.worlds w JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id WHERE w.id=$1 AND w.owner_id=$2',
@@ -76,29 +106,8 @@ export async function readActorMediaResultContextInTransaction(
   }
   if (input.engineEpoch < 2 || world.engine_epoch !== input.engineEpoch)
     throw new DomainError('INVALID_COMMAND');
-  const blocked = await forgottenAgentSourceIds(sql, owner, input.worldId, input.actorId);
-  const rows = (
-    await sql.query(
-      `SELECT r.id,r.action_id,r.source_event_id,r.world_version,r.document,e.payload
- FROM parallel_life.agent_action_results r
- JOIN parallel_life.world_events e ON e.world_id=r.world_id AND e.owner_id=r.owner_id AND e.id=r.source_event_id AND e.version=r.world_version
- JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
- JOIN parallel_life.agent_attempts a ON a.world_id=e.world_id AND a.owner_id=e.owner_id AND a.event_id=e.id AND a.actor_id=r.actor_id AND a.status='committed' AND a.engine_epoch=$4
- WHERE r.world_id=$1 AND r.owner_id=$2 AND r.actor_id=$3 AND r.world_version<=$5 AND r.document->>'outcome'='succeeded'
- AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(r.document->'outputRefs')='array' THEN r.document->'outputRefs' ELSE '[]'::jsonb END) ref WHERE ref->>'kind'='media' AND ($7::text[] IS NULL OR ref->>'id'=ANY($7::text[])))
- ORDER BY r.world_version DESC,r.id LIMIT $6`,
-      [
-        input.worldId,
-        owner,
-        input.actorId,
-        input.engineEpoch,
-        input.worldVersion,
-        limit,
-        input.requestIds ?? null,
-      ],
-    )
-  ).rows;
   if (!rows.length) return { completed: [], pending: [] };
+  const blocked = await forgottenAgentSourceIds(sql, owner, input.worldId, input.actorId);
   // Bounded batched reads: no database round trip per generated image on a chat snapshot.
   const requestIds = [
     ...new Set(

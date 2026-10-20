@@ -20,6 +20,18 @@ export function readActorSituation(
     ).rows[0];
     if (!world) throw new DomainError('NOT_FOUND');
     if (world.version !== context.worldVersion) throw new DomainError('VERSION_CONFLICT');
+    // Ordinary private chats have no delivered authored direction. Skip the
+    // seven-way proof join unless this actor actually has a delivery row.
+    const delivery = (
+      await sql.query(
+        `SELECT EXISTS(
+           SELECT 1 FROM parallel_life.publication_opening_deliveries d
+           WHERE d.world_id=$1 AND d.owner_id=$2 AND d.actor_id=$3 AND d.status='delivered'
+         ) AS has_delivery`,
+        [context.worldId, ownerId, context.actor.id],
+      )
+    ).rows[0];
+    if (!delivery?.has_delivery) return undefined;
     const rows = (
       await sql.query(
         `SELECT d.brief,d.actor_id,d.source_event_id,d.source_message_id,

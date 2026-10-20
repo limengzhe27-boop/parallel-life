@@ -10,16 +10,14 @@ export async function readActorEpisodeResults(
   sql: SqlClient,
   owner: string,
   snapshot: AgentSnapshot,
+  blockedSources?: ReadonlySet<string>,
 ): Promise<ActorEpisodeResultContext[]> {
   if (snapshot.channel.kind !== 'private') return [];
   const episodes = [...new Set((snapshot.episodeFollowUps ?? []).map((p) => p.episodeId))];
   if (!episodes.length) return [];
-  const blocked = await forgottenAgentSourceIds(
-    sql,
-    owner,
-    snapshot.state.worldId,
-    snapshot.state.actorId,
-  );
+  const blocked =
+    blockedSources ??
+    (await forgottenAgentSourceIds(sql, owner, snapshot.state.worldId, snapshot.state.actorId));
   const rows = (
     await sql.query(
       `SELECT v.id,v.episode_id,v.actor_id,v.engine_epoch,v.source_event_id,v.world_version,v.kind,v.subject_kind,v.subject_id,v.action_id,v.document,e.payload

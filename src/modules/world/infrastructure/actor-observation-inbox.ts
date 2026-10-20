@@ -6,12 +6,22 @@ import { readActorSceneObservationSourcesInTransaction } from './actor-scene-obs
 import { readActorGroupObservationSourcesInTransaction } from './actor-group-observation-sources.ts';
 import { readConsumedSceneObservationSourcesInTransaction } from './actor-observation-consumption-repository.ts';
 
+type NarrativePacket = Awaited<
+  ReturnType<typeof readActorNarrativeObservationSourcesInTransaction>
+>;
+
 /** Durable original scene records are the inbox. No second fact store or implicit map knowledge. */
 export async function readActorObservationInbox(
   sql: SqlClient,
   owner: string,
   snapshot: AgentSnapshot,
-  options: { includeGroups?: boolean; includeNarrative?: boolean } = {},
+  options: {
+    includeGroups?: boolean;
+    includeNarrative?: boolean;
+    /** Same-transaction narrative packet already read by the caller. */
+    narrative?: NarrativePacket;
+    blockedSources?: ReadonlySet<string>;
+  } = {},
 ) {
   const sources: AgentSnapshot['sources'] = [],
     observations: AgentSnapshot['observations'] = [],
@@ -25,21 +35,37 @@ export async function readActorObservationInbox(
     )
   ).rows[0];
   if (!rw || rw.engine_epoch < 2) return { sources, observations, context: undefined };
-  const consumed = await readConsumedSceneObservationSourcesInTransaction(sql, owner, {
-    worldId: snapshot.state.worldId,
-    actorId: snapshot.state.actorId,
-    engineEpoch: rw.engine_epoch,
-    worldVersion: snapshot.worldVersion,
-  });
-  const done = new Set(consumed.map((c) => c.sourceId + ':' + c.contentHash));
-  const rows = (
+  // One lookup for both scene presence and historical group membership. A private
+  // chat with neither can skip the consumption read entirely.
+  const presence = (
     await sql.query(
-      `SELECT id FROM parallel_life.scene_sessions WHERE world_id=$1 AND owner_id=$2
-    AND document->'presence' @> jsonb_build_array(jsonb_build_object('participant',jsonb_build_object('kind','actor','actorId',$3::text)))
-    ORDER BY (document->>'sourceVersion')::integer DESC,id`,
-      [snapshot.state.worldId, owner, snapshot.state.actorId],
+      `SELECT 'scene' AS kind,id::text AS id,(document->>'sourceVersion')::integer AS sort_version,id::text AS sort_id
+       FROM parallel_life.scene_sessions WHERE world_id=$1 AND owner_id=$2
+         AND document->'presence' @> jsonb_build_array(jsonb_build_object('participant',jsonb_build_object('kind','actor','actorId',$3::text)))
+       UNION ALL
+       SELECT 'group',group_id::text,0,group_id::text
+       FROM parallel_life.world_group_memberships
+       WHERE world_id=$1 AND owner_id=$2 AND participant->>'kind'='actor'
+         AND participant->>'actorId'=$3 AND $4::boolean
+       ORDER BY kind,sort_version DESC,sort_id`,
+      [snapshot.state.worldId, owner, snapshot.state.actorId, options.includeGroups !== false],
     )
   ).rows;
+  const rows = presence.filter((row) => row.kind === 'scene').map((row) => ({ id: row.id }));
+  // Historical membership is only a lookup hint; the adapter authenticates its producer.
+  const groups = presence
+    .filter((row) => row.kind === 'group')
+    .map((row) => ({ group_id: row.id }));
+  const consumed =
+    rows.length || groups.length
+      ? await readConsumedSceneObservationSourcesInTransaction(sql, owner, {
+          worldId: snapshot.state.worldId,
+          actorId: snapshot.state.actorId,
+          engineEpoch: rw.engine_epoch,
+          worldVersion: snapshot.worldVersion,
+        })
+      : [];
+  const done = new Set(consumed.map((c) => c.sourceId + ':' + c.contentHash));
   const packets: {
     source: AgentSnapshot['sources'][number];
     observation: AgentSnapshot['observations'][number];
@@ -76,17 +102,6 @@ export async function readActorObservationInbox(
     if (options.includeGroups === false && sources.length >= 12) break;
   }
   // Historical membership is only a lookup hint; the adapter authenticates its producer.
-  const groups =
-    options.includeGroups === false
-      ? []
-      : (
-          await sql.query(
-            `SELECT DISTINCT group_id FROM parallel_life.world_group_memberships
-     WHERE world_id=$1 AND owner_id=$2 AND participant->>'kind'='actor'
-     AND participant->>'actorId'=$3 ORDER BY group_id`,
-            [snapshot.state.worldId, owner, snapshot.state.actorId],
-          )
-        ).rows;
   for (const group of groups) {
     const packet = await readActorGroupObservationSourcesInTransaction(sql, owner, {
       worldId: snapshot.state.worldId,
@@ -110,12 +125,15 @@ export async function readActorObservationInbox(
   }
   const narrativeKnowledgeIds: string[] = [];
   if (options.includeNarrative !== false) {
-    const packet = await readActorNarrativeObservationSourcesInTransaction(sql, owner, {
-      worldId: snapshot.state.worldId,
-      actorId: snapshot.state.actorId,
-      worldVersion: snapshot.worldVersion,
-      storyAt: snapshot.storyAt,
-    });
+    const packet =
+      options.narrative ??
+      (await readActorNarrativeObservationSourcesInTransaction(sql, owner, {
+        worldId: snapshot.state.worldId,
+        actorId: snapshot.state.actorId,
+        worldVersion: snapshot.worldVersion,
+        storyAt: snapshot.storyAt,
+        ...(options.blockedSources ? { blockedSources: options.blockedSources } : {}),
+      }));
     for (const source of packet.sources) {
       if (done.has(source.id + ':' + source.contentHash)) continue;
       narrativeKnowledgeIds.push(source.recordId);

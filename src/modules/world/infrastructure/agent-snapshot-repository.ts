@@ -182,6 +182,15 @@ export async function readPrivateAgentSnapshot(
     const memories = await loadActorMemories(sql, ownerId, { worldId: world.id, actorId });
     // Forget authorization is not capped by the recall/ranking window.
     memories.blockedSources = await forgottenAgentSourceIds(sql, ownerId, world.id, actorId);
+    // Read the actor-scoped narrative packet once per snapshot. The strategy basis
+    // and the private inbox both need the same packet in this same transaction.
+    const narrative = await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
+      worldId: world.id,
+      actorId,
+      worldVersion: world.version,
+      storyAt,
+      blockedSources: memories.blockedSources,
+    });
     const context = actorContext(
       { ...world, time: storyAt },
       actorId,
@@ -492,7 +501,11 @@ export async function readPrivateAgentSnapshot(
     )
       throw new DomainError('VERSION_CONFLICT', '人物定义需要先同步。');
     if (state) {
-      const strategy = await readActorStrategyBasis(sql, ownerId, state, world.version, storyAt);
+      const strategy = await readActorStrategyBasis(sql, ownerId, state, world.version, storyAt, {
+        narrative,
+        blockedSources: memories.blockedSources,
+        skipEmptyMediaHeadCheck: true,
+      });
       for (const source of strategy)
         if (!sources.has(source.id)) {
           sources.set(source.id, source);
@@ -603,6 +616,7 @@ export async function readPrivateAgentSnapshot(
       ownerId,
       result.snapshot,
       memories.blockedSources,
+      narrative,
     );
     return result;
   });
@@ -630,6 +644,9 @@ async function attachAgentWorldContextInTransaction(
   ownerId: string,
   snapshot: AgentSnapshot,
   preloadedBlocked?: Set<string>,
+  preloadedNarrative?: Awaited<
+    ReturnType<typeof readActorNarrativeObservationSourcesInTransaction>
+  >,
 ): Promise<AgentSnapshot> {
   const awareness = await new PostgresWorldAwarenessRepository(txDb).readActorAwareness(
     ownerId,
@@ -800,7 +817,10 @@ async function attachAgentWorldContextInTransaction(
       knowledge,
     },
   };
-  const inbox = await readActorObservationInbox(sql, ownerId, contextual);
+  const inbox = await readActorObservationInbox(sql, ownerId, contextual, {
+    ...(preloadedNarrative ? { narrative: preloadedNarrative } : {}),
+    blockedSources: blocked,
+  });
   if (inbox.context) {
     const ids = new Set(inbox.sources.map((s) => s.id));
     contextual.sources = [...contextual.sources.filter((s) => !ids.has(s.id)), ...inbox.sources];
@@ -816,12 +836,15 @@ async function attachAgentWorldContextInTransaction(
   }
   // A consumed notification remains known. Recall does not create inbox work or a new wake.
   if (contextual.channel.kind === 'private') {
-    const recall = await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
-      worldId: contextual.state.worldId,
-      actorId: contextual.state.actorId,
-      worldVersion: contextual.worldVersion,
-      storyAt: contextual.storyAt,
-    });
+    const recall =
+      preloadedNarrative ??
+      (await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
+        worldId: contextual.state.worldId,
+        actorId: contextual.state.actorId,
+        worldVersion: contextual.worldVersion,
+        storyAt: contextual.storyAt,
+        blockedSources: blocked,
+      }));
     const ids = new Set(recall.sources.map((s) => s.id));
     contextual.sources = [...contextual.sources.filter((s) => !ids.has(s.id)), ...recall.sources];
     contextual.observations = [
@@ -835,6 +858,7 @@ async function attachAgentWorldContextInTransaction(
   }
   const media = await readActorMediaCompletionContextInTransaction(sql, ownerId, contextual, {
     referencedSourceIds: contextual.sources.map((source) => source.id),
+    skipEmptyHeadCheck: true,
   });
   if (media.sources.length) {
     const ids = new Set(media.sources.map((source) => source.id));
@@ -852,6 +876,6 @@ async function attachAgentWorldContextInTransaction(
     );
   }
   contextual.episodeFollowUps = await readEpisodeLifecycleContext(sql, ownerId, contextual);
-  contextual.episodeResults = await readActorEpisodeResults(sql, ownerId, contextual);
+  contextual.episodeResults = await readActorEpisodeResults(sql, ownerId, contextual, blocked);
   return contextual;
 }

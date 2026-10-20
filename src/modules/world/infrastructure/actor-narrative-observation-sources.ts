@@ -25,13 +25,17 @@ export async function readActorNarrativeObservationSourcesInTransaction(
     worldVersion: number;
     storyAt: string;
     sourceIds?: readonly string[];
+    /** Same-transaction forget snapshot already read by the caller. */
+    blockedSources?: ReadonlySet<string>;
   },
 ) {
   const sources: AgentSnapshot['sources'] = [],
     observations: AgentSnapshot['observations'] = [];
   if (!Number.isSafeInteger(frame.worldVersion) || frame.worldVersion < 0) return fail();
   const now = Date.parse(iso(frame.storyAt));
-  const blocked = await forgottenAgentSourceIds(sql, owner, frame.worldId, frame.actorId);
+  const blocked =
+    frame.blockedSources ??
+    (await forgottenAgentSourceIds(sql, owner, frame.worldId, frame.actorId));
   const rows = (
     await sql.query(
       `SELECT k.*, f.document AS fact, e.payload AS event, e.version AS event_version,

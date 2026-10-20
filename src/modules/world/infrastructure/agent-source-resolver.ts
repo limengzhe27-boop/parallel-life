@@ -24,7 +24,14 @@ export async function readActorStrategyBasis(
   state: ActorAgentState,
   worldVersion: number,
   storyAt: string,
-  options: { omitEpisodeIntents?: boolean } = {},
+  options: {
+    omitEpisodeIntents?: boolean;
+    /** Same-transaction packet already read by the private snapshot reader. */
+    narrative?: Awaited<ReturnType<typeof readActorNarrativeObservationSourcesInTransaction>>;
+    blockedSources?: ReadonlySet<string>;
+    /** The caller already verified the world head; an empty media result needs no second head read. */
+    skipEmptyMediaHeadCheck?: boolean;
+  } = {},
 ): Promise<AgentSource[]> {
   const handles = [
     ...new Set([
@@ -51,16 +58,24 @@ export async function readActorStrategyBasis(
     sql,
     ownerId,
     { state, worldVersion, storyAt },
-    { referencedSourceIds: handles },
+    {
+      referencedSourceIds: handles,
+      ...(options.skipEmptyMediaHeadCheck ? { skipEmptyHeadCheck: true } : {}),
+    },
   );
-  const narrative = await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
-    worldId: state.worldId,
-    actorId: state.actorId,
-    worldVersion,
-    storyAt,
-  });
+  const narrative =
+    options.narrative ??
+    (await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
+      worldId: state.worldId,
+      actorId: state.actorId,
+      worldVersion,
+      storyAt,
+      ...(options.blockedSources ? { blockedSources: options.blockedSources } : {}),
+    }));
   if (!handles.length) return [...media.sources, ...narrative.sources];
-  const blocked = await forgottenAgentSourceIds(sql, ownerId, state.worldId, state.actorId);
+  const blocked =
+    options.blockedSources ??
+    (await forgottenAgentSourceIds(sql, ownerId, state.worldId, state.actorId));
   const sources = new Map<string, AgentSource>(
     [...media.sources, ...narrative.sources].map((source) => [source.id, source]),
   );
@@ -96,18 +111,25 @@ export async function readActorStrategyBasis(
       ...(contentHash ? { contentHash } : {}),
     });
   };
-  const initial = (
-    await sql.query(
-      'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
-      [state.worldId, ownerId],
-    )
-  ).rows[0]?.state;
-  const publicationGenesis = await readVerifiedPublicationGenesisEvidence(sql, ownerId, {
-    worldId: state.worldId,
-    actorId: state.actorId,
-    worldVersion,
-    storyAt,
-  });
+  const needsInitial = handles.some((handle) =>
+    /^(definition|message|opening|fact|appointment):/.test(handle),
+  );
+  const initial = needsInitial
+    ? (
+        await sql.query(
+          'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
+          [state.worldId, ownerId],
+        )
+      ).rows[0]?.state
+    : undefined;
+  const publicationGenesis = needsInitial
+    ? await readVerifiedPublicationGenesisEvidence(sql, ownerId, {
+        worldId: state.worldId,
+        actorId: state.actorId,
+        worldVersion,
+        storyAt,
+      })
+    : null;
   if (initial) {
     add(`definition:${state.definitionRef}`, 'authored', state.definitionRef, 0, initial.time);
     // Publication messages use exactly the same authenticated display-time
@@ -148,35 +170,46 @@ export async function readActorStrategyBasis(
           ...(a.sourceMessageId ? [a.sourceMessageId] : []),
         ]);
   }
-  const inputs = (
-    await sql.query(
-      `SELECT id,document FROM parallel_life.agent_input_receipts
+  const inputCandidates = handles.filter(
+    (handle) =>
+      !/^(definition|message|opening|memory|fact|appointment|media-result|action-result|group|scene|calendar-response|knowledge|self-position|episode-result|narrative|episode-intent):/.test(
+        handle,
+      ),
+  );
+  const inputs = inputCandidates.length
+    ? (
+        await sql.query(
+          `SELECT id,document FROM parallel_life.agent_input_receipts
     WHERE world_id=$1 AND owner_id=$2 AND id=ANY($3::text[]) AND document->>'channel'='private'
       AND document->>'recipientActorId'=$4 AND (document->>'expectedWorldVersion')::integer<=$5`,
-      [state.worldId, ownerId, handles, state.actorId, worldVersion],
-    )
-  ).rows;
+          [state.worldId, ownerId, inputCandidates, state.actorId, worldVersion],
+        )
+      ).rows
+    : [];
   for (const row of inputs)
     add(row.id, 'accepted_input', row.id, row.document.expectedWorldVersion, row.document.storyAt);
   const messageIds = handles
     .filter((h) => /^(message|opening):/.test(h))
     .map((h) => h.replace(/^(message|opening):/, ''));
-  const messages = (
-    await sql.query(
-      `SELECT m.id,m.document,e.id AS event_id,e.version
+  const messages = messageIds.length
+    ? (
+        await sql.query(
+          `SELECT m.id,m.document,e.id AS event_id,e.version
     FROM parallel_life.world_messages m JOIN parallel_life.world_events e ON e.world_id=m.world_id AND e.id=m.document->>'sourceEventId'
     JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     WHERE m.world_id=$1 AND m.owner_id=$2 AND m.actor_id=$3 AND m.id=ANY($4::text[]) AND e.version<=$5`,
-      [state.worldId, ownerId, state.actorId, messageIds, worldVersion],
-    )
-  ).rows;
+          [state.worldId, ownerId, state.actorId, messageIds, worldVersion],
+        )
+      ).rows
+    : [];
   for (const row of messages)
     for (const prefix of ['message:', 'opening:'])
       add(prefix + row.id, 'private_message', row.id, row.version, row.document.at, [row.event_id]);
   const memoryIds = handles.filter((h) => /^memory:[0-9a-f-]{36}$/i.test(h)).map((h) => h.slice(7));
-  const memories = (
-    await sql.query(
-      `SELECT r.id,r.text,r.source_ids,MAX(e.version) AS source_version,MAX(m.document->>'at') AS source_at
+  const memories = memoryIds.length
+    ? (
+        await sql.query(
+          `SELECT r.id,r.text,r.source_ids,MAX(e.version) AS source_version,MAX(m.document->>'at') AS source_at
     FROM parallel_life.memory_records r JOIN parallel_life.world_messages m ON m.world_id=$1 AND m.owner_id=r.owner_id AND m.actor_id=$3
       AND (r.source_ids ? m.id OR r.source_ids ? (m.document->>'sourceEventId'))
     JOIN parallel_life.world_events e ON e.world_id=m.world_id AND e.id=m.document->>'sourceEventId' AND e.version<=$5
@@ -188,9 +221,10 @@ export async function readActorStrategyBasis(
           JOIN parallel_life.commands pc ON pc.world_id=pe.world_id AND pc.id=pe.command_id AND pc.status='succeeded' AND pc.result_event_id=pe.id
           WHERE p.world_id=$1 AND p.owner_id=$2 AND p.actor_id=$3 AND (p.id=q.id OR pe.id=q.id) AND pe.version<=$5))
     GROUP BY r.id,r.text,r.source_ids`,
-      [state.worldId, ownerId, state.actorId, memoryIds, worldVersion],
-    )
-  ).rows;
+          [state.worldId, ownerId, state.actorId, memoryIds, worldVersion],
+        )
+      ).rows
+    : [];
   for (const row of memories)
     add(
       'memory:' + row.id,
@@ -202,38 +236,44 @@ export async function readActorStrategyBasis(
       createHash('sha256').update(row.text).digest('hex'),
     );
   // Calendar/fact payloads are not copied: only the owning NPC's verified structured state survives.
-  const facts = (
-    await sql.query(
-      `SELECT f.id,f.document,e.id AS event_id,e.version,e.payload->>'storyAt' AS at FROM parallel_life.world_facts f
+  const facts = handles.some((h) => h.startsWith('fact:'))
+    ? (
+        await sql.query(
+          `SELECT f.id,f.document,e.id AS event_id,e.version,e.payload->>'storyAt' AS at FROM parallel_life.world_facts f
     JOIN parallel_life.world_events e ON e.world_id=f.world_id AND e.id=f.document->>'sourceEventId'
     JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     WHERE f.world_id=$1 AND f.owner_id=$2 AND ('fact:'||f.id)=ANY($3::text[]) AND e.version<=$5
     AND (f.document->'visibility'->>'kind'='world' OR (f.document->'visibility'->>'kind'='actors' AND f.document->'visibility'->'actorIds' ? $4))
     AND (NOT(f.document?'believedByActorId') OR f.document->>'believedByActorId'=$4)`,
-      [state.worldId, ownerId, handles, state.actorId, worldVersion],
-    )
-  ).rows;
+          [state.worldId, ownerId, handles, state.actorId, worldVersion],
+        )
+      ).rows
+    : [];
   for (const row of facts) add('fact:' + row.id, 'world_event', row.event_id, row.version, row.at);
-  const appointments = (
-    await sql.query(
-      `SELECT p.id,p.document,e.id AS event_id,e.version,e.payload->>'storyAt' AS at FROM parallel_life.world_appointments p
+  const appointments = handles.some((h) => h.startsWith('appointment:'))
+    ? (
+        await sql.query(
+          `SELECT p.id,p.document,e.id AS event_id,e.version,e.payload->>'storyAt' AS at FROM parallel_life.world_appointments p
     JOIN parallel_life.world_events e ON e.world_id=p.world_id AND e.id=p.document->>'sourceEventId'
     JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     WHERE p.world_id=$1 AND p.owner_id=$2 AND ('appointment:'||p.id)=ANY($3::text[]) AND p.document->'participantIds' ? $4 AND e.version<=$5`,
-      [state.worldId, ownerId, handles, state.actorId, worldVersion],
-    )
-  ).rows;
+          [state.worldId, ownerId, handles, state.actorId, worldVersion],
+        )
+      ).rows
+    : [];
   for (const row of appointments)
     add('appointment:' + row.id, 'world_event', row.event_id, row.version, row.at);
-  const calendar = (
-    await sql.query(
-      `SELECT e.id,e.version,e.payload FROM parallel_life.world_events e
+  const calendar = handles.some((h) => h.startsWith('calendar-response:'))
+    ? (
+        await sql.query(
+          `SELECT e.id,e.version,e.payload FROM parallel_life.world_events e
     JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version<=$4 AND ('calendar-response:'||e.id)=ANY($3::text[])
       AND e.payload->>'type'='invitation.responded' AND EXISTS(SELECT 1 FROM jsonb_array_elements(e.payload->'data'->'agentProjections') p WHERE p->>'actorId'=$5)`,
-      [state.worldId, ownerId, handles, worldVersion, state.actorId],
-    )
-  ).rows;
+          [state.worldId, ownerId, handles, worldVersion, state.actorId],
+        )
+      ).rows
+    : [];
   for (const row of calendar)
     add('calendar-response:' + row.id, 'world_event', row.id, row.version, row.payload.storyTime);
   await readNativeStrategyBasis(sql, ownerId, state, handles, worldVersion, storyAt, add);
@@ -637,6 +677,8 @@ export async function readActorMediaCompletionContextInTransaction(
   options: {
     referencedSourceIds?: readonly string[];
     expectedSources?: readonly AgentSource[];
+    /** Caller already checked the world head; skip a second head read when no media exists. */
+    skipEmptyHeadCheck?: boolean;
   } = {},
 ): Promise<{ sources: AgentSource[]; observations: AgentSnapshot['observations'] }> {
   const control = (
@@ -651,6 +693,7 @@ export async function readActorMediaCompletionContextInTransaction(
     actorId: frame.state.actorId,
     engineEpoch: Number(control.engine_epoch),
     worldVersion: frame.worldVersion,
+    ...(options.skipEmptyHeadCheck ? { skipEmptyHeadCheck: true } : {}),
   };
   const completed = new Map<string, ActorMediaResultContext>();
   if (!options.expectedSources) {
