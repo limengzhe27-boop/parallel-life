@@ -815,6 +815,20 @@ test('append units: immutable interleaved speech, input once, media once, interr
     restored.messages,
     'immutable full replay restores exactly the same messages',
   );
+  const memorySources = new Set(
+    (
+      await admin.query(
+        `SELECT source_id FROM parallel_life.memory_source_refs
+       WHERE owner_id=$1 AND source_type='world_event'`,
+        [owner],
+      )
+    ).rows.map((row) => row.source_id),
+  );
+  for (const event of history.filter((entry) => entry.data?.stream?.unit.startsWith('statement:')))
+    assert.ok(
+      memorySources.has(event.id),
+      'final/seal preserves memory at each true statement source',
+    );
   const unitEvent = history.find((event) => event.data?.stream);
   await assert.rejects(
     admin.query(

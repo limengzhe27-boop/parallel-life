@@ -771,6 +771,28 @@ export class PostgresWorldRepository implements WorldRepository {
   */
     if (!options.skipMemories) {
       await storeTurnMemories(sql, session.userId, state, event);
+      // Prefixes avoid memory work on the first-text path. Settle their memories
+      // against each immutable source event, never against the final envelope.
+      if (event.data.stream?.unit === 'final') {
+        const units = await sql.query<{ payload: WorldEvent }>(
+          `SELECT e.payload FROM parallel_life.world_events e
+           JOIN parallel_life.commands c ON c.world_id=e.world_id
+             AND c.id=e.command_id AND c.result_event_id=e.id AND c.status='succeeded'
+           WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id<>$3
+             AND e.payload->'data'->'stream'->>'attemptId'=$4
+             AND e.payload->'data'->'stream'->>'parentCommandId'=$5
+           ORDER BY e.version`,
+          [
+            state.id,
+            session.userId,
+            event.id,
+            event.data.stream.attemptId,
+            event.data.stream.parentCommandId,
+          ],
+        );
+        for (const unit of units.rows)
+          await storeTurnMemories(sql, session.userId, state, unit.payload);
+      }
     }
     const snapshot = compactWorldState(state);
     /* A clear failure beats an opaque CHECK violation that rolls back everything. */
