@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NPC_WIRE_PROTOCOL } from './npc-model-protocol.ts';
+import { NPC_WIRE_PROTOCOL, CURRENT_NPC_WIRE_PROTOCOL } from './npc-model-protocol.ts';
 import {
   classifyNpcStreamStatement,
   type NpcParsedStreamEvent,
@@ -321,14 +321,14 @@ export class NpcStreamParser {
       this.executionIntentsEmitted ||
       this.haltedByError ||
       !this.statementsComplete ||
-      this.protocol !== NPC_WIRE_PROTOCOL ||
+      ![NPC_WIRE_PROTOCOL, CURRENT_NPC_WIRE_PROTOCOL].includes(this.protocol ?? '') ||
       this.parsedExecutions === null
     )
       return;
     this.executionIntentsEmitted = true;
     events.push({
       kind: 'execution_intents',
-      protocol: this.protocol,
+      protocol: this.protocol!,
       executions: this.parsedExecutions,
     });
   }

@@ -17,7 +17,11 @@ import {
   type AgentValidationContext,
 } from '../domain/agent-kernel.ts';
 import { playerReplyTargets } from '../domain/agent-input-interpretation.ts';
-import { NativeExecutionIntentSchema, compileNpcExecutionIntents } from './npc-execution-intent.ts';
+import {
+  NativeExecutionIntentSchema,
+  compileNpcExecutionIntents,
+  compileNpcExecutionProposal,
+} from './npc-execution-intent.ts';
 import { validPlayerEpisodeManifest } from '../domain/player-episode-manifest.ts';
 import { isActorEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
 import {
@@ -26,7 +30,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v14';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v14'; // historical decoder identifier
+export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v15';
 const PREVIOUS_NOOP_GOAL_PROTOCOL = 'npc-wire-v13';
 const PREVIOUS_CONTINUATION_PROTOCOL = 'npc-wire-v12';
 const PREVIOUS_GOAL_SOURCE_PROTOCOL = 'npc-wire-v11';
@@ -570,21 +575,6 @@ export function npcResponseFormat(
             choice.properties!.handlesResponsibilityIds!.maxItems = 0;
           return choice;
         });
-      if (capabilities.includes('media.generate_image')) {
-        const choice = structuredClone(action);
-        choice.properties!.capability = { type: 'string', enum: ['media.generate_image'] };
-        choice.properties!.parameters = {
-          type: 'object',
-          properties: {
-            sceneDescription: { type: 'string' },
-            purpose: { type: 'string', enum: ['portrait', 'scene', 'memorial', 'evidence'] },
-          },
-          required: ['sceneDescription', 'purpose'],
-          additionalProperties: false,
-        };
-        choice.properties!.handlesResponsibilityIds!.maxItems = 0;
-        choices.push(choice);
-      }
       const appointmentIds = visibleAppointmentIds(state, current.sources ?? []);
       if (capabilities.includes('appointment.reschedule') && appointmentIds.length) {
         const choice = structuredClone(action);
@@ -723,6 +713,67 @@ export function npcResponseFormat(
       ([key]) => !['protocol', 'statements', 'executions'].includes(key),
     ),
   ]);
+  // Current calls carry only speech, tools, and optional changes. Legacy records
+  // retain their original decoder and are never reinterpreted through this envelope.
+  const scopedExecutions = schema.properties!.executions!;
+  const executionArray =
+    scopedExecutions.type === 'array'
+      ? scopedExecutions
+      : scopedExecutions.anyOf?.find((n) => n.type === 'array');
+  if (current?.channel.allowedCapabilities.includes('media.generate_image')) {
+    const immediate = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ref', 'action'],
+      properties: {
+        ref: { type: 'string', enum: ['action_1'] },
+        action: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['capability', 'parameters'],
+          properties: {
+            capability: { type: 'string', enum: ['media.generate_image'] },
+            parameters: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['sceneDescription', 'purpose'],
+              properties: {
+                sceneDescription: { type: 'string' },
+                purpose: { type: 'string', enum: ['portrait', 'scene', 'memorial', 'evidence'] },
+              },
+            },
+          },
+        },
+      },
+    };
+    if (executionArray?.items) executionArray.items = { anyOf: [immediate, executionArray.items] };
+    else properties.executions = { type: 'array', maxItems: 1, items: immediate };
+  }
+  const changes = Object.fromEntries(
+    Object.entries(schema.properties!).filter(
+      ([key]) => !['protocol', 'statements', 'executions'].includes(key),
+    ),
+  );
+  // Nullable fields still represent no change; the whole unchanged delta is null.
+  changes.continuation = { anyOf: [changes.continuation!, { type: 'null' }] };
+  schema.properties = {
+    protocol: { type: 'string', enum: [CURRENT_NPC_WIRE_PROTOCOL] },
+    statements: properties.statements!,
+    executions: properties.executions!,
+    changes: {
+      anyOf: [
+        {
+          type: 'object',
+          properties: changes,
+          required: Object.keys(changes),
+          additionalProperties: false,
+        },
+        { type: 'null' },
+      ],
+    },
+  };
+  if (considerationScope === 'required' || reviewScope)
+    schema.properties.changes = schema.properties.changes!.anyOf![0]!;
   schema.required = Object.keys(schema.properties!);
   return {
     ...NPC_RESPONSE_FORMAT,
@@ -778,6 +829,8 @@ function transport(value: unknown, convertParameters = true): unknown {
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
+  if ('protocol' in raw && raw.protocol === CURRENT_NPC_WIRE_PROTOCOL)
+    return decodeCurrentNpcWire(context, raw);
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
     const transformed = structuredClone(raw) as Record<string, unknown>;
     if (Array.isArray(transformed.executions))
@@ -1320,6 +1373,37 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     proposal.actions.push({ ...action, goalId: goal.id, status: 'proposed' });
     plans.push({ ...plan, goalId: goal.id, nextStep: { kind: 'action', actionId: action.id } });
   }
+  return bindNpcConsideration(context, consideration, {
+    ...proposal,
+    plans: plans.map(({ nextStep, ...plan }) => ({
+      ...plan,
+      status:
+        nextStep.kind === 'closed'
+          ? nextStep.status
+          : nextStep.kind === 'blocked'
+            ? 'blocked'
+            : nextStep.kind === 'wait'
+              ? 'waiting'
+              : 'active',
+      actionIds: nextStep.kind === 'action' ? [nextStep.actionId] : [],
+      nextActionId: nextStep.kind === 'action' ? nextStep.actionId : null,
+      triggers:
+        nextStep.kind === 'wait' || nextStep.kind === 'reconsider' ? nextStep.conditions : [],
+      missingConditions:
+        nextStep.kind === 'blocked' || nextStep.kind === 'wait' || nextStep.kind === 'reconsider'
+          ? nextStep.missing
+          : nextStep.kind === 'closed'
+            ? [nextStep.reason]
+            : [],
+    })),
+  });
+}
+
+function bindNpcConsideration(
+  context: AgentValidationContext,
+  consideration: z.infer<typeof Wire.shape.consideration>,
+  proposal: any,
+) {
   let requestId: string | undefined;
   if (isActorEpisodeConsiderationInput(context.input)) {
     const request = JSON.parse(context.input.text);
@@ -1377,7 +1461,7 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   if (
     responsibility &&
     proposal.responsibilities.some(
-      (r) => r && typeof r === 'object' && 'id' in r && r.id === responsibility.id,
+      (r: unknown) => r && typeof r === 'object' && 'id' in r && r.id === responsibility.id,
     )
   )
     throw Error('NPC_WIRE_FOLLOW_UP_DUPLICATE');
@@ -1386,27 +1470,6 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     responsibilities: responsibility
       ? [...proposal.responsibilities, responsibility]
       : proposal.responsibilities,
-    plans: plans.map(({ nextStep, ...plan }) => ({
-      ...plan,
-      status:
-        nextStep.kind === 'closed'
-          ? nextStep.status
-          : nextStep.kind === 'blocked'
-            ? 'blocked'
-            : nextStep.kind === 'wait'
-              ? 'waiting'
-              : 'active',
-      actionIds: nextStep.kind === 'action' ? [nextStep.actionId] : [],
-      nextActionId: nextStep.kind === 'action' ? nextStep.actionId : null,
-      triggers:
-        nextStep.kind === 'wait' || nextStep.kind === 'reconsider' ? nextStep.conditions : [],
-      missingConditions:
-        nextStep.kind === 'blocked' || nextStep.kind === 'wait' || nextStep.kind === 'reconsider'
-          ? nextStep.missing
-          : nextStep.kind === 'closed'
-            ? [nextStep.reason]
-            : [],
-    })),
     ...(consideration
       ? {
           episodeDecision: {
@@ -1426,4 +1489,222 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
         }
       : {}),
   };
+}
+
+/** One source binding and one canonical compilation for new requests. No historical protocol recursion. */
+function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
+  const envelope = z
+    .strictObject({
+      protocol: z.literal(CURRENT_NPC_WIRE_PROTOCOL),
+      statements: AgentProposalSchema.shape.statements,
+      executions: z.array(z.unknown()).max(1).nullable().optional(),
+      changes: z.record(z.string(), z.unknown()).nullable(),
+    })
+    .parse(transport(raw, false));
+  const mapped = mapNpcSourceFields(
+    { executions: envelope.executions ?? [], changes: envelope.changes ?? {} },
+    npcSourceReferences(context.sources),
+    'decode',
+  ) as { executions: any[]; changes: Record<string, unknown> };
+  const source = context.sources.filter((s) => s.id === context.input.sourceId);
+  if (source.length !== 1 || source[0]!.kind !== 'accepted_input') throw Error('NPC_INPUT_SOURCE');
+  const basis = (ids: string[]) => {
+    if (
+      new Set(ids).size !== ids.length ||
+      ids.some((id) => !context.sources.some((s) => s.id === id))
+    )
+      throw Error('NPC_DECLARED_SOURCE');
+    return [...new Set([...ids, context.input.sourceId])];
+  };
+  const changeSchema = ModelWire.omit({
+    protocol: true,
+    statements: true,
+    executions: true,
+  }).partial();
+  const change = changeSchema.parse(
+    Object.fromEntries(Object.entries(mapped.changes).filter(([, value]) => value !== null)),
+  );
+  const goals = PreviousModelWire.shape.goals.parse(change.goals ?? []);
+  const visible = context.viewState ?? context.state;
+  const updates = goals
+    .filter((goal) => {
+      const old = visible.goals.find(
+        (g) => g.id === goal.id && !['fulfilled', 'withdrawn'].includes(g.status),
+      );
+      if (!old) throw Error('NPC_GOAL_UPDATE_SCOPE');
+      basis(goal.sourceIds);
+      return !(
+        goal.summary === old.summary &&
+        goal.status === old.status &&
+        goal.endReason === old.endReason &&
+        isDeepStrictEqual([...goal.sourceIds].sort(), [...old.sourceIds].sort())
+      );
+    })
+    .map((goal) => ({
+      ...goal,
+      sourceIds: basis(goal.sourceIds),
+      resultIds: visible.goals.find((g) => g.id === goal.id)!.resultIds,
+    }));
+  if (new Set(goals.map((g) => g.id)).size !== goals.length)
+    throw Error('NPC_GOAL_UPDATE_DUPLICATE');
+  const planIntents = NativePlanIntentsSchema.parse(change.planIntents ?? []).map((intent) => ({
+    ...intent,
+    sourceIds: basis(intent.sourceIds),
+    ...(intent.kind === 'create' && intent.goal.kind === 'new'
+      ? { goal: { ...intent.goal, sourceIds: basis(intent.goal.sourceIds) } }
+      : {}),
+  }));
+  const touched = new Set(
+    planIntents.flatMap((intent) => ('planId' in intent ? [intent.planId] : [])),
+  );
+  const executions = mapped.executions.map((item) => {
+    if (!item || typeof item !== 'object') throw Error('NPC_EXECUTION_INTENT_SHAPE');
+    if (!('goal' in item) && !('plan' in item)) return item;
+    const intent = structuredClone(item);
+    if (intent.plan?.supersedesPlanId && touched.has(intent.plan.supersedesPlanId))
+      throw Error('NPC_V14_DUPLICATE_PLAN_REPLACEMENT');
+    if (intent.action?.capability === 'appointment.reschedule') {
+      const parameters = RescheduleParameters.parse(intent.action.parameters);
+      if (!visibleAppointmentIds(visible, context.sources).includes(parameters.appointmentId))
+        throw Error('NPC_V14_APPOINTMENT_SCOPE');
+      intent.action.parameters = Object.entries(parameters).flatMap(([name, value]) =>
+        value === null ? [] : [{ name, value }],
+      );
+    }
+    const normalized = normalizeNpcImageExecutionParameters([intent])[0] as any;
+    for (const part of [
+      normalized.action,
+      normalized.plan,
+      ...(normalized.goal?.kind === 'new' ? [normalized.goal] : []),
+    ])
+      part.sourceIds = basis(part.sourceIds ?? []);
+    return normalized;
+  });
+  const compiled = compileNpcExecutionProposal(context, executions);
+  const plans = compileNpcPlanIntents(context, planIntents);
+  const occupied = new Set(
+    [...compiled.proposal.goals, ...compiled.proposal.plans, ...compiled.proposal.actions].map(
+      (p) => p.id,
+    ),
+  );
+  for (const plan of plans.plans) {
+    if (
+      compiled.proposal.plans.some(
+        (p) =>
+          p.goalId === plan.goalId ||
+          p.id === plan.id ||
+          p.supersedesPlanId === plan.id ||
+          (plan.supersedesPlanId &&
+            (p.id === plan.supersedesPlanId || p.supersedesPlanId === plan.supersedesPlanId)),
+      )
+    )
+      throw Error('NPC_PLAN_EXECUTION_CONFLICT');
+    const goal = updates.find((g) => g.id === plan.goalId);
+    if (
+      goal &&
+      ((goal.status === 'withdrawn' && !['finished', 'withdrawn'].includes(plan.status)) ||
+        (goal.status !== 'active' && plan.status === 'active'))
+    )
+      throw Error('NPC_PLAN_GOAL_STATUS_CONFLICT');
+  }
+  if ([...plans.goals, ...plans.plans, ...updates].some((p) => occupied.has(p.id)))
+    throw Error('NPC_PLAN_OBJECT_CONFLICT');
+  const interpretation = change.inputInterpretation ?? null;
+  const replies = interpretation ? interpretCurrentPlayerInput(context, interpretation) : [];
+  const focus = change.focusChange;
+  const proposal = AgentProposalSchema.parse(
+    bindNpcConsideration(context, change.consideration ?? null, {
+      ...compiled.proposal,
+      goals: [...compiled.proposal.goals, ...plans.goals, ...updates],
+      plans: [...compiled.proposal.plans, ...plans.plans],
+      statements: envelope.statements.map((statement) => ({
+        ...statement,
+        dependsOnActionIds: statement.dependsOnActionIds.map((id) => {
+          const ref = id.startsWith('execution:') ? id.slice(10) : id;
+          const bound = compiled.actionIdsByRef[ref];
+          if (bound) return bound;
+          if (id.startsWith('execution:')) throw Error('NPC_EXECUTION_DEPENDENCY_WITHOUT_INTENT');
+          return id;
+        }),
+      })),
+      responsibilities: change.responsibilities ?? [],
+      decisions: replies
+        .filter((r) => r.decision !== null)
+        .map((r) => ({
+          id: `decision:${createHash('sha256')
+            .update(
+              JSON.stringify([
+                'npc-player-decision-v1',
+                context.state.worldId,
+                context.state.actorId,
+                context.input.sourceId,
+                r.responsibilityId,
+                r.responsibilityRevision,
+              ]),
+            )
+            .digest('hex')}`,
+          responsibilityId: r.responsibilityId!,
+          kind: r.decision!,
+          sourceId: context.input.sourceId,
+          quote: interpretation!.quote,
+        })),
+      replyAssessments: replies
+        .filter((r) => r.questionId !== null)
+        .map((r) => ({
+          questionId: r.questionId!,
+          sourceId: context.input.sourceId,
+          quote: interpretation!.quote,
+          relation: r.relation,
+        })),
+      ...(focus?.kind === 'clear'
+        ? { focus: null }
+        : focus?.kind === 'set'
+          ? { focus: focus.value }
+          : {}),
+      ...(change.continuation ? { continuation: change.continuation } : {}),
+      questionWithdrawals: change.questionWithdrawals ?? [],
+      locationReports: change.locationReports ?? [],
+    }),
+  );
+  const agenda = change.agendaReview ?? null;
+  if (isOwnAgendaReviewInput(context.input) !== (agenda !== null))
+    throw Error('NPC_AGENDA_REVIEW_SCOPE');
+  if (agenda) {
+    basis(agenda.basisSourceIds);
+    if (agenda.decision !== 'contact' && proposal.statements.length)
+      throw Error('NPC_AGENDA_REVIEW_PRIVATE_REPORT');
+    if (agenda.decision === 'contact' && !proposal.statements.length)
+      throw Error('NPC_AGENDA_REVIEW_CONTACT_EMPTY');
+    const changed =
+      ['goals', 'plans', 'responsibilities', 'actions', 'decisions'].some((key) =>
+        (proposal as any)[key].some(
+          (p: any) =>
+            !isDeepStrictEqual(
+              p,
+              (context.state as any)[key].find((old: any) => old.id === p.id),
+            ),
+        ),
+      ) ||
+      !!proposal.questionWithdrawals?.length ||
+      (proposal.focus !== undefined && !isDeepStrictEqual(proposal.focus, context.state.focus));
+    if (agenda.decision === 'quiet' && changed) throw Error('NPC_AGENDA_REVIEW_QUIET_CHANGED');
+    if (
+      agenda.decision === 'update_plan' &&
+      !['goals', 'plans', 'responsibilities'].some((key) =>
+        (proposal as any)[key].some((p: any) => {
+          const strip = (x: any) => {
+            if (!x) return x;
+            const { sourceIds, revision, ...rest } = x;
+            return rest;
+          };
+          return !isDeepStrictEqual(
+            strip(p),
+            strip((context.state as any)[key].find((old: any) => old.id === p.id)),
+          );
+        }),
+      )
+    )
+      throw Error('NPC_AGENDA_REVIEW_NO_AGENDA_CHANGE');
+  }
+  return proposal;
 }

@@ -857,7 +857,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v49-early-media-execution');
+  assert.equal(payload.promptVersion, 'npc-agent-v50-compact-changes');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -1124,7 +1124,7 @@ test('private result evidence survives presentation separation with exact source
       observation: wireExpected(input, input.observations[1]),
     },
   ]);
-  assert.equal(payload.responseContract.protocol, 'npc-wire-v14');
+  assert.equal(payload.responseContract.protocol, 'npc-wire-v15');
 });
 
 test('internal private recall uses the same bounded pool and final supplied-context manifest', async () => {

@@ -524,25 +524,13 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
       const { inputSourceRef, quote } = extractInputInfo(messages);
       const execution = {
         ref: 'action_1',
-        goal: { kind: 'new', summary: '发一张自拍', sourceIds: [inputSourceRef] },
-        plan: { summary: '准备自拍并发送', sourceIds: [inputSourceRef], supersedesPlanId: null },
         action: {
           capability: 'media.generate_image',
-          targetIds: [actorId],
-          parameters: interrupt
-            ? [
-                { name: 'sceneDescription', value: '手持手机前置相机的日常自拍' },
-                { name: 'purpose', value: 'portrait' },
-              ]
-            : { sceneDescription: '手持手机前置相机的日常自拍', purpose: 'portrait' },
-          preconditions: [],
-          dependsOnActionIds: [],
-          handlesResponsibilityIds: [],
-          sourceIds: [inputSourceRef],
+          parameters: { sceneDescription: 'A natural front camera selfie', purpose: 'portrait' },
         },
       };
       yield JSON.stringify({
-        protocol: 'npc-wire-v14',
+        protocol: 'npc-wire-v15',
         statements: [{ text: '我找个光线好的地方拍一下。', dependsOnActionIds: [] }],
         executions: [execution],
       }).slice(0, -1) + ',';
@@ -582,11 +570,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
         ],
       );
       if (interrupt) throw Error('TEST_SUFFIX_INTERRUPTED_AFTER_MEDIA');
-      const body = JSON.parse(buildWireV14([], { inputSourceRef, quote }));
-      delete body.protocol;
-      delete body.statements;
-      delete body.executions;
-      yield JSON.stringify(body).slice(1);
+      yield '"changes":null}';
     };
     const current = await worlds.get({ userId: owner }, worldId);
     const command = {
@@ -640,6 +624,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     ).rows;
     assert.equal(results.length, 1);
     assert.equal(results[0].document.outputRefs[0].id, media[0].id);
+
     const before = media[0].id;
     await api.sendMessageIfEnabled(owner, command);
     assert.equal(

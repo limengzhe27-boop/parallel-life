@@ -203,3 +203,74 @@ export function compileNpcExecutionIntents(
   }
   return { executions, actionIdsByRef };
 }
+
+/** Current immediate tools bind mechanical identity/provenance once, without a fake life plan. */
+export function compileNpcExecutionProposal(context: AgentValidationContext, raw: unknown) {
+  if (!Array.isArray(raw) || raw.length > 1) invalid('NPC_EXECUTION_INTENT_SHAPE');
+  const proposal: z.infer<typeof AgentProposalSchema> = {
+    statements: [],
+    goals: [],
+    plans: [],
+    actions: [],
+    responsibilities: [],
+    decisions: [],
+  };
+  const actionIdsByRef: Record<string, string> = Object.create(null);
+  for (const item of raw) {
+    if (item && typeof item === 'object' && !('goal' in item) && !('plan' in item)) {
+      const immediate = z
+        .strictObject({
+          ref: Id,
+          action: z.strictObject({
+            capability: z.literal('media.generate_image'),
+            parameters: z.strictObject({
+              sceneDescription: Text,
+              purpose: z.enum(['portrait', 'scene', 'memorial', 'evidence']),
+            }),
+          }),
+        })
+        .parse(item);
+      if (!context.channel.allowedCapabilities.includes(immediate.action.capability))
+        invalid('NPC_EXECUTION_INTENT_CAPABILITY');
+      const id = nativeExecutionIntentIds(context, immediate.ref).actionId;
+      if (context.state.actions.some((a) => a.id === id))
+        invalid('NPC_EXECUTION_INTENT_ID_CONFLICT');
+      proposal.actions.push({
+        id,
+        goalId: null,
+        ...immediate.action,
+        targetIds: [],
+        preconditions: [],
+        dependsOnActionIds: [],
+        handlesResponsibilityIds: [],
+        sourceIds: [context.input.sourceId],
+        status: 'proposed',
+      });
+      actionIdsByRef[immediate.ref] = id;
+    } else {
+      const compiled = compileNpcExecutionIntents(context, [item], { allowMedia: true });
+      Object.assign(actionIdsByRef, compiled.actionIdsByRef);
+      for (const { goal, plan, action } of compiled.executions) {
+        if (goal.kind === 'new')
+          proposal.goals.push({
+            id: goal.id,
+            summary: goal.summary,
+            sourceIds: goal.sourceIds,
+            status: 'active',
+            resultIds: [],
+          });
+        proposal.actions.push({ ...action, goalId: goal.id, status: 'proposed' });
+        proposal.plans.push({
+          ...plan,
+          goalId: goal.id,
+          status: 'active',
+          actionIds: [action.id],
+          nextActionId: action.id,
+          triggers: [],
+          missingConditions: [],
+        });
+      }
+    }
+  }
+  return { proposal, actionIdsByRef };
+}

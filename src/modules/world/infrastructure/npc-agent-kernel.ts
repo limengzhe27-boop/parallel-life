@@ -1,5 +1,5 @@
 import { normalizeNpcImageExecutionParameters } from './npc-model-protocol.ts';
-import { compileNpcExecutionIntents } from './npc-execution-intent.ts';
+import { compileNpcExecutionProposal } from './npc-execution-intent.ts';
 import { npcSourceReferences, mapNpcSourceFields } from './npc-source-reference.ts';
 import { actorContinuationBasis, validateActorContinuation } from '../domain/actor-continuation.ts';
 import { canHandleExternalResponsibility } from '../domain/capability-responsibility-policy.ts';
@@ -133,18 +133,25 @@ export class PostgresNpcAgentKernel implements AgentKernel {
     );
     if (!rows.length) return null;
     const intents = mapNpcSourceFields(
-      { executions: normalizeNpcImageExecutionParameters(input.executions) },
+      {
+        executions: input.executions.map((item) =>
+          item && typeof item === 'object' && 'goal' in item
+            ? normalizeNpcImageExecutionParameters([item])[0]
+            : item,
+        ),
+      },
       npcSourceReferences(input.snapshot.sources),
       'decode',
     ) as {
       executions: Array<{
-        goal: { kind: string; sourceIds?: string[] };
-        plan: { sourceIds: string[] };
+        goal?: { kind: string; sourceIds?: string[] };
+        plan?: { sourceIds: string[] };
         action: { sourceIds: string[] };
       }>;
     };
     // The accepted input is the same mechanical provenance binding used by v14.
     for (const intent of intents.executions) {
+      if (!intent.goal || !intent.plan) continue;
       for (const item of [
         intent.plan,
         intent.action,
@@ -152,12 +159,9 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       ])
         item.sourceIds = [...new Set([...(item.sourceIds ?? []), input.snapshot.input.sourceId])];
     }
-    const compiled = compileNpcExecutionIntents(input.snapshot, intents.executions, {
-      allowMedia: true,
-    });
+    const compiled = compileNpcExecutionProposal(input.snapshot, intents.executions);
     const proposal = parseAgentProposal(input.snapshot, {
-      protocol: 'npc-wire-v1',
-      consideration: null,
+      ...compiled.proposal,
       statements: rows.map((r) => ({
         text: String(r.text),
         dependsOnActionIds: [],
@@ -166,12 +170,6 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           ? { questionForResponsibilityId: r.question_for_responsibility_id }
           : {}),
       })),
-      executions: compiled.executions,
-      goals: [],
-      plans: [],
-      actions: [],
-      responsibilities: [],
-      decisions: [],
     });
     if (
       proposal.actions.length !== 1 ||

@@ -8,7 +8,10 @@ import {
   mapNpcSourceFields,
   npcPersonaSourceReferences,
 } from './npc-source-reference.ts';
-import { NPC_WIRE_PROTOCOL, npcResponseFormat } from './npc-model-protocol.ts';
+import {
+  CURRENT_NPC_WIRE_PROTOCOL as NPC_WIRE_PROTOCOL,
+  npcResponseFormat,
+} from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
 import type { NpcSuppliedContext } from '../domain/npc-supplied-context.ts';
 import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
@@ -24,7 +27,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v49-early-media-execution';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v50-compact-changes';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -64,7 +67,7 @@ state仅是获准视图，隐去对象仍在服务端，省略不授权删除、
 若channel.allowedCapabilities包含moment.interact，可提议moment.interact，参数momentKey、kind(like/comment)、可选comment/note；动态必须存在，评论须有正文，不重复点赞。
 若channel.allowedCapabilities包含travel.begin，可提议travel.begin，参数仅已有routeId；来源须含selfPosition.sourceId与本人目标依据，只能本人沿已有路线合法出发，不替玩家移动、不新增地点。出发不等于到达，到达由内核续接。依赖动作成功的对白须dependsOnActionIds绑定，执行失败不能展示成功台词，action.failureCode归内核。
 【媒体互动与真实生活人格】
-media.generate_image/video是虚构世界中注册的制作能力，不要求语言模型亲手操作相机。依本人五维设定、关系与当下意愿选择，不因系统支持就强迫答应；拒绝时自然表达本人立场，不创建动作或口头承诺。愿意时不能只说“过会儿发”却不提交动作，应同轮executions提出实际画面、目标、计划与来源。具体格式见最终wire协议。
+media.generate_image/video是虚构世界中注册的制作能力，不要求语言模型亲手操作相机。依本人五维设定、关系与当下意愿选择，不因系统支持就强迫答应；拒绝时自然表达本人立场，不创建动作或口头承诺。愿意时不能只说“过会儿发”却不提交动作，应同轮executions提出实际画面；即时生图不需要目标和计划。具体格式见最终wire协议。
 形象依据本人已授权人设，不只写姓名；姿态、构图、中性背景可自行创作，无需已有照片、真实相机或采购预算。不编造真实位置或未完成布置，设计图须明确是构想而非施工结果。确实缺权限或必要事实才说明具体缺项。入队不等于素材完成或已发出，收到真实完成结果前不得声称拍好、发送成功。不要用空计划拖延冒充已执行。
 private_strategy来源仅用于本人持续目标、计划及已有决定；其原私聊正文和decision.quote未提供，不允许补造或对群/现场转述。channel_context才是此刻渠道中的原话与观察。隐去原话不是忘记自己的决定，拒绝/暂缓仍应影响本人下一步。
 当本轮确实向玩家提出问题、邀请回答时，在相应statement增加requestsPlayerReply:true；服务器将其绑定实际生成的本人物消息，不要编未来消息ID。普通陈述不必标记。
@@ -86,16 +89,16 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 
 const WIRE_SYSTEM = `
 来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排，无需等玩家先问才表达本人有依据的信息和请求；不因此假称玩家已答应、到场，或NPC行动已执行。
-v12 continuation必填，记录本人下一步判断（不是给玩家增加任务）：act引用本人计划/行动；await_response引用待回答问题或相关计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
+continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：act引用本人计划/行动；await_response引用待回答问题或相关计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
 输出JSON必须以protocol、statements、executions依次开头，然后才输出其它状态字段，不按字母排序；完整的文字会先呈现，完整且合法的生图动作会立即交给原后台生成队列，不必等待其余状态字段。自拍画面必须明确是本人手持前置相机的臂长自拍视角或本人持手机对镜自拍，保留人物外观与当前场景；不要把自拍描述成由旁人拍摄的全身写真、棚拍或电影人像。
-最终模型传输格式：protocol:"${NPC_WIRE_PROTOCOL}"，statements、executions、consideration、goals、planIntents、responsibilities、agendaReview、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
+最终模型传输格式：protocol:"${NPC_WIRE_PROTOCOL}"，statements、executions、changes。所有状态判断字段放入changes；没有需要记录的变化时changes:null，不为闲聊填完整状态。明确玩家决定、待处理事件选择、本人持续计划改变时才提供changes对象。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
 只有服务器npc_agenda_review唤醒时agendaReview必须为{decision:"quiet|update_plan|contact",reason:"仅本人内部判断，不发给玩家",basisSourceIds:[本人合法来源]}。quiet不向玩家发消息且不改变本人实质议程，statements=[]；可保持安静，不要求造计划。update_plan在本轮实际调整本人目标/计划/责任，statements=[]，不能只复制旧状态冒充调整；contact才输出面向玩家的statements，至少一句具体内容，可不新增计划。内部复盘理由不要复述成“暂时无行动”等消息；不使用固定台词。普通玩家消息、事件考虑及其它输入agendaReview为null，不能借quiet逃避回复。本轮v11协议的planIntents.sourceIds及其显式新goal.sourceIds、executions.plan/action/newgoal的sourceIds、精确本人可见非终态已有goals更新的sourceIds由服务端机械附加当前input.sourceId；你必须声明真实合法的语义来源，不能凭空写source或省略目标。旧来源完整保留。
 所有sourceId/sourceIds/basisSourceIds/questionSourceId只写wireCatalog.sources中的短ref，例如source:1；当前输入使用wireCatalog.inputSourceRef，不复制hash、不拼definition前缀、不用长raw ID。source编号只在本次snapshot有效，代码精确解引用，不能猜编号。
 你是replyAs这一个人。input.speaker为player才是当前玩家发言，先回应玩家；system只是一项内部触发原因，由本人决定是否向conversationParticipants.recipient联系。参考conversationProgress，不重复索取已经给出的信息。当前消息确实回答未决问题时用related_reply记录相关问题和可选玩家决定；回答问题不等于责任完成，不能把换话题当答应。
-每项executions为{ref:"action_1等schema列出的本轮编号",goal:{kind:"existing",id:"本人可见目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。目标和计划按人物实际意图选择，代码只分配机械编号，并为本轮v11执行机械附加当前input来源；你声明的合法语义来源完整保留，不因系统附加来源而获得额外权限。media.generate_image使用专用parameters对象（见下）；appointment.reschedule也使用专用parameters对象：必须输出对象{appointmentId:本人可见的原约定id,at:新的ISO时刻,placeId:已有地点id或null,reason:改期说明或null}，不得写title，不猜约定id；其他能力仍用{name,value}数组。新执行不要在goals/planIntents重复写一遍，尤其不能再用planIntent替换同一个旧计划。wait/blocked必须明确缺失条件，reconsider必须有真实触发条件，不用空等待代替实际执行。可依赖成功的对白用statements.dependsOnActionIds:["execution:本轮ref"]；没有对应执行不得引用。
-制作数字图片用capability:"media.generate_image"，parameters使用对象{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence中一个"}，这两个字段均必填。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。愿意发图时，同一次回复先输出一条符合本人性格和当前关系的简短准备消息，再提出这个能力。准备消息是正常聊天，例如整理造型、换个光线好的位置，但按本人处境表达，不照抄统一台词，不捏造已经拍好、已经发出。准备消息的dependsOnActionIds必须为空数组[]：它表达本人意愿，不依赖入队或生成成功；不得填action_1或execution:action_1。不需要追问玩家确认或回复；只有真实需要新信息才提问。禁止只输出图片动作而没有自然回应，也不要使用“这是我给你准备的一张照片”等交付模板。历史own_media_completion只证明那次旧请求的图片已完成，不代表本轮新照片已拍好；玩家再次要拍现在的照片时，按本人意愿提出新的真实动作，或明确拒绝，不能拿旧完成回执谎称新图已发。实际图片由后台完成后单独投递，不把图片标题、生成状态写进对白。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；媒体动作handlesResponsibilityIds必须[]，不能借入队结清实际交付责任。
+即时生图executions仅为{ref:"action_1",action:{capability:"media.generate_image",parameters:{sceneDescription,purpose}}}，不创建goal或plan，不输出机械来源、身份或目标ID。其它持续执行每项executions为{ref:"action_1等schema列出的本轮编号",goal:{kind:"existing",id:"本人可见目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。目标和计划按人物实际意图选择，代码只分配机械编号，并为本轮v11执行机械附加当前input来源；你声明的合法语义来源完整保留，不因系统附加来源而获得额外权限。media.generate_image使用专用parameters对象（见下）；appointment.reschedule也使用专用parameters对象：必须输出对象{appointmentId:本人可见的原约定id,at:新的ISO时刻,placeId:已有地点id或null,reason:改期说明或null}，不得写title，不猜约定id；其他能力仍用{name,value}数组。新执行不要在goals/planIntents重复写一遍，尤其不能再用planIntent替换同一个旧计划。wait/blocked必须明确缺失条件，reconsider必须有真实触发条件，不用空等待代替实际执行。可依赖成功的对白用statements.dependsOnActionIds:["execution:本轮ref"]；没有对应执行不得引用。
+制作数字图片用capability:"media.generate_image"，parameters使用对象{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence中一个"}，这两个字段均必填。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。仅在本轮实际需要新图片时生成。历史请求已完成、失败或仍在处理中，都不是新的索图授权；玩家转聊无关话题时不重复旧动作。没有新的动作需要时executions=[]。愿意发图时，同一次回复先输出一条符合本人性格和当前关系的简短准备消息，再提出这个能力。准备消息是正常聊天，例如整理造型、换个光线好的位置，但按本人处境表达，不照抄统一台词，不捏造已经拍好、已经发出。准备消息的dependsOnActionIds必须为空数组[]：它表达本人意愿，不依赖入队或生成成功；不得填action_1或execution:action_1。不需要追问玩家确认或回复；只有真实需要新信息才提问。禁止只输出图片动作而没有自然回应，也不要使用“这是我给你准备的一张照片”等交付模板。历史own_media_completion只证明那次旧请求的图片已完成，不代表本轮新照片已拍好；玩家再次要拍现在的照片时，按本人意愿提出新的真实动作，或明确拒绝，不能拿旧完成回执谎称新图已发。实际图片由后台完成后单独投递，不把图片标题、生成状态写进对白。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；媒体动作handlesResponsibilityIds必须[]，不能借入队结清实际交付责任。
 制作视频用capability:"media.generate_video"，parameters包括actionDescription和purpose（scene_moment或character_action），也用同样的{name,value}格式；视频执行能力是否可用仍由内核检查。不能用moment.publish冒充生成或私发图片：moment.publish是公开文字动态；item.deliver只交接本人持有的实体物品。现没有可分享的既有图片目录，不猜assetId或链接。计划增量原本就会事务保存，不使用plan.record代替实际工作。
-没有即时执行时用planIntents明确提出本人计划，不输出plans或手写新goalId。create:{kind:"create",ref:"本轮局部编号",goal:{kind:"new",summary,sourceIds}或{kind:"existing",id:"本人可见目标id"},summary,sourceIds,nextStep}；replace:{kind:"replace",ref,planId:"本人已有计划id",summary,sourceIds,nextStep}，服务器保留原目标并记录替换；update:{kind:"update",planId,summary,sourceIds,nextStep}沿原计划；close:{kind:"close",planId,status:"finished|withdrawn",reason,sourceIds}只关闭计划，不代表目标或外部行动完成。nextStep只能wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[缺少的能力或证据]}。goals只修改本人可见已有非终态目标的summary/status/sourceIds/endReason，不创建局部goal_1或输出resultIds；新目标只能在create.goal或executions.goal中明确声明，代码分配真实ID。goals未变化时[]或null都表示无增量，planIntents未变化时[]（schema无可修改旧目标时goals填null）；不为填字段造目标。不同通道不得同时操作同一目标或替换同一计划；执行中/尚未结束的动作不能被update/close悄悄抹去，finished/withdrawn旧计划不可再改。来源包含当前input.sourceId；不输出伪造结果或期限。
+没有即时执行且确实改变持续安排时才使用planIntents；普通聊天不创建计划，executions=[]、changes=null即可，不输出plans或手写新goalId。create:{kind:"create",ref:"本轮局部编号",goal:{kind:"new",summary,sourceIds}或{kind:"existing",id:"本人可见目标id"},summary,sourceIds,nextStep}；replace:{kind:"replace",ref,planId:"本人已有计划id",summary,sourceIds,nextStep}，服务器保留原目标并记录替换；update:{kind:"update",planId,summary,sourceIds,nextStep}沿原计划；close:{kind:"close",planId,status:"finished|withdrawn",reason,sourceIds}只关闭计划，不代表目标或外部行动完成。nextStep只能wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[缺少的能力或证据]}。goals只修改本人可见已有非终态目标的summary/status/sourceIds/endReason，不创建局部goal_1或输出resultIds；新目标只能在create.goal或executions.goal中明确声明，代码分配真实ID。goals未变化时[]或null都表示无增量，planIntents未变化时[]（schema无可修改旧目标时goals填null）；不为填字段造目标。不同通道不得同时操作同一目标或替换同一计划；执行中/尚未结束的动作不能被update/close悄悄抹去，finished/withdrawn旧计划不可再改。来源包含当前input.sourceId；不输出伪造结果或期限。
 responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply包含schema授权的questionId/questionSourceId/responsibilityId/responsibilityRevision、relation和decision；空引用使用null，不自行拼接对象。
 consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时按相关性考虑或null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。
 邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；responseContract.timeInput仅提供当地日期及偏移格式，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
@@ -259,7 +262,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       considerationRequired,
       considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
       executionProposal:
-        'executions[{ref,goal,plan,action}] contains explicit semantic intent; server assigns new IDs and binds execution:ref, never chooses the action',
+        'Immediate image: executions[{ref,action:{capability,parameters}}], no goal/plan. Other actions retain goal/plan. State changes only in changes; no changes = null. Server binds IDs and current input.',
       planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
       // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
       timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
@@ -528,7 +531,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       role: 'user',
       content:
         snapshot.input.origin === 'player'
-          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。若决定发图，准备对白dependsOnActionIds必须[]，表达准备拍摄，不能声称已拍好或已发出。`
+          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。直接回应本次原话。无新动作需要时executions=[]，无状态变化时changes=null；不重复历史索图。`
           : `当前为服务器${snapshot.input.origin}唤醒，不是玩家新消息。来源仍为${inputSourceRef}。你是${snapshot.actor.name}，自行决定是否参与或保持安静；不要把任务说明复述成向玩家索取任务。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
     },
   ];
@@ -588,13 +591,15 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
 /** No DB, director, parsing, retries or output rewriting. The runner saves raw output first. */
 export class NpcAgentModel implements NpcAgentModelPort {
   private readonly model: TextModel;
+  private readonly validatedMessages = new WeakMap<AgentSnapshot, ModelMessage[]>();
   private readonly prepared = new WeakMap<
     AgentSnapshot,
     { messages: ModelMessage[]; manifest: NpcSuppliedContext }
   >();
 
   describeSuppliedContext(snapshot: AgentSnapshot): NpcSuppliedContext {
-    const messages = prepare(snapshot);
+    const messages = this.validatedMessages.get(snapshot) ?? prepare(snapshot);
+    this.validatedMessages.delete(snapshot);
     const payload = JSON.parse(messages[1]!.content);
     const observations = mapNpcSourceFields(
       [
@@ -641,7 +646,8 @@ export class NpcAgentModel implements NpcAgentModelPort {
   }
 
   validateInput(snapshot: AgentSnapshot): void {
-    prepare(snapshot);
+    if (!this.validatedMessages.has(snapshot))
+      this.validatedMessages.set(snapshot, prepare(snapshot));
   }
 
   async decide(snapshot: AgentSnapshot, signal?: AbortSignal): Promise<unknown> {

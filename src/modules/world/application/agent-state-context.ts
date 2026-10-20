@@ -174,7 +174,7 @@ export function actorStateContextPayload(
     })),
     actions: objects(state.actions).map((a) => ({
       id: text(a.id),
-      goalId: text(a.goalId),
+      goalId: nullableText(a.goalId),
       capability: text(a.capability),
       targetIds: strings(a.targetIds),
       parameters: parameters(a.parameters),
