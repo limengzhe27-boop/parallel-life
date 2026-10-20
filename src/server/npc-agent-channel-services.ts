@@ -135,6 +135,19 @@ export async function finishNativeAgentTask(
 /** Existing world-task lease, same NPC state/model/kernel; returns false only for an epoch-1 world. */
 export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => TextModel) {
   return async (lease: TaskLease, signal: AbortSignal): Promise<boolean> => {
+    const started = performance.now();
+    // A platform timeout cannot run a catch/finally block. Record bounded phase
+    // markers so preparation stalls are not mistaken for unknown model results.
+    const phase = (stage: string) =>
+      console.info(
+        JSON.stringify({
+          event: 'native_agent_phase',
+          taskId: lease.id,
+          stage,
+          elapsedMs: Math.round(performance.now() - started),
+        }),
+      );
+    phase('control');
     const control = await db.transaction(
       lease.ownerId,
       async (sql) =>
@@ -152,6 +165,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
     const scoped = withLeasedAgentDatabase(db, lease),
       store = new PostgresAgentRuntimeRepository(scoped),
       worlds = new PostgresWorldRepository(scoped);
+    phase('world');
     const world = await worlds.get({ userId: lease.ownerId }, lease.scopeId);
     const now = new Date().toISOString(),
       clock = await new PostgresClockStore(scoped).read(lease.ownerId, world.id, now);
@@ -159,6 +173,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
     const storyAt = new Date(
       Math.max(Date.parse(world.time), Date.parse(projectStoryTime(clock, now))),
     ).toISOString();
+    phase('routing_context');
     const native = await scoped.transaction(lease.ownerId, async (sql) => {
       const input = lease.input as Record<string, unknown>;
       const nativeSources = new Map<
@@ -380,6 +395,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       return { receipt, actorId, actorIds, states };
     });
     if (!native.actorIds.length) return true;
+    phase('responder');
     const selectedActorId =
       native.actorId ??
       (await coordinateNativeResponder(
@@ -395,6 +411,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       previous = await store.lookup(lease.ownerId, world.id, commandId);
     const state = await store.read(lease.ownerId, { worldId: world.id, actorId: native.actorId });
     if (!state) throw new DomainError('INVALID_COMMAND', 'AGENT_NOT_MIGRATED');
+    phase('actor_context');
     const snapshot =
       previous?.status === 'response_received' || previous?.status === 'committed'
         ? null
@@ -410,6 +427,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
     // One lazy adapter owns both final input preparation and the actual gateway request.
     const npcModel = new NpcAgentModel({ complete: (...args) => modelFactory().complete(...args) });
     try {
+      phase('agent_run');
       await runNpcAgent(
         {
           attempts: store,
@@ -436,6 +454,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         snapshot,
         signal,
       );
+      phase('committed');
     } catch (error) {
       if ((error as { code?: unknown })?.code === 'NPC_DELIVERY_DEFERRED')
         throw Object.assign(Error('WORLD_PAUSED'), { code: 'INVALID_STATE' });
