@@ -38,8 +38,17 @@ export function applyEvent(
   });
   const actorIds = new Set(current.actors.map((actor) => actor.id));
   if (!actorIds.has(event.data.actorId)) throw new DomainError('INVALID_COMMAND');
-  const effects = parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects;
-  validateCharacterEffects(event.data.actorId, effects, true, event.data.origin);
+  const effects =
+    event.data.stream && event.data.effects.length === 0
+      ? []
+      : parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects;
+  validateCharacterEffects(
+    event.data.actorId,
+    effects,
+    true,
+    event.data.origin,
+    Boolean(event.data.stream),
+  );
   const replyAt = event.storyAt ?? current.time;
   const userAt = event.data.userAt ?? current.time;
   const acceptedInput = event.data.agentRuntime;
@@ -80,18 +89,29 @@ export function applyEvent(
   )
     throw new DomainError('INVALID_PROPOSAL', 'Only one choice change per turn');
   if (event.data.origin !== 'director') {
-    const userMessageId = `${event.id}_user`;
-    if (usedIds.has(userMessageId)) throw new DomainError('INVALID_PROPOSAL');
-    usedIds.add(userMessageId);
-    state.messages.push({
-      id: userMessageId,
-      actorId: event.data.actorId,
-      role: 'user',
-      text: event.data.userText,
-      at: userAt,
-      sourceEventId: event.id,
-      sourceVersion: event.version,
-    });
+    const userMessageId = event.data.stream?.inputMessageId ?? `${event.id}_user`;
+    const priorInput = state.messages.find((message) => message.id === userMessageId);
+    if (
+      priorInput &&
+      (!event.data.stream ||
+        priorInput.role !== 'user' ||
+        priorInput.actorId !== event.data.actorId ||
+        priorInput.text !== event.data.userText ||
+        priorInput.at !== userAt)
+    )
+      throw new DomainError('INVALID_PROPOSAL');
+    if (!priorInput) {
+      usedIds.add(userMessageId);
+      state.messages.push({
+        id: userMessageId,
+        actorId: event.data.actorId,
+        role: 'user',
+        text: event.data.userText,
+        at: userAt,
+        sourceEventId: event.id,
+        sourceVersion: event.version,
+      });
+    }
   }
   for (const effect of effects) {
     if (usedIds.has(effect.id)) throw new DomainError('INVALID_PROPOSAL', 'Duplicate effect ID');
@@ -504,12 +524,24 @@ export function applyEvent(
             ? effect.isPlayer
             : undefined;
         const purpose = effect.purpose;
+        const replyMessageId = event.data.stream?.replyMessageId;
+        if (
+          replyMessageId &&
+          !state.messages.some(
+            (message) =>
+              message.id === replyMessageId &&
+              message.actorId === targetActorId &&
+              message.role === 'assistant',
+          )
+        )
+          throw new DomainError('INVALID_PROPOSAL', 'Invalid media reply anchor');
         state.mediaRequests.push({
           id: effect.id,
           prompt: effect.prompt,
           title,
           status: 'pending',
           sourceEventId,
+          ...(replyMessageId ? { replyMessageId } : {}),
           mediaType,
           ...(purpose ? { purpose } : {}),
           ...(targetActorId ? { targetActorId } : {}),

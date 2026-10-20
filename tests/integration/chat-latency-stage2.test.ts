@@ -1,3 +1,6 @@
+import { readOwnAgendaReviewEvidenceInTransaction } from '../../src/modules/world/infrastructure/own-agenda-review-repository.ts';
+import { applyEvent } from '../../src/modules/world/domain/reducer.ts';
+import { projectChatMediaMessages } from '../../src/modules/world/domain/chat-media-projection.ts';
 import { readActorMediaResultContextInTransaction } from '../../src/modules/world/infrastructure/actor-media-result-context-repository.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,7 +90,7 @@ function buildWireV14Tail(options?: { inputSourceRef?: string; quote?: string })
   return `],"consideration":null,"goals":[],"planIntents":[],"responsibilities":[],"agendaReview":null,"inputInterpretation":{"kind":"new_request","sourceId":"${inputSourceRef}","quote":${JSON.stringify(quote)}},"continuation":{"decision":"no_current_intent","reason":"已回复。","sourceIds":["${inputSourceRef}"],"planIds":[],"questionIds":[],"conditions":[]}}`;
 }
 
-test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abort, user interruption, receipt recovery, and fault boundaries', async (t) => {
+test('append units: immutable interleaved speech, input once, media once, interruption and replay', async (t) => {
   clearSnapshotImmutableCaches();
   const cfg = await localConfig();
   const admin = await adminClient('parallel_life_test');
@@ -234,8 +237,10 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     null;
   let completeHandler: (() => Promise<string>) | null = null;
 
+  let modelCalls = 0;
   const mockModel = {
     async complete(messages?: unknown[]) {
+      modelCalls++;
       if (completeHandler) {
         const handler: () => Promise<string> = completeHandler;
         return handler();
@@ -244,6 +249,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
       return buildWireV14([{ text: '默认回复' }], { inputSourceRef, quote });
     },
     async *streamComplete(messages: unknown[], signal?: AbortSignal) {
+      modelCalls++;
       if (streamGenerator) {
         yield* streamGenerator(messages, signal);
       } else {
@@ -285,7 +291,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
 
   assert.ok(receipt1);
   assert.equal(receipt1.status, 'committed');
-  assert.equal(receipt1.version, 1);
+  assert.equal(receipt1.version, 3);
   // Two segments streamed and presented
   assert.equal(streamedSegments.length, 2);
   assert.equal(streamedSegments[0]!.segmentIndex, 0);
@@ -324,14 +330,14 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
   const replayReceipt = await api.sendMessageIfEnabled(owner, cmd1);
   assert.ok(replayReceipt);
   assert.equal(replayReceipt.status, 'committed');
-  assert.equal(replayReceipt.version, 1);
+  assert.equal(replayReceipt.version, 3);
   assert.equal(replayReceipt.eventId, receipt1.eventId);
 
   // -------------------------------------------------------------------------
   // Case 3: Stream disconnects after segment 1 committed (Prefix Sealing)
   // -------------------------------------------------------------------------
   streamGenerator = async function* () {
-    yield '{"protocol":"npc-wire-v14","executions":[],"statements":[';
+    yield '{"protocol":"npc-wire-v14","focusChange":{"kind":"keep"},"executions":[],"statements":[';
     yield '{"text":"前缀分段：这段已成功提交。","dependsOnActionIds":[]}';
     // Yield segment 0, then abruptly abort/throw error before segment 1 finishes
     yield ',{"text":"未完成的后续片段';
@@ -342,14 +348,14 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     id: randomUUID(),
     worldId,
     actorId,
-    expectedVersion: 1,
+    expectedVersion: receipt1.version,
     text: '喂？你那边信号好吗？',
   };
 
   const receipt2 = await api.sendMessageIfEnabled(owner, cmd2);
   assert.ok(receipt2);
   assert.equal(receipt2.status, 'committed');
-  assert.equal(receipt2.version, 2);
+  assert.equal(receipt2.version, receipt1.version + 2);
 
   // Prefix was committed at version 2, and sealed truthfully!
   const segRows2 = (
@@ -365,7 +371,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
 
   // World version moved to 2 because segment 0 was committed!
   const worldV2 = await worlds.get({ userId: owner }, worldId);
-  assert.equal(worldV2.version, 2);
+  assert.equal(worldV2.version, receipt2.version);
 
   // Actor is NOT stuck in BUSY! Agent attempt has status 'committed'
   const attemptRow = (
@@ -397,7 +403,10 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     yield '{"text":"第一段：我正在慢悠悠地打字。","dependsOnActionIds":[]}';
     // Wait until user sends a new message before continuing
     segment0CommittedResolve();
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise<void>((resolve) => {
+      if (signal?.aborted) resolve();
+      else signal?.addEventListener('abort', () => resolve(), { once: true });
+    });
     signal?.throwIfAborted();
     yield ',{"text":"第二段：这段应该被用户打断而作废！","dependsOnActionIds":[]}';
     yield buildWireV14Tail({ inputSourceRef, quote });
@@ -407,7 +416,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     id: randomUUID(),
     worldId,
     actorId,
-    expectedVersion: 2,
+    expectedVersion: receipt2.version,
     text: '我先问个问题…',
   };
 
@@ -420,7 +429,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     id: randomUUID(),
     worldId,
     actorId,
-    expectedVersion: 3,
+    expectedVersion: (await worlds.get({ userId: owner }, worldId)).version,
     text: '算了，不用说了，直接看这个！',
   };
 
@@ -432,7 +441,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
   const receipt4 = await api.sendMessageIfEnabled(owner, cmd4);
   assert.ok(receipt4);
   assert.equal(receipt4.status, 'committed');
-  assert.equal(receipt4.version, 4);
+  assert.equal(receipt4.version, receipt2.version + 4);
 
   // Await cmd3 resolution or graceful exit
   try {
@@ -458,7 +467,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
       [worldId, actorId],
     )
   ).rows[0];
-  assert.equal(Number(finalState.projected_world_version), 4);
+  assert.equal(Number(finalState.projected_world_version), receipt4.version);
 
   // -------------------------------------------------------------------------
   // Case 8 & 9: Dependent statement withholding
@@ -475,7 +484,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     id: randomUUID(),
     worldId,
     actorId,
-    expectedVersion: 4,
+    expectedVersion: receipt4.version,
     text: '能给我发张照片吗？',
   };
 
@@ -483,7 +492,7 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
   assert.ok(receipt5);
   // Full turn finished
   assert.equal(receipt5.status, 'committed');
-  assert.equal(receipt5.version, 5);
+  assert.equal(receipt5.version, receipt4.version + 1);
 
   // In agent_attempt_stream_segments: statement was withheld_dependency
   const segRows5 = (
@@ -625,8 +634,21 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     assert.equal(results.length, 1);
     assert.equal(results[0].document.outputRefs[0].id, media[0].id);
 
+    const mediaWorld = await worlds.get({ userId: owner }, worldId);
+    const projectedMedia = projectChatMediaMessages(
+      mediaWorld.messages,
+      mediaWorld.mediaRequests,
+      (message) => message,
+    );
+    assert.equal(
+      projectedMedia.filter((message) => message.id === `media_${media[0].id}`).length,
+      1,
+      'separate media event still projects exactly one real image',
+    );
     const before = media[0].id;
+    const callsBeforeReplay = modelCalls;
     await api.sendMessageIfEnabled(owner, command);
+    assert.equal(modelCalls, callsBeforeReplay);
     assert.equal(
       (
         await admin.query(
@@ -660,11 +682,11 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
     streamGenerator = async function* (messages: unknown[]) {
       const { inputSourceRef, quote } = extractInputInfo(messages);
       if (afterPrefix) {
-        yield '{"protocol":"npc-wire-v14","executions":[],"statements":[';
+        yield '{"protocol":"npc-wire-v14","focusChange":{"kind":"keep"},"executions":[],"statements":[';
         yield '{"text":"这段已经保存。","dependsOnActionIds":[]},';
         frozenPrefix = (
           await admin.query(
-            'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND command_id=$2',
+            `SELECT e.payload FROM parallel_life.world_events e JOIN parallel_life.agent_attempt_stream_segments s ON s.world_id=e.world_id AND s.source_event_id=e.id WHERE s.world_id=$1 AND s.command_id=$2 AND s.status='committed' ORDER BY e.version`,
             [worldId, command.id],
           )
         ).rows[0]?.payload;
@@ -710,9 +732,21 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
       )
     ).rows[0];
     assert.equal(stored.expected_world_version, before.version);
-    assert.equal(stored.version, before.version + (afterPrefix ? 1 : 2));
-    if (afterPrefix) assert.deepEqual(stored.payload, frozenPrefix);
-    else
+    assert.equal(stored.version, before.version + (afterPrefix ? 4 : scenario === 'media' ? 4 : 3));
+    if (afterPrefix) {
+      assert.deepEqual(
+        (
+          await admin.query(
+            'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND id=$2',
+            [worldId, (frozenPrefix as any).id],
+          )
+        ).rows[0].payload,
+        frozenPrefix,
+      );
+      const recovered = await api.readStreamSegments(owner, worldId, command.id);
+      assert.equal(recovered.summary?.completionStatus, 'completed');
+      assert.equal(recovered.messages.filter((m) => m.role === 'assistant').length, 2);
+    } else
       assert.equal(
         (
           await admin.query(
@@ -731,7 +765,69 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
       ).rows[0].n,
       1,
     );
+    const callsBeforeReplay = modelCalls;
     const replay = await api.sendMessageIfEnabled(owner, command);
     assert.equal(replay?.eventId, result?.eventId);
+    assert.equal(modelCalls, callsBeforeReplay);
   }
+  const actorDoc = (
+    await admin.query(
+      'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND actor_id=$2',
+      [worldId, actorId],
+    )
+  ).rows[0].document;
+  const agenda = await db.transaction(owner, (sql) =>
+    readOwnAgendaReviewEvidenceInTransaction(sql, owner, {
+      worldId,
+      actorId,
+      engineEpoch: 2,
+      definitionRef: actorDoc.definitionRef,
+    }),
+  );
+  assert.ok(
+    agenda.lastPresentedRealAt,
+    'append units remain visible to autonomous-agenda evidence',
+  );
+  const latest = await worlds.get({ userId: owner }, worldId);
+  const mediaContext = await db.transaction(owner, (sql) =>
+    readActorMediaResultContextInTransaction(sql, owner, {
+      worldId,
+      actorId,
+      engineEpoch: 2,
+      worldVersion: latest.version,
+    }),
+  );
+  assert.ok(
+    mediaContext.pending.length >= 2,
+    'next turn can authenticate media-unit enqueue results without fabricating completion',
+  );
+  const history = (
+    await admin.query(
+      'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 ORDER BY version',
+      [worldId],
+    )
+  ).rows.map((row) => row.payload);
+  let replayed = structuredClone(world);
+  for (const event of history) replayed = applyEvent(replayed, event).state;
+  const restored = await worlds.get({ userId: owner }, worldId);
+  assert.deepEqual(
+    replayed.messages,
+    restored.messages,
+    'immutable full replay restores exactly the same messages',
+  );
+  const unitEvent = history.find((event) => event.data?.stream);
+  await assert.rejects(
+    admin.query(
+      `UPDATE parallel_life.world_events SET payload=jsonb_set(payload,'{data,userText}','"forged"'::jsonb) WHERE world_id=$1 AND id=$2`,
+      [worldId, unitEvent.id],
+    ),
+    /IMMUTABLE_STREAM_EXECUTION_UNIT/,
+  );
+  await assert.rejects(
+    admin.query(
+      `UPDATE parallel_life.agent_attempt_stream_segments SET source_version=source_version+1 WHERE world_id=$1 AND status='committed'`,
+      [worldId],
+    ),
+    /IMMUTABLE_STREAM_SEGMENT_SOURCE/,
+  );
 });

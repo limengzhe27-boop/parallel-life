@@ -1,17 +1,10 @@
 export type NpcStreamUnitKind = 'independent_statement' | 'dependent_statement';
 
 export type NpcStreamSegmentStatus =
-  | 'persisted'
-  | 'committed'
-  | 'withheld_dependency'
-  | 'superseded_by_interrupt'
-  | 'aborted_error';
+  'persisted' | 'committed' | 'withheld_dependency' | 'superseded_by_interrupt' | 'aborted_error';
 
 export type NpcStreamCompletionStatus =
-  | 'streaming'
-  | 'completed'
-  | 'partial_interrupted'
-  | 'superseded';
+  'streaming' | 'completed' | 'partial_interrupted' | 'superseded';
 
 export type NpcStreamStatementDraft = Readonly<{
   segmentIndex: number;
@@ -79,9 +72,7 @@ export type NpcStreamTurnSummary = Readonly<{
   abortedSegmentCount: number;
 }>;
 
-export function toContractStreamSummary(
-  summary: NpcStreamTurnSummary,
-): {
+export function toContractStreamSummary(summary: NpcStreamTurnSummary): {
   completionStatus: 'streaming' | 'completed' | 'partial_interrupted' | 'superseded';
   committedSegmentCount: number;
   totalSegmentCount: number;
@@ -141,9 +132,7 @@ const UNBOUND_MEDIA_COMPLETION_PATTERNS = [
   /(?:照片|图片|自拍|视频|画面)(?:已经|已)(?:发给|发你|发出|传给|送达)/u,
 ];
 
-const UNBOUND_ACTION_COMPLETION_PATTERNS = [
-  /(?:已经|已)(?:把.*交给你|把.*递给你|完成交付)/u,
-];
+const UNBOUND_ACTION_COMPLETION_PATTERNS = [/(?:已经|已)(?:把.*交给你|把.*递给你|完成交付)/u];
 
 export function claimsUnboundActionCompletion(
   text: string,
@@ -229,3 +218,17 @@ export type NpcParsedStreamEvent =
       code: string;
     };
 
+/** Stable execution-unit identity; the paid attempt and parent input never change. */
+export function streamUnitEventId(attemptId: string, unit: string): string {
+  return deterministicStreamEventId(`${attemptId}:unit:${unit}`);
+}
+export function streamUnitCommandId(attemptId: string, unit: string): string {
+  return deterministicStreamEventId(`${attemptId}:command:${unit}`);
+}
+export type AgentStreamUnit = {
+  attemptId: string;
+  parentCommandId: string;
+  unit: string;
+  inputMessageId: string;
+  replyMessageId?: string;
+};

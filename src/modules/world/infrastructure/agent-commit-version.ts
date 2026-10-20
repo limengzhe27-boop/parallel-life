@@ -1,3 +1,4 @@
+import { streamUnitCommandId, streamUnitEventId } from '../domain/npc-stream-segment.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
 
@@ -27,11 +28,11 @@ export async function resolveAgentCommitVersion(
     return Number(own.version) === actualVersion
       ? { appendBaseVersion: actualVersion - 1, commitVersion: actualVersion }
       : null;
-  if (hasCommittedPrefix || actualVersion < attempt.expectedWorldVersion) return null;
+  if (actualVersion < attempt.expectedWorldVersion) return null;
   if (actualVersion === attempt.expectedWorldVersion)
     return { appendBaseVersion: actualVersion, commitVersion: actualVersion + 1 };
   // Bounded proof, not a generic stale-snapshot bypass. Shared changes still conflict.
-  if (actualVersion - attempt.expectedWorldVersion > 64) return null;
+  if (actualVersion - attempt.expectedWorldVersion > 256) return null;
   const r = (
     await sql.query(
       `SELECT document FROM parallel_life.agent_input_receipts
@@ -47,14 +48,27 @@ export async function resolveAgentCommitVersion(
     return null;
   const events = (
     await sql.query(
-      `SELECT version,payload FROM parallel_life.world_events
-     WHERE world_id=$1 AND owner_id=$2 AND version>$3 AND version<=$4 ORDER BY version`,
+      `SELECT e.version,e.payload,c.id AS execution_command FROM parallel_life.world_events e
+       JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+        AND c.status='succeeded' AND c.result_event_id=e.id AND c.expected_version=e.version-1
+     WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version>$3 AND e.version<=$4 ORDER BY e.version`,
       [attempt.worldId, ownerId, attempt.expectedWorldVersion, actualVersion],
     )
   ).rows;
   if (events.length !== actualVersion - attempt.expectedWorldVersion) return null;
-  for (const { payload: e } of events) {
+  for (const { payload: e, execution_command } of events) {
     const d = e?.data;
+    const unit = d?.stream;
+    if (
+      unit?.attemptId === attempt.id &&
+      unit.parentCommandId === attempt.commandId &&
+      unit.unit !== 'final' &&
+      d.actorId === attempt.actorId &&
+      d.agentRuntime?.inputReceiptId === attempt.inputReceiptId &&
+      e.id === streamUnitEventId(attempt.id, unit.unit) &&
+      execution_command === streamUnitCommandId(attempt.id, unit.unit)
+    )
+      continue;
     if (
       e?.type !== 'turn.resolved' ||
       !d?.actorId ||
@@ -119,7 +133,12 @@ export async function isAdmittedAgentCommitHead(
          OR EXISTS(SELECT 1 FROM parallel_life.agent_attempt_stream_segments s
            JOIN parallel_life.world_events e ON e.world_id=s.world_id AND e.owner_id=s.owner_id AND e.id=s.source_event_id
            WHERE s.world_id=a.world_id AND s.owner_id=a.owner_id AND s.attempt_id=a.id
-             AND s.status='committed' AND e.command_id=a.command_id AND e.version=$5::integer))`,
+             AND s.status='committed' AND e.command_id=a.command_id AND e.version=$5::integer)
+         OR EXISTS(SELECT 1 FROM parallel_life.world_events e JOIN parallel_life.commands c
+           ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+           WHERE e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.version=$5::integer
+             AND e.payload#>>'{data,stream,attemptId}'=a.id AND e.payload#>>'{data,stream,parentCommandId}'=a.command_id
+             AND e.payload#>>'{data,stream,unit}'<>'final' AND e.payload#>>'{data,agentRuntime,inputReceiptId}'=a.input_receipt_id))`,
         [worldId, ownerId, actorId, modelVersion, actualVersion],
       )
     ).rowCount === 1

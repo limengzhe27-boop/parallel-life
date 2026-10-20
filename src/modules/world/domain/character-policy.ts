@@ -7,8 +7,9 @@ export function validateCharacterEffects(
   effects: WorldEffect[],
   allowLegacyReplay = false,
   origin?: 'director',
+  allowCommittedReply = false,
 ): void {
-  if (!effects.some((effect) => effect.type === 'message.received')) {
+  if (!allowCommittedReply && !effects.some((effect) => effect.type === 'message.received')) {
     throw new DomainError('INVALID_PROPOSAL', 'A character turn requires a reply');
   }
   if (effects.filter((effect) => effect.type === 'matter.proposed').length > 1)

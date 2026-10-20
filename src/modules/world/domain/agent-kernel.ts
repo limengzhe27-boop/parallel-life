@@ -706,7 +706,10 @@ export function reduceActorAgentState(
     requireValid(
       result.worldId === context.state.worldId &&
         result.actorId === context.state.actorId &&
-        result.worldVersion === worldVersion &&
+        (result.worldVersion === worldVersion ||
+          context.knownActionResults?.some(
+            (known) => JSON.stringify(known) === JSON.stringify(result),
+          )) &&
         Date.parse(result.at) >= Date.parse(context.storyAt),
       'RESULT_SCOPE',
     );

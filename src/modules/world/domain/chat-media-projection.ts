@@ -30,9 +30,19 @@ export function projectChatMediaMessages<
     const delivery = request.deliveryDecision as
       (MediaRequest['deliveryDecision'] & { approved?: boolean }) | undefined;
     if (request.isPlayer || (delivery?.deliverToChat ?? delivery?.approved) === false) continue;
-    const messageId = request.targetActorId
-      ? lastByEventActor.get(JSON.stringify([request.sourceEventId, request.targetActorId]))
-      : lastByEvent.get(request.sourceEventId);
+    const boundReply =
+      request.replyMessageId &&
+      messages.find(
+        (message) =>
+          message.id === request.replyMessageId &&
+          message.role === 'assistant' &&
+          message.actorId === request.targetActorId,
+      );
+    const messageId = boundReply
+      ? boundReply.id
+      : request.targetActorId
+        ? lastByEventActor.get(JSON.stringify([request.sourceEventId, request.targetActorId]))
+        : lastByEvent.get(request.sourceEventId);
     if (!messageId) continue;
     byMessage.set(messageId, [...(byMessage.get(messageId) ?? []), request]);
   }

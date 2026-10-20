@@ -15,6 +15,8 @@ import { readableActivityClock } from '../domain/clock-activity.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 import {
   deterministicStreamEventId,
+  streamUnitEventId,
+  streamUnitCommandId,
   deterministicStreamMessageId,
   deterministicStreamSegmentId,
   deterministicStreamUserMessageId,
@@ -214,10 +216,11 @@ export async function persistAndCommitStreamSegment(
   | { outcome: 'superseded'; reason: string }
 > {
   const { attempt, snapshot, statement, unitKind, faultInjection } = input;
-  const eventId = deterministicStreamEventId(attempt.id);
+  const unit = `statement:${statement.segmentIndex}`;
+  const eventId = streamUnitEventId(attempt.id, unit);
   const segmentId = deterministicStreamSegmentId(attempt.id, statement.segmentIndex);
   const messageId = deterministicStreamMessageId(eventId, statement.segmentIndex);
-  const userMessageId = deterministicStreamUserMessageId(eventId);
+  let userMessageId = deterministicStreamUserMessageId(eventId);
 
   faultInjection?.failAtSegmentPersist?.(statement.segmentIndex);
 
@@ -373,7 +376,7 @@ export async function persistAndCommitStreamSegment(
 
     const priorCommitted = (
       await sql.query(
-        `SELECT segment_index, message_id, text, requests_player_reply, question_for_responsibility_id, message_at
+        `SELECT segment_index, message_id, text, requests_player_reply, question_for_responsibility_id, message_at, user_message_id
          FROM parallel_life.agent_attempt_stream_segments
          WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND status='committed'
          ORDER BY segment_index ASC`,
@@ -382,6 +385,7 @@ export async function persistAndCommitStreamSegment(
     ).rows;
 
     const isFirstCommit = priorCommitted.length === 0;
+    if (!isFirstCommit) userMessageId = String(priorCommitted[0].user_message_id);
     const currentWorldVersion = Number(worldRow.version);
 
     const position = await resolveAgentCommitVersion(
@@ -451,7 +455,7 @@ export async function persistAndCommitStreamSegment(
     });
 
     const command = {
-      id: attempt.commandId,
+      id: streamUnitCommandId(attempt.id, unit),
       worldId: attempt.worldId,
       expectedVersion: position.appendBaseVersion,
       actorId: attempt.actorId,
@@ -463,7 +467,7 @@ export async function persistAndCommitStreamSegment(
       schemaVersion: 1,
       id: eventId,
       worldId: attempt.worldId,
-      commandId: attempt.commandId,
+      commandId: command.id,
       version: position.commitVersion,
       occurredAt,
       storyAt,
@@ -471,7 +475,13 @@ export async function persistAndCommitStreamSegment(
       data: {
         actorId: attempt.actorId,
         userText: command.text,
-        effects,
+        effects: effects.filter((effect) => effect.id === messageId),
+        stream: {
+          attemptId: attempt.id,
+          parentCommandId: attempt.commandId,
+          unit,
+          inputMessageId: userMessageId,
+        },
         origin: command.origin,
         userAt: receivedInput.storyAt,
         agentRuntime: transition,
@@ -480,7 +490,7 @@ export async function persistAndCommitStreamSegment(
 
     await worlds.commitInTransaction(sql, { userId: ownerId }, command, event, undefined, {
       legacyProgress: false,
-      finalizePrefixEvent: !isFirstCommit,
+      finalizePrefixEvent: false,
       skipMemories: true,
     });
 
@@ -597,7 +607,7 @@ export async function sealCommittedStreamPrefix(
 
     const committedRows = (
       await sql.query(
-        `SELECT segment_index, message_id, text, requests_player_reply, question_for_responsibility_id, source_event_id, source_version, message_at
+        `SELECT segment_index, message_id, text, requests_player_reply, question_for_responsibility_id, source_event_id, source_version, user_message_id, message_at
          FROM parallel_life.agent_attempt_stream_segments
          WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND status='committed'
          ORDER BY segment_index ASC FOR UPDATE`,
@@ -609,8 +619,16 @@ export async function sealCommittedStreamPrefix(
       return { sealed: false as const };
     }
 
-    const eventId = String(committedRows[0]!.source_event_id);
-    const eventVersion = Number(committedRows[0]!.source_version);
+    let eventId = String(committedRows[0]!.source_event_id);
+    let eventVersion = Number(committedRows[0]!.source_version);
+    const appendUnits = Boolean(
+      (
+        await sql.query(
+          'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+          [attempt.worldId, ownerId, eventId],
+        )
+      ).rows[0]?.payload?.data?.stream,
+    );
 
     if (attemptRow.status === 'committed') {
       const stateRow = (
@@ -622,7 +640,14 @@ export async function sealCommittedStreamPrefix(
       return {
         sealed: true as const,
         eventId: String(attemptRow.event_id ?? eventId),
-        version: eventVersion,
+        version: Number(
+          (
+            await sql.query(
+              'SELECT version FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+              [attempt.worldId, ownerId, attemptRow.event_id ?? eventId],
+            )
+          ).rows[0]?.version ?? eventVersion,
+        ),
         state: (stateRow?.document ?? snapshot.state) as ActorAgentState,
         committedSegmentCount: committedRows.length,
       };
@@ -659,6 +684,145 @@ export async function sealCommittedStreamPrefix(
     const receivedInput = receiptRow?.document as AgentInputReceipt | undefined;
     if (!receivedInput) return { sealed: false as const };
 
+    if (appendUnits) {
+      const media = (
+        await sql.query(
+          `SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3 AND command_id=$4`,
+          [
+            attempt.worldId,
+            ownerId,
+            streamUnitEventId(attempt.id, 'media'),
+            streamUnitCommandId(attempt.id, 'media'),
+          ],
+        )
+      ).rows[0]?.payload?.data?.agentRuntime as AgentRuntimeTransition | undefined;
+      eventId = streamUnitEventId(attempt.id, 'final');
+      eventVersion = Number(worldRow.version) + 1;
+      const base = media
+        ? {
+            ...media.stateAfter,
+            revision: attempt.expectedActorRevision,
+            questions: snapshot.state.questions,
+            focus: snapshot.state.focus,
+          }
+        : (stateRow.document as ActorAgentState);
+      const storyAt = (worldRow.state as WorldState).time;
+      const built = buildPrefixStateAndTransition({
+        attempt,
+        snapshot,
+        receivedInput,
+        currentState: base,
+        committedSegments: committedRows.map((r) => ({
+          segmentIndex: Number(r.segment_index),
+          messageId: String(r.message_id),
+          text: String(r.text),
+          requestsPlayerReply: Boolean(r.requests_player_reply),
+          ...(r.question_for_responsibility_id
+            ? { questionForResponsibilityId: String(r.question_for_responsibility_id) }
+            : {}),
+        })),
+        eventId,
+        storyAt,
+        commitVersion: eventVersion,
+      });
+      // A failed suffix has made no new continuation decision. Keep the already
+      // accepted plan/waiting basis instead of inventing a no-intent conclusion.
+      if (base.continuation) {
+        built.stateAfter.continuation = {
+          ...base.continuation,
+          basisHash: createHash('sha256')
+            .update(actorContinuationBasis(built.stateAfter))
+            .digest('hex'),
+        };
+        const { decision, reason, sourceIds, planIds, questionIds, conditions } = base.continuation;
+        built.transition.proposal.continuation = {
+          decision,
+          reason,
+          sourceIds,
+          planIds,
+          questionIds,
+          conditions,
+        };
+      } else {
+        delete built.stateAfter.continuation;
+        delete built.transition.proposal.continuation;
+      }
+      const event: WorldEvent = {
+        schemaVersion: 1,
+        id: eventId,
+        worldId: attempt.worldId,
+        commandId: attempt.commandId,
+        version: eventVersion,
+        occurredAt: new Date().toISOString(),
+        storyAt,
+        type: 'turn.resolved',
+        data: {
+          actorId: attempt.actorId,
+          userText: snapshot.input.text,
+          userAt: receivedInput.storyAt,
+          ...(snapshot.input.origin !== 'player' ? { origin: 'director' as const } : {}),
+          effects: [],
+          agentRuntime: built.transition,
+          stream: {
+            attemptId: attempt.id,
+            parentCommandId: attempt.commandId,
+            unit: 'final',
+            inputMessageId: String(committedRows[0]!.user_message_id),
+          },
+        },
+      };
+      await sql.query(
+        "SELECT set_config('app.agent_engine_epoch',$1,true),set_config('app.agent_world_id',$2,true),set_config('app.agent_commit_attempt_id',$3,true)",
+        [String(attempt.engineEpoch), attempt.worldId, attempt.id],
+      );
+      const worlds = new PostgresWorldRepository(db);
+      await worlds.commitInTransaction(
+        sql,
+        { userId: ownerId },
+        {
+          id: attempt.commandId,
+          worldId: attempt.worldId,
+          actorId: attempt.actorId,
+          expectedVersion: eventVersion - 1,
+          text: snapshot.input.text,
+          ...(snapshot.input.origin !== 'player' ? { origin: 'director' as const } : {}),
+        },
+        event,
+        undefined,
+        { legacyProgress: false, sealStreamPrefix: true },
+      );
+      const raw = JSON.stringify({
+        kind: 'npc_agent_partial_stream',
+        schemaVersion: 1,
+        snapshot,
+        partialRawText: partialRawText?.slice(0, 200000),
+        partialStream: { completionStatus, failureCode },
+      });
+      await sql.query(
+        `UPDATE parallel_life.agent_attempts SET status='committed',event_id=$2,response=COALESCE(response,$3::jsonb),response_hash=COALESCE(response_hash,$4),updated_at=now() WHERE id=$1`,
+        [attempt.id, eventId, raw, createHash('sha256').update(raw).digest('hex')],
+      );
+      await sql.query(
+        `UPDATE parallel_life.actor_agent_states SET revision=$4,projected_world_version=$5,document=$6,updated_at=now() WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND revision=$7`,
+        [
+          attempt.worldId,
+          ownerId,
+          attempt.actorId,
+          built.stateAfter.revision,
+          eventVersion,
+          built.stateAfter,
+          attempt.expectedActorRevision,
+        ],
+      );
+      await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
+      return {
+        sealed: true as const,
+        eventId,
+        version: eventVersion,
+        state: built.stateAfter,
+        committedSegmentCount: committedRows.length,
+      };
+    }
     const eventRow = (
       await sql.query(
         'SELECT payload, occurred_at FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3 FOR UPDATE',
@@ -848,17 +1012,25 @@ export async function readStreamSegmentsForCommand(
       messageAt: new Date(r.message_at).toISOString(),
     }));
 
-    const committedWithEvent = segments.find(
-      (s) => s.status === 'committed' && s.sourceEventId !== undefined,
-    );
+    const committedWithEvent = [...segments]
+      .reverse()
+      .find((s) => s.status === 'committed' && s.sourceEventId !== undefined);
     let messages: CommittedStreamMessageProjection[] = [];
     if (committedWithEvent?.sourceEventId) {
       const msgRows = (
         await sql.query(
           `SELECT document FROM parallel_life.world_messages
-           WHERE world_id=$1 AND owner_id=$2 AND document->>'sourceEventId'=$3
+           WHERE world_id=$1 AND owner_id=$2 AND document->>'sourceEventId'=ANY($3::text[])
            ORDER BY ordinal ASC`,
-          [worldId, ownerId, committedWithEvent.sourceEventId],
+          [
+            worldId,
+            ownerId,
+            [
+              ...new Set(
+                segments.filter((s) => s.status === 'committed').map((s) => s.sourceEventId),
+              ),
+            ],
+          ],
         )
       ).rows;
       messages = msgRows
@@ -878,12 +1050,20 @@ export async function readStreamSegmentsForCommand(
         .filter((doc): doc is CommittedStreamMessageProjection => Boolean(doc));
     }
 
+    const terminal = committedWithEvent
+      ? (
+          await sql.query(
+            `SELECT e.id,e.version FROM parallel_life.agent_attempts a JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3 AND a.status='committed'`,
+            [worldId, ownerId, committedWithEvent.attemptId],
+          )
+        ).rows[0]
+      : undefined;
     const summary: NpcStreamTurnSummary | null = committedWithEvent
       ? {
           attemptId: committedWithEvent.attemptId,
           commandId,
-          eventId: committedWithEvent.sourceEventId!,
-          version: committedWithEvent.sourceVersion!,
+          eventId: String(terminal?.id ?? committedWithEvent.sourceEventId!),
+          version: Number(terminal?.version ?? committedWithEvent.sourceVersion!),
           completionStatus: segments[0]!.completionStatus,
           committedSegmentCount: segments.filter((s) => s.status === 'committed').length,
           withheldSegmentCount: segments.filter((s) => s.status === 'withheld_dependency').length,

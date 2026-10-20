@@ -66,6 +66,8 @@ export type MediaRequest = {
   assetId?: Id;
   errorCode?: string;
   sourceEventId: Id;
+  /** Exact already-committed NPC text anchoring a separate media execution unit. */
+  replyMessageId?: Id;
   mediaType?: 'image' | 'video';
   /** Authored/model-selected visual intent; absent on legacy requests. */
   purpose?: WorldMediaPurpose;
@@ -484,6 +486,8 @@ export type WorldEvent = {
     userAt?: string;
     /** New disclosure commits carry v2; absent only on previously stored events. */
     disclosurePolicyVersion?: 2;
+    /** Kernel-bound append unit. Never supplied by the model. */
+    stream?: import('./npc-stream-segment.ts').AgentStreamUnit;
     /** Kernel-only persistent NPC transition; never accepted as model-authored world facts. */
     agentRuntime?: import('./agent-state-event.ts').AgentRuntimeTransition;
   };

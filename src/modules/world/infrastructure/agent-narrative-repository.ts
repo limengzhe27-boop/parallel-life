@@ -581,8 +581,10 @@ export async function projectEpisodeRequestInTransaction(
     await sql.query(
       `SELECT id FROM parallel_life.world_messages
     WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND document->>'role'='assistant'
-      AND document->>'sourceEventId'=$4 ORDER BY id`,
-      [a.worldId, owner, a.actorId, input.eventId],
+      AND (document->>'sourceEventId'=$4 OR EXISTS(SELECT 1 FROM parallel_life.agent_attempt_stream_segments s
+        WHERE s.world_id=$1 AND s.owner_id=$2 AND s.attempt_id=$5 AND s.status='committed'
+          AND s.message_id=parallel_life.world_messages.id AND s.source_event_id=document->>'sourceEventId')) ORDER BY id`,
+      [a.worldId, owner, a.actorId, input.eventId, a.id],
     )
   ).rows.map((m) => m.id as string);
   const value: AgentEpisodeReceipt = {

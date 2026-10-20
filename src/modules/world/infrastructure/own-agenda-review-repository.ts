@@ -102,10 +102,12 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
             'ownerId',e.owner_id,'version',e.version,'commandId',e.command_id,'realAt',e.occurred_at,
             'projectionCount',CASE WHEN e.payload#>'{data,agentRuntime,proposal,statements}'='[]'::jsonb THEN 0 WHEN i.document->>'channel'='private' THEN
               (SELECT count(*) FROM parallel_life.world_messages m
+                JOIN parallel_life.world_events me ON me.world_id=m.world_id AND me.owner_id=m.owner_id AND me.id=m.document->>'sourceEventId' AND me.version::text=m.document->>'sourceVersion'
                 WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.actor_id=a.actor_id
-                AND m.document->>'sourceEventId'=e.id::text AND (m.document->>'sourceVersion')::text=e.version::text
+                AND (me.id=e.id OR EXISTS(SELECT 1 FROM parallel_life.agent_attempt_stream_segments sg WHERE sg.world_id=a.world_id AND sg.owner_id=a.owner_id
+                  AND sg.attempt_id=a.id AND sg.status='committed' AND sg.message_id=m.id AND sg.source_event_id=me.id AND sg.source_version=me.version))
                 AND m.document->>'role'='assistant'
-                AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(e.payload#>'{data,effects}')='array' THEN e.payload#>'{data,effects}' ELSE '[]'::jsonb END) effect
+                AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(me.payload#>'{data,effects}')='array' THEN me.payload#>'{data,effects}' ELSE '[]'::jsonb END) effect
                   WHERE effect->>'type'='message.received' AND effect->>'id'=m.id::text AND effect->>'actorId'=a.actor_id AND effect->>'text'=m.document->>'text'))
               WHEN i.document->>'channel'='group' THEN
               (SELECT count(*) FROM parallel_life.world_group_messages m WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.group_id::text=i.document->>'threadId' AND m.source_event_id=e.id AND m.source_version=e.version AND m.document#>>'{sender,actorId}'=a.actor_id AND m.document#>>'{sender,kind}'='actor')
@@ -279,14 +281,14 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       e.ownerId !== ownerId ||
       e.commandId !== r.command_id ||
       !integer(e.version) ||
-      e.version !== r.expected_world_version + 1 ||
+      e.version <= r.expected_world_version ||
       e.version > frame.version ||
       c.id !== r.command_id ||
       c.worldId !== input.worldId ||
       c.ownerId !== ownerId ||
       c.status !== 'succeeded' ||
       c.eventId !== e.id ||
-      c.expectedVersion !== r.expected_world_version ||
+      c.expectedVersion !== e.version - 1 ||
       e.payload.id !== e.id ||
       e.payload.worldId !== input.worldId ||
       e.payload.commandId !== r.command_id ||
@@ -313,7 +315,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     const command = {
       id: r.command_id,
       worldId: input.worldId,
-      expectedVersion: r.expected_world_version,
+      expectedVersion: c.expectedVersion,
       actorId: input.actorId,
       text: b.text,
       ...(b.origin === 'player' ? {} : { origin: 'director' }),
@@ -321,7 +323,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     const commandHash = digest(
       JSON.stringify([
         input.worldId,
-        r.expected_world_version,
+        c.expectedVersion,
         input.actorId,
         b.text,
         ...(b.origin === 'player' ? [] : ['director']),
@@ -331,7 +333,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       (privateCommit
         ? b.threadId !== input.actorId ||
           b.recipientActorId !== input.actorId ||
-          b.expectedWorldVersion !== r.expected_world_version ||
+          b.expectedWorldVersion > r.expected_world_version ||
           c.hash !== commandHash ||
           !isDeepStrictEqual(c.payload, command)
         : c.hash !== r.input_hash ||

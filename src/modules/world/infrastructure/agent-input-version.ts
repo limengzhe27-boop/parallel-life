@@ -40,6 +40,32 @@ export async function acceptsAgentInputVersion(
       [input.worldId, ownerId, input.recipientActorId, input.expectedWorldVersion],
     )
   ).rows[0];
+  // Interrupt settlement only persists the already visible units; it is not a new NPC decision.
+  if (
+    row &&
+    !row.has_new_message &&
+    Number(row.projected_world_version) > input.expectedWorldVersion
+  ) {
+    const settled = await sql.query(
+      `SELECT 1 FROM parallel_life.agent_attempts a
+      JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id
+      WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.status='committed'
+        AND e.version=$5 AND e.payload#>>'{data,stream,attemptId}'=a.id
+        AND e.payload#>>'{data,stream,unit}'='final' AND e.payload#>'{data,effects}'='[]'::jsonb
+        AND EXISTS(SELECT 1 FROM parallel_life.agent_attempt_stream_segments s WHERE s.world_id=a.world_id AND s.owner_id=a.owner_id
+          AND s.attempt_id=a.id AND s.status='committed' AND s.completion_status='superseded')
+        AND NOT EXISTS(SELECT 1 FROM parallel_life.world_events u WHERE u.world_id=a.world_id AND u.owner_id=a.owner_id
+          AND u.payload#>>'{data,stream,attemptId}'=a.id AND u.id<>e.id AND u.version>$4)`,
+      [
+        input.worldId,
+        ownerId,
+        input.recipientActorId,
+        input.expectedWorldVersion,
+        Number(row.projected_world_version),
+      ],
+    );
+    if (settled.rowCount === 1) return true;
+  }
   // Streamed speech can commit before the durable actor revision advances.
   return Boolean(
     row &&

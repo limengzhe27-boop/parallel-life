@@ -83,9 +83,14 @@ export async function projectCommittedWorldAwareness(
       const event = assertCommitted(row);
       if (event.version !== version + 1 || event.worldId !== world.id)
         throw Error('AWARENESS_EVENT_GAP');
-      const data = event.data as { actorId?: string; agentRuntime?: unknown; sceneId?: string };
+      const data = event.data as {
+        actorId?: string;
+        agentRuntime?: unknown;
+        sceneId?: string;
+        stream?: { unit?: string };
+      };
       let previousAgentState: ActorAgentState | undefined;
-      if (data?.agentRuntime && data.actorId) {
+      if (data?.agentRuntime && data.actorId && (!data.stream || data.stream.unit === 'final')) {
         previousAgentState = (
           await sql.query(
             "SELECT response->'snapshot'->'state' AS state FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND event_id=$3 AND status='committed'",
@@ -97,7 +102,8 @@ export async function projectCommittedWorldAwareness(
             await sql.query(
               `SELECT payload->'data'->'agentRuntime'->'stateAfter' AS state FROM parallel_life.world_events
            WHERE world_id=$1 AND owner_id=$2 AND version<$3 AND payload->'data'->>'actorId'=$4
-           AND payload->'data'->'agentRuntime'->'stateAfter' IS NOT NULL ORDER BY version DESC LIMIT 1`,
+           AND payload->'data'->'agentRuntime'->'stateAfter' IS NOT NULL
+           AND (payload#>'{data,stream}' IS NULL OR payload#>>'{data,stream,unit}'='final') ORDER BY version DESC LIMIT 1`,
               [world.id, owner, event.version, data.actorId],
             )
           ).rows[0]?.state;

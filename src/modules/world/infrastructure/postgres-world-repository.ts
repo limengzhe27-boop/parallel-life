@@ -1,3 +1,4 @@
+import { streamUnitCommandId, streamUnitEventId } from '../domain/npc-stream-segment.ts';
 import { migrateLegacyWorldInTransaction } from './legacy-world-migration.ts';
 import {
   prepareExplicitInvitationProjections,
@@ -542,6 +543,7 @@ export class PostgresWorldRepository implements WorldRepository {
       legacyProgress?: boolean;
       finalizePrefixEvent?: boolean;
       skipMemories?: boolean;
+      sealStreamPrefix?: boolean;
     } = {},
   ) {
     const current = await this.owned(sql, command.worldId, true);
@@ -604,6 +606,49 @@ export class PostgresWorldRepository implements WorldRepository {
       )
         throw new DomainError('INVALID_COMMAND', 'Invalid accepted input basis');
     }
+    if (event.data.stream) {
+      const unit = event.data.stream;
+      const bound = (
+        await sql.query(
+          `SELECT id,command_id,input_receipt_id,actor_id FROM parallel_life.agent_attempts
+        WHERE id=$1 AND world_id=$2 AND owner_id=$3 AND id=current_setting('app.agent_commit_attempt_id',true)
+          AND status IN ('request_sent','response_received') AND (lease_until>clock_timestamp() OR $4::boolean)`,
+          [
+            unit.attemptId,
+            command.worldId,
+            session.userId,
+            options.sealStreamPrefix === true &&
+              unit.unit === 'final' &&
+              event.data.effects.length === 0,
+          ],
+        )
+      ).rows[0];
+      if (
+        !bound ||
+        bound.command_id !== unit.parentCommandId ||
+        bound.actor_id !== command.actorId ||
+        bound.input_receipt_id !== event.data.agentRuntime?.inputReceiptId ||
+        (unit.unit === 'final'
+          ? command.id !== bound.command_id
+          : command.id !== streamUnitCommandId(unit.attemptId, unit.unit)) ||
+        event.id !== streamUnitEventId(unit.attemptId, unit.unit)
+      )
+        throw new DomainError('INVALID_COMMAND', 'Invalid stream unit binding');
+      const input = (
+        await sql.query(
+          `SELECT document FROM parallel_life.world_messages WHERE world_id=$1 AND owner_id=$2 AND id=$3`,
+          [command.worldId, session.userId, unit.inputMessageId],
+        )
+      ).rows[0]?.document;
+      if (
+        unit.inputMessageId !== `${event.id}_user` &&
+        (!input ||
+          input.role !== 'user' ||
+          input.actorId !== command.actorId ||
+          input.text !== command.text)
+      )
+        throw new DomainError('INVALID_COMMAND', 'Missing stream input anchor');
+    }
     const rawHydrated = await PostgresWorldRepository.hydrateInTransaction(sql, current);
     const hydrated = options.finalizePrefixEvent
       ? {
@@ -617,9 +662,12 @@ export class PostgresWorldRepository implements WorldRepository {
       : rawHydrated;
     validateCharacterEffects(
       command.actorId,
-      parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
+      event.data.stream && event.data.effects.length === 0
+        ? []
+        : parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
       false,
       command.origin,
+      Boolean(event.data.stream),
     );
     if (
       event.data.effects.some((effect) => effect.type === 'information.shared') &&

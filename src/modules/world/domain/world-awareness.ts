@@ -192,8 +192,10 @@ export function committedAwarenessDelta(
       subject.kind !== 'actor' ||
       subject.actorId !== j.actorId ||
       origin.status !== 'at' ||
-      !((origin.worldVersion === 0 && origin.sourceEventId === null) ||
-        (positive(origin.worldVersion) && text(origin.sourceEventId))) ||
+      !(
+        (origin.worldVersion === 0 && origin.sourceEventId === null) ||
+        (positive(origin.worldVersion) && text(origin.sourceEventId))
+      ) ||
       origin.worldVersion < 0 ||
       origin.worldVersion > j.preparedAtVersion ||
       !Number.isFinite(time(origin.occurredAt)) ||
@@ -420,12 +422,13 @@ export function committedAwarenessDelta(
     const previous = context.previousAgentState;
     if (previous && (previous.worldId !== world.id || previous.actorId !== actorId))
       throw Error('INVALID_AWARENESS_PREVIOUS_STATE');
-    for (const next of state.plans) {
+    const settledRuntime = !data.stream || object(data.stream)?.unit === 'final';
+    for (const next of settledRuntime ? state.plans : []) {
       const old = previous?.plans.find((plan) => plan.id === next.id);
       if (JSON.stringify(old) !== JSON.stringify(next))
         reason('plan_changed', { kind: 'plan', id: next.id, actorId });
     }
-    if (runtime.episodeDecision !== undefined) {
+    if (settledRuntime && runtime.episodeDecision !== undefined) {
       const decision = object(runtime.episodeDecision);
       if (
         !decision ||
@@ -443,7 +446,9 @@ export function committedAwarenessDelta(
     const proposedDecisionIds = new Set(
       Array.isArray(proposal.decisions) ? proposal.decisions.map((d) => object(d)?.id) : [],
     );
-    for (const decision of state.decisions.filter((d) => proposedDecisionIds.has(d.id))) {
+    for (const decision of state.decisions.filter(
+      (d) => settledRuntime && proposedDecisionIds.has(d.id),
+    )) {
       if (!previous?.decisions.some((old) => old.id === decision.id))
         reason('player_decision', { kind: 'decision', id: decision.id, actorId });
     }

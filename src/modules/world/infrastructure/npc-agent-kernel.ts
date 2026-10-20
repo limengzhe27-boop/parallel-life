@@ -48,6 +48,8 @@ import {
 } from './agent-runtime-repository.ts';
 import {
   deterministicStreamEventId,
+  streamUnitEventId,
+  streamUnitCommandId,
   deterministicStreamMessageId,
   deterministicStreamUserMessageId,
 } from '../domain/npc-stream-segment.ts';
@@ -308,7 +310,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       }
       const allSegmentRows = (
         await sql.query(
-          `SELECT segment_index, message_id, source_event_id, message_at, status
+          `SELECT segment_index, message_id, source_event_id, source_version, user_message_id, message_at, status
            FROM parallel_life.agent_attempt_stream_segments
            WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3
            ORDER BY segment_index ASC`,
@@ -316,21 +318,40 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         )
       ).rows;
       const committedSegmentRows = allSegmentRows.filter((row) => row.status === 'committed');
-      const eventId =
-          committedSegmentRows.length > 0
-            ? String(committedSegmentRows[0]!.source_event_id)
-            : allSegmentRows.length > 0
-              ? deterministicStreamEventId(attempt.id)
-              : randomUUID(),
-        occurredAt = new Date().toISOString();
-      const priorPrefix = committedSegmentRows.length
+      const originalPrefix = committedSegmentRows.length
         ? (
             await sql.query(
               'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3',
-              [attempt.worldId, ownerId, eventId],
+              [attempt.worldId, ownerId, committedSegmentRows[0]!.source_event_id],
             )
           ).rows[0]?.payload?.data
         : undefined;
+      const appendUnits =
+        allSegmentRows.length > 0 && (!originalPrefix || Boolean(originalPrefix.stream));
+      const unit = options.mediaPrefix ? 'media' : 'final';
+      const eventId = appendUnits
+        ? streamUnitEventId(attempt.id, unit)
+        : committedSegmentRows.length > 0
+          ? String(committedSegmentRows[0]!.source_event_id)
+          : allSegmentRows.length > 0
+            ? deterministicStreamEventId(attempt.id)
+            : randomUUID();
+      const occurredAt = new Date().toISOString();
+      const priorPrefix = appendUnits
+        ? (
+            await sql.query(
+              `SELECT e.payload FROM parallel_life.world_events e JOIN parallel_life.commands c
+         ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+         WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id=$3 AND c.id=$4`,
+              [
+                attempt.worldId,
+                ownerId,
+                streamUnitEventId(attempt.id, 'media'),
+                streamUnitCommandId(attempt.id, 'media'),
+              ],
+            )
+          ).rows[0]?.payload?.data
+        : originalPrefix;
       const earlyTransition = priorPrefix?.agentRuntime as AgentRuntimeTransition | undefined;
       const earlyResults =
         earlyTransition?.results.filter((r) => r.outputRefs?.some((ref) => ref.kind === 'media')) ??
@@ -353,7 +374,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             throw new AgentValidationError('STREAM_MEDIA_INTENT_CHANGED');
         }
         if (options.mediaPrefix)
-          return { eventId, state: earlyTransition!.stateAfter, results: earlyResults };
+          return {
+            eventId: appendUnits ? streamUnitEventId(attempt.id, 'media') : eventId,
+            state: earlyTransition!.stateAfter,
+            results: earlyResults,
+          };
       }
       // Executors mutate their working state; the locked event baseline stays unchanged.
       const executionWorld = structuredClone(frame.world);
@@ -1298,7 +1323,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         });
       }
       const accepted = reduceActorAgentState(
-        { ...snapshot, knownActionResults: historicalResults },
+        { ...snapshot, knownActionResults: [...historicalResults, ...earlyResults] },
         proposal,
         results,
         frame.commitVersion,
@@ -1656,14 +1681,17 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         actorRevisionAfter: accepted.state.revision,
         proposal: { ...proposal, statements: accepted.statements },
         ...(accepted.questionChanges.length ? { questionChanges: accepted.questionChanges } : {}),
-        results,
+        results: appendUnits ? results.filter((result) => result.eventId === eventId) : results,
         ...(departures.length ? { departures, sceneDepartures } : {}),
         ...(positionKnowledge.length ? { positionKnowledge } : {}),
         ...(proposal.episodeDecision ? { episodeDecision: proposal.episodeDecision } : {}),
         stateAfter: accepted.state,
       };
       const command = {
-        id: attempt.commandId,
+        id:
+          appendUnits && options.mediaPrefix
+            ? streamUnitCommandId(attempt.id, unit)
+            : attempt.commandId,
         worldId: attempt.worldId,
         expectedVersion: frame.appendBaseVersion,
         actorId: attempt.actorId,
@@ -1686,7 +1714,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           schemaVersion: 1,
           id: eventId,
           worldId: attempt.worldId,
-          commandId: attempt.commandId,
+          commandId: command.id,
           version: frame.commitVersion,
           occurredAt,
           storyAt: at,
@@ -1694,7 +1722,30 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           data: {
             actorId: attempt.actorId,
             userText: command.text,
-            effects,
+            effects: appendUnits
+              ? effects.filter(
+                  (effect) =>
+                    !committedSegmentRows.some((row) => row.message_id === effect.id) &&
+                    !earlyResults.some((result) =>
+                      result.outputRefs?.some((ref) => ref.id === effect.id),
+                    ),
+                )
+              : effects,
+            ...(appendUnits
+              ? {
+                  stream: {
+                    attemptId: attempt.id,
+                    parentCommandId: attempt.commandId,
+                    unit,
+                    inputMessageId: String(
+                      committedSegmentRows[0]?.user_message_id ?? `${eventId}_user`,
+                    ),
+                    ...(options.mediaPrefix && committedSegmentRows.length
+                      ? { replyMessageId: String(committedSegmentRows.at(-1)!.message_id) }
+                      : {}),
+                  },
+                }
+              : {}),
             origin: command.origin,
             userAt: receivedInput.storyAt,
             agentRuntime: transition,
@@ -1702,7 +1753,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         };
         await this.worlds.commitInTransaction(sql, { userId: ownerId }, command, event, undefined, {
           legacyProgress: false,
-          finalizePrefixEvent: committedSegmentRows.length > 0,
+          finalizePrefixEvent: !appendUnits && committedSegmentRows.length > 0,
         });
       } else {
         // Do not force an empty or fabricated message to satisfy the legacy character-turn contract.
@@ -1710,7 +1761,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           schemaVersion: 1,
           id: eventId,
           worldId: attempt.worldId,
-          commandId: attempt.commandId,
+          commandId: command.id,
           version: frame.commitVersion,
           occurredAt,
           storyAt: at,
@@ -1853,15 +1904,41 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         );
       }
       if (options.mediaPrefix) {
+        if (appendUnits)
+          for (const result of results)
+            await sql.query(
+              `INSERT INTO parallel_life.agent_action_results(world_id,owner_id,actor_id,id,action_id,source_event_id,world_version,document)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(world_id,id) DO NOTHING`,
+              [
+                attempt.worldId,
+                ownerId,
+                attempt.actorId,
+                result.id,
+                result.actionId,
+                result.eventId,
+                result.worldVersion,
+                result,
+              ],
+            );
         if (!results.length) throw new AgentValidationError('STREAM_MEDIA_NOT_READY');
         return { eventId, state: accepted.state, results };
       }
       if (allSegmentRows.length > 0) {
-        const userMessageId = deterministicStreamUserMessageId(eventId);
+        const userMessageId = appendUnits
+          ? String(committedSegmentRows[0]?.user_message_id ?? `${eventId}_user`)
+          : deterministicStreamUserMessageId(eventId);
         const targetVersion = frame.commitVersion;
         for (const segRow of allSegmentRows) {
           const segIdx = Number(segRow.segment_index);
           if (acceptedOriginalIndices.has(segIdx)) {
+            if (appendUnits && segRow.status === 'committed') {
+              await sql.query(
+                `UPDATE parallel_life.agent_attempt_stream_segments SET completion_status='completed',updated_at=now()
+                WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND segment_index=$4`,
+                [attempt.worldId, ownerId, attempt.id, segIdx],
+              );
+              continue;
+            }
             await sql.query(
               `UPDATE parallel_life.agent_attempt_stream_segments
                SET status='committed',
@@ -1899,7 +1976,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         attempt,
         eventId,
         state: accepted.state,
-        results,
+        results: appendUnits ? results.filter((result) => result.eventId === eventId) : results,
       });
       for (const scene of changedScenes)
         await sql.query(
