@@ -58,47 +58,52 @@ export async function endpoint(run: (context: HttpRequestContext) => Promise<Res
     response.headers.set('X-Request-Id', requestId);
     return response;
   } catch (error) {
-    const originalCode =
-      error instanceof Error ? (error as Error & { code?: string }).code : undefined;
-    const supplied = ['INVALID_DIRECTOR_PROPOSAL', 'INVALID_DIRECTOR_RESULT'].includes(
-      originalCode ?? '',
-    )
-      ? 'INVALID_AI_OUTPUT'
-      : originalCode;
-    const statusMap: Record<string, number> = {
-      UNAUTHORIZED: 401,
-      NOT_FOUND: 404,
-      VERSION_CONFLICT: 409,
-      IDEMPOTENCY_CONFLICT: 409,
-      BUSY: 409,
-      INVALID_INPUT: 422,
-      INVALID_AI_OUTPUT: 422,
-      RATE_LIMITED: 429,
-      FORBIDDEN: 403,
-      CONFLICT: 409,
-      INVALID_STATE: 409,
-      INVALID_COMMAND: 422,
-    };
-    const known = error instanceof HttpError;
-    const code = known ? error.code : supplied && statusMap[supplied] ? supplied : 'UNAVAILABLE';
-    const status = known ? error.status : (statusMap[code] ?? 503);
-    context.reportFailure(error, status, code);
-    const response = json(
-      {
-        error: {
-          code,
-          message: messages[code] ?? '暂时未能完成，请再试一次。',
-          retryable: status >= 500 || status === 429,
-          requestId,
-        },
-      },
-      status,
-    );
-    response.headers.set('X-Request-Id', requestId);
-    if (status === 429) response.headers.set('Retry-After', '60');
-    return response;
+    return httpFailureResponse(error, context);
   }
 }
+/** The streaming route and ordinary HTTP route expose identical known failures. */
+export function httpFailureResponse(error: unknown, context: HttpRequestContext) {
+  const originalCode =
+    error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+  const supplied = ['INVALID_DIRECTOR_PROPOSAL', 'INVALID_DIRECTOR_RESULT'].includes(
+    originalCode ?? '',
+  )
+    ? 'INVALID_AI_OUTPUT'
+    : originalCode;
+  const statusMap: Record<string, number> = {
+    UNAUTHORIZED: 401,
+    NOT_FOUND: 404,
+    VERSION_CONFLICT: 409,
+    IDEMPOTENCY_CONFLICT: 409,
+    BUSY: 409,
+    INVALID_INPUT: 422,
+    INVALID_AI_OUTPUT: 422,
+    RATE_LIMITED: 429,
+    FORBIDDEN: 403,
+    CONFLICT: 409,
+    INVALID_STATE: 409,
+    INVALID_COMMAND: 422,
+  };
+  const known = error instanceof HttpError;
+  const code = known ? error.code : supplied && statusMap[supplied] ? supplied : 'UNAVAILABLE';
+  const status = known ? error.status : (statusMap[code] ?? 503);
+  context.reportFailure(error, status, code);
+  const response = json(
+    {
+      error: {
+        code,
+        message: messages[code] ?? '暂时未能完成，请再试一次。',
+        retryable: status >= 500 || status === 429,
+        requestId: context.requestId,
+      },
+    },
+    status,
+  );
+  response.headers.set('X-Request-Id', context.requestId);
+  if (status === 429) response.headers.set('Retry-After', '60');
+  return response;
+}
+
 export function readToken(request: Request) {
   return (
     request.headers

@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { routeUserIntent } from '../src/modules/world/application/intent-router.ts';
 import { applyEvent } from '../src/modules/world/domain/reducer.ts';
-import { checkMediaQuota, DEFAULT_MEDIA_BUDGET } from '../src/modules/media/domain/consistency-guard.ts';
+import {
+  checkMediaQuota,
+  DEFAULT_MEDIA_BUDGET,
+} from '../src/modules/media/domain/consistency-guard.ts';
 import { isValidMediaMagicBytes } from '../src/modules/media/domain/magic-bytes.ts';
 import { createMediaPipelineHandler } from '../src/modules/media/infrastructure/media-pipeline-handler.ts';
 import type { TaskLease } from '../src/modules/tasks/domain/types.ts';
@@ -26,11 +29,7 @@ test('routeUserIntent - Explicit natural language requests for video route to vi
 
   for (const input of videoInputs) {
     const result = routeUserIntent({ text: input });
-    assert.equal(
-      result.turnMode,
-      'video',
-      `Input "${input}" should resolve to turnMode: 'video'`,
-    );
+    assert.equal(result.turnMode, 'video', `Input "${input}" should resolve to turnMode: 'video'`);
     assert.equal(result.isAction, false);
     assert.ok(result.videoPrompt, `Input "${input}" should have videoPrompt`);
   }
@@ -180,10 +179,22 @@ test('checkMediaQuota - Video generation enforces strict per-world video quota l
 test('isValidMediaMagicBytes - Correctly validates MP4 binary signature and rejects invalid files', () => {
   // Valid MP4 container (starts with ftyp box at offset 4)
   const validMp4 = Buffer.from([
-    0x00, 0x00, 0x00, 0x20, // size: 32
-    0x66, 0x74, 0x79, 0x70, // 'ftyp'
-    0x69, 0x73, 0x6f, 0x6d, // 'isom'
-    0x00, 0x00, 0x02, 0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x20, // size: 32
+    0x66,
+    0x74,
+    0x79,
+    0x70, // 'ftyp'
+    0x69,
+    0x73,
+    0x6f,
+    0x6d, // 'isom'
+    0x00,
+    0x00,
+    0x02,
+    0x00,
   ]);
   const checkMp4 = isValidMediaMagicBytes(validMp4);
   assert.equal(checkMp4.valid, true);
@@ -232,7 +243,7 @@ test('createMediaPipelineHandler - Video request invokes executeVideoPipeline an
           if (text.includes('SELECT count(*)::int as count FROM parallel_life.assets')) {
             return { rows: [{ count: 0 }] };
           }
-          if (text.includes('SELECT state->>\'status\' AS status FROM parallel_life.worlds')) {
+          if (text.includes("SELECT state->>'status' AS status FROM parallel_life.worlds")) {
             return { rows: [{ status: 'active' }] };
           }
           return { rows: [] };
@@ -334,7 +345,8 @@ test('createMediaPipelineHandler - Video request invokes executeVideoPipeline an
 // ---------------------------------------------------------------------------
 
 test('resolveTurn - Asking for video commits video media.requested while returning text reply immediately', async () => {
-  const { MemoryWorldRepository } = await import('../src/modules/world/infrastructure/memory-world-repository.ts');
+  const { MemoryWorldRepository } =
+    await import('../src/modules/world/infrastructure/memory-world-repository.ts');
   const { resolveTurn } = await import('../src/modules/world/application/resolve-turn.ts');
 
   const testTime = '2026-10-16T12:00:00.000Z';
@@ -410,8 +422,10 @@ test('PostgreSQL integration - Video media request projections to phone messages
   const { adminClient } = await import('../scripts/db-admin.mjs');
   const { migrate } = await import('../scripts/migrate.mjs');
   const { PostgresDatabase } = await import('../src/modules/storage/infrastructure/postgres.ts');
-  const { BuildRepository } = await import('../src/modules/world/infrastructure/build-repository.ts');
-  const { PostgresWorldRepository } = await import('../src/modules/world/infrastructure/postgres-world-repository.ts');
+  const { BuildRepository } =
+    await import('../src/modules/world/infrastructure/build-repository.ts');
+  const { PostgresWorldRepository } =
+    await import('../src/modules/world/infrastructure/postgres-world-repository.ts');
   const { albumPhotos } = await import('../src/modules/media/infrastructure/album-projection.ts');
 
   const admin = await adminClient('parallel_life_test');
@@ -456,7 +470,9 @@ test('PostgreSQL integration - Video media request projections to phone messages
   };
 
   try {
-    await admin.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [ownerId]);
+    await admin.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [
+      ownerId,
+    ]);
     await admin.query(
       `INSERT INTO parallel_life.profiles (id, owner_id, version, document) VALUES ($1, $2, 0, $3)`,
       [profileId, ownerId, { id: profileId, version: 0, facts: [], events: [], people: [] }],
@@ -469,12 +485,7 @@ test('PostgreSQL integration - Video media request projections to phone messages
     await admin.query(
       `INSERT INTO parallel_life.world_builds (seed_id, owner_id, world_id, opening)
        VALUES ($1, $2, $3, $4)`,
-      [
-        seedId,
-        ownerId,
-        worldId,
-        JSON.stringify({ identity: '纪录片导演', setting: '拍摄现场' }),
-      ],
+      [seedId, ownerId, worldId, JSON.stringify({ identity: '纪录片导演', setting: '拍摄现场' })],
     );
 
     const worldRepo = new PostgresWorldRepository(db);
@@ -576,7 +587,9 @@ test('PostgreSQL integration - Video media request projections to phone messages
 
     // 3. Ready state projection: message has mediaStatus: 'ready', photoId: videoAssetId, mediaType: 'video'
     const phoneReady = await buildRepo.phone(ownerId, worldId);
-    const msg1Ready = phoneReady.messages.find((m) => m.id === msg1Id);
+    const msg1Ready = phoneReady.messages.find((m) => m.photoId === videoAssetId);
+    assert.equal(msg1Ready?.text, '');
+    assert.equal(phoneReady.messages.find((m) => m.id === msg1Id)?.photoId, undefined);
     assert.ok(msg1Ready);
     assert.equal(msg1Ready.mediaStatus, 'ready');
     assert.equal(msg1Ready.photoId, videoAssetId);
@@ -603,4 +616,3 @@ test('PostgreSQL integration - Video media request projections to phone messages
     } catch {}
   }
 });
-

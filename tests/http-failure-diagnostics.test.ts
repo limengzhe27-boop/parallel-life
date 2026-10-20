@@ -214,3 +214,40 @@ test('successful endpoint returns original response without failure logging', as
   assert.equal(body.requestId, response.headers.get('x-request-id'));
   assert.equal(logs, 0);
 });
+
+test('streaming known version conflict is a closed error frame, not a broken unknown transport', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const globals = globalThis as typeof globalThis & { __httpDiagnosticFixture?: unknown };
+  globals.__httpDiagnosticFixture = {
+    sessions: { verify: () => id, verifyCsrf: () => true },
+    identity: { exists: async () => true },
+    origin: 'https://example.test',
+    npcAgents: {
+      sendMessageIfEnabled: async () => {
+        throw Object.assign(Error('PRIVATE'), { code: 'VERSION_CONFLICT' });
+      },
+    },
+  };
+  t.after(() => {
+    delete globals.__httpDiagnosticFixture;
+  });
+  const response = await worldMessageRoute(
+    new Request('https://example.test/api/v1/worlds/' + id + '/messages', {
+      method: 'POST',
+      headers: {
+        origin: 'https://example.test',
+        cookie: 'pl_session=synthetic',
+        'content-type': 'application/json',
+        'x-csrf-token': 'synthetic',
+        'x-message-stream': '1',
+      },
+      body: JSON.stringify({ commandId, actorId: id, expectedVersion: 0, text: 'synthetic' }),
+    }),
+    id,
+  );
+  const frame = JSON.parse((await response.text()).trim());
+  assert.equal(frame.type, 'error');
+  assert.equal(frame.error.code, 'VERSION_CONFLICT');
+  assert.equal(frame.error.retryable, false);
+  assert.equal(frame.error.requestId, response.headers.get('x-request-id'));
+});

@@ -2749,3 +2749,13 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-165→44-164 归属交接（不修改164状态）：公网实证首次普通私聊在NPC并发提交时409且无receipt，UI重试后成功。请164实际负责人agy-chat-latency163-20261019在原接收入口合并安全准入；设计已集成b78021c9，见44-165-PLAYER-ADMISSION-REVIEW.md。不能只把版本改<=或客户端盲重试：旧“好”不得绑定用户未见的新请求；保留原command/hash与执行CAS。root无164线程可达身份，已确认两个Codex对话均非负责人，不抢改未提交源。
 
 44-165 root-runtime165 正式交付接续：74029d2f（业务5bafb918）/dpl_BMYQ7gPSh8RD4oFvpAaM1bBviFxa已正式Nu READY；check3827/build/专属PG2及99迁移一致。公网同一独立档恢复正常页面，1条明确拒绝输入一次发送成功、NPC真实回复可见、问题状态answered；新增自主人物执行和真实选择后导演重评，未重复扫剩余库。两阶段累计46文字（本地4+公网42=13导演29人物）、0图；测试档已暂停，用户真实档未写。原用户5fe9只读确认v107两条合法语义证据，纯retirement函数可命中，但尚未实际事务/页面验收，不宣称恢复成功。未完成：164首次发送竞态、原用户真实开场恢复、人格/陈旧图片表述、长期事件结果与无目标后的持续节奏。用户已明确允许必要真实调试，不重复询问额度。
+
+|44-166-NATURAL-CHAT-MEDIA|[ ] 进行中|root-media166唯一集成|主目录main自d8e361bf；messages.tsx、world-app-data.ts、npc-agent-model.ts、world-message-http.ts、chat-media-tasks.ts及必要媒体投影/聚焦测试与专属报告|索图同轮自然文字回应，原持久任务生成后独立图片消息；移除聊天图片标题卡片；保留权限/unknown/幂等，必要真实验收后部署。|
+
+44-166范围补充：原build-repository.ts媒体聊天投影、NEW domain/chat-media-projection.ts及tests/chat-media-projection.test.ts；避免同event多对白重复挂图，已完成图片以原media request稳定身份独立投影。无SQL新增。
+
+44-166检查接续：旧图片/视频/静态媒体集成断言同步独立气泡语义，范围tests/{img-chat-flow,media-video-flow,nar-03s-media-flow}.test.ts。check3834/3834、build及媒体原队列/投影PG15通过；生产100迁移校验一致。正在独立479df414存档原Chrome聊天真实索图，未改用户存档。
+
+44-166验收发现并扩展范围：http.ts统一既有错误映射供流式复用、tests/http-failure-diagnostics.test.ts已知VERSION_CONFLICT完整error帧。原测试档后台并发导致两次零模型私聊冲突，旧164 controller.error误标unknown；不放宽执行版本、不自动重发。改为共用HTTP错误投影。
+
+44-166范围补充notification-projection.ts：独立图片/视频通知显示[图片]/[视频]，不留空通知。真实独立官方81b11b3f：一次文字模型27s首段、42s回合完成、80s读到1024²真实图片；Chrome实际img加载，390与PC截图确认文字/图片独立、无卡片。原档未写，两个测试档已暂停。待正式部署与公网验证。

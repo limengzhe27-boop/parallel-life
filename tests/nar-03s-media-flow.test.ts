@@ -4,7 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { unsupportedReturnClaim } from '../src/modules/world/domain/return-message-policy.ts';
 import type { WorldState } from '../src/modules/world/domain/types.ts';
 import { routeUserIntent } from '../src/modules/world/application/intent-router.ts';
-import { checkMediaQuota, DEFAULT_MEDIA_BUDGET } from '../src/modules/media/domain/consistency-guard.ts';
+import {
+  checkMediaQuota,
+  DEFAULT_MEDIA_BUDGET,
+} from '../src/modules/media/domain/consistency-guard.ts';
 import { resolveCharacterReference } from '../src/modules/media/domain/character-reference-resolver.ts';
 import { createMediaPipelineHandler } from '../src/modules/media/infrastructure/media-pipeline-handler.ts';
 import { MediaPipelineService } from '../src/modules/media/infrastructure/media-pipeline-service.ts';
@@ -57,7 +60,10 @@ test('1. Return message policy guards: false photo claims rejected, honest refer
   assert.equal(unsupportedReturnClaim(state, 'actor-laozhou', '合影发给你了'), true);
 
   // Normal conversation not claiming photos is allowed
-  assert.equal(unsupportedReturnClaim(state, 'actor-laozhou', '今天修车铺零件到了，你随时可以过来'), false);
+  assert.equal(
+    unsupportedReturnClaim(state, 'actor-laozhou', '今天修车铺零件到了，你随时可以过来'),
+    false,
+  );
 
   // (B) When a ready media exists for direct turn message
   state.mediaRequests.push({
@@ -152,7 +158,8 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
     throw err;
   }
 
-  const { PostgresWorldRepository } = await import('../src/modules/world/infrastructure/postgres-world-repository.ts');
+  const { PostgresWorldRepository } =
+    await import('../src/modules/world/infrastructure/postgres-world-repository.ts');
   const ownerId = 'test_owner_nar03s_' + Date.now();
   const worldId = randomUUID();
   const actorId = randomUUID();
@@ -169,7 +176,9 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
 
   try {
     // Insert seed profile and account
-    await admin.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [ownerId]);
+    await admin.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [
+      ownerId,
+    ]);
     await admin.query(
       `INSERT INTO parallel_life.profiles (id, owner_id, version, document) VALUES ($1, $2, 0, $3)`,
       [profileId, ownerId, { id: profileId, version: 0, facts: [], events: [], people: [] }],
@@ -201,12 +210,7 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
     await admin.query(
       `INSERT INTO parallel_life.world_builds (seed_id, owner_id, world_id, opening)
        VALUES ($1, $2, $3, $4)`,
-      [
-        seedId,
-        ownerId,
-        worldId,
-        JSON.stringify({ identity: '修车学徒', setting: '县城修车铺' }),
-      ],
+      [seedId, ownerId, worldId, JSON.stringify({ identity: '修车学徒', setting: '县城修车铺' })],
     );
 
     const worldRepo = new PostgresWorldRepository(db);
@@ -360,12 +364,16 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
       providerAdapter: mockAdapter as any,
       assetStore: mockAssetStore as any,
       visualAnchorRepo: mockAnchorRepo as any,
-      fetchFn: async () => ({
-        ok: true,
-        headers: new Headers({ 'content-type': 'image/png' }),
-        arrayBuffer: async () =>
-          pngBuffer.buffer.slice(pngBuffer.byteOffset, pngBuffer.byteOffset + pngBuffer.byteLength),
-      } as any),
+      fetchFn: async () =>
+        ({
+          ok: true,
+          headers: new Headers({ 'content-type': 'image/png' }),
+          arrayBuffer: async () =>
+            pngBuffer.buffer.slice(
+              pngBuffer.byteOffset,
+              pngBuffer.byteOffset + pngBuffer.byteLength,
+            ),
+        }) as any,
     });
 
     const mockQueue = {
@@ -392,10 +400,9 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
     await db.transaction(ownerId, async (sql: any) => {
       // (A) Media request updated to ready
       const reqRow = (
-        await sql.query(
-          `SELECT document FROM parallel_life.world_media_requests WHERE id = $1`,
-          [requestId],
-        )
+        await sql.query(`SELECT document FROM parallel_life.world_media_requests WHERE id = $1`, [
+          requestId,
+        ])
       ).rows[0];
       assert.equal(reqRow.document.status, 'ready');
       generatedAssetId = reqRow.document.assetId;
@@ -403,10 +410,7 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
 
       // (B) Asset inserted in parallel_life.assets
       const assetRow = (
-        await sql.query(
-          `SELECT * FROM parallel_life.assets WHERE id = $1`,
-          [generatedAssetId],
-        )
+        await sql.query(`SELECT * FROM parallel_life.assets WHERE id = $1`, [generatedAssetId])
       ).rows[0];
       assert.ok(assetRow);
       assert.equal(assetRow.origin, 'generated');
@@ -415,10 +419,9 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
 
       // (C) Outbox job marked succeeded
       const outboxRow = (
-        await sql.query(
-          `SELECT status FROM parallel_life.outbox_jobs WHERE id = $1`,
-          [`job_${requestId}`],
-        )
+        await sql.query(`SELECT status FROM parallel_life.outbox_jobs WHERE id = $1`, [
+          `job_${requestId}`,
+        ])
       ).rows[0];
       assert.equal(outboxRow.status, 'succeeded');
 
@@ -434,10 +437,9 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
     // Update world snapshot in db
     await db.transaction(ownerId, async (sql: any) => {
       const updatedReq = (
-        await sql.query(
-          `SELECT document FROM parallel_life.world_media_requests WHERE id = $1`,
-          [requestId],
-        )
+        await sql.query(`SELECT document FROM parallel_life.world_media_requests WHERE id = $1`, [
+          requestId,
+        ])
       ).rows[0].document;
 
       await sql.query(
@@ -453,7 +455,9 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
     });
 
     const phoneAfter = await buildRepo.phone(ownerId, worldId);
-    const msgAfter = phoneAfter.messages.find((m) => m.id === msg1Id);
+    const msgAfter = phoneAfter.messages.find((m) => m.photoId === generatedAssetId);
+    assert.equal(phoneAfter.messages.find((m) => m.id === msg1Id)?.photoId, undefined);
+    assert.equal(msgAfter?.text, '');
     assert.ok(msgAfter);
     assert.equal(msgAfter.photoId, generatedAssetId);
     assert.equal(msgAfter.mediaStatus, 'ready');
@@ -543,19 +547,17 @@ test('4. End-to-end PostgreSQL integration: static media creation, idempotency, 
     // Verify request updated to failed in database
     await db.transaction(ownerId, async (sql: any) => {
       const failedRow = (
-        await sql.query(
-          `SELECT document FROM parallel_life.world_media_requests WHERE id = $1`,
-          [failedReqId],
-        )
+        await sql.query(`SELECT document FROM parallel_life.world_media_requests WHERE id = $1`, [
+          failedReqId,
+        ])
       ).rows[0];
       assert.equal(failedRow.document.status, 'failed');
       assert.equal(failedRow.document.errorCode, 'QUOTA_EXCEEDED');
 
       const failedJob = (
-        await sql.query(
-          `SELECT status, last_error FROM parallel_life.outbox_jobs WHERE id = $1`,
-          [`job_${failedReqId}`],
-        )
+        await sql.query(`SELECT status, last_error FROM parallel_life.outbox_jobs WHERE id = $1`, [
+          `job_${failedReqId}`,
+        ])
       ).rows[0];
       assert.equal(failedJob.status, 'failed');
       assert(failedJob.last_error.includes('QUOTA_EXCEEDED'));

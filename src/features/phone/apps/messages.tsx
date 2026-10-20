@@ -593,11 +593,15 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                         >
                           {latest
                             ? latest.text.trim() ||
-                              (latest.attachment?.kind === 'image'
-                                ? '[图片]'
-                                : latest.attachment?.kind === 'video'
+                              (latest.photo
+                                ? latest.photo.mediaType === 'video'
                                   ? '[视频]'
-                                  : '开始聊聊')
+                                  : '[图片]'
+                                : latest.attachment?.kind === 'image'
+                                  ? '[图片]'
+                                  : latest.attachment?.kind === 'video'
+                                    ? '[视频]'
+                                    : '开始聊聊')
                             : '开始聊聊'}
                         </small>
                       </span>
@@ -1548,15 +1552,25 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               <div
                 style={{
                   maxWidth: '74%',
-                  padding: '9px 12px',
+                  padding: m.photo?.url && !m.text ? 0 : '9px 12px',
                   borderRadius: '4px',
                   fontSize: '14px',
                   lineHeight: '1.5',
                   wordBreak: 'break-word',
-                  background: m.role === 'user' ? '#95ec69' : '#ffffff',
+                  background:
+                    m.photo?.url && !m.text
+                      ? 'transparent'
+                      : m.role === 'user'
+                        ? '#95ec69'
+                        : '#ffffff',
                   color: '#0f172a',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  border: m.role === 'user' ? '1px solid #82d857' : '1px solid #dcdcdc',
+                  border:
+                    m.photo?.url && !m.text
+                      ? 'none'
+                      : m.role === 'user'
+                        ? '1px solid #82d857'
+                        : '1px solid #dcdcdc',
                   position: 'relative',
                 }}
               >
@@ -1564,30 +1578,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   <small className={s.genesisOrigin}>虚构起点来信</small>
                 )}
                 {m.text && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>}
-                {m.photo && m.photo.status === 'generating' && (
-                  <div
-                    style={{
-                      marginTop: '8px',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid rgba(2, 132, 199, 0.2)',
-                      background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '12px' }}>📸</span>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#0369a1' }}>
-                        {m.photo.title || '正在记录画面...'}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '11px', color: '#0284c7' }}>
-                      {m.photo.description || 'AI 摄影记录中，生成后将在此展示并同步至相册'}
-                    </span>
-                  </div>
-                )}
                 {m.photo && m.photo.status === 'failed' && (
                   <div
                     style={{
@@ -1681,85 +1671,55 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     )}
                   </div>
                 )}
-                {m.photo && (m.photo.status === 'ready' || !m.photo.status) && m.photo.url && (
-                  <div
-                    style={{
-                      marginTop: '8px',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      border: '1px solid rgba(0,0,0,0.08)',
-                      background: '#0f172a',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => {
-                      playTapSound();
-                      setPreviewModalPhoto(m.photo!);
-                    }}
-                  >
-                    <div style={{ position: 'relative' }}>
-                      {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? (
-                        <video
-                          src={m.photo.url}
-                          preload="metadata"
-                          playsInline
-                          controls
-                          style={{
-                            width: '100%',
-                            maxHeight: '220px',
-                            display: 'block',
-                            background: '#000000',
-                          }}
-                        />
-                      ) : (
-                        <img
-                          src={m.photo.url}
-                          alt={m.photo.title}
-                          style={{
-                            width: '100%',
-                            maxHeight: '180px',
-                            objectFit: 'cover',
-                            display: 'block',
-                          }}
-                        />
-                      )}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '6px',
-                          left: '6px',
-                          background: 'rgba(0,0,0,0.65)',
-                          color: '#ffffff',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4'
-                          ? '🎥 关键片段视频'
-                          : '📸 剧情事件照片'}
-                      </div>
-                    </div>
-                    <div
+                {m.photo &&
+                  (m.photo.status === 'ready' || !m.photo.status) &&
+                  m.photo.url &&
+                  (m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? (
+                    <video
+                      src={m.photo.url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      aria-label="收到的视频"
                       style={{
-                        padding: '6px 8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: '#f8fafc',
+                        display: 'block',
+                        width: '100%',
+                        maxWidth: 250,
+                        maxHeight: 300,
+                        borderRadius: 7,
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label="查看图片"
+                      onClick={() => {
+                        playTapSound();
+                        setPreviewModalPhoto(m.photo!);
+                      }}
+                      style={{
+                        display: 'block',
+                        padding: 0,
+                        border: 0,
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        borderRadius: 7,
+                        overflow: 'hidden',
                       }}
                     >
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
-                        {m.photo.title}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#0284c7' }}>
-                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4'
-                          ? '查看视频 ›'
-                          : '查看大图 ›'}
-                      </span>
-                    </div>
-                  </div>
-                )}
+                      <img
+                        src={m.photo.url}
+                        alt="收到的图片"
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          maxWidth: 250,
+                          maxHeight: 300,
+                          objectFit: 'contain',
+                        }}
+                      />
+                    </button>
+                  ))}
                 <Links links={m.links} open={open} />
               </div>
             </div>

@@ -9,6 +9,10 @@ type Message = MessageNotificationState & {
   actorId: string;
   text: string;
   at: string;
+  photoId?: string;
+  mediaType?: string;
+  photo?: { mediaType?: string };
+  attachment?: { kind: string };
 };
 type Contact = { id: string; name: string };
 
@@ -31,7 +35,15 @@ export function projectMessageNotifications(
     .map((message) => ({
       id: message.id,
       title: names.get(message.actorId) ?? '微信消息',
-      summary: message.text,
+      summary:
+        message.text ||
+        (message.mediaType === 'video' ||
+        message.photo?.mediaType === 'video' ||
+        message.attachment?.kind === 'video'
+          ? '[视频]'
+          : message.photoId || message.photo || message.attachment?.kind === 'image'
+            ? '[图片]'
+            : ''),
       app: 'messages' as const,
       conversationKind: 'private' as const,
       target: message.actorId,

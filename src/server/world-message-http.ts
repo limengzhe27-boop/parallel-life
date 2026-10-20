@@ -14,7 +14,24 @@ import {
 import { toContractStreamSummary } from '../modules/world/domain/npc-stream-segment.ts';
 import { Id } from '../contracts/api.ts';
 import { projectStoryTime } from '../modules/world/domain/clock.ts';
-import { authenticated, endpoint, HttpError, json, parseBody } from './http.ts';
+import {
+  authenticated,
+  endpoint,
+  HttpError,
+  httpFailureResponse,
+  json,
+  parseBody,
+} from './http.ts';
+
+/** Start durable media while the receipt is projected/sent; after retains the same
+ * promise for the platform lifetime, rather than starting a second job later. */
+function startCommittedMedia(...args: Parameters<typeof runCommittedChatMedia>) {
+  let completion: Promise<void> = Promise.resolve();
+  after(() => completion);
+  completion = runCommittedChatMedia(...args).catch(() => {
+    console.warn(JSON.stringify({ scope: 'chat-media-task', code: 'EXECUTION_UNAVAILABLE' }));
+  });
+}
 
 export async function worldMessageRoute(request: Request, worldId: string) {
   return endpoint(async (context) => {
@@ -50,7 +67,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
             );
             if (receipt) {
               try {
-                after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId));
+                startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId);
               } catch (error) {
                 console.warn(
                   JSON.stringify({
@@ -114,7 +131,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
                 console.warn(JSON.stringify({ scope: 'story-message-reconcile', code: 'FAILED' }));
               }
               try {
-                after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, result.event.id));
+                startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, result.event.id);
               } catch (error) {
                 console.warn(
                   JSON.stringify({
@@ -179,7 +196,11 @@ export async function worldMessageRoute(request: Request, worldId: string) {
               controller.close();
               return;
             }
-            controller.error(error);
+            const failure = await httpFailureResponse(error, context).json();
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'error', ...failure }) + '\n'),
+            );
+            controller.close();
           }
         },
       });
@@ -205,7 +226,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
       });
       if (receipt) {
         try {
-          after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId));
+          startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId);
         } catch (error) {
           console.warn(
             JSON.stringify({
@@ -290,7 +311,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
       媒体请求）。派发失败不影响已提交的结果：outbox 是持久的，稍后可再派发。
     */
       try {
-        after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, result.event.id));
+        startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, result.event.id);
       } catch (error) {
         console.warn(
           JSON.stringify({

@@ -63,10 +63,7 @@ test('IMG-CHAT-01: successful turn-generated media attaches to assistant message
   assert.equal(assistantMsg.photo?.id, assetId);
   assert.equal(assistantMsg.photo?.status, 'ready');
   assert.equal(assistantMsg.photo?.title, '【剧情解锁】黄昏的海边吧台');
-  assert.equal(
-    assistantMsg.photo?.url,
-    `/api/v1/assets/${assetId}?worldId=${worldId}&revision=1`,
-  );
+  assert.equal(assistantMsg.photo?.url, `/api/v1/assets/${assetId}?worldId=${worldId}&revision=1`);
 
   // 3. Album has the exact same asset
   assert.equal(appData.photos.length, 1);
@@ -193,7 +190,11 @@ test('IMG-CHAT-01: plain text mentioning photo titles never manufactures attachm
   };
 
   const appData = worldAppData(world);
-  assert.equal(appData.messages[0]?.photo, undefined, 'Text mention without contract must not attach photo');
+  assert.equal(
+    appData.messages[0]?.photo,
+    undefined,
+    'Text mention without contract must not attach photo',
+  );
 });
 
 test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending/failed media to messages & album', async () => {
@@ -201,8 +202,10 @@ test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending
   const { adminClient } = await import('../scripts/db-admin.mjs');
   const { migrate } = await import('../scripts/migrate.mjs');
   const { PostgresDatabase } = await import('../src/modules/storage/infrastructure/postgres.ts');
-  const { BuildRepository } = await import('../src/modules/world/infrastructure/build-repository.ts');
-  const { PostgresWorldRepository } = await import('../src/modules/world/infrastructure/postgres-world-repository.ts');
+  const { BuildRepository } =
+    await import('../src/modules/world/infrastructure/build-repository.ts');
+  const { PostgresWorldRepository } =
+    await import('../src/modules/world/infrastructure/postgres-world-repository.ts');
 
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
@@ -243,7 +246,9 @@ test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending
   };
 
   try {
-    await admin.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [ownerId]);
+    await admin.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [
+      ownerId,
+    ]);
     await admin.query(
       `INSERT INTO parallel_life.profiles (id, owner_id, version, document) VALUES ($1, $2, 0, $3)`,
       [profileId, ownerId, { id: profileId, version: 0, facts: [], events: [], people: [] }],
@@ -256,12 +261,7 @@ test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending
     await admin.query(
       `INSERT INTO parallel_life.world_builds (seed_id, owner_id, world_id, opening)
        VALUES ($1, $2, $3, $4)`,
-      [
-        seedId,
-        ownerId,
-        worldId,
-        JSON.stringify({ identity: '胶片摄影师', setting: '暗房' }),
-      ],
+      [seedId, ownerId, worldId, JSON.stringify({ identity: '胶片摄影师', setting: '暗房' })],
     );
 
     const worldRepo = new PostgresWorldRepository(db);
@@ -395,8 +395,12 @@ test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending
     const phone = await buildRepo.phone(ownerId, worldId);
 
     // 1. Verify phone.messages
-    assert.equal(phone.messages.length, 2);
-    const m1 = phone.messages.find((m) => m.id === 'msg_1');
+    assert.equal(phone.messages.length, 3);
+    const text1 = phone.messages.find((m) => m.id === 'msg_1');
+    assert.ok(text1?.text);
+    assert.equal(text1?.photoId, undefined);
+    const m1 = phone.messages.find((m) => m.id === `media_${mediaReq1}`);
+    assert.equal(m1?.text, '');
     assert.ok(m1);
     assert.equal(m1.photoId, asset1);
     assert.equal(m1.mediaStatus, 'ready');
@@ -419,7 +423,7 @@ test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending
 
     // 3. Verify worldAppData mapping
     const appData = worldAppData(phone);
-    const appMsg1 = appData.messages.find((m) => m.id === 'msg_1');
+    const appMsg1 = appData.messages.find((m) => m.id === `media_${mediaReq1}`);
     assert.ok(appMsg1?.photo);
     assert.equal(appMsg1.photo?.id, asset1);
     assert.equal(appMsg1.photo?.status, 'ready');
@@ -440,8 +444,16 @@ test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending
 
     const phoneSuppressed = await buildRepo.phone(ownerId, worldId);
     const m1Suppressed = phoneSuppressed.messages.find((m) => m.id === 'msg_1');
-    assert.equal(m1Suppressed?.photoId, undefined, 'deliverToChat=false must suppress message attachment');
-    assert.equal(m1Suppressed?.mediaStatus, 'failed');
+    assert.equal(
+      m1Suppressed?.photoId,
+      undefined,
+      'deliverToChat=false must suppress message attachment',
+    );
+    assert.equal(m1Suppressed?.mediaStatus, undefined);
+    assert.equal(
+      phoneSuppressed.messages.some((m) => m.id === `media_${mediaReq1}`),
+      false,
+    );
 
     const photoSuppressed = phoneSuppressed.photos?.find((p) => p.id === asset1);
     assert.equal(photoSuppressed, undefined, 'deliverToAlbum=false must suppress album inclusion');

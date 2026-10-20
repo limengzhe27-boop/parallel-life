@@ -1,3 +1,4 @@
+import { projectChatMediaMessages } from '../domain/chat-media-projection.ts';
 import {
   PublicationSeedSchema,
   PublicationOpeningSchema,
@@ -378,7 +379,8 @@ export class BuildRepository {
         .map(({ sourceEventId: _source, sourceMessageId: _message, ...a }) => {
           const place = state.space?.places.find((p) => p.appointmentIds.includes(a.id));
           const links = [
-            ...((a as { links?: Array<{ app: 'map'; target: string; label: string }> }).links ?? []),
+            ...((a as { links?: Array<{ app: 'map'; target: string; label: string }> }).links ??
+              []),
             ...(place ? [{ app: 'map' as const, target: place.id, label: place.name }] : []),
           ];
           return {
@@ -416,18 +418,7 @@ export class BuildRepository {
           : {}),
         ...(avatarFor(actor.id) ? { publicationAvatarUrl: avatarFor(actor.id) } : {}),
       })),
-      messages: state.messages.map((m) => {
-        const media =
-          m.role === 'assistant'
-            ? (state.mediaRequests ?? []).find((r) => r.sourceEventId === m.sourceEventId)
-            : undefined;
-        const deliverToChat = media?.deliveryDecision
-          ? (media.deliveryDecision.deliverToChat ?? (media.deliveryDecision as any).approved ?? true)
-          : true;
-        const isReady = media?.status === 'ready' && media.assetId && deliverToChat;
-        const isPending = (media?.status === 'pending' || media?.status === 'unknown') && deliverToChat;
-        const isFailed = media?.status === 'failed' || (media && !deliverToChat);
-
+      messages: projectChatMediaMessages(state.messages, state.mediaRequests ?? [], (m) => {
         return {
           id: m.id,
           actorId: m.actorId,
@@ -441,28 +432,6 @@ export class BuildRepository {
             : publication && m.sourceEventId === `publication-genesis:${worldId}`
               ? { origin: 'publication_preset' as const }
               : {}),
-          ...(isReady && media?.assetId
-            ? {
-                photoId: media.assetId,
-                mediaStatus: 'ready' as const,
-                ...(media.title ? { mediaTitle: media.title } : {}),
-                mediaType: media.mediaType ?? 'image',
-              }
-            : {}),
-          ...(isPending
-            ? {
-                mediaStatus: 'pending' as const,
-                ...(media?.title ? { mediaTitle: media.title } : {}),
-                mediaType: media?.mediaType ?? 'image',
-              }
-            : {}),
-          ...(isFailed
-            ? {
-                mediaStatus: 'failed' as const,
-                ...(media?.title ? { mediaTitle: media.title } : {}),
-                mediaType: media?.mediaType ?? 'image',
-              }
-            : {}),
         };
       }),
       notes: [
