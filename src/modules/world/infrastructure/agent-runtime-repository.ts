@@ -325,27 +325,30 @@ export async function requireInputAuthority(
     if (receipt.recipientActorId !== actorId || receipt.threadId !== actorId)
       fail('INPUT_SCOPE_FORBIDDEN');
   } else if (receipt.channel === 'group') {
+    // Authenticate each membership once. Materialization keeps the four temporal
+    // checks from expanding the same event/command/RLS joins repeatedly.
     const row = (
       await sql.query(
-        `SELECT ARRAY[g.source_event_id,am.source_event_id,cm.source_event_id,pm.source_event_id,cp.source_event_id] AS sources
-      FROM parallel_life.world_groups g
-      JOIN parallel_life.world_events ge ON ge.world_id=g.world_id AND ge.owner_id=g.owner_id AND ge.id=g.source_event_id AND ge.version=g.source_version
-      JOIN parallel_life.commands gc ON gc.world_id=ge.world_id AND gc.owner_id=ge.owner_id AND gc.id=ge.command_id AND gc.status='succeeded' AND gc.result_event_id=ge.id
-      JOIN parallel_life.world_group_memberships am ON am.world_id=g.world_id AND am.owner_id=g.owner_id AND am.group_id=g.id AND am.member_key=$4
-      JOIN parallel_life.world_events ae ON ae.world_id=am.world_id AND ae.owner_id=am.owner_id AND ae.id=am.source_event_id AND ae.version=am.joined_version
-      JOIN parallel_life.commands ac ON ac.world_id=ae.world_id AND ac.owner_id=ae.owner_id AND ac.id=ae.command_id AND ac.status='succeeded' AND ac.result_event_id=ae.id
-      JOIN parallel_life.world_group_memberships pm ON pm.world_id=g.world_id AND pm.owner_id=g.owner_id AND pm.group_id=g.id AND pm.member_key='player'
-      JOIN parallel_life.world_events pe ON pe.world_id=pm.world_id AND pe.owner_id=pm.owner_id AND pe.id=pm.source_event_id AND pe.version=pm.joined_version
-      JOIN parallel_life.commands pc ON pc.world_id=pe.world_id AND pc.owner_id=pe.owner_id AND pc.id=pe.command_id AND pc.status='succeeded' AND pc.result_event_id=pe.id
-      JOIN parallel_life.world_group_memberships cm ON cm.world_id=g.world_id AND cm.owner_id=g.owner_id AND cm.group_id=g.id AND cm.member_key=$4
-      JOIN parallel_life.world_events ce ON ce.world_id=cm.world_id AND ce.owner_id=cm.owner_id AND ce.id=cm.source_event_id AND ce.version=cm.joined_version
-      JOIN parallel_life.commands cc ON cc.world_id=ce.world_id AND cc.owner_id=ce.owner_id AND cc.id=ce.command_id AND cc.status='succeeded' AND cc.result_event_id=ce.id
-      JOIN parallel_life.world_group_memberships cp ON cp.world_id=g.world_id AND cp.owner_id=g.owner_id AND cp.group_id=g.id AND cp.member_key='player'
-      JOIN parallel_life.world_events cpe ON cpe.world_id=cp.world_id AND cpe.owner_id=cp.owner_id AND cpe.id=cp.source_event_id AND cpe.version=cp.joined_version
-      JOIN parallel_life.commands cpc ON cpc.world_id=cpe.world_id AND cpc.owner_id=cpe.owner_id AND cpc.id=cpe.command_id AND cpc.status='succeeded' AND cpc.result_event_id=cpe.id
-      WHERE g.world_id=$1 AND g.owner_id=$2 AND g.id=$3 AND g.source_version<=$5
-      AND ge.payload->>'type'='group.created' AND ge.payload->'data'->>'groupId'=g.id
-      AND am.joined_version<=$5 AND (am.left_version IS NULL OR am.left_version>$5)
+        `WITH verified_group AS MATERIALIZED (
+        SELECT g.id,g.source_event_id FROM parallel_life.world_groups g
+        JOIN parallel_life.world_events e ON e.world_id=g.world_id AND e.owner_id=g.owner_id AND e.id=g.source_event_id AND e.version=g.source_version
+        JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+        WHERE g.world_id=$1 AND g.owner_id=$2 AND g.id=$3 AND g.source_version<=$5
+        AND e.payload->>'type'='group.created' AND e.payload->'data'->>'groupId'=g.id
+      ), verified_memberships AS MATERIALIZED (
+        SELECT m.member_key,m.joined_version,m.left_version,m.source_event_id
+        FROM parallel_life.world_group_memberships m
+        JOIN parallel_life.world_events e ON e.world_id=m.world_id AND e.owner_id=m.owner_id AND e.id=m.source_event_id AND e.version=m.joined_version
+        JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+        WHERE m.world_id=$1 AND m.owner_id=$2 AND m.group_id=$3 AND m.member_key IN ($4,'player')
+      )
+      SELECT ARRAY[g.source_event_id,am.source_event_id,cm.source_event_id,pm.source_event_id,cp.source_event_id] AS sources
+      FROM verified_group g
+      JOIN verified_memberships am ON am.member_key=$4
+      JOIN verified_memberships pm ON pm.member_key='player'
+      JOIN verified_memberships cm ON cm.member_key=$4
+      JOIN verified_memberships cp ON cp.member_key='player'
+      WHERE am.joined_version<=$5 AND (am.left_version IS NULL OR am.left_version>$5)
       AND pm.joined_version<=$5 AND (pm.left_version IS NULL OR pm.left_version>$5)
       AND cm.joined_version<=$6 AND (cm.left_version IS NULL OR cm.left_version>$6)
       AND cp.joined_version<=$6 AND (cp.left_version IS NULL OR cp.left_version>$6) LIMIT 1`,
