@@ -182,7 +182,7 @@ test('44-170 current: unrelated B commit preserves B and A first prefix is not o
   await firstSegment.promise;
   const prefixBefore = (
     await f.admin.query(
-      'SELECT id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
+      "SELECT id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND payload#>>'{data,stream,parentCommandId}'=$3 AND payload#>>'{data,stream,unit}'='statement:0'",
       [f.worldId, f.owner, aCommand.id],
     )
   ).rows[0];
@@ -195,7 +195,7 @@ test('44-170 current: unrelated B commit preserves B and A first prefix is not o
     expectedVersion: 1,
     text: 'B 的独立消息。',
   });
-  assert.equal(bReceipt?.version, 2);
+  assert.equal(bReceipt?.version, 3);
   pause.resolve();
   const aResult = await aPromise;
   assert.ok(aResult);
@@ -207,19 +207,19 @@ test('44-170 current: unrelated B commit preserves B and A first prefix is not o
   );
   assert.equal(
     world.messages.some((message) => message.text.includes('A 第二段稍后显示')),
-    false,
+    true,
   );
   assert.ok(world.messages.some((message) => message.text.includes('B 的独立消息')));
   const prefixAfter = (
     await f.admin.query(
-      'SELECT id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
+      "SELECT id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND payload#>>'{data,stream,parentCommandId}'=$3 AND payload#>>'{data,stream,unit}'='statement:0'",
       [f.worldId, f.owner, aCommand.id],
     )
   ).rows[0];
   assert.deepEqual(prefixAfter, prefixBefore);
   const stream = await api.readStreamSegments(f.owner, f.worldId, aCommand.id);
-  assert.ok(['partial_interrupted', 'superseded'].includes(stream.summary?.completionStatus ?? ''));
-  assert.equal(stream.summary?.committedSegmentCount, 1);
+  assert.equal(stream.summary?.completionStatus, 'completed');
+  assert.equal(stream.summary?.committedSegmentCount, 2);
   assert.equal(world.messages.filter((m) => m.text === aCommand.text).length, 1);
   t.diagnostic(
     JSON.stringify({
@@ -231,8 +231,7 @@ test('44-170 current: unrelated B commit preserves B and A first prefix is not o
 });
 
 test(
-  '44-170 target pending: A continuation should append after unrelated B commit',
-  { todo: 'requires actual-version append event; current prefix commit is V+1 only' },
+  '44-170 A continuation appends after unrelated B commit',
   async (t) => {
     const f = await fixture();
     t.after(f.close);
@@ -336,11 +335,11 @@ test('44-170 current: A first prefix commits after unrelated B pre-prefix commit
     expectedVersion: 0,
     text: 'B 的独立消息。',
   });
-  assert.equal(bReceipt?.version, 1);
+  assert.equal(bReceipt?.version, 2);
   gate.resolve();
   const aResult = await aPromise;
   assert.ok(aResult);
-  assert.equal(aResult.version, 2);
+  assert.equal(aResult.version, 4);
 
   const world = await f.worlds.get({ userId: f.owner }, f.worldId);
   const aInput = world.messages.find((message) => message.text === aCommand.text);
@@ -349,7 +348,7 @@ test('44-170 current: A first prefix commits after unrelated B pre-prefix commit
   const bReply = world.messages.find((message) => message.text.includes('B 的独立回复。'));
   for (const message of [aInput, aReply]) {
     assert.ok(message);
-    assert.equal(message.sourceVersion, 2);
+    assert.equal(message.sourceVersion, 3);
   }
   for (const message of [bInput, bReply]) {
     assert.ok(message);
@@ -384,7 +383,7 @@ test('44-170 current: A first prefix commits after unrelated B pre-prefix commit
     )
   ).rows;
   assert.equal(events.length, 1);
-  assert.equal(Number(events[0].version), 2);
+  assert.equal(Number(events[0].version), 4);
   assert.equal(events[0].id, aResult.eventId);
 
   const replay = await api.sendMessageIfEnabled(f.owner, aCommand);
@@ -463,8 +462,13 @@ test('44-170 current: same-actor new input seals old prefix and does not overwri
   assert.ok(world.messages.some((m) => m.text.includes('A 第二条：我改变主意了')));
   assert.ok(world.messages.some((m) => m.text.includes('新回合回复')));
   const history = await api.readCommittedTurnMessages(f.owner, newReceipt);
+  const turnEvents = await f.admin.query(
+    "SELECT id FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND (command_id=$3 OR payload#>>'{data,stream,parentCommandId}'=$3)",
+    [f.worldId, f.owner, newCommand.id],
+  );
+  const turnEventIds = new Set(turnEvents.rows.map((row) => row.id));
   const projected = world.messages
-    .filter((m) => m.sourceEventId === newReceipt.eventId)
+    .filter((m) => turnEventIds.has(m.sourceEventId))
     .map((m) => ({
       id: m.id,
       actorId: m.actorId,
@@ -575,7 +579,7 @@ test('44-170 current: media prefix survives B insertion and is not queued twice'
     expectedVersion: 1,
     text: 'B 在拍照期间独立说话。',
   });
-  assert.equal(bReceipt?.version, 2);
+  assert.equal(bReceipt?.version, 4);
   mediaPause.resolve();
   const aResult = await aPromise;
   assert.ok(aResult);
