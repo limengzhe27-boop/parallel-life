@@ -1,3 +1,4 @@
+import { isStandaloneMediaAction } from './agent-runtime.ts';
 import { currentPlayerDecision, type AgentValidationContext } from './agent-kernel.ts';
 import type {
   ActorAgentState,
@@ -97,17 +98,24 @@ export function evaluateAgentActionEligibility(
       if (!sourceAvailable(id)) add({ code: 'unavailable_source', subjectId: id }, true);
   };
   checkBasis(action);
-  if (hidden.has(action.goalId)) add({ code: 'hidden_state' }, true);
-  const goal = goals.get(action.goalId);
-  if (
-    !goal ||
-    goal.status !== 'active' ||
-    snapshot.state.goals.some(
-      (g) => g.id === action.goalId && (g.status === 'fulfilled' || g.status === 'withdrawn'),
+  if (action.goalId !== null) {
+    if (hidden.has(action.goalId)) add({ code: 'hidden_state' }, true);
+    const goal = goals.get(action.goalId);
+    if (
+      !goal ||
+      goal.status !== 'active' ||
+      snapshot.state.goals.some(
+        (g) => g.id === action.goalId && (g.status === 'fulfilled' || g.status === 'withdrawn'),
+      )
     )
-  )
-    add({ code: 'inactive_goal', subjectId: action.goalId }, true);
-  if (goal) checkBasis(goal);
+      add({ code: 'inactive_goal', subjectId: action.goalId }, true);
+    if (goal) checkBasis(goal);
+  } else if (
+    !isStandaloneMediaAction(action) ||
+    snapshot.state.actions.some((old) => old.id === action.id && old.goalId !== null)
+  ) {
+    add({ code: 'inactive_goal' }, true);
+  }
   const terminal = (status: AgentAction['status']) =>
     status === 'succeeded' || status === 'failed' || status === 'withdrawn';
   if (

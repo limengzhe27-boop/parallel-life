@@ -120,7 +120,7 @@ export const AgentProposalSchema = z.strictObject({
       z.strictObject({
         ...Basis,
         id: Id,
-        goalId: Id,
+        goalId: Id.nullable(),
         capability: Id,
         targetIds: z.array(Id).max(32),
         parameters: z.record(

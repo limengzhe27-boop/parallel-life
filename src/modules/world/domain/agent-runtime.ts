@@ -70,9 +70,20 @@ export type AgentResponsibility = AgentBasis & {
   resolutionResultId?: string;
   endReason?: string;
 };
+/** Only supported immediate media operations can omit a goal; this is not an execution grant. */
+export function isStandaloneMediaAction(action: {
+  goalId: string | null;
+  capability: string;
+}): boolean {
+  return (
+    action.goalId === null &&
+    ['media.generate_image', 'media.generate_video', 'media.share'].includes(action.capability)
+  );
+}
 export type AgentAction = AgentBasis & {
   id: string;
-  goalId: string;
+  /** Immediate media may execute without inventing a persistent goal or plan. */
+  goalId: string | null;
   /** Registered kernel capability; never a story-specific natural-language execution sentence. */
   capability: string;
   targetIds: string[];
