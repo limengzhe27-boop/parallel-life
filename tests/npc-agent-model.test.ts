@@ -1416,3 +1416,47 @@ test('protected opening-information wake fits the unchanged budget with nineteen
   assert(JSON.stringify(call.messages).length + JSON.stringify(call.output).length <= 56_000);
   assert.deepEqual(input, original);
 });
+
+test('persisted speech keeps its speaker identity in the model context', async () => {
+  const input = snapshot('private');
+  input.observations[0]!.speaker = { kind: 'actor', actorId: input.state.actorId };
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.observations[0].speaker, {
+    kind: 'actor',
+    actorId: input.state.actorId,
+  });
+});
+
+test('the current request points to its own retained opportunity rather than old plans', async () => {
+  const input = snapshot();
+  input.input = {
+    ...input.input,
+    origin: 'coordination',
+    text: JSON.stringify({ type: 'npc_episode_consideration', requestId: 'current' }),
+  };
+  input.sources.push({
+    id: 'episode-intent:current',
+    kind: 'director_intent',
+    recordId: 'current',
+    worldVersion: 9,
+    at: input.storyAt,
+  });
+  input.observations.push({
+    sourceId: 'episode-intent:current',
+    kind: 'plan',
+    text: 'A new optional topic, not the previous unanswered question.',
+  });
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.currentOpportunity, {
+    sourceId: sourceRef(input, 'episode-intent:current'),
+  });
+  assert.ok(
+    payload.presentationContext.internalContext.some(
+      (item: any) => item.observation.sourceId === payload.currentOpportunity.sourceId,
+    ),
+  );
+});

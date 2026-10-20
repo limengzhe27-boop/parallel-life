@@ -134,3 +134,20 @@ test('old paid task keeps its exact directive projection and source hash despite
   assert.equal(view.source.contentHash, expected);
   assert.doesNotMatch(view.observation.text, /ownKnownTopics/);
 });
+
+test('current director tasks retain their structured opportunity alongside old personal topics', async () => {
+  for (const version of [
+    'director-wire-v10',
+    'director-wire-v11',
+    'director-wire-v12',
+    'director-wire-v13',
+    'director-wire-v14',
+  ]) {
+    const view = await read(version);
+    assert.match(view.observation.text, /actor_interaction_opportunity/);
+    assert.match(view.observation.text, /ownKnownTopics/);
+    assert.match(view.observation.text, /周末散步/);
+    await assert.rejects(read(version, true), /AGENT_REVISION_CONFLICT/);
+  }
+  assert.equal(actorOpportunityContext(raw('director-wire-v999'), task), null);
+});

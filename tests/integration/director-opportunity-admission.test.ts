@@ -374,7 +374,7 @@ test('director opportunity admission uses the original paid repository and publi
   }
 
   await t.test(
-    'a paid opening assessment does not automatically buy the remaining catalogue',
+    'a confirmed quiet opening does not release time-locked catalogue entries',
     async () => {
       const f = await fixture({ multi: true });
       const snapshot = await snap(f);
@@ -408,7 +408,7 @@ test('director opportunity admission uses the original paid repository and publi
         assert.equal(
           current.evaluationCause,
           undefined,
-          'unreviewed remaining nodes are not a new cause',
+          'remaining time-locked nodes are not yet eligible',
         );
         assert.ok(
           current.authoredEligibility!.some(

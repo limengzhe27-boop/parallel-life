@@ -2865,3 +2865,13 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第九批root扩展domain/agent-plan-next-step.ts、tests/player-episode-manifest.test.ts、tests/npc-execution-contract.test.ts：终态next-step仅标待重评，真实结果资格仍由collector证明；更新旧允许漏选择断言。当前输出移除continuation.act重复声明，动作由executions/planIntents表达；历史decode仍保留act，避免新增兼容链。
 
 44-168 batch9 delivered: 922f8d06 / dpl_HUMhQCJYqpwagnkPD7kCzdygDhXH READY on Nu, migrations103 verified; check3867/build/PG9, delegated171+172 tests16/typecheck passed. Real synthetic episode engage + appointment + no-input advance produced a new reply; public group v39 succeeded in7.642s. Total9 text/0image, all synthetic worlds paused. Long-term autonomy, all-quiet lifecycle, repeated confirmation/persona consistency and related-effect admission remain OPEN. Frozen171/172 tests and reports integrated by root; no worker worktree edits.
+
+44-168第十批进行中：root-simplify168/main1bb270d6唯一集成；独占director-opportunity-admission.ts、narrative-wake-repository.ts、agent-runtime-ports.ts、agent-snapshot-repository.ts、npc-agent-model.ts及相关root专属单元/NEW集成测试。优先修复成功quiet后未审查事件被永久挡住、已发送问题重复确认、人物发言身份丢失；保留同依据付费围栏、不强制发消息。小迪173专属测试与报告只读；真实持续旅程未完成前不称已交付。
+
+44-168第十批真实5次文字已定位导演先把NPC采购提议写成玩家提议；root扩展director-snapshot-repository.ts、director-agent-model.ts及既有director snapshot测试。持久消息来源哈希不改，仅明确模型观察中的speaker与triggerOrigin，避免将触发来源当发言者。小迪173报告已收到，只读；其新测试待冻结集成。
+
+44-168第十批真实第二旅程定位重复确认：appointment.propose真实成功已创建waitingOn=player责任，但terminal-action重评仍再次唤醒。root继续独占agent-schedule-collectors.ts/其既有单测：结果已有同subject等待且无玩家决定时复用原责任生命周期，不额外购买结果复盘；失败/其他结果不抑制。不是文字去重或强制quiet。
+
+44-168第十批root扩展domain/actor-opportunity-context.ts及其单测：真实后续导演任务为本地展示角，NPC仍重复架子颜色；发现结构化参与机会只接受director-wire-v9，当前v14走旧纯文本路径。统一现行/已存同形协议解码，不增加新模型阶段。新增资格成熟与等待并存的准入，保留已评同上下文防重。
+
+44-168第十批待上线：root main已修复未评窗口有限接续、原条件成熟不被他人等待挡住、成功结果已有等待责任不重复复盘、消息发言者/触发源分离、currentOpportunity绑定及v14结构化任务接线。真实无输入双人开场+原作者时间条件后新展示角议题，原advance三条消息；39文字/0图、合成档暂停，无用户档写。check3873、PG窗口3/173结果2、模型及collector聚焦通过；旧director协议夹具失败保留。103生产迁移一致，build/READY公网待最终记录。长期所有事件耗尽后的创作、自由语义重复、旧付费协议恢复等未结清；173仅冻结测试集成，其报告/任务行由小迪维护。

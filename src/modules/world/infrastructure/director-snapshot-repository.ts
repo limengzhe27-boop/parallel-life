@@ -476,8 +476,14 @@ async function evidence(
       m,
       JSON.stringify({
         role: m.role,
-        actorId: m.actorId,
-        origin:
+        speaker:
+          kind === 'plan'
+            ? { kind: 'system' }
+            : m.role === 'user'
+              ? { kind: 'player' }
+              : { kind: 'actor', actorId: m.actorId },
+        conversationActorId: m.actorId,
+        triggerOrigin:
           event?.data?.origin ??
           (version === 0
             ? m.history || m.initialRead

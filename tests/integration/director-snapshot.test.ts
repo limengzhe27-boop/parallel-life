@@ -368,6 +368,12 @@ test('real director snapshot is one coherent readonly fictional-world view with 
         s.observations.find((o) => o.sourceId === `message:${messageId}`)?.knownByActorIds,
         [f.a],
       );
+      const speech = JSON.parse(
+        s.observations.find((o) => o.sourceId === `message:${messageId}`)!.text,
+      );
+      assert.deepEqual(speech.speaker, { kind: 'actor', actorId: f.a });
+      assert.equal(speech.conversationActorId, f.a);
+      assert.equal(Object.hasOwn(speech, 'origin'), false);
       assert.equal(s.observations.find((o) => o.sourceId === `fact:${factId}`)?.kind, 'fact');
       assert.equal(s.observations.find((o) => o.sourceId === `fact:${beliefId}`)?.kind, 'belief');
       const raw = await repo.readEvidence(f.owner, {

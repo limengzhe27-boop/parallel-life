@@ -393,7 +393,8 @@ test('bounded Director windows preserve unseen author events through original PG
           keys.length,
         );
         return JSON.stringify({
-          protocol: 'director-wire-v8',
+          protocol: 'director-wire-v14',
+          openingContext: null,
           authoredChoices: Object.fromEntries(
             payload.wireCatalog.events.map((e: any) => [
               e.ref,

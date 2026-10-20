@@ -902,3 +902,32 @@ test('a real terminal next action wakes one plan review without completing the g
     );
   }
 });
+
+test('a successful result already waiting on its own output does not purchase a repeated confirmation', async () => {
+  const a = actor();
+  const result = dependency(a, 'succeeded');
+  result.outputRefs = [{ kind: 'appointment', id: 'meeting' }];
+  a.snapshot.state.plans[0]!.actionIds = ['dependency'];
+  a.snapshot.state.plans[0]!.nextActionId = 'dependency';
+  a.snapshot.state.responsibilities.push({
+    id: 'waiting',
+    subject: { kind: 'appointment', id: 'meeting' },
+    summary: 'Await an invitation response',
+    status: 'waiting',
+    waitingOn: 'player',
+    nextCheck: [],
+    sourceIds: ['s'],
+  });
+  a.trustedResults = [result];
+  sync(a);
+  const reviews = async () =>
+    (await collect(view([a]), 'actor_plan')).candidates.filter((c) => c.actionId === null);
+  assert.equal((await reviews()).length, 0);
+  a.snapshot.state.responsibilities[0]!.subject.id = 'different-meeting';
+  sync(a);
+  assert.equal((await reviews()).length, 1, 'unrelated waiting cannot suppress this result');
+  a.snapshot.state.responsibilities[0]!.subject.id = 'meeting';
+  a.snapshot.state.responsibilities[0]!.waitingOn = 'self';
+  sync(a);
+  assert.equal((await reviews()).length, 1, 'a changed responsibility can resume planning');
+});

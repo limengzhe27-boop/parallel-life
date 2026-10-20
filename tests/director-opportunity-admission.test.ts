@@ -9,7 +9,7 @@ const base = {
   hasIndependentNewEvidence: false,
   hasNewlyReleasedEpisode: false,
 };
-test('unreviewed catalogue is not demand, even after a quiet assessment with no active episode', () => {
+test('unreviewed catalogue alone is not demand without a confirmed quiet predecessor', () => {
   for (let remaining = 17; remaining > 0; remaining--) assert.equal(admit(base), false);
   assert.equal(admit({ ...base, hasOutstandingWork: false }), false);
   assert.equal(admit({ ...base, hasPriorPaidAssessment: false }), true);
@@ -26,4 +26,15 @@ test('new personal plans cannot crowd existing work; explicit releases permit a 
   assert.equal(admit({ ...base, hasRelatedNewEvidence: true }), false);
   assert.equal(admit({ ...base, hasRelatedNewEvidence: true, hasOutstandingWork: false }), true);
   assert.equal(admit({ ...base, hasNewlyReleasedEpisode: true }), true);
+});
+test('confirmed quiet permits only unassessed opportunities with no outstanding work', () => {
+  const quiet = { ...base, hasOutstandingWork: false, hasConfirmedQuietPredecessor: true };
+  assert.equal(admit(quiet), true);
+  assert.equal(admit({ ...quiet, previouslyAssessed: true }), false);
+  assert.equal(admit({ ...quiet, hasOutstandingWork: true }), false);
+  assert.equal(admit({ ...quiet, hasConfirmedQuietPredecessor: false }), false);
+});
+test('an actual newly satisfied author condition permits assessment while another request waits', () => {
+  assert.equal(admit({ ...base, hasNewlyQualifiedEpisode: true }), true);
+  assert.equal(admit({ ...base, previouslyAssessed: true, hasNewlyQualifiedEpisode: true }), false);
 });

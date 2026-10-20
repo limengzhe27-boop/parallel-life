@@ -51,6 +51,8 @@ export type AgentSnapshot = {
     sourceId: string;
     text: string;
     kind: 'fact' | 'belief' | 'speech' | 'plan' | 'result';
+    /** Bound from the persisted message, never inferred from first-person text. */
+    speaker?: { kind: 'player' } | { kind: 'actor'; actorId: string };
     evidenceKind?:
       'player_report' | 'actor_report' | 'scene_record' | 'adjudicated_result' | 'authored_context';
     eventOccurredAt?: string;

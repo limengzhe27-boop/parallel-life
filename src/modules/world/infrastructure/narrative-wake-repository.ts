@@ -169,7 +169,9 @@ export async function readDirectorNarrativeWakeInTransaction(
       !isVerifiedDirectorPreflightRejection(a) &&
       a.snapshot?.authoredMaterials?.source?.sourceHash === view.catalog.source!.sourceHash,
   );
-  const latestPaid = paidFrames.at(-1);
+  // Revalidating a claimed window must retain its predecessor. Its own in-flight
+  // assessment is neither a new predecessor nor evidence that the window vanished.
+  const latestPaid = paidFrames.filter((a) => a.id !== allowAttemptId).at(-1);
   for (const a of attempts) {
     if (a.status === 'committed' && !a.actual_decision_id)
       throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_DECISION_RECEIPT_MISSING');
@@ -262,6 +264,26 @@ export async function readDirectorNarrativeWakeInTransaction(
         hasRelatedNewEvidence: newSpeech || newEvidence.length > 0,
         hasIndependentNewEvidence: independent,
         hasNewlyReleasedEpisode: released,
+        hasNewlyQualifiedEpisode: latestPaid.snapshot.authoredEligibility?.some(
+          (previous: AuthoredWakeQualification & { status?: string }) =>
+            previous.nodeKey === q.nodeKey &&
+            previous.nodeHash === q.nodeHash &&
+            previous.status !== undefined &&
+            previous.status !== 'eligible',
+        ),
+        hasConfirmedQuietPredecessor:
+          !attempts.some(
+            (a) =>
+              a.id !== allowAttemptId &&
+              ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
+                a.status,
+              ),
+          ) &&
+          latestPaid.status === 'committed' &&
+          !!latestPaid.actual_decision_id &&
+          latestPaid.actual_decision?.mode === 'quiet' &&
+          Array.isArray(latestPaid.actual_decision.authoredAssessments) &&
+          latestPaid.actual_decision.authoredAssessments.length > 0,
       });
     });
   }

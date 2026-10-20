@@ -271,7 +271,8 @@ export async function readPrivateAgentSnapshot(
         verifiedPublicationGenesisRecord(publicationGenesis, 'fact', fact),
       );
     }
-    for (const message of context.messages)
+    for (const message of context.messages) {
+      const before = observations.length;
       add(
         `message:${message.id}`,
         'private_message',
@@ -282,6 +283,10 @@ export async function readPrivateAgentSnapshot(
         'speech',
         verifiedPublicationGenesisRecord(publicationGenesis, 'message', message),
       );
+      if (observations.length > before)
+        observations[observations.length - 1]!.speaker =
+          message.role === 'user' ? { kind: 'player' } : { kind: 'actor', actorId };
+    }
     for (const appointment of context.appointments)
       add(
         `appointment:${appointment.id}`,

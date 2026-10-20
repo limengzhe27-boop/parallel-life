@@ -3,7 +3,20 @@ export function actorOpportunityContext(originResponse: unknown, task: string) {
   if (typeof originResponse !== 'string') return null;
   try {
     const origin = JSON.parse(originResponse);
-    if (origin?.protocol !== 'director-wire-v9') return null;
+    // These stored protocols share the same actor-interaction task contract.
+    // Later opening-attribution revisions must not downgrade a current task to
+    // unstructured text or discard its relationship to the actor's known topics.
+    if (
+      ![
+        'director-wire-v9',
+        'director-wire-v10',
+        'director-wire-v11',
+        'director-wire-v12',
+        'director-wire-v13',
+        'director-wire-v14',
+      ].includes(origin?.protocol)
+    )
+      return null;
     const value = JSON.parse(task);
     const keys = ['protocol', 'topic', 'personalObjective', 'proposedInteraction'];
     if (

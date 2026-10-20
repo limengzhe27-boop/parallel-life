@@ -416,10 +416,26 @@ async function planReconsiderations(
     const reviewConditions: AgentCondition[] = completedStep
       ? [{ kind: 'result', actionId: completedStep.actionId, outcome: completedStep.outcome }]
       : plan.triggers;
+    // Execution may already have established the next step: waiting for the
+    // player on the exact object it created. Its responsibility owns that wait;
+    // buying another result review now merely asks for the same answer again.
+    const resultAlreadyWaiting =
+      completedStep?.outcome === 'succeeded' &&
+      state.responsibilities.some(
+        (r) =>
+          r.status === 'waiting' &&
+          r.waitingOn === 'player' &&
+          context.basis(r) &&
+          completedStep.outputRefs?.some(
+            (ref) => ref.kind === r.subject.kind && ref.id === r.subject.id,
+          ) &&
+          !currentPlayerDecision(context.snapshot, empty(), r.id),
+      );
     const refs = (context.snapshot.episodeFollowUps ?? []).filter((f) =>
       f.planIds.includes(plan.id),
     );
     if (
+      resultAlreadyWaiting ||
       (!refs.length &&
         !completedStep &&
         ((nextAction && ['succeeded', 'failed'].includes(nextAction.status)) ||
