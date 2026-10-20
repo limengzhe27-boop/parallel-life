@@ -34,15 +34,12 @@ export async function resolveAgentCommitVersion(
   if (actualVersion - attempt.expectedWorldVersion > 64) return null;
   const r = (
     await sql.query(
-      `SELECT document, EXISTS(SELECT 1 FROM parallel_life.agent_episode_attempt_bindings b
-       WHERE b.world_id=$2 AND b.owner_id=$3 AND b.attempt_id=$4) AS episode_bound
-     FROM parallel_life.agent_input_receipts
+      `SELECT document FROM parallel_life.agent_input_receipts
      WHERE id=$1 AND world_id=$2 AND owner_id=$3`,
-      [attempt.inputReceiptId, attempt.worldId, ownerId, attempt.id],
+      [attempt.inputReceiptId, attempt.worldId, ownerId],
     )
   ).rows[0];
   if (
-    r?.episode_bound ||
     r?.document?.channel !== 'private' ||
     r.document.origin !== 'player' ||
     r.document.recipientActorId !== attempt.actorId

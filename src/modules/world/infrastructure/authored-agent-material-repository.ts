@@ -1,3 +1,4 @@
+import { isAdmittedAgentCommitHead } from './agent-commit-version.ts';
 import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import {
@@ -18,6 +19,8 @@ export type AuthoredMaterialReadRequest = {
   worldId: string;
   expectedEngineEpoch: number;
   expectedWorldVersion: number;
+  /** Revalidation only: requires a live transaction-scoped admission for this actor. */
+  commitActorId?: string;
   expectedSource?: AuthoredMaterialSourceRef;
   maxBytes?: number;
 };
@@ -87,13 +90,27 @@ async function catalog(
   if (!row) fail('NOT_FOUND');
   if (row.identity !== ownerId) fail('AUTHORED_MATERIAL_OWNER_SCOPE');
   if (Number(row.epoch) !== input.expectedEngineEpoch) fail('ENGINE_EPOCH_CONFLICT');
-  if (Number(row.version) !== input.expectedWorldVersion) fail('VERSION_CONFLICT');
+  if (
+    Number(row.version) !== input.expectedWorldVersion &&
+    !(
+      input.commitActorId &&
+      (await isAdmittedAgentCommitHead(
+        sql,
+        ownerId,
+        input.worldId,
+        input.commitActorId,
+        input.expectedWorldVersion,
+        Number(row.version),
+      ))
+    )
+  )
+    fail('VERSION_CONFLICT');
   const result = compileAuthoredAgentMaterials(
     {
       scope: {
         worldId: input.worldId,
         engineEpoch: Number(row.epoch),
-        worldVersion: Number(row.version),
+        worldVersion: input.expectedWorldVersion,
       },
       source: row.source as AuthoredMaterialSourceDocument | null,
       actualActorIds: row.actor_ids,

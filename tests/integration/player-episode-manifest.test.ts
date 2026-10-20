@@ -198,13 +198,8 @@ test('player chat considers a server-bound pending episode without extra NPC cal
     ];
     if (kind === 'invitation' || kind === 'hidden_invitation')
       content.candidates[0].actorKeys = [content.actors[0].key];
-    content.candidates.push({
-      ...content.candidates[0],
-      key: 'opening',
-      intent: { kind: 'director_event' },
-      actorKeys: [],
-    });
-    content.openingEventKey = 'opening';
+    // Optional-event fixture: no separate opening protocol.
+    delete content.openingEventKey;
     if (kind === 'hidden_invitation') {
       content.places.push({
         key: 'hidden',
@@ -291,46 +286,54 @@ test('player chat considers a server-bound pending episode without extra NPC cal
             const m = p.authoredMaterials.materials.find(
               (m: { ref: { nodeKey: string } }) => m.ref.nodeKey === 'typed_offer',
             );
-            return JSON.stringify({
-              mode: 'bounded_opportunity',
-              selectedCandidateIds: [],
-              deferred: [],
-              nudges: [],
-              opportunities: [
-                {
-                  id: randomUUID(),
-                  title: 'Local opportunity',
-                  description: prohibited[3],
-                  playerImpact: 'Optional',
-                  participantActorIds:
-                    kind === 'invitation' || kind === 'hidden_invitation'
-                      ? [world.actors[0]!.id]
-                      : world.actors.map((a) => a.id),
-                  placeIds: [],
-                  activity: 'conversation',
-                  basisSourceIds: ['improvised', 'known'].includes(kind)
-                    ? [`genesis:${id}`]
-                    : [m.sourceId],
-                  ...(['improvised', 'known'].includes(kind)
-                    ? {}
-                    : { authoredEventKey: 'typed_offer' }),
-                  ...(kind === 'known'
+            const e = p.wireCatalog.events.find((e: any) => e.authoredEventKey === 'typed_offer');
+            assert.ok(e);
+            const selectedActors = p.wireCatalog.actors.filter((a: any) =>
+              kind === 'invitation' || kind === 'hidden_invitation'
+                ? a.actorId === world.actors[0]!.id
+                : true,
+            );
+            const wire = {
+              protocol: 'director-wire-v14',
+              openingContext: null,
+              candidates: p.wireCatalog.candidates.map((c: any) => ({
+                ref: c.ref,
+                decision: 'defer',
+                reason: 'Consider existing opportunity',
+              })),
+              authoredChoices: Object.fromEntries(
+                p.wireCatalog.events.map((x: any) => [
+                  x.ref,
+                  x.ref === e.ref
                     ? {
-                        actorTopics: world.actors.map((a) => ({
-                          actorId: a.id,
-                          refs: p.actorKnownTopics
-                            .filter((topic: { actorId: string }) => topic.actorId === a.id)
-                            .map((topic: { id: string; contentHash: string }) => ({
-                              id: topic.id,
-                              contentHash: topic.contentHash,
-                            })),
-                        })),
+                        kind: 'consider',
+                        opportunity: {
+                          title: 'Local opportunity',
+                          description: prohibited[3],
+                          playerImpact: 'Optional',
+                          places: [],
+                          activity: 'conversation',
+                          actorTasks: Object.fromEntries(
+                            p.wireCatalog.actors.map((a: any) => [
+                              a.ref,
+                              selectedActors.some((selected: any) => selected.ref === a.ref)
+                                ? {
+                                    topic: 'Optional meeting',
+                                    personalObjective: 'Consider whether to meet',
+                                    proposedInteraction: 'Ask about a suitable arrangement',
+                                  }
+                                : null,
+                            ]),
+                          ),
+                        },
                       }
-                    : {}),
-                },
-              ],
-              audit: { reason: prohibited[4], basisSourceIds: [] },
-            });
+                    : { kind: 'defer', reason: 'Not selected' },
+                ]),
+              ),
+              opportunities: [],
+              audit: { reason: prohibited[4], sourceRefs: [e.ref] },
+            };
+            return JSON.stringify(wire);
           },
         }),
       },
@@ -390,6 +393,23 @@ test('player chat considers a server-bound pending episode without extra NPC cal
     expectedVersion: (await worlds.get({ userId: f.owner }, f.id)).version,
     text,
   });
+  async function canonicalFixturePayload(f: Fixture, p: any) {
+    const row = (
+      await app.transaction(f.owner, (sql) =>
+        sql.query(
+          "SELECT id FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND document->>'recipientActorId'=$2 AND document->>'text'=$3 ORDER BY created_at DESC LIMIT 1",
+          [f.id, p.state.actorId, p.input.text],
+        ),
+      )
+    ).rows[0];
+    assert.ok(row);
+    const refs = new Map([[p.input.sourceId, row.id]]);
+    if (p.episodeManifest)
+      refs.set(p.episodeManifest.sourceId, 'episode-intent:' + p.episodeManifest.requestId);
+    return JSON.parse(JSON.stringify(p), (_key, value) =>
+      typeof value === 'string' ? (refs.get(value) ?? value) : value,
+    );
+  }
   function verifyManifest(f: Fixture, p: any): Manifest {
     assert.equal(p.input.origin, 'player');
     assert.equal(p.channel.kind, 'private');
@@ -403,7 +423,12 @@ test('player chat considers a server-bound pending episode without extra NPC cal
     assert.equal(m.actorId, f.requests[0]!.actorId);
     assert.equal(m.createdAtVersion, f.requests[0]!.createdAtVersion);
     assert.match(m.contentHash, /^[a-f0-9]{64}$/);
-    assert.ok(p.observations.some((o: any) => o.sourceId === m.sourceId));
+    assert.ok(
+      [
+        ...p.observations,
+        ...(p.presentationContext?.internalContext ?? []).map((x: any) => x.observation),
+      ].some((o: any) => o.sourceId === m.sourceId),
+    );
     for (const sentinel of prohibited) assert.ok(!JSON.stringify(p).includes(sentinel));
     return m;
   }
@@ -417,7 +442,10 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const service = npcAgentServices(app, () => ({
         async complete(messages) {
           calls++;
-          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          const p = await canonicalFixturePayload(
+            f,
+            JSON.parse(messages.find((m) => m.role === 'user')!.content),
+          );
           assert.equal(p.input.text, c.text);
           inputId = p.input.sourceId;
           const manifest = verifyManifest(f, p);
@@ -465,6 +493,88 @@ test('player chat considers a server-bound pending episode without extra NPC cal
     },
   );
   await t.test(
+    'bound episode survives unrelated actor reply while retaining its paid basis',
+    async () => {
+      const f = await fixture('invitation'),
+        c = await command(f, '请先回答我的问题，再考虑你自己的安排。');
+      let calls = 0;
+      let inputId = '';
+      const service = npcAgentServices(app, () => ({
+        async complete(messages) {
+          calls++;
+          const p = await canonicalFixturePayload(
+            f,
+            JSON.parse(messages.find((m) => m.role === 'user')!.content),
+          );
+          assert.equal(p.input.text, c.text);
+          inputId = p.input.sourceId;
+          const manifest = verifyManifest(f, p);
+          const other = f.world.actors.find((actor) => actor.id !== c.actorId)!;
+          const otherService = npcAgentServices(app, () => ({
+            async complete() {
+              return JSON.stringify(plain());
+            },
+          }));
+          const otherResult = await otherService.sendMessageIfEnabled(
+            f.owner,
+            await command(f, '只是聊聊今天的音乐。', other.id),
+          );
+          assert.equal(otherResult?.status, 'committed');
+          return JSON.stringify({
+            ...plain(),
+            episodeDecision: {
+              requestId: manifest.requestId,
+              choice: 'engage',
+              reason: 'My own considered decision',
+              sourceIds: [p.input.sourceId, manifest.sourceId],
+            },
+          });
+        },
+      }));
+      const result = await service.sendMessageIfEnabled(f.owner, c);
+      assert.equal(result?.status, 'committed');
+      assert.equal(calls, 1);
+      const proof = (
+        await app.transaction(f.owner, (sql) =>
+          sql.query(
+            'SELECT a.expected_world_version,e.version,c.expected_version FROM parallel_life.agent_attempts a JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.id=a.event_id JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.id=e.command_id WHERE a.world_id=$1 AND a.command_id=$2',
+            [f.id, c.id],
+          ),
+        )
+      ).rows[0];
+      assert.equal(proof.expected_world_version, c.expectedVersion);
+      assert.equal(proof.version, c.expectedVersion + 2);
+      assert.equal(proof.expected_version, proof.version - 1);
+      const r = await requestState(f);
+      assert.equal(r.status, 'consumed');
+      assert.equal(r.input_receipt_id, inputId);
+      assert.ok(r.receipt_id);
+      const saved = (
+        await app.transaction(f.owner, (sql) =>
+          sql.query(
+            'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND id=$2',
+            [f.id, inputId],
+          ),
+        )
+      ).rows[0].document;
+      assert.equal(saved.origin, 'player');
+      assert.equal(saved.text, c.text);
+      const receipt = (
+        await app.transaction(f.owner, (sql) =>
+          sql.query(
+            'SELECT choice,input_receipt_id FROM parallel_life.agent_episode_receipts WHERE world_id=$1 AND request_id=$2',
+            [f.id, f.requests[0]!.id],
+          ),
+        )
+      ).rows;
+      assert.equal(receipt.length, 1);
+      assert.equal(receipt[0].choice, 'engage');
+      assert.equal(receipt[0].input_receipt_id, inputId);
+      await service.sendMessageIfEnabled(f.owner, c);
+      assert.equal(calls, 1, 'committed replay cannot purchase another NPC reply');
+    },
+  );
+  await t.test(
     'omitted event decision preserves pending, prevents background recontact, and allows new player turn',
     async () => {
       const f = await fixture('invitation');
@@ -473,7 +583,10 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const service = npcAgentServices(app, () => ({
         async complete(messages) {
           calls++;
-          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          const p = await canonicalFixturePayload(
+            f,
+            JSON.parse(messages.find((m) => m.role === 'user')!.content),
+          );
           const manifest = verifyManifest(f, p);
           manifestId = manifest.requestId;
           return JSON.stringify(plain());
@@ -552,7 +665,10 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const service = npcAgentServices(app, () => ({
         async complete(messages) {
           calls++;
-          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          const p = await canonicalFixturePayload(
+            f,
+            JSON.parse(messages.find((m) => m.role === 'user')!.content),
+          );
           assert.equal(p.episodeManifest, undefined);
           assert.ok(!p.observations.some((o: any) => o.sourceId.startsWith('episode-intent:')));
           for (const sentinel of [...prohibited, 'LOCAL_INVITATION_74'])
@@ -706,6 +822,17 @@ test('player chat considers a server-bound pending episode without extra NPC cal
         'response_received',
       );
       assert.equal((await requestState(f)).status, 'pending');
+      const other = f.world.actors.find((actor) => actor.id !== e.claim.actorId)!;
+      const otherService = npcAgentServices(app, () => ({
+        async complete() {
+          return JSON.stringify(plain());
+        },
+      }));
+      const otherReceipt = await otherService.sendMessageIfEnabled(
+        f.owner,
+        await command(f, '无关人物的普通聊天', other.id),
+      );
+      assert.equal(otherReceipt?.status, 'committed');
       await runNpcAgent({ attempts: actors, kernel, model: local }, f.owner, e.claim, null);
       assert.equal(calls, 1);
       assert.equal((await requestState(f)).status, 'consumed');
@@ -718,7 +845,7 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const f = await fixture('invitation');
       const service = npcAgentServices(app, () => ({
         async complete(messages) {
-          const p = JSON.parse(messages[1]!.content),
+          const p = await canonicalFixturePayload(f, JSON.parse(messages[1]!.content)),
             m = verifyManifest(f, p);
           const sourceIds = [p.input.sourceId, m.sourceId];
           return JSON.stringify({
@@ -887,16 +1014,28 @@ test('player chat considers a server-bound pending episode without extra NPC cal
                 (c: any) => c.source === 'actor_plan' && c.actionId === null,
               );
               return JSON.stringify({
-                mode: chosen ? 'coordinate' : 'quiet',
-                selectedCandidateIds: chosen ? [chosen.id] : [],
-                deferred: payload.candidates
-                  .filter((c: any) => c.id !== chosen?.id)
-                  .map((c: any) => ({ candidateId: c.id, reason: '仅协调已有计划的复查' })),
-                nudges: [],
+                protocol: 'director-wire-v14',
+                openingContext: null,
+                candidates: payload.wireCatalog.candidates.map((c: any) => ({
+                  ref: c.ref,
+                  decision: c.candidateId === chosen?.id ? 'select' : 'defer',
+                  reason: 'Only reconsider the existing plan',
+                })),
+                authoredChoices: Object.fromEntries(
+                  payload.wireCatalog.events.map((e: any) => [
+                    e.ref,
+                    { kind: 'defer', reason: 'No new opportunity in this fixture' },
+                  ]),
+                ),
                 opportunities: [],
-                audit: { reason: 'EXPLICIT_LOCAL_SUBSTITUTE', basisSourceIds: [] },
+                audit: { reason: 'EXPLICIT_LOCAL_SUBSTITUTE', sourceRefs: [] },
               });
             }
+            const wake = JSON.parse(payload.input.text);
+            if (wake.type === 'npc_agenda_initialize')
+              return JSON.stringify({ ...plain(), statements: [] });
+            assert.equal(wake.type, 'npc_own_condition_ready');
+            assert.equal(wake.source, 'actor_plan');
             wakeCalls++;
             assert.equal(payload.input.origin, 'wake');
             assert.equal(payload.episodeFollowUps[0].choice, 'defer');

@@ -1,3 +1,4 @@
+import { isAdmittedAgentCommitHead } from './agent-commit-version.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -51,7 +52,19 @@ export async function readActorEpisodeIntentsInTransaction(
       [frame.worldId, ownerId],
     )
   ).rows[0];
-  if (!worldRow || worldRow.version !== frame.worldVersion || worldRow.engine_epoch < 2)
+  if (
+    !worldRow ||
+    (worldRow.version !== frame.worldVersion &&
+      !(await isAdmittedAgentCommitHead(
+        sql,
+        ownerId,
+        frame.worldId,
+        frame.actorId,
+        frame.worldVersion,
+        Number(worldRow.version),
+      ))) ||
+    worldRow.engine_epoch < 2
+  )
     return conflict();
   const world = worldRow.state as WorldState;
   if (!world.actors.some((actor) => actor.id === frame.actorId)) return conflict();
@@ -96,6 +109,7 @@ export async function readActorEpisodeIntentsInTransaction(
         worldId: frame.worldId,
         expectedEngineEpoch: worldRow.engine_epoch,
         expectedWorldVersion: frame.worldVersion,
+        commitActorId: frame.actorId,
         maxBytes: 2_000_000,
       })
     : null;
@@ -282,6 +296,7 @@ export async function readActorEpisodeIntentsInTransaction(
     worldId: frame.worldId,
     expectedEngineEpoch: worldRow.engine_epoch,
     expectedWorldVersion: frame.worldVersion,
+    commitActorId: frame.actorId,
     maxBytes: 2_000_000,
   });
   if (current.status !== 'complete') return conflict();

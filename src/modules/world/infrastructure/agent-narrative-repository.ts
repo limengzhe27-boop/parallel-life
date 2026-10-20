@@ -517,13 +517,13 @@ export async function projectEpisodeRequestInTransaction(
     !committed ||
     committed.command_status !== 'succeeded' ||
     committed.result_event_id !== input.eventId ||
-    committed.version !== a.expectedWorldVersion + 1 ||
+    committed.version <= a.expectedWorldVersion ||
     event.id !== input.eventId ||
     event.worldId !== a.worldId ||
     event.version !== committed.version ||
     event.commandId !== a.commandId ||
     event.data?.actorId !== a.actorId ||
-    committed.expected_version !== a.expectedWorldVersion ||
+    committed.expected_version !== committed.version - 1 ||
     rt?.engineEpoch !== a.engineEpoch ||
     rt.inputReceiptId !== a.inputReceiptId ||
     rt.actorRevisionBefore !== a.expectedActorRevision ||
@@ -623,7 +623,7 @@ export async function projectEpisodeRequestInTransaction(
     r.inputReceiptId !== null ||
     r.receiptId !== null ||
     w.version !== value.worldVersion ||
-    body.expectedWorldVersion !== a.expectedWorldVersion
+    body.expectedWorldVersion > a.expectedWorldVersion
   )
     invalid();
   // SQL verifies the inherited commit GUC. This helper never sets or upgrades commit authority.

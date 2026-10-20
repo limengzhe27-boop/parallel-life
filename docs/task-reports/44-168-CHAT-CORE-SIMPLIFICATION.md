@@ -81,3 +81,12 @@ check3856、真实PG35（含原服务首段前普通回复/媒体、首段后交
 真实原HTTP并发模型验收：同合成档两人物同时以模型v19生成，分别committed v20/v21；第二条command追加基线20，attempt模型19保持不变。2次文字、0图片，无自动重试，档已暂停。耗时25.645s/33.302s，不证明提速；build通过。
 
 44-168第五批正式部署：eb2589041a3d492e34c3ab0e045955f1b48c5561 / dpl_F7pnpD2jsef2LsXnM2j5FMHRVptv 精确READY并绑定Nu。公网真实并发：两个NPC同模型v21分别committed v22/v23，后者实际append基线22、模型仍21；5.271s/9.073s，无重试，合成档暂停。本批共4文字/0图；check3856/build/真实PG35、生产100迁移一致、health/workbench200。仅完成无绑定私聊首段前其他人物纯交流冲突；事件绑定、首段后交错后缀、持续主动仍未完成。
+
+## 第六批：携带待演事件的私聊提交（待上线）
+原输入与模型基线不变；无关人物纯聊天的追加证明现同样适用于player episode binding。actor intent与作者目录重验复用原事务提交许可，目录scope/来源范围保持原snapshot版本，材料hash仍精确比对。0101替换0084的两个消费函数，用成功command/event实际版本关系证明消费；claim绑定INSERT未改。narrative原输入版本允许早于模型基线，但仍校验原receipt/hash/manifest。
+
+必要验证：原player-episode-manifest真实PG9/9，包括bound模型生成期间B先提交、原付费response_received恢复前B提交、manifest篡改拒绝、unknown不重买、同request只消费一次。旧夹具更新为当前导演v14、正确内部材料呈现及真实来源，计划复查统计只计原actor_plan，不把新增独立agenda初始化误算复查。check3856/build通过，独立只读复审通过。
+
+真实模型（本地真实PG合成世界841e40a2-2183-42ea-bdd9-a28268a94d83，原npcAgentServices，导演为受控夹具，不冒充真实导演）：2次文字，A真实输出后B真实普通聊天先保存；A仍基于v0保存为v2。A回复愿意讨论，但changes=null，事件保持pending；因此保存并发通过，真实事件选择消费验收未通过。不得强制补choice或重买模型跑通。测试world由fixture结束暂停，无生产用户档写。
+
+剩余：普通聊天对相关事件的语义选择遗漏；流式首段后独立追加单元与回执/媒体统一；群聊现场0074仍严格；长期自主推进。不称全链路完成。新SQL兼容旧业务写入方式；回滚仅回业务包保留0101消费证明，历史迁移不重写。
