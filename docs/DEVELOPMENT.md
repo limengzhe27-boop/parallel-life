@@ -2825,3 +2825,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第六批扩大root独占：actor-episode-intent-repository.ts、authored-agent-material-repository.ts需要共用已批准head证明，保留原模型来源上界；未与小迪测试范围重叠。
 
 44-168第六批待上线：0101+episode binding私聊实际追加接线，来源边界不变；check3856/build/manifest真实PG9通过。真实2文字同模型v0 A跨B保存v2，但A口头回应changes=null，事件pending，明确未通过真实选择消费；记为核心未完成，不强制补内容。流式后缀独立追加仍未完成。
+
+44-168第六批正式部署：a8d64ff00f6f032f89b3c55687c15b28b29f942b / dpl_8sf9etHAG36w2SUyrFQvQWucGK2M 精确READY并绑定Nu；生产101迁移checksum一致。check3856/build/manifest真实PG9及最终typecheck通过。公网普通并发两条回复均committed，9.871s/10.727s，合成档暂停；health/workbench200。本批共4真实文字/0图；本地真实绑定并发保存成功但模型changes=null，事件仍pending，真实事件选择消费不计通过。流式后缀独立追加、绑定语义选择遗漏、群聊现场及持续主动继续未完成。

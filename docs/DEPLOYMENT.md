@@ -1,3 +1,7 @@
+## 2026-10-20 · 44-168 待演事件私聊实际提交接线
+
+44-168第六批正式部署：a8d64ff00f6f032f89b3c55687c15b28b29f942b / dpl_8sf9etHAG36w2SUyrFQvQWucGK2M 精确READY并绑定Nu；生产101迁移checksum一致。check3856/build/manifest真实PG9及最终typecheck通过。公网普通并发两条回复均committed，9.871s/10.727s，合成档暂停；health/workbench200。本批共4真实文字/0图；本地真实绑定并发保存成功但模型changes=null，事件仍pending，真实事件选择消费不计通过。流式后缀独立追加、绑定语义选择遗漏、群聊现场及持续主动继续未完成。
+
 ## 2026-10-20 · 44-168 已付费私聊保存位置分离
 
 44-168第五批正式部署：eb2589041a3d492e34c3ab0e045955f1b48c5561 / dpl_F7pnpD2jsef2LsXnM2j5FMHRVptv 精确READY并绑定Nu。公网真实并发：两个NPC同模型v21分别committed v22/v23，后者实际append基线22、模型仍21；5.271s/9.073s，无重试，合成档暂停。本批共4文字/0图；check3856/build/真实PG35、生产100迁移一致、health/workbench200。仅完成无绑定私聊首段前其他人物纯交流冲突；事件绑定、首段后交错后缀、持续主动仍未完成。
