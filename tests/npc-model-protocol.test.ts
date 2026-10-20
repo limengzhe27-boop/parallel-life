@@ -5,6 +5,30 @@ import type { AgentValidationContext } from '../src/modules/world/domain/agent-k
 import { npcResponseFormat } from '../src/modules/world/infrastructure/npc-model-protocol.ts';
 import { parseAgentProposal } from '../src/modules/world/infrastructure/agent-proposal-parser.ts';
 
+/** Inspect the current delta envelope directly; historical fixtures below keep their original grammar. */
+function changeFields(format: ReturnType<typeof npcResponseFormat>): Record<string, any> {
+  if (format.format !== 'json_schema') throw Error('schema');
+  const changes = (format.schema.properties as any).changes;
+  const object =
+    changes.type === 'object' ? changes : changes.anyOf.find((node: any) => node.type === 'object');
+  assert.equal(object.additionalProperties, false);
+  return object.properties;
+}
+function executionBranches(
+  format: ReturnType<typeof npcResponseFormat>,
+): Array<{ execution: any; action: any }> {
+  if (format.format !== 'json_schema') throw Error('schema');
+  const field = (format.schema.properties as any).executions;
+  const array =
+    field.type === 'array' ? field : field.anyOf.find((node: any) => node.type === 'array');
+  return (array.items.anyOf ?? [array.items]).flatMap((execution: any) =>
+    (execution.properties.action.anyOf ?? [execution.properties.action]).map((action: any) => ({
+      execution,
+      action,
+    })),
+  );
+}
+
 function fixture(coordination = false) {
   const at = '2026-10-18T09:00:00.000Z';
   const c: AgentValidationContext = {
@@ -532,14 +556,14 @@ test('native reply assessments can cite only a visible open question and this sh
     sources: c.sources,
   });
   if (format.format !== 'json_schema') throw Error('schema');
-  const field: any = (format.schema.properties as any).inputInterpretation;
+  const field: any = changeFields(format).inputInterpretation;
   const related = field.anyOf.find((n: any) => n.properties.kind.enum.includes('related_reply'));
   const item = related.properties.replies.items.anyOf[0];
   assert.deepEqual(item.properties.questionId.enum, ['current-question']);
   assert.deepEqual(related.properties.sourceId.enum, ['source:1']);
   assert.deepEqual(related.properties.quote.enum, [c.input.text]);
   type InputJudgmentSchema = { items: { properties: Record<string, { enum?: unknown[] }> } };
-  const judgmentFields = format.schema.properties as Record<string, InputJudgmentSchema>;
+  const judgmentFields = changeFields(format) as Record<string, InputJudgmentSchema>;
   assert.equal(judgmentFields.decisions, undefined);
   assert.equal(judgmentFields.replyAssessments, undefined);
   for (const fieldName of ['locationReports']) {
@@ -573,8 +597,7 @@ test('non-player or no visible question permits no assessments; long input keeps
       ],
     });
     if (format.format !== 'json_schema') throw Error('schema');
-    return (format.schema.properties as Record<string, Record<string, unknown>>)
-      .inputInterpretation!;
+    return changeFields(format).inputInterpretation!;
   };
   assert.equal(field({ ...c.input, origin: 'wake' }).type, 'null');
   const empty: any = field(c.input, { ...c.state, questions: [] });
@@ -592,11 +615,10 @@ test('native response schema represents server event permission, never a guessed
   const forbidden = npcResponseFormat({ goals: [] }, 'forbidden');
   if (required.format !== 'json_schema' || forbidden.format !== 'json_schema')
     throw Error('schema');
-  assert.deepEqual((forbidden.schema.properties as Record<string, unknown>).consideration, {
+  assert.deepEqual(changeFields(forbidden).consideration, {
     type: 'null',
   });
-  const object = (required.schema.properties as Record<string, Record<string, unknown>>)
-    .consideration!;
+  const object = changeFields(required).consideration!;
   assert.equal(object.type, 'object');
   assert.ok((object.required as string[]).includes('choice'));
 });
@@ -760,7 +782,7 @@ test('provider-safe null judgment collections decode only as explicit empty v2 s
     sources: c.sources,
   });
   if (format.format !== 'json_schema') throw Error('schema');
-  const fields = format.schema.properties as Record<string, { type: string }>;
+  const fields = changeFields(format) as Record<string, { type: string }>;
   for (const name of ['inputInterpretation', 'locationReports'])
     assert.equal(fields[name]!.type, 'null');
   assert.equal(fields.decisions, undefined);
@@ -784,23 +806,29 @@ test('native grammar uses one execution channel and advertises current channel c
     sources: c.sources,
   });
   if (format.format !== 'json_schema') throw Error('schema');
-  type NativeNode = {
-    type?: string;
-    enum?: string[];
-    properties?: Record<string, NativeNode>;
-    anyOf?: NativeNode[];
-    items?: NativeNode;
-  };
-  const root = format.schema as NativeNode;
-  const executions: NativeNode = root.properties!.executions!.anyOf!.find(
-    (n) => n.type === 'array',
-  )!;
-  const action = executions.items!.properties!.action!;
-  assert.deepEqual(
-    (action.anyOf ?? [action]).flatMap((n) => n.properties!.capability!.enum!).sort(),
-    ['appointment.propose', 'media.generate_image'],
-  );
-  assert.equal(root.properties!.mediaDecision, undefined);
+  const branches = executionBranches(format);
+  assert.deepEqual(branches.flatMap(({ action }) => action.properties.capability.enum).sort(), [
+    'appointment.propose',
+    'media.generate_image',
+  ]);
+  const immediate = branches.find(({ action }) =>
+    action.properties.capability.enum.includes('media.generate_image'),
+  )!.execution;
+  assert.deepEqual(immediate.required, ['ref', 'action']);
+  assert.equal(immediate.properties.goal, undefined);
+  assert.equal(immediate.properties.plan, undefined);
+  const planned = branches.find(({ action }) =>
+    action.properties.capability.enum.includes('appointment.propose'),
+  )!.execution;
+  assert.ok(planned.required.includes('goal'));
+  assert.ok(planned.required.includes('plan'));
+  assert.equal((format.schema.properties as any).mediaDecision, undefined);
+  assert.deepEqual(Object.keys(format.schema.properties as object), [
+    'protocol',
+    'statements',
+    'executions',
+    'changes',
+  ]);
 });
 
 test('native model never edits execution statuses; actions are compiled from explicit intents', () => {
@@ -863,9 +891,9 @@ test('v3 compiles explicit compact action and local statement ref through origin
 test('native completion references are actual visible receipts, not proposed execution names', () => {
   const { c } = fixture();
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
-  const responsibility = format.schema.properties.responsibilities.items.properties;
+  const responsibility = changeFields(format).responsibilities.items.properties;
   assert.equal(responsibility.resolutionResultId, undefined);
-  assert.equal(format.schema.properties.goals.type, 'null');
+  assert.equal(changeFields(format).goals.type, 'null');
   c.state.goals.push({
     id: 'visible-goal',
     summary: 'Current intention',
@@ -874,25 +902,27 @@ test('native completion references are actual visible receipts, not proposed exe
     resultIds: [],
   });
   const withGoal: any = npcResponseFormat(c.state, 'forbidden', c);
-  assert.deepEqual(withGoal.schema.properties.goals.anyOf[0].items.properties.id.enum, [
+  assert.deepEqual(changeFields(withGoal).goals.anyOf[0].items.properties.id.enum, [
     'visible-goal',
   ]);
-  assert.equal(withGoal.schema.properties.goals.anyOf[0].items.properties.resultIds, undefined);
+  assert.equal(changeFields(withGoal).goals.anyOf[0].items.properties.resultIds, undefined);
   assert(!responsibility.status.enum.includes('fulfilled'));
-  assert(
-    !withGoal.schema.properties.goals.anyOf[0].items.properties.status.enum.includes('fulfilled'),
-  );
+  assert(!changeFields(withGoal).goals.anyOf[0].items.properties.status.enum.includes('fulfilled'));
 });
 
 test('native plans persist as state, never as redundant record-plan execution capability', () => {
   const { c } = fixture();
   c.channel.allowedCapabilities = ['plan.record', 'media.generate_image'];
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
-  const executions = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array');
-  assert.deepEqual(executions.items.properties.action.properties.capability.enum, [
-    'media.generate_image',
-  ]);
+  const branches = executionBranches(format);
+  assert.deepEqual(
+    branches.flatMap(({ action }) => action.properties.capability.enum),
+    ['media.generate_image'],
+  );
+  assert.equal(branches[0]!.execution.properties.plan, undefined);
+  assert.equal(branches[0]!.execution.properties.goal, undefined);
   assert.equal(format.schema.properties.mediaDecision, undefined);
+  assert.ok(changeFields(format).planIntents.items);
 });
 
 test('v4 has one explicit media action and no model-authored completion receipts', () => {
@@ -1080,7 +1110,7 @@ test('native player decision identifiers bind current input and visible responsi
         { ...c.sources[0]!, id: input.sourceId },
       ],
     });
-    return format.schema.properties.inputInterpretation.anyOf.find((n: any) =>
+    return changeFields(format).inputInterpretation.anyOf.find((n: any) =>
       n.properties.kind.enum.includes('related_reply'),
     );
   };
@@ -1099,15 +1129,17 @@ test('native media enqueue cannot claim responsibility fulfillment even in a mix
   const { c } = fixture();
   c.channel.allowedCapabilities = ['media.generate_image', 'appointment.propose'];
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
-  const action = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array')
-    .items.properties.action;
-  const image = action.anyOf.find((choice: any) =>
-    choice.properties.capability.enum.includes('media.generate_image'),
-  );
-  const invitation = action.anyOf.find((choice: any) =>
-    choice.properties.capability.enum.includes('appointment.propose'),
-  );
-  assert.equal(image.properties.handlesResponsibilityIds.maxItems, 0);
+  const branches = executionBranches(format);
+  const image = branches.find(({ action }) =>
+    action.properties.capability.enum.includes('media.generate_image'),
+  )!.action;
+  const invitation = branches.find(({ action }) =>
+    action.properties.capability.enum.includes('appointment.propose'),
+  )!.action;
+  // Immediate media does not expose responsibility mutation at all; planned work
+  // still cannot handle a responsibility absent from this actor's visible state.
+  assert.equal(image.properties.handlesResponsibilityIds, undefined);
+  assert.equal(image.additionalProperties, false);
   assert.equal(invitation.properties.handlesResponsibilityIds.maxItems, 0);
   assert.deepEqual(image.properties.parameters.required, ['sceneDescription', 'purpose']);
   assert.equal(image.properties.parameters.additionalProperties, false);
