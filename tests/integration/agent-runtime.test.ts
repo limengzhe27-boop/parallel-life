@@ -168,6 +168,98 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
       [randomUUID(), f.worldId, f.owner, eventId, { kind: 'agent_result' }],
     );
   }
+  await t.test(
+    'unrelated world changes admit private input without rewriting its identity',
+    async () => {
+      const f = await fixture();
+      await seedChannelEvent(f, 1, 'agent.state_committed', { actorId: f.b });
+      const accepted = await store.accept(f.owner, f.receipt);
+      assert.equal(accepted.receipt.expectedWorldVersion, 0);
+      assert.equal(accepted.receipt.inputHash, f.receipt.inputHash);
+      const a = (await claim(f, { expectedWorldVersion: 1 })).attempt;
+      assert.equal(a.expectedWorldVersion, 1);
+      assert.deepEqual((await store.accept(f.owner, f.receipt)).receipt, accepted.receipt);
+      await assert.rejects(
+        () => store.accept(f.owner, { ...f.receipt, text: 'different' }),
+        /COMMAND_CONFLICT/,
+      );
+      for (const changed of [
+        { expectedWorldVersion: 2 },
+        { channel: 'group' as const },
+        { origin: 'wake' as const },
+        { threadId: f.b },
+      ]) {
+        await assert.rejects(
+          () =>
+            store.accept(f.owner, {
+              ...f.receipt,
+              id: randomUUID(),
+              commandId: randomUUID(),
+              ...changed,
+            }),
+          /VERSION_CONFLICT/,
+        );
+      }
+    },
+  );
+  await t.test(
+    'recipient changes after acceptance stop a stale input before a model claim',
+    async () => {
+      const f = await fixture();
+      await store.accept(f.owner, f.receipt);
+      await seedChannelEvent(f, 1, 'agent.state_committed', { actorId: f.b });
+      await admin.query(
+        "UPDATE parallel_life.actor_agent_states SET projected_world_version=1,document=jsonb_set(document,'{projectedWorldVersion}','1') WHERE world_id=$1 AND actor_id=$2",
+        [f.worldId, f.a],
+      );
+      await assert.rejects(() => claim(f, { expectedWorldVersion: 1 }), /VERSION_CONFLICT/);
+      await assert.rejects(
+        () => store.accept(f.owner, { ...f.receipt, id: randomUUID(), commandId: randomUUID() }),
+        /VERSION_CONFLICT/,
+      );
+      assert.equal((await store.accept(f.owner, f.receipt)).replay, true);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.agent_attempts WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].n,
+        0,
+      );
+    },
+  );
+  await t.test(
+    'streamed recipient speech blocks stale replies before actor state is finalized',
+    async () => {
+      const f = await fixture();
+      const eventId = await seedChannelEvent(f, 1, 'turn.resolved', { actorId: f.a });
+      await app.transaction(f.owner, async (sql) => {
+        await sql.query(
+          'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
+          [
+            randomUUID(),
+            f.worldId,
+            f.owner,
+            f.a,
+            { sourceEventId: eventId, text: 'A new question' },
+          ],
+        );
+      });
+      await assert.rejects(
+        () => store.accept(f.owner, { ...f.receipt, id: randomUUID(), commandId: randomUUID() }),
+        /VERSION_CONFLICT/,
+      );
+      const other = await store.accept(f.owner, {
+        ...f.receipt,
+        id: randomUUID(),
+        commandId: randomUUID(),
+        recipientActorId: f.b,
+        threadId: f.b,
+      });
+      assert.equal(other.receipt.expectedWorldVersion, 0);
+    },
+  );
   await t.test('reads do not initialize and actor/world/owner scopes remain distinct', async () => {
     const f = await fixture();
     assert.equal(

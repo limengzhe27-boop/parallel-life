@@ -1,4 +1,5 @@
 import { acceptsAgentCommitVersion } from './agent-commit-version.ts';
+import { acceptsAgentInputVersion } from './agent-input-version.ts';
 import type { WorldState } from '../domain/types.ts';
 import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import {
@@ -293,8 +294,8 @@ export async function acceptAgentInputInTransaction(
     if (receiptBody(row.document) !== receiptBody(input)) fail('COMMAND_CONFLICT');
     return { receipt: row.document, replay: true };
   }
-  if (w.version !== input.expectedWorldVersion) fail('VERSION_CONFLICT');
   if (input.recipientActorId !== null) actorExists(w, input.recipientActorId);
+  if (!(await acceptsAgentInputVersion(sql, ownerId, input, w.version))) fail('VERSION_CONFLICT');
   await requireAgendaInitializeInputInTransaction(sql, ownerId, input);
   await requireOwnAgendaReviewAuthorityInTransaction(sql, ownerId, input, {
     phase: 'accept',
@@ -553,6 +554,12 @@ export class PostgresAgentRuntimeRepository
       )
         fail('INVALID_INPUT');
       await requireInputAuthority(sql, ownerId, r, input.actorId, input.expectedWorldVersion);
+      if (
+        r.origin === 'player' &&
+        r.channel === 'private' &&
+        !(await acceptsAgentInputVersion(sql, ownerId, r, input.expectedWorldVersion))
+      )
+        fail('VERSION_CONFLICT');
       await requireOwnAgendaReviewAuthorityInTransaction(sql, ownerId, r, {
         phase: 'claim',
         config: this.agendaConfig,
