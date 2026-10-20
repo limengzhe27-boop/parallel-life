@@ -1101,11 +1101,16 @@ test('native media enqueue cannot claim responsibility fulfillment even in a mix
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
   const action = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array')
     .items.properties.action;
-  assert.deepEqual(action.properties.capability.enum, [
-    'media.generate_image',
-    'appointment.propose',
-  ]);
-  assert.equal(action.properties.handlesResponsibilityIds.maxItems, 0);
+  const image = action.anyOf.find((choice: any) =>
+    choice.properties.capability.enum.includes('media.generate_image'),
+  );
+  const invitation = action.anyOf.find((choice: any) =>
+    choice.properties.capability.enum.includes('appointment.propose'),
+  );
+  assert.equal(image.properties.handlesResponsibilityIds.maxItems, 0);
+  assert.equal(invitation.properties.handlesResponsibilityIds.maxItems, 0);
+  assert.deepEqual(image.properties.parameters.required, ['sceneDescription', 'purpose']);
+  assert.equal(image.properties.parameters.additionalProperties, false);
 });
 
 test('v4 no-decision null offered by the scoped grammar decodes to an empty collection for player and autonomous turns', () => {

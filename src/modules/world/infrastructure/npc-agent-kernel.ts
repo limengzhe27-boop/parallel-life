@@ -1,3 +1,6 @@
+import { normalizeNpcImageExecutionParameters } from './npc-model-protocol.ts';
+import { compileNpcExecutionIntents } from './npc-execution-intent.ts';
+import { npcSourceReferences, mapNpcSourceFields } from './npc-source-reference.ts';
 import { actorContinuationBasis, validateActorContinuation } from '../domain/actor-continuation.ts';
 import { canHandleExternalResponsibility } from '../domain/capability-responsibility-policy.ts';
 import { validateActorMediaResultContextInTransaction } from './agent-source-resolver.ts';
@@ -99,7 +102,94 @@ export class PostgresNpcAgentKernel implements AgentKernel {
     validateActorContinuation(snapshot, proposal);
     return proposal;
   }
-  async commit(ownerId: string, input: Parameters<AgentKernel['commit']>[1]) {
+  /** The complete media intent uses the very same validators and executor as the final turn.
+   * Only its irreversible prefix is committed; the attempt remains streaming. */
+  async commitMediaPrefix(
+    ownerId: string,
+    input: {
+      attempt: import('../domain/agent-runtime.ts').AgentAttempt;
+      snapshot: AgentSnapshot;
+      executions: unknown[];
+    },
+  ) {
+    if (input.snapshot.channel.kind !== 'private' || input.snapshot.input.origin !== 'player')
+      return null;
+    if (
+      input.executions.length !== 1 ||
+      (input.executions[0] as { action?: { capability?: string } })?.action?.capability !==
+        'media.generate_image'
+    )
+      return null;
+    const rows = await this.db.transaction(
+      ownerId,
+      async (sql) =>
+        (
+          await sql.query(
+            `SELECT text, requests_player_reply, question_for_responsibility_id FROM parallel_life.agent_attempt_stream_segments
+       WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND status='committed' ORDER BY segment_index`,
+            [input.attempt.worldId, ownerId, input.attempt.id],
+          )
+        ).rows,
+    );
+    if (!rows.length) return null;
+    const intents = mapNpcSourceFields(
+      { executions: normalizeNpcImageExecutionParameters(input.executions) },
+      npcSourceReferences(input.snapshot.sources),
+      'decode',
+    ) as {
+      executions: Array<{
+        goal: { kind: string; sourceIds?: string[] };
+        plan: { sourceIds: string[] };
+        action: { sourceIds: string[] };
+      }>;
+    };
+    // The accepted input is the same mechanical provenance binding used by v14.
+    for (const intent of intents.executions) {
+      for (const item of [
+        intent.plan,
+        intent.action,
+        ...(intent.goal.kind === 'new' ? [intent.goal] : []),
+      ])
+        item.sourceIds = [...new Set([...(item.sourceIds ?? []), input.snapshot.input.sourceId])];
+    }
+    const compiled = compileNpcExecutionIntents(input.snapshot, intents.executions, {
+      allowMedia: true,
+    });
+    const proposal = parseAgentProposal(input.snapshot, {
+      protocol: 'npc-wire-v1',
+      consideration: null,
+      statements: rows.map((r) => ({
+        text: String(r.text),
+        dependsOnActionIds: [],
+        ...(r.requests_player_reply ? { requestsPlayerReply: true } : {}),
+        ...(r.question_for_responsibility_id
+          ? { questionForResponsibilityId: r.question_for_responsibility_id }
+          : {}),
+      })),
+      executions: compiled.executions,
+      goals: [],
+      plans: [],
+      actions: [],
+      responsibilities: [],
+      decisions: [],
+    });
+    if (
+      proposal.actions.length !== 1 ||
+      proposal.actions[0]!.capability !== 'media.generate_image' ||
+      proposal.actions[0]!.dependsOnActionIds.length ||
+      proposal.actions[0]!.preconditions.length ||
+      proposal.actions[0]!.handlesResponsibilityIds.length ||
+      proposal.plans.some((p) => p.supersedesPlanId) ||
+      proposal.goals.some((g) => input.snapshot.state.goals.some((old) => old.id === g.id))
+    )
+      return null;
+    return this.commit(ownerId, { ...input, proposal }, { mediaPrefix: true });
+  }
+  async commit(
+    ownerId: string,
+    input: Parameters<AgentKernel['commit']>[1],
+    options: { mediaPrefix?: boolean } = {},
+  ) {
     const { attempt, snapshot } = input;
     const proposal = parseAgentProposal(snapshot, input.proposal);
     validateActorContinuation(snapshot, proposal);
@@ -123,7 +213,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           results: accepted.results,
         };
       }
-      const current = await beginAgentCommitInTransaction(sql, ownerId, attempt);
+      const current = await beginAgentCommitInTransaction(sql, ownerId, attempt, options);
       const receivedInput = (
         await sql.query(
           'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND id=$3',
@@ -239,6 +329,38 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               ? deterministicStreamEventId(attempt.id)
               : randomUUID(),
         occurredAt = new Date().toISOString();
+      const priorPrefix = committedSegmentRows.length
+        ? (
+            await sql.query(
+              'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+              [attempt.worldId, ownerId, eventId],
+            )
+          ).rows[0]?.payload?.data
+        : undefined;
+      const earlyTransition = priorPrefix?.agentRuntime as AgentRuntimeTransition | undefined;
+      const earlyResults =
+        earlyTransition?.results.filter((r) => r.outputRefs?.some((ref) => ref.kind === 'media')) ??
+        [];
+      if (earlyResults.length) {
+        // Once a streamed action was accepted, later output cannot silently retract or rewrite it.
+        for (const result of earlyResults) {
+          for (const key of ['actions', 'plans', 'goals'] as const) {
+            for (const prior of earlyTransition!.proposal[key]) {
+              if (
+                !isDeepStrictEqual(
+                  prior,
+                  proposal[key].find((next) => next.id === prior.id),
+                )
+              )
+                throw new AgentValidationError('STREAM_MEDIA_INTENT_CHANGED');
+            }
+          }
+          if (!proposal.actions.some((action) => action.id === result.actionId))
+            throw new AgentValidationError('STREAM_MEDIA_INTENT_CHANGED');
+        }
+        if (options.mediaPrefix)
+          return { eventId, state: earlyTransition!.stateAfter, results: earlyResults };
+      }
       const executionWorld = (
         await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
           attempt.worldId,
@@ -279,6 +401,18 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         sceneDepartures: AgentSceneDeparture[] = [];
       const changedScenes: import('../domain/experience-rules.ts').SceneSession[] = [];
       for (const action of proposal.actions) {
+        const earlyResult = earlyResults.find((result) => result.actionId === action.id);
+        if (earlyResult) {
+          results.push(earlyResult);
+          effects.push(
+            ...(priorPrefix.effects as WorldEffect[]).filter(
+              (effect) =>
+                effect.type === 'media.requested' &&
+                earlyResult.outputRefs?.some((ref) => ref.id === effect.id),
+            ),
+          );
+          continue;
+        }
         if (!['ready', 'proposed', 'waiting'].includes(action.status)) continue;
         const eligibility = evaluateAgentActionEligibility(snapshot, proposal, action, {
           storyAt: at,
@@ -1742,6 +1876,10 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
           [attempt.worldId, command.id, eventId, compact],
         );
+      }
+      if (options.mediaPrefix) {
+        if (!results.length) throw new AgentValidationError('STREAM_MEDIA_NOT_READY');
+        return { eventId, state: accepted.state, results };
       }
       if (allSegmentRows.length > 0) {
         const userMessageId = deterministicStreamUserMessageId(eventId);

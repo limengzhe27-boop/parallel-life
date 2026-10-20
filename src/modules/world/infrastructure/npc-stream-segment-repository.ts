@@ -30,10 +30,7 @@ import type { WorldEffect, WorldEvent, WorldState } from '../domain/types.ts';
 import { requireActiveAgentDeliveryInTransaction } from './agent-delivery-activity.ts';
 import { requireInputAuthority } from './agent-runtime-repository.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
-import {
-  PostgresWorldRepository,
-  storeTurnMemories,
-} from './postgres-world-repository.ts';
+import { PostgresWorldRepository, storeTurnMemories } from './postgres-world-repository.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 
 export type StreamSegmentFaultInjection = {
@@ -60,15 +57,8 @@ function buildPrefixStateAndTransition(input: {
   transition: AgentRuntimeTransition;
   stateAfter: ActorAgentState;
 } {
-  const {
-    attempt,
-    snapshot,
-    receivedInput,
-    currentState,
-    committedSegments,
-    eventId,
-    storyAt,
-  } = input;
+  const { attempt, snapshot, receivedInput, currentState, committedSegments, eventId, storyAt } =
+    input;
   const worldVersion = attempt.expectedWorldVersion + 1;
   const effects: WorldEffect[] = committedSegments.map((seg) => ({
     type: 'message.received' as const,
@@ -137,9 +127,7 @@ function buildPrefixStateAndTransition(input: {
     version: 1,
     decidedAt: snapshot.storyAt,
     sourceInputId: snapshot.input.sourceId,
-    basisHash: createHash('sha256')
-      .update(actorContinuationBasis(nextState))
-      .digest('hex'),
+    basisHash: createHash('sha256').update(actorContinuationBasis(nextState)).digest('hex'),
   };
 
   const proposal: AgentProposal = {
@@ -359,13 +347,7 @@ export async function persistAndCommitStreamSegment(
            AND document->>'recipientActorId'=$4
            AND created_at >= $5
          LIMIT 1`,
-        [
-          attempt.worldId,
-          ownerId,
-          attempt.inputReceiptId,
-          attempt.actorId,
-          receiptRow.created_at,
-        ],
+        [attempt.worldId, ownerId, attempt.inputReceiptId, attempt.actorId, receiptRow.created_at],
       )
     ).rowCount;
     if (newerPlayerInput) {
@@ -692,7 +674,7 @@ export async function sealCommittedStreamPrefix(
     const storyAt = String(
       eventRow.payload?.storyAt ?? committedRows.at(-1)!.message_at ?? snapshot.storyAt,
     );
-    const { effects, transition, stateAfter } = buildPrefixStateAndTransition({
+    let { effects, transition, stateAfter } = buildPrefixStateAndTransition({
       attempt,
       snapshot,
       receivedInput,
@@ -709,6 +691,19 @@ export async function sealCommittedStreamPrefix(
       eventId,
       storyAt,
     });
+
+    const acceptedPrefix = eventRow.payload?.data?.agentRuntime as
+      AgentRuntimeTransition | undefined;
+    if (
+      acceptedPrefix?.results.some((result) =>
+        result.outputRefs?.some((ref) => ref.kind === 'media'),
+      )
+    ) {
+      // The suffix failing cannot erase an already authorized, queued media action.
+      effects = eventRow.payload.data.effects;
+      transition = acceptedPrefix;
+      stateAfter = acceptedPrefix.stateAfter;
+    }
 
     const sealedEvent: WorldEvent = {
       ...(eventRow.payload as WorldEvent),
@@ -730,10 +725,10 @@ export async function sealCommittedStreamPrefix(
     );
 
     const worldRow = (
-      await sql.query('SELECT state, version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
-        attempt.worldId,
-        ownerId,
-      ])
+      await sql.query(
+        'SELECT state, version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2',
+        [attempt.worldId, ownerId],
+      )
     ).rows[0];
     if (worldRow) {
       const hydrated = await PostgresWorldRepository.hydrateInTransaction(sql, {
@@ -782,6 +777,22 @@ export async function sealCommittedStreamPrefix(
       ],
     );
 
+    for (const result of transition.results) {
+      await sql.query(
+        `INSERT INTO parallel_life.agent_action_results(world_id,owner_id,actor_id,id,action_id,source_event_id,world_version,document)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(world_id,id) DO NOTHING`,
+        [
+          attempt.worldId,
+          ownerId,
+          attempt.actorId,
+          result.id,
+          result.actionId,
+          eventId,
+          eventVersion,
+          result,
+        ],
+      );
+    }
     await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
 
     return {
@@ -908,4 +919,3 @@ export async function isStreamPrefixWorldVersion(
   );
   return (res.rowCount ?? 0) > 0;
 }
-

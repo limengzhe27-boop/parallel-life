@@ -47,6 +47,12 @@ export async function worldMessageRoute(request: Request, worldId: string) {
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         async start(controller) {
+          const startedMedia = new Set<string>();
+          const startMedia = (eventId: string) => {
+            if (startedMedia.has(eventId)) return;
+            startedMedia.add(eventId);
+            startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, eventId);
+          };
           try {
             const receipt = await s.npcAgents.sendMessageIfEnabled(
               s.ownerId,
@@ -58,6 +64,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
                 text: input.text,
               },
               {
+                onMediaCommitted: startMedia,
                 onSegment: (segment) => {
                   controller.enqueue(
                     encoder.encode(JSON.stringify({ type: 'segment', segment }) + '\n'),
@@ -67,7 +74,7 @@ export async function worldMessageRoute(request: Request, worldId: string) {
             );
             if (receipt) {
               try {
-                startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId);
+                startMedia(receipt.eventId);
               } catch (error) {
                 console.warn(
                   JSON.stringify({

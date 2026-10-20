@@ -165,26 +165,37 @@ export class PostgresWorldRepository implements WorldRepository {
     return { ...row.state, version: row.version } as WorldState;
   }
   static async hydrateInTransaction(sql: SqlClient, state: WorldState): Promise<WorldState> {
-    const initial = (
-      await sql.query('SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
-        state.id,
-      ])
-    ).rows[0]?.state;
-    const results = [];
-    for (const table of [
+    // One read-only statement preserves the same per-projection ordering and
+    // version visibility, avoiding six sequential network round trips per hydrate.
+    const tables = [
       'world_messages',
       'world_appointments',
       'world_media_requests',
       'world_notes',
       'world_facts',
-    ]) {
-      // Only immutable projections belonging to events already committed at this receipt version.
-      const rows = await sql.query(
-        `SELECT p.document FROM parallel_life.${table} p JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version,${['world_messages', 'world_facts'].includes(table) ? 'p.ordinal' : 'p.id'}`,
-        [state.id, state.version],
-      );
-      results.push(rows.rows.map((r) => r.document));
-    }
+    ];
+    const projections = await sql.query(
+      `SELECT -1 AS projection_index,state AS document,-1 AS event_version,0::bigint AS ordinal,world_id AS projection_id
+         FROM parallel_life.world_initial_snapshots WHERE world_id=$1
+       UNION ALL ${tables
+         .map(
+           (
+             table,
+             index,
+           ) => `SELECT ${index} AS projection_index,p.document,e.version AS event_version,
+         ${['world_messages', 'world_facts'].includes(table) ? 'p.ordinal' : '0::bigint'} AS ordinal,p.id AS projection_id
+         FROM parallel_life.${table} p JOIN parallel_life.world_events e
+           ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id
+         WHERE p.world_id=$1 AND e.version<=$2`,
+         )
+         .join(' UNION ALL ')}
+       ORDER BY projection_index,event_version,ordinal,projection_id`,
+      [state.id, state.version],
+    );
+    const initial = projections.rows.find((row) => row.projection_index === -1)?.document;
+    const results = tables.map((_, index) =>
+      projections.rows.filter((row) => row.projection_index === index).map((row) => row.document),
+    );
     let hydrated: WorldState = {
       ...state,
       messages: [
@@ -676,11 +687,23 @@ export class PostgresWorldRepository implements WorldRepository {
           );
         }
       }
-    for (const media of state.mediaRequests.filter((x) => x.sourceEventId === event.id))
+    for (const media of state.mediaRequests.filter((x) => x.sourceEventId === event.id)) {
+      const prior = rawHydrated.mediaRequests.find((item) => item.id === media.id);
+      if (
+        prior &&
+        (!options.finalizePrefixEvent ||
+          prior.sourceEventId !== event.id ||
+          prior.prompt !== media.prompt ||
+          prior.targetActorId !== media.targetActorId ||
+          prior.purpose !== media.purpose ||
+          prior.mediaType !== media.mediaType)
+      )
+        throw new DomainError('IDEMPOTENCY_CONFLICT');
       await sql.query(
-        'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+        `INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)${options.finalizePrefixEvent ? ' ON CONFLICT(id) DO NOTHING' : ''}`,
         [media.id, state.id, session.userId, media],
       );
+    }
     for (const [ordinal, fact] of state.facts
       .filter((item) => item.sourceEventId === event.id)
       .entries())
@@ -690,7 +713,7 @@ export class PostgresWorldRepository implements WorldRepository {
       );
     for (const job of jobs)
       await sql.query(
-        'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
+        `INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)${options.finalizePrefixEvent ? ' ON CONFLICT(id) DO NOTHING' : ''}`,
         [job.id, state.id, session.userId, event.id, job],
       );
     /*

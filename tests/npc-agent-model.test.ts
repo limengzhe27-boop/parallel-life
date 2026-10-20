@@ -857,7 +857,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v48-compact-capability-contract');
+  assert.equal(payload.promptVersion, 'npc-agent-v49-early-media-execution');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -953,7 +953,7 @@ test('capability manual follows permission, while media has one native intent sy
   assert(!system.includes('可提议media.share'));
   assert(!system.includes('durationSeconds?:5|6'));
   assert(system.includes('capability:"media.generate_image"'));
-  assert(system.includes('name:"sceneDescription"'));
+  assert(system.includes('sceneDescription:"本人决定的具体画面"'));
   assert(system.includes('代码只分配机械编号'));
   input.channel.allowedCapabilities = ['item.deliver'];
   await adapter.decide(input);

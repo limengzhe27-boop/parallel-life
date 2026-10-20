@@ -2761,3 +2761,9 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-166范围补充notification-projection.ts：独立图片/视频通知显示[图片]/[视频]，不留空通知。真实独立官方81b11b3f：一次文字模型27s首段、42s回合完成、80s读到1024²真实图片；Chrome实际img加载，390与PC截图确认文字/图片独立、无卡片。原档未写，两个测试档已暂停。待正式部署与公网验证。
 
 44-166正式交付：e20fc0c1523366a29b4213d946d799a43f649d49 / dpl_Cobr6L1cV8u6anCA7yyAKwPLCXM6 READY，Git生产meta精确SHA与Nu别名一致。公网原phone读取独立文字+media_request稳定图片消息，图片HTTP200/image/png/1731680字节且PNG魔数正确；本地原手机真实生成与390/PC视觉通过。未使用用户存档；测试档暂停。check3834、build、PG15/静态媒体4、最终错误/通知/投影聚焦15通过。剩余：索图响应耗时与在完整回合提交前提前启动媒体尚未实现，原165全局发送竞态/长期主动演绎仍未全部完成。
+
+|44-167-EARLY-CHAT-MEDIA|[ ] 待验收（部署中）|root-media167唯一集成；selfie_prompt子任务|主目录main自e870098f；NPC stream parser/model/kernel/segment repository/runtime ports/services、world-message-http.ts、媒体提示词及必要聚焦测试/报告；selfie子任务独立工作树仅media/domain/{prompt-builder,types}.ts及提示词测试|同次模型调用尽早提交合法媒体并启动原任务队列，文字先呈现；自拍保持真实自拍构图。真实验收后部署，未通过不宣称完成。|
+
+44-167范围扩展：actor-media-result-context-repository.ts精确媒体来源重授权需识别已验证的同attempt流式V+1；真实第二次索图暴露旧图片来源在文字prefix提交后错误VERSION_CONFLICT。新媒体pipeline提示词与parser子任务已集成f8650e2a/46074f23；主目录根负责人保持唯一公共接线。
+
+44-167实际验收：独立b95f78f6首文字20.218s/生图调用30.468s/整轮38.253s/新图读取61.387s，真实自拍视觉通过，已暂停。check3843/build/原PG通过，生产100迁移一致。待本次业务部署READY与公网读取核验；首回复仍偏慢及165持续主动仍留清单，不宣称全项目完成。

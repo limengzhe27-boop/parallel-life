@@ -292,6 +292,27 @@ const ModelWire = PreviousExecutionProvenanceWire.extend({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
   continuation: AgentProposalSchema.shape.continuation.unwrap(),
 });
+const ImageParameters = z.strictObject({
+  sceneDescription: Text,
+  purpose: z.enum(['portrait', 'scene', 'memorial', 'evidence']),
+});
+/** Mechanical transport normalization shared by full-turn and incremental execution. */
+export function normalizeNpcImageExecutionParameters(executions: unknown[]): unknown[] {
+  return executions.map((value) => {
+    if (!value || typeof value !== 'object') return value;
+    const execution = structuredClone(value) as {
+      action?: { capability?: string; parameters?: unknown };
+    };
+    if (
+      execution.action?.capability === 'media.generate_image' &&
+      !Array.isArray(execution.action.parameters)
+    )
+      execution.action.parameters = Object.entries(
+        ImageParameters.parse(execution.action.parameters),
+      ).map(([name, value]) => ({ name, value }));
+    return execution;
+  });
+}
 const RescheduleParameters = z.strictObject({
   appointmentId: Id,
   at: z.iso.datetime({ offset: true }),
@@ -531,7 +552,9 @@ export function npcResponseFormat(
     );
     if (capabilities.length) {
       const action = executionItem.properties!.action!;
-      const genericCapabilities = capabilities.filter((cap) => cap !== 'appointment.reschedule');
+      const genericCapabilities = capabilities.filter(
+        (cap) => !['appointment.reschedule', 'media.generate_image'].includes(cap),
+      );
       const handling = genericCapabilities.filter(canHandleExternalResponsibility);
       const nonHandling = genericCapabilities.filter(
         (cap) => !canHandleExternalResponsibility(cap),
@@ -547,6 +570,21 @@ export function npcResponseFormat(
             choice.properties!.handlesResponsibilityIds!.maxItems = 0;
           return choice;
         });
+      if (capabilities.includes('media.generate_image')) {
+        const choice = structuredClone(action);
+        choice.properties!.capability = { type: 'string', enum: ['media.generate_image'] };
+        choice.properties!.parameters = {
+          type: 'object',
+          properties: {
+            sceneDescription: { type: 'string' },
+            purpose: { type: 'string', enum: ['portrait', 'scene', 'memorial', 'evidence'] },
+          },
+          required: ['sceneDescription', 'purpose'],
+          additionalProperties: false,
+        };
+        choice.properties!.handlesResponsibilityIds!.maxItems = 0;
+        choices.push(choice);
+      }
       const appointmentIds = visibleAppointmentIds(state, current.sources ?? []);
       if (capabilities.includes('appointment.reschedule') && appointmentIds.length) {
         const choice = structuredClone(action);
@@ -677,6 +715,15 @@ export function npcResponseFormat(
       },
     };
   }
+  // Keep useful speech and its single executable intent ahead of bookkeeping in
+  // strict-provider output, without adding another model call.
+  schema.properties = Object.fromEntries([
+    ...['protocol', 'statements', 'executions'].map((key) => [key, properties[key]]),
+    ...Object.entries(properties).filter(
+      ([key]) => !['protocol', 'statements', 'executions'].includes(key),
+    ),
+  ]);
+  schema.required = Object.keys(schema.properties!);
   return {
     ...NPC_RESPONSE_FORMAT,
     schema: shareNpcConditionSchema(
@@ -733,6 +780,8 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   if (!raw || typeof raw !== 'object') return raw;
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
     const transformed = structuredClone(raw) as Record<string, unknown>;
+    if (Array.isArray(transformed.executions))
+      transformed.executions = normalizeNpcImageExecutionParameters(transformed.executions);
     const mapped = mapNpcSourceFields(
       raw,
       npcSourceReferences(context.sources),

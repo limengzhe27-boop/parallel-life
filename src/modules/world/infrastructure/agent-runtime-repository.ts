@@ -800,7 +800,10 @@ export class PostgresAgentRuntimeRepository
       if (row.response_hash) {
         if (
           row.response_hash !== digest &&
-          !(row.status === 'committed' && (row.response as { partialStream?: unknown } | null)?.partialStream)
+          !(
+            row.status === 'committed' &&
+            (row.response as { partialStream?: unknown } | null)?.partialStream
+          )
         ) {
           fail('RESPONSE_CONFLICT');
         }
@@ -848,12 +851,28 @@ export async function beginAgentCommitInTransaction(
   sql: SqlClient,
   ownerId: string,
   expected: AgentAttempt,
+  options: { mediaPrefix?: boolean } = {},
 ): Promise<ActorAgentState> {
   const w = await world(sql, ownerId, expected.worldId),
     row = await loadAttempt(sql, ownerId, expected);
   if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
     fail('ENGINE_EPOCH_CONFLICT');
-  if (!row.live || row.status !== 'response_received') fail('ATTEMPT_STALE');
+  if (!row.live || row.status !== (options.mediaPrefix ? 'request_sent' : 'response_received'))
+    fail('ATTEMPT_STALE');
+  if (
+    options.mediaPrefix &&
+    (
+      await sql.query(
+        `SELECT 1 FROM parallel_life.agent_input_receipts newer JOIN parallel_life.agent_input_receipts original
+      ON original.id=$3 AND original.world_id=newer.world_id AND original.owner_id=newer.owner_id
+     WHERE newer.world_id=$1 AND newer.owner_id=$2 AND newer.id<>original.id
+       AND newer.document->>'origin'='player' AND newer.document->>'channel'='private'
+       AND newer.document->>'recipientActorId'=$4 AND newer.created_at>=original.created_at LIMIT 1`,
+        [expected.worldId, ownerId, expected.inputReceiptId, expected.actorId],
+      )
+    ).rowCount
+  )
+    fail('SUPERSEDED_BY_USER_INTERRUPT');
   if (w.version !== expected.expectedWorldVersion) {
     const ownPrefix =
       w.version === expected.expectedWorldVersion + 1 &&

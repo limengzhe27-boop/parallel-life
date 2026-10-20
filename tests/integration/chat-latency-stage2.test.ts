@@ -1,3 +1,4 @@
+import { readActorMediaResultContextInTransaction } from '../../src/modules/world/infrastructure/actor-media-result-context-repository.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -229,8 +230,8 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
 
   // Test setup: mock model that supports streamComplete
   let streamGenerator:
-    | ((messages: unknown[], signal?: AbortSignal) => AsyncGenerator<string, void, unknown>)
-    | null = null;
+    ((messages: unknown[], signal?: AbortSignal) => AsyncGenerator<string, void, unknown>) | null =
+    null;
   let completeHandler: (() => Promise<string>) | null = null;
 
   const mockModel = {
@@ -514,5 +515,141 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
   }
   assert.equal(conflictCaught, true);
 
-  console.log('Stage 2 14 fault boundaries integration tests verified successfully on PostgreSQL.');
+  // A complete media prefix must queue before the model yields its remaining state.
+  for (const interrupt of [false, true]) {
+    let mediaStarted = false;
+    let prefixAttemptId = '';
+    let textPresented = false;
+    streamGenerator = async function* (messages: unknown[]) {
+      const { inputSourceRef, quote } = extractInputInfo(messages);
+      const execution = {
+        ref: 'action_1',
+        goal: { kind: 'new', summary: '发一张自拍', sourceIds: [inputSourceRef] },
+        plan: { summary: '准备自拍并发送', sourceIds: [inputSourceRef], supersedesPlanId: null },
+        action: {
+          capability: 'media.generate_image',
+          targetIds: [actorId],
+          parameters: interrupt
+            ? [
+                { name: 'sceneDescription', value: '手持手机前置相机的日常自拍' },
+                { name: 'purpose', value: 'portrait' },
+              ]
+            : { sceneDescription: '手持手机前置相机的日常自拍', purpose: 'portrait' },
+          preconditions: [],
+          dependsOnActionIds: [],
+          handlesResponsibilityIds: [],
+          sourceIds: [inputSourceRef],
+        },
+      };
+      yield JSON.stringify({
+        protocol: 'npc-wire-v14',
+        statements: [{ text: '我找个光线好的地方拍一下。', dependsOnActionIds: [] }],
+        executions: [execution],
+      }).slice(0, -1) + ',';
+      assert.equal(textPresented, true);
+      assert.equal(mediaStarted, true, 'media scheduled while model stream is still open');
+      const readInput = { worldId, actorId, worldVersion: command.expectedVersion, engineEpoch: 2 };
+      await assert.rejects(
+        db.transaction(owner, (sql) =>
+          readActorMediaResultContextInTransaction(sql, owner, readInput),
+        ),
+        /VERSION_CONFLICT/,
+      );
+      await db.transaction(owner, async (sql) => {
+        await sql.query("SELECT set_config('app.agent_commit_attempt_id',$1,true)", [
+          prefixAttemptId,
+        ]);
+        await readActorMediaResultContextInTransaction(sql, owner, readInput);
+      });
+      const rows = (
+        await admin.query('SELECT id FROM parallel_life.world_media_requests WHERE world_id=$1', [
+          worldId,
+        ])
+      ).rows;
+      assert.ok(rows.length > 0);
+      // Simulate the durable worker winning the race before the model suffix.
+      await admin.query(
+        `UPDATE parallel_life.world_media_requests SET document=document || $3::jsonb
+        WHERE world_id=$1 AND document->>'sourceEventId'=$2`,
+        [
+          worldId,
+          eventId,
+          JSON.stringify({
+            status: 'ready',
+            assetId: 'fixture-ready-asset',
+            deliveryDecision: { deliverToChat: true, reason: 'fixture' },
+          }),
+        ],
+      );
+      if (interrupt) throw Error('TEST_SUFFIX_INTERRUPTED_AFTER_MEDIA');
+      const body = JSON.parse(buildWireV14([], { inputSourceRef, quote }));
+      delete body.protocol;
+      delete body.statements;
+      delete body.executions;
+      yield JSON.stringify(body).slice(1);
+    };
+    const current = await worlds.get({ userId: owner }, worldId);
+    const command = {
+      id: randomUUID(),
+      worldId,
+      actorId,
+      expectedVersion: current.version,
+      text: '给我一张日常自拍',
+    };
+    let eventId = '';
+    const receipt = await api.sendMessageIfEnabled(owner, command, {
+      onSegment(segment) {
+        prefixAttemptId = segment.attemptId;
+        textPresented = true;
+      },
+      onMediaCommitted(id) {
+        mediaStarted = true;
+        eventId = id;
+      },
+    });
+    assert.ok(receipt);
+    const streamStatus = await api.readStreamSegments!(owner, worldId, command.id);
+    assert.equal(
+      streamStatus.summary?.completionStatus,
+      interrupt ? 'partial_interrupted' : 'completed',
+    );
+    const media = (
+      await admin.query(
+        "SELECT id,document FROM parallel_life.world_media_requests WHERE world_id=$1 AND document->>'sourceEventId'=$2",
+        [worldId, eventId],
+      )
+    ).rows;
+    assert.equal(media.length, 1);
+    assert.equal(media[0].document.status, 'ready');
+    assert.equal(media[0].document.assetId, 'fixture-ready-asset');
+    assert.equal(media[0].document.deliveryDecision.deliverToChat, true);
+    assert.equal(
+      (
+        await admin.query(
+          'SELECT id FROM parallel_life.outbox_jobs WHERE world_id=$1 AND event_id=$2',
+          [worldId, eventId],
+        )
+      ).rows.length,
+      1,
+    );
+    const results = (
+      await admin.query(
+        'SELECT document FROM parallel_life.agent_action_results WHERE world_id=$1 AND source_event_id=$2',
+        [worldId, eventId],
+      )
+    ).rows;
+    assert.equal(results.length, 1);
+    assert.equal(results[0].document.outputRefs[0].id, media[0].id);
+    const before = media[0].id;
+    await api.sendMessageIfEnabled(owner, command);
+    assert.equal(
+      (
+        await admin.query(
+          "SELECT id FROM parallel_life.world_media_requests WHERE world_id=$1 AND document->>'sourceEventId'=$2",
+          [worldId, eventId],
+        )
+      ).rows[0].id,
+      before,
+    );
+  }
 });

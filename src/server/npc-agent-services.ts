@@ -403,6 +403,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
       command: TurnCommand,
       options?: {
         onSegment?: (segment: CommittedStreamSegmentEvent) => Promise<void> | void;
+        onMediaCommitted?: (eventId: string) => void;
       },
     ) {
       validateCommand(command);
@@ -695,13 +696,14 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
         };
 
         const streamAbortController = new AbortController();
+        const streamKernel = new PostgresNpcAgentKernel(turnDb, turnWorlds);
         let result: Awaited<ReturnType<typeof runNpcAgent>>;
         try {
           result = await runNpcAgent(
             {
               attempts: turnStore,
               model: new NpcAgentModel(instrumentedTextModel),
-              kernel: new PostgresNpcAgentKernel(turnDb, turnWorlds),
+              kernel: streamKernel,
               onPhaseTiming: (timings) => {
                 runTimings = timings;
               },
@@ -733,11 +735,31 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
                       Object.assign(Error(segOutcome.reason), { code: segOutcome.reason }),
                     );
                   }
+                } else if (event.kind === 'execution_intents') {
+                  const committed = await streamKernel
+                    .commitMediaPrefix(ownerId, {
+                      attempt,
+                      snapshot: execSnapshot,
+                      executions: event.executions,
+                    })
+                    .catch((error) => {
+                      console.warn(
+                        JSON.stringify({
+                          scope: 'media-prefix',
+                          code: (error as { code?: string }).code ?? 'FAILED',
+                          frames:
+                            error instanceof Error ? error.stack?.split('\n').slice(1, 4) : [],
+                        }),
+                      );
+                      throw error;
+                    });
+                  if (committed) options?.onMediaCommitted?.(committed.eventId);
                 } else if (event.kind === 'statement_error') {
                   await recordStreamSegmentError(turnDb, ownerId, {
                     attempt,
                     segmentIndex: event.segmentIndex,
                   });
+                  if (event.code === 'STREAM_DUPLICATE_TOP_LEVEL_KEY') throw Error(event.code);
                 }
               },
               onPrefixFailureSeal: async (attempt, execSnapshot, err) => {
