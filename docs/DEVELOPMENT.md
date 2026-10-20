@@ -2877,3 +2877,11 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第十批待上线：root main已修复未评窗口有限接续、原条件成熟不被他人等待挡住、成功结果已有等待责任不重复复盘、消息发言者/触发源分离、currentOpportunity绑定及v14结构化任务接线。真实无输入双人开场+原作者时间条件后新展示角议题，原advance三条消息；39文字/0图、合成档暂停，无用户档写。check3873、PG窗口3/173结果2、模型及collector聚焦通过；旧director协议夹具失败保留。103生产迁移一致，build/READY公网待最终记录。长期所有事件耗尽后的创作、自由语义重复、旧付费协议恢复等未结清；173仅冻结测试集成，其报告/任务行由小迪维护。
 
 44-168第十批已部署但整体未通过：a9b2d107 / dpl_GMdBwxzaWaaEVM58wdCX9RwNbooK精确READY绑定Nu；check3873/build/生产103一致，PG窗口3及173结果2通过。真实无输入双人开场+原时间条件后新展示角议题已观察；公网原advance v39→41无新消息且另有一条旧索图计划INVALID_ACTOR_CONTINUATION（原响应离线复核），未重买/未生图。总43文字/0图，合成档暂停。整体继续进行中，不能以API200宣称公网全通过；下一步精简continuation决策/条件契约，长期创作/自由语义重复/渣男体验原档持续验收留清单。
+
+44-168第十一批进行中：root-simplify168/main c00b19d2，独占npc-model-protocol.ts、npc-agent-model.ts、agent-schedule-collectors.ts与相应既有单测及168报告。修复continuation非条件分支重复输出条件、成功媒体入队被普通terminal复盘再次索图；复用原媒体完成观察，不自动完结人物目标。用户授权现有渣男体验真实无输入验收，当前同名多档待确认链接；不复制、不补消息、不重试unknown。小迪只接新独立回归文件，公共源root负责。
+
+44-168第十一批原档定位补充：Chrome现有渣男体验f573d541持续manual暂停，正常entry resume被拒绝且页面无恢复入口；root扩展clock-activity-repository.ts及其原PG测试，仅正式玩家世界正常进入允许从当前锚点继续，后台心跳/试演暂停保护保留。未将该档历史锁屏通知算新消息。
+
+44-168第十一批待上线：c6e9708d已推送，旧媒体入队成功后续归原媒体生命周期，当前continuation去除非条件等待无用条件，正式世界正常entry恢复manual暂停；clock原PG12、小迪174冻结pending/条件3、check3875/build通过，生产103一致。现有Chrome渣男体验f573d541恢复原08:32锚点，未发玩家消息；原advance首轮0调用，随后页面正常调度真实新增李之之/青青两条消息，未读7→9，8次新文字attempt committed。内容仍重复复述、未证明有意义持续推进，旧pending失败、媒体完成失败后续与长期议程仍未完成；不创建替代世界。
+
+44-168第十一批有限交付已部署：c6e9708d / dpl_21ez8GPndyiVgb6T7zMtwPW644Qh精确READY绑定Nu；原档f573d541刷新后两条新增通知保留、时间继续10:32，health200。旧索图重复复盘与等待字段、正常进入恢复已修；持续推进内容仍重复等待，整体44-168不勾完成，旧pending失败接续/媒体完整worker后续/长期议程继续未完成。

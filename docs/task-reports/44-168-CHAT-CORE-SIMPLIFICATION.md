@@ -182,3 +182,5 @@ PG连续旅程16/16通过（并发6、恢复9、stage2 1）：A首段后B插入A
 - 主检check3875/build通过，clock真实PG12通过；协议/collector聚焦68通过。小迪174冻结e0690fe7的pending媒体与continuation测试集成，真实PG/边界3通过；completed测试是直改状态的不足夹具，不纳入通过证据。
 - 原档三条旧invalid输出保留：一条UNKNOWN_QUESTION_RESPONSIBILITY，两条旧v14 no_current_intent引用已回答问题。没有自动重买或改写历史。
 - 未完成：既有pending失败事件与个人议程接续、重复自我复述、事件库耗尽后的有依据计划调整、媒体worker完成/失败完整后续验收。原档主动调度恢复不等于长期叙事完成。无新SQL迁移；上线READY待记。
+
+第十一批上线：c6e9708d / dpl_21ez8GPndyiVgb6T7zMtwPW644Qh READY且Nu别名一致，103迁移一致；原档运行消息sourceEventId分别5fe76954-53a1-49e5-82ed-5838767a90c5、1e21ca0f-d673-483c-95b6-3b89c08b04fa。部署后原页面刷新保留消息与时间，health200。有限修复上线，持续事件推进质量未验收通过。
