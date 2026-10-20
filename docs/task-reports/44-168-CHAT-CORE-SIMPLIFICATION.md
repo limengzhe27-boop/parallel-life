@@ -69,3 +69,5 @@ root已集成169冻结实现e5b02e13/e79a6c0f，未覆盖小迪工作树新增�
 付费后冲突下一步明确：receipt.expectedWorldVersion、attempt/snapshot基线保持不可变；实际appendBaseVersion/commitVersion须在原commitFrame明确分离，并从原command/event/segment凭据恢复。所有实际事件/结果/人物投影版本与finish共同接线，媒体来源核验仍按模型基线。不可将临时改写的attempt传给校验器。当前流式反复补全同一event，若其他event已插入，不能回头改历史prefix；完整并发需将后续变化演进为独立追加事件并统一回执/重放协议。群聊0074有实际SQL约束不能仅改TS。本批不删保护、不另建纯聊天提交旁路，不宣称付费后冲突已解决。
 
 第四批接续：集成小迪最终50d77b00为10eef235，新增边界及真实snapshot媒体接线PG2/2通过。check3854/build通过（最终追加仅测试/报告无业务变化）；本地真实原HTTP合成档c6717814一次模型保存v18，首段18.857s、serverTotal28.520s、contextQuery61/commit167/总228、事务12；相较前同人物样本230/13仅是查询减少证据，不是延迟SLA。合成档已暂停，0用户档写，待部署。
+
+第四批正式部署：a37f82183d41cc3b9a0bec7a2f629caa18e764cc / dpl_8wcc8nemGKpi1z3jry5fsnTyMrhK 精确READY并绑定Nu。公网原HTTP真实合成聊天承接前文，首段6.758s、全轮7.674s、服务端准备819ms、保存775ms；一次文字调用提交v19，测试档暂停。批次2文字/0图，无用户档写。check3854/build、原streamPG及169最终边界+媒体PG2通过，生产100迁移一致，公网health/workbench200。169实际入口接线完成；付费后跨版本提交、长期自主推进、媒体提前完成措辞仍未完成。

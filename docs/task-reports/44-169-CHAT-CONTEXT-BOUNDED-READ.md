@@ -303,3 +303,7 @@ try {
 - 当前：代码、测试、报告冻结，提交后主表标待验收。
 - 主 Agent：审核契约/文件归属，切换 `npc-agent-services.ts` 准备阶段，保留 attendance fallback；跑真实模型私聊/长历史/索图验收，READY 与公网验证后部署。
 - 未接线前，用户不会体验到本优化；不得宣称已上线。
+
+## Root 集成验收
+
+第四批正式部署：a37f82183d41cc3b9a0bec7a2f629caa18e764cc / dpl_8wcc8nemGKpi1z3jry5fsnTyMrhK 精确READY并绑定Nu。公网原HTTP真实合成聊天承接前文，首段6.758s、全轮7.674s、服务端准备819ms、保存775ms；一次文字调用提交v19，测试档暂停。批次2文字/0图，无用户档写。check3854/build、原streamPG及169最终边界+媒体PG2通过，生产100迁移一致，公网health/workbench200。169实际入口接线完成；付费后跨版本提交、长期自主推进、媒体提前完成措辞仍未完成。
