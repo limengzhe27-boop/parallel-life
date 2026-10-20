@@ -323,10 +323,11 @@ test('exact private-message response recovery uses real kernel and never claims 
   );
 
   await t.test(
-    'world conflict preserves existing history and maps both send and lookup to VERSION_CONFLICT',
+    'unrelated other-actor chat preserves the original recovery basis and commits at the actual append version',
     async () => {
       const f = await fixture();
-      await f.received();
+      const prepared = await f.received();
+      const otherCommandId = randomUUID();
       let controlledCalls = 0;
       const otherService = npcAgentServices(db, () => ({
         complete: async () => {
@@ -335,26 +336,97 @@ test('exact private-message response recovery uses real kernel and never claims 
         },
       }));
       await otherService.sendMessageIfEnabled(f.owner, {
-        id: randomUUID(),
+        id: otherCommandId,
         worldId: f.worldId,
         actorId: f.state.actors[1]!.id,
         expectedVersion: 0,
         text: 'A separately committed actual turn.',
       });
       assert.equal(controlledCalls, 1);
-      const receipt = await service.recoverMessage(f.owner, f.command);
-      assert.equal(receipt.status, 'failed');
-      if (receipt.status === 'failed') assert.equal(receipt.code, 'VERSION_CONFLICT');
-      await assert.rejects(service.sendMessageIfEnabled(f.owner, f.command), {
-        code: 'VERSION_CONFLICT',
-      });
-      assert.deepEqual(await service.lookupMessage(f.owner, f.command), receipt);
+
+      const attemptBefore = (
+        await admin.query(
+          'SELECT expected_world_version,expected_actor_revision,response_hash,response FROM parallel_life.agent_attempts WHERE id=$1',
+          [prepared.attempt.id],
+        )
+      ).rows[0];
+      const receiptBefore = (
+        await admin.query(
+          "SELECT document->>'expectedWorldVersion' AS expected FROM parallel_life.agent_input_receipts WHERE id=$1",
+          [prepared.receipt.id],
+        )
+      ).rows[0];
+      assert.equal(Number(attemptBefore.expected_world_version), 0);
+      assert.equal(Number(attemptBefore.expected_actor_revision), 0);
+      assert.equal(Number(attemptBefore.response.snapshot.worldVersion), 0);
+      assert.equal(Number(receiptBefore.expected), 0);
+
+      const lookup = await service.lookupMessage(f.owner, f.command);
+      assert.equal(lookup?.status, 'unconfirmed');
+      assert.equal((lookup as any).recovery, 'response_received');
+      const recovered = await service.recoverMessage(f.owner, f.command);
+      assert.equal(recovered.status, 'committed');
+      MessageReceiptLookupSchema.parse(recovered);
+      assert.equal(recovered.version, 2);
+      assert.equal(modelFactories, 0);
+
+      const attemptAfter = (
+        await admin.query(
+          'SELECT expected_world_version,expected_actor_revision,response_hash,response FROM parallel_life.agent_attempts WHERE id=$1',
+          [prepared.attempt.id],
+        )
+      ).rows[0];
+      assert.equal(Number(attemptAfter.expected_world_version), 0);
+      assert.equal(Number(attemptAfter.expected_actor_revision), 0);
+      assert.equal(Number(attemptAfter.response.snapshot.worldVersion), 0);
+      assert.deepEqual(attemptAfter.response, attemptBefore.response);
+      assert.equal(attemptAfter.response_hash, attemptBefore.response_hash);
+
+      const aEvent = (
+        await admin.query(
+          'SELECT id,version FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
+          [f.worldId, f.owner, f.command.id],
+        )
+      ).rows[0];
+      assert.equal(Number(aEvent.version), 2);
+      assert.equal(aEvent.id, recovered.eventId);
+      const events = (
+        await admin.query(
+          'SELECT id,version FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 ORDER BY version',
+          [f.worldId, f.owner],
+        )
+      ).rows;
+      assert.equal(events.length, 2);
+      assert.equal(Number(events[0].version), 1);
+      assert.equal(Number(events[1].version), 2);
+
+      const world = await f.worlds.get({ userId: f.owner }, f.worldId);
+      assert.equal(world.messages.length, 4);
+      const assistant = world.messages.filter((m) => m.role === 'assistant');
+      assert.equal(assistant.length, 2);
+      const originalReply = assistant.filter((m) => m.actorId === f.actorId);
+      assert.equal(originalReply.length, 1);
+      assert.equal(originalReply[0]!.sourceVersion, 2);
+      assert.equal(originalReply[0]!.text, 'Original protected reply.');
+      const otherReply = assistant.filter((m) => m.actorId === f.state.actors[1]!.id);
+      assert.equal(otherReply.length, 1);
+      assert.equal(otherReply[0]!.sourceVersion, 1);
+      assert.equal(world.messages.filter((m) => m.role === 'user').length, 2);
       assert.equal(
-        (await f.worlds.get({ userId: f.owner }, f.worldId)).messages.filter(
-          (m) => m.role === 'assistant',
-        ).length,
+        world.messages.filter((m) => m.actorId === f.actorId && m.text === f.command.text).length,
         1,
       );
+
+      const countsAfter = await f.counts();
+      assert.equal(countsAfter.inputs, 2);
+      assert.equal(countsAfter.attempts, 2);
+      assert.equal(countsAfter.events, 2);
+      assert.equal(countsAfter.messages, 4);
+      assert.deepEqual(await service.recoverMessage(f.owner, f.command), recovered);
+      assert.deepEqual(await service.lookupMessage(f.owner, f.command), recovered);
+      const replay = await service.sendMessageIfEnabled(f.owner, f.command);
+      assert.deepEqual(replay, recovered);
+      assert.deepEqual(await f.counts(), countsAfter);
       assert.equal(modelFactories, 0);
     },
   );

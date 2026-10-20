@@ -40,6 +40,22 @@ test('actual NPC kernel and private service commit actor state with world receip
   );
   const worlds = new PostgresWorldRepository(db),
     store = new PostgresAgentRuntimeRepository(db);
+
+  const latestInputSourceId = async (ownerId: string, worldId: string, payload: any) => {
+    const actorId = payload.replyAs?.actorId ?? payload.input?.recipientActorId ?? null;
+    const row = (
+      await admin.query(
+        `SELECT id FROM parallel_life.agent_input_receipts
+         WHERE world_id=$1 AND owner_id=$2 AND document->>'text'=$3
+           AND document->>'channel'=$4
+           AND (document->>'recipientActorId'=$5 OR document->>'recipientActorId' IS NULL)
+         ORDER BY created_at DESC LIMIT 1`,
+        [worldId, ownerId, payload.input.text, payload.channel?.kind ?? 'private', actorId],
+      )
+    ).rows[0];
+    if (!row) throw Error('FIXTURE_INPUT_NOT_FOUND');
+    return String(row.id);
+  };
   t.after(async () => {
     await db.close();
     await admin.end();
@@ -228,7 +244,7 @@ test('actual NPC kernel and private service commit actor state with world receip
         actionIds: ['a'],
         nextActionId: 'a',
         triggers: [],
-        missingConditions: [],
+        missingConditions: ['等待自己的核对完成'],
       });
       p.actions.push({
         id: 'a',
@@ -388,7 +404,7 @@ test('actual NPC kernel and private service commit actor state with world receip
     const service = npcAgentServices(db, () => ({
       async complete(messages) {
         const payload = JSON.parse(messages[1]!.content);
-        const source = payload.input.sourceId;
+        const source = await latestInputSourceId(f.ownerId, f.world.id, payload);
         const p = proposal();
         call++;
         if (call === 1) {
@@ -493,6 +509,7 @@ test('actual NPC kernel and private service commit actor state with world receip
       const service = npcAgentServices(db, () => ({
         async complete(messages) {
           const payload = JSON.parse(messages[1]!.content);
+          const source = await latestInputSourceId(f.ownerId, f.world.id, payload);
           const p = proposal();
           call++;
           if (call === 1) {
@@ -501,7 +518,7 @@ test('actual NPC kernel and private service commit actor state with world receip
               {
                 id: 'secret-goal',
                 summary: secret,
-                sourceIds: [payload.input.sourceId],
+                sourceIds: [source],
                 status: 'active',
                 resultIds: [],
               },
@@ -740,7 +757,7 @@ test('actual NPC kernel and private service commit actor state with world receip
               {
                 subject: { kind: 'player' },
                 placeId: 'cafe',
-                sourceId: payload.input.sourceId,
+                sourceId: await latestInputSourceId(f.ownerId, f.world.id, payload),
                 quote: '我在咖啡馆',
                 assertion: 'reported',
               },

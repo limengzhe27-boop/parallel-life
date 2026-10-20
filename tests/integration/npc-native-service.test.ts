@@ -73,6 +73,23 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
     store = new PostgresAgentRuntimeRepository(db),
     tasks = new TaskRepository(db);
 
+  const latestInputSourceId = async (ownerId: string, worldId: string, payload: any) => {
+    const input = payload.input;
+    const actorId = payload.replyAs?.actorId ?? payload.input?.recipientActorId ?? null;
+    const row = (
+      await admin.query(
+        `SELECT id FROM parallel_life.agent_input_receipts
+         WHERE world_id=$1 AND owner_id=$2 AND document->>'text'=$3
+           AND document->>'channel'=$4
+           AND (document->>'recipientActorId'=$5 OR document->>'recipientActorId' IS NULL)
+         ORDER BY created_at DESC LIMIT 1`,
+        [worldId, ownerId, input.text, payload.channel?.kind ?? 'private', actorId],
+      )
+    ).rows[0];
+    if (!row) throw Error('FIXTURE_INPUT_NOT_FOUND');
+    return String(row.id);
+  };
+
   async function fixture() {
     const owner = randomUUID(),
       worldId = randomUUID(),
@@ -128,6 +145,11 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
         privateCalls++;
         const input = JSON.parse(messages[1]!.content).input;
         assert.equal(input.text, privateQuote);
+        const source = await latestInputSourceId(owner, worldId, {
+          input,
+          channel: { kind: 'private' },
+          replyAs: { actorId: a },
+        });
         const proposal: AgentProposal = {
           ...reply('明白，这次不约了。'),
           goals: [
@@ -136,7 +158,7 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
               summary: '保留本人长期安排',
               status: 'active',
               resultIds: [],
-              sourceIds: [input.sourceId],
+              sourceIds: [source],
             },
           ],
           plans: [
@@ -145,7 +167,7 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
               goalId: 'private-goal',
               summary: '尊重拒绝，改换自己的安排',
               status: 'waiting',
-              sourceIds: [input.sourceId],
+              sourceIds: [source],
               actionIds: [],
               nextActionId: null,
               triggers: [],
@@ -160,7 +182,7 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
               status: 'withdrawn',
               endReason: '玩家明确拒绝本次会面',
               waitingOn: null,
-              sourceIds: [input.sourceId],
+              sourceIds: [source],
               nextCheck: [],
             },
           ],
@@ -169,7 +191,7 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
               id: 'private-decline',
               responsibilityId: 'private-request',
               kind: 'declined',
-              sourceId: input.sourceId,
+              sourceId: source,
               quote: input.text,
             },
           ],
@@ -218,13 +240,14 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
       const handler = nativeNpcTaskHandler(db, () => ({
         async complete(messages) {
           const payload = JSON.parse(messages[1]!.content);
+          const source = await latestInputSourceId(f.owner, f.worldId, payload);
           return JSON.stringify({
             ...reply('知道了，你先忙。'),
             locationReports: [
               {
                 subject: { kind: 'player' },
                 placeId: null,
-                sourceId: payload.input.sourceId,
+                sourceId: source,
                 quote: '我在外面',
                 assertion: 'reported',
               },
@@ -305,6 +328,7 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
             nativeCalls === 1 ? '我有自己的安排。要改天再聊吗？' : '好，那就先随意聊聊。',
             nativeCalls === 1,
           );
+          const source = await latestInputSourceId(f.owner, f.worldId, payload);
           if (nativeCalls === 2) {
             const question = payload.state.questions.find(
               (q: { status: string; channel: string }) =>
@@ -314,7 +338,7 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
             proposal.replyAssessments = [
               {
                 questionId: question.id,
-                sourceId: payload.input.sourceId,
+                sourceId: source,
                 quote: '好',
                 relation: 'answer',
               },
@@ -656,15 +680,44 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
                 ? p.candidates.find((c: { actorId: string }) => c.actorId === f.b)
                 : null;
             if (mode === 'selected') assert.ok(choice);
+            const candidateRefs = new Map<string, string>(
+              (p.wireCatalog?.candidates ?? []).map(
+                (candidate: { candidateId: string; ref: string }) => [
+                  candidate.candidateId,
+                  candidate.ref,
+                ],
+              ),
+            );
+            const sourceRefs = new Map<string, string>(
+              (p.wireCatalog?.sources ?? []).map((source: { sourceId: string; ref: string }) => [
+                source.sourceId,
+                source.ref,
+              ]),
+            );
+            const candidateWires = p.candidates.map(
+              (candidate: { id: string; sourceIds: string[] }) => {
+                const ref = candidateRefs.get(candidate.id);
+                assert.ok(ref, 'candidate wire ref exists');
+                return candidate.id === choice?.id
+                  ? { ref, decision: 'select' as const }
+                  : { ref, decision: 'defer' as const, reason: '承接协调未选择此人' };
+              },
+            );
+            const auditSourceRefs = [
+              ...new Set(
+                p.candidates
+                  .flatMap((candidate: { sourceIds: string[] }) => candidate.sourceIds)
+                  .map((sourceId: string) => sourceRefs.get(sourceId))
+                  .filter((ref: string | undefined): ref is string => Boolean(ref)),
+              ),
+            ];
             return JSON.stringify({
-              mode: choice ? 'coordinate' : 'quiet',
-              selectedCandidateIds: choice ? [choice.id] : [],
-              deferred: p.candidates
-                .filter((c: { id: string }) => c.id !== choice?.id)
-                .map((c: { id: string }) => ({ candidateId: c.id, reason: '承接协调未选择此人' })),
-              nudges: [],
+              protocol: 'director-wire-v14',
+              candidates: candidateWires,
+              authoredChoices: {},
               opportunities: [],
-              audit: { reason: '按当前发言与本人责任协调', basisSourceIds: [] },
+              audit: { reason: '按当前发言与本人责任协调', sourceRefs: auditSourceRefs },
+              openingContext: null,
             });
           }
           npcs++;
