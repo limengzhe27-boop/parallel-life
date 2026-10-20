@@ -1,6 +1,6 @@
 import type { ImageGenerationIntent, VideoGenerationIntent } from './types.ts';
 
-export const MEDIA_PROMPT_RULE_VERSION = '1.0.0';
+export const MEDIA_PROMPT_RULE_VERSION = '1.1.0';
 
 export type BuiltImagePrompt = {
   ruleVersion: string;
@@ -24,10 +24,14 @@ export type BuiltVideoPrompt = {
 };
 
 const STYLE_PRESETS: Record<string, string> = {
-  film_photo: 'cinematic 35mm film photograph, Kodak Portra 400 aesthetic, soft natural grain, authentic candid capture',
-  documentary: 'raw documentary photography, natural daylight, neutral color balance, honest candid moment',
-  cinematic: 'cinematic widescreen movie still, anamorphic lens character, subtle depth of field, atmospheric mood',
-  illustration: 'detailed editorial illustration, painterly textured brushwork, expressive color harmony',
+  film_photo:
+    'cinematic 35mm film photograph, Kodak Portra 400 aesthetic, soft natural grain, authentic candid capture',
+  documentary:
+    'raw documentary photography, natural daylight, neutral color balance, honest candid moment',
+  cinematic:
+    'cinematic widescreen movie still, anamorphic lens character, subtle depth of field, atmospheric mood',
+  illustration:
+    'detailed editorial illustration, painterly textured brushwork, expressive color harmony',
 };
 
 const LIGHTING_PRESETS: Record<string, string> = {
@@ -35,7 +39,8 @@ const LIGHTING_PRESETS: Record<string, string> = {
   golden_hour: 'bathed in the warm low golden hour glow of late afternoon',
   overcast_diffused: 'under an overcast sky with even diffused ambient light and soft edges',
   warm_interior: 'lit by warm interior tungsten lamps creating cozy, inviting ambient highlights',
-  neon_night: 'illuminated by distant ambient neon signs casting colorful reflections in the darkness',
+  neon_night:
+    'illuminated by distant ambient neon signs casting colorful reflections in the darkness',
 };
 
 const COMPOSITION_PRESETS: Record<string, string> = {
@@ -51,6 +56,25 @@ const CAMERA_MOTION_PRESETS: Record<string, string> = {
   static: 'Locked-off static camera on a sturdy tripod, letting motion occur naturally in frame.',
   tracking: 'Dynamic tracking shot maintaining a stable parallel view of the subject.',
 };
+
+/** Resolves framing only; it never authorizes or starts image generation. */
+function imageCaptureMode(
+  intent: ImageGenerationIntent,
+): NonNullable<ImageGenerationIntent['captureMode']> {
+  if (intent.captureMode) return intent.captureMode;
+  const scene = intent.sceneDescription;
+  // Compatibility for persisted requests whose only capture specification is prose.
+  // A portrait purpose or character anchor alone never implies a selfie.
+  if (/(?:不是|不要|并非|非|不拍)\s*自拍|\b(?:not a|no|non[- ]?)\s*selfie\b/i.test(scene)) {
+    return 'external_camera';
+  }
+  if (
+    /(?:对镜|镜子前|镜中|镜面).{0,12}自拍|自拍.{0,12}(?:镜子|镜面)|\bmirror\s+selfie\b/i.test(scene)
+  ) {
+    return 'mirror_selfie';
+  }
+  return /自拍|\bselfie\b/i.test(scene) ? 'front_camera_selfie' : 'external_camera';
+}
 
 /**
  * Versioned, deterministic PromptBuilder for image and video synthesis.
@@ -73,16 +97,26 @@ export class MediaPromptBuilder {
     referenceAssetId?: string;
     targetModel?: 'flux-schnell' | 'flux-1.1-pro';
   }): BuiltImagePrompt {
-    const { intent, characterSnippet, hasReferenceImage = false, referenceAssetId, targetModel = 'flux-schnell' } = params;
+    const {
+      intent,
+      characterSnippet,
+      hasReferenceImage = false,
+      referenceAssetId,
+      targetModel = 'flux-schnell',
+    } = params;
 
     const sentenceComponents: string[] = [];
+    const captureMode = imageCaptureMode(intent);
+    const isSelfie = captureMode !== 'external_camera';
 
     // 1. Subject Anchor
     if (intent.purpose === 'portrait' || characterSnippet) {
       if (characterSnippet && characterSnippet.trim().length > 0) {
         sentenceComponents.push(characterSnippet.trim());
       } else {
-        sentenceComponents.push('A portrait of a person');
+        sentenceComponents.push(
+          isSelfie ? 'A person taking their own photo' : 'A portrait of a person',
+        );
       }
     }
 
@@ -100,20 +134,53 @@ export class MediaPromptBuilder {
       sentenceComponents.push(`The scene is ${lightingPreset}.`);
     }
 
-    // 4. Composition & Framing
-    const compositionPreset = intent.composition ? COMPOSITION_PRESETS[intent.composition] : undefined;
-    if (compositionPreset) {
-      sentenceComponents.push(`Composed as a ${compositionPreset}.`);
+    // 4. Capture geometry takes precedence over generic portrait composition.
+    if (captureMode === 'front_camera_selfie') {
+      sentenceComponents.push(
+        'An authentic handheld front-camera smartphone selfie taken by the subject themselves. ' +
+          'The viewpoint is the phone in their outstretched hand at arm’s length, slightly above eye level, ' +
+          'with a natural wide-angle 24mm-equivalent perspective and casual imperfect framing. ' +
+          'Their face and shoulders are close to the lens; part of the extended arm may enter the lower edge. ' +
+          'The phone itself is outside this front-camera image. This is the selfie itself, not an external view of someone taking a photo.',
+      );
+    } else if (captureMode === 'mirror_selfie') {
+      sentenceComponents.push(
+        'An authentic mirror selfie taken by the subject themselves: the reflected subject visibly holds ' +
+          'a smartphone aimed at the mirror, with its rear camera capturing their reflection. ' +
+          'Keep a believable reflection, hand grip and phone placement with casual handheld framing.',
+      );
+      const compositionPreset = intent.composition
+        ? COMPOSITION_PRESETS[intent.composition]
+        : undefined;
+      if (compositionPreset) sentenceComponents.push(`Composed as a ${compositionPreset}.`);
+    } else {
+      const compositionPreset = intent.composition
+        ? COMPOSITION_PRESETS[intent.composition]
+        : undefined;
+      if (compositionPreset) sentenceComponents.push(`Composed as a ${compositionPreset}.`);
     }
 
-    // 5. Photographic Style & Equipment
-    const styleKey = intent.style ?? 'film_photo';
-    const styleText = STYLE_PRESETS[styleKey] ?? STYLE_PRESETS.film_photo;
-    sentenceComponents.push(`${styleText}, shot on a 50mm portrait lens at eye level.`);
+    // 5. Do not override a phone selfie with a default studio/portrait lens.
+    if (isSelfie) {
+      sentenceComponents.push(
+        'Everyday smartphone photo texture, natural skin detail and available light; no camera interface, watermarks or added text.',
+      );
+      if (intent.style) sentenceComponents.push(`${STYLE_PRESETS[intent.style]}.`);
+    } else {
+      const styleKey = intent.style ?? 'film_photo';
+      const styleText = STYLE_PRESETS[styleKey] ?? STYLE_PRESETS.film_photo;
+      sentenceComponents.push(`${styleText}, shot on a 50mm portrait lens at eye level.`);
+    }
 
-    // 6. Reference guidance hint if reference image is available
+    // 6. Use references for identity, not their original camera angle or pose.
     if (hasReferenceImage) {
-      sentenceComponents.push('Carefully preserving facial likeness, proportions and distinct features from the reference image.');
+      sentenceComponents.push(
+        'Carefully preserving facial likeness, proportions and distinct features from the reference image.',
+      );
+      if (isSelfie)
+        sentenceComponents.push(
+          'Use the reference for identity only; recreate the requested selfie viewpoint instead of copying its original pose, framing or background.',
+        );
     }
 
     const fullPrompt = sentenceComponents.join(' ');
@@ -138,7 +205,12 @@ export class MediaPromptBuilder {
     hasFirstFrameImage?: boolean;
     targetModel?: 'minimax-video-01' | 'luma-ray';
   }): BuiltVideoPrompt {
-    const { intent, characterSnippet, hasFirstFrameImage = false, targetModel = 'minimax-video-01' } = params;
+    const {
+      intent,
+      characterSnippet,
+      hasFirstFrameImage = false,
+      targetModel = 'minimax-video-01',
+    } = params;
 
     const sceneLayers: string[] = [];
 
@@ -154,10 +226,14 @@ export class MediaPromptBuilder {
     sceneLayers.push(`performing the following action: ${cleanAction}.`);
 
     // Layer 4: Style aesthetic
-    sceneLayers.push('Cinematic realism, high fidelity physical motion, realistic physics and momentum.');
+    sceneLayers.push(
+      'Cinematic realism, high fidelity physical motion, realistic physics and momentum.',
+    );
 
     // Layer 5 & 6: Camera motion & Composition
-    const cameraPreset = intent.cameraMotion ? CAMERA_MOTION_PRESETS[intent.cameraMotion] : undefined;
+    const cameraPreset = intent.cameraMotion
+      ? CAMERA_MOTION_PRESETS[intent.cameraMotion]
+      : undefined;
     if (cameraPreset) {
       sceneLayers.push(cameraPreset);
     } else {
@@ -193,7 +269,9 @@ export class MediaPromptBuilder {
     }
 
     if (hasFirstFrameImage) {
-      sceneLayers.push('Beginning smoothly from the initial reference frame, seamlessly extending motion forward in time.');
+      sceneLayers.push(
+        'Beginning smoothly from the initial reference frame, seamlessly extending motion forward in time.',
+      );
     }
 
     const fullPrompt = sceneLayers.join(' ');

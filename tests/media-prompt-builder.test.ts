@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MediaPromptBuilder, MEDIA_PROMPT_RULE_VERSION } from '../src/modules/media/domain/prompt-builder.ts';
-import type { ImageGenerationIntent, VideoGenerationIntent } from '../src/modules/media/domain/types.ts';
+import {
+  MediaPromptBuilder,
+  MEDIA_PROMPT_RULE_VERSION,
+} from '../src/modules/media/domain/prompt-builder.ts';
+import type {
+  ImageGenerationIntent,
+  VideoGenerationIntent,
+} from '../src/modules/media/domain/types.ts';
 
 test('MediaPromptBuilder: builds structured image prompt adhering to photography standards', () => {
   const builder = new MediaPromptBuilder();
@@ -16,7 +22,8 @@ test('MediaPromptBuilder: builds structured image prompt adhering to photography
     composition: 'medium_shot',
   };
 
-  const characterSnippet = 'A young architect, 28 years old with short dark hair and round wire-rim glasses';
+  const characterSnippet =
+    'A young architect, 28 years old with short dark hair and round wire-rim glasses';
 
   const built = builder.buildImagePrompt({
     intent,
@@ -26,7 +33,7 @@ test('MediaPromptBuilder: builds structured image prompt adhering to photography
     targetModel: 'flux-1.1-pro',
   });
 
-  assert.equal(built.ruleVersion, '1.0.0');
+  assert.equal(built.ruleVersion, MEDIA_PROMPT_RULE_VERSION);
   assert.equal(built.targetModel, 'flux-1.1-pro');
   assert.equal(built.aspectRatio, '9:16');
   assert.equal(built.outputFormat, 'webp');
@@ -71,7 +78,7 @@ test('MediaPromptBuilder: builds video prompt with 7-layer scene and 4-layer aud
     targetModel: 'minimax-video-01',
   });
 
-  assert.equal(built.ruleVersion, '1.0.0');
+  assert.equal(built.ruleVersion, MEDIA_PROMPT_RULE_VERSION);
   assert.equal(built.targetModel, 'minimax-video-01');
   assert.equal(built.durationSeconds, 6);
   assert.equal(built.hasFirstFrameImage, true);
@@ -93,4 +100,70 @@ test('MediaPromptBuilder: builds video prompt with 7-layer scene and 4-layer aud
 
   // Verify seamless first frame hint
   assert.ok(built.prompt.includes('Beginning smoothly from the initial reference frame'));
+});
+
+test('MediaPromptBuilder: selfie uses the subject’s front camera instead of an external portrait lens', () => {
+  const built = new MediaPromptBuilder().buildImagePrompt({
+    intent: {
+      purpose: 'portrait',
+      sceneDescription: '坐在沙发上，穿着白色上衣，给朋友拍一张日常自拍',
+      composition: 'wide_shot',
+    },
+    characterSnippet: 'A woman with shoulder-length brown hair',
+    hasReferenceImage: true,
+  });
+  assert.match(built.prompt, /front-camera smartphone selfie/);
+  assert.match(built.prompt, /outstretched hand at arm’s length/);
+  assert.match(built.prompt, /identity only/);
+  assert.match(built.prompt, /白色上衣/);
+  assert.doesNotMatch(built.prompt, /50mm portrait lens|wide establishing shot|Kodak Portra/);
+});
+
+test('MediaPromptBuilder: mirror selfie preserves visible phone/reflection rather than front-camera geometry', () => {
+  const built = new MediaPromptBuilder().buildImagePrompt({
+    intent: {
+      purpose: 'portrait',
+      sceneDescription: '站在卧室镜子前自拍，展示今天的穿搭',
+      composition: 'medium_shot',
+    },
+  });
+  assert.match(built.prompt, /mirror selfie/);
+  assert.match(built.prompt, /visibly holds a smartphone/);
+  assert.match(built.prompt, /medium shot/);
+  assert.doesNotMatch(built.prompt, /phone itself is outside|50mm portrait lens/);
+});
+
+test('MediaPromptBuilder: portrait and explicitly non-selfie requests keep external-camera framing', () => {
+  for (const sceneDescription of [
+    'a portrait by the window',
+    '朋友为她拍照，不是自拍',
+    'a photograph, not a selfie',
+  ]) {
+    const built = new MediaPromptBuilder().buildImagePrompt({
+      intent: { purpose: 'portrait', sceneDescription },
+    });
+    assert.match(built.prompt, /50mm portrait lens/);
+    assert.doesNotMatch(built.prompt, /front-camera smartphone selfie|An authentic mirror selfie/);
+  }
+});
+
+test('MediaPromptBuilder: explicit capture mode overrides ambiguous legacy prose', () => {
+  const builder = new MediaPromptBuilder();
+  const selfie = builder.buildImagePrompt({
+    intent: {
+      purpose: 'portrait',
+      sceneDescription: 'relaxed at home',
+      captureMode: 'front_camera_selfie',
+    },
+  });
+  assert.match(selfie.prompt, /front-camera smartphone selfie/);
+  const portrait = builder.buildImagePrompt({
+    intent: {
+      purpose: 'portrait',
+      sceneDescription: 'standing near a selfie booth',
+      captureMode: 'external_camera',
+    },
+  });
+  assert.match(portrait.prompt, /50mm portrait lens/);
+  assert.doesNotMatch(portrait.prompt, /front-camera smartphone selfie/);
 });

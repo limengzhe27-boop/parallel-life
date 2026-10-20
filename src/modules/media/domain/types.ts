@@ -9,11 +9,11 @@ export type GenerationStatus =
   | 'cancelled';
 
 export type MediaPurpose =
-  | 'portrait'        // Specific character portrait / life photo
-  | 'scene'           // Scene or environmental illustration (no specific character anchor)
-  | 'memorial'        // Memorial story event photo
-  | 'evidence'        // In-world evidence capture
-  | 'author_asset';    // Author manuscript asset
+  | 'portrait' // Specific character portrait / life photo
+  | 'scene' // Scene or environmental illustration (no specific character anchor)
+  | 'memorial' // Memorial story event photo
+  | 'evidence' // In-world evidence capture
+  | 'author_asset'; // Author manuscript asset
 
 export type MediaDeliveryIntent = {
   channel: 'chat' | 'album' | 'evidence_board';
@@ -94,7 +94,9 @@ export type ImageGenerationIntent = {
   style?: 'film_photo' | 'documentary' | 'cinematic' | 'illustration';
   aspectRatio?: '1:1' | '9:16' | '16:9' | '3:4';
   composition?: 'close_up' | 'medium_shot' | 'wide_shot';
-  lighting?: 'natural_sunlight' | 'golden_hour' | 'overcast_diffused' | 'warm_interior' | 'neon_night';
+  captureMode?: 'front_camera_selfie' | 'mirror_selfie' | 'external_camera';
+  lighting?:
+    'natural_sunlight' | 'golden_hour' | 'overcast_diffused' | 'warm_interior' | 'neon_night';
   sourceEventId?: string;
   deliveryIntent?: MediaDeliveryIntent;
 };
