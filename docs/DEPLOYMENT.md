@@ -1,3 +1,7 @@
+## 2026-10-21 · 44-168 失败占位与计划复盘对象
+
+44-168第十二批有限修复已部署：27140ef77a9d3fdd8d650aa109fd3fd7c14ae57a / dpl_4kfgceVyrMWxd2yWCqb3aNFDxMsg精确READY绑定Nu；生产103一致、check3877/build、聚焦116/原PG窗口1通过。原f573d541无输入advance为0模型/0消息，公网锁屏约16:16仍是旧重复消息，持续自主未通过；同步记录仍有历史未完成提示，另有1条cancelled_before_send，预备上下文可离线构造，未重试付费。剩余旧失败安全恢复、全员等待后的下一阶段与无模型读取耗时继续待做。小迪175真实worker完成后一次唤醒已报告通过，action入队失败与旧opening夹具仍待其收尾。
+
 ## 2026-10-20 · 44-168 旧媒体计划与原档进入恢复
 
 业务c6e9708d45776783b0c3eb053837d56104645adf / dpl_21ez8GPndyiVgb6T7zMtwPW644Qh精确READY绑定Nu，生产103/103迁移一致。check3875/build/typecheck通过，clock原PG12与小迪174 pending媒体/条件3通过。成功媒体入队只归原媒体完成生命周期接续；continuation非条件分支移除无用途条件；正常正式世界entry可从当前锚点恢复手动暂停，试演与普通心跳保护保留。

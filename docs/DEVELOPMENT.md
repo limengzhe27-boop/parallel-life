@@ -2889,3 +2889,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第十二批进行中：root-simplify168/main e266cb70；公共事件请求执行分类、own-agenda/narrative-wake、观察候选及对应聚焦测试由root独占。修正paid invalid pending错误占位、开场历史报告重复唤醒；继续实际结果与自主议程接续。小迪负责新独立媒体worker与旧夹具验收，公共源只读。现有f573d541原档验收，不重建世界、不重买旧失败。
 
 44-168第十二批待上线、总体未完成：原开场received_opening_information仅保留知情不重复观察唤醒；付费失败pending不再占可执行工作，原派发/个人议程/导演共用分类；计划复盘携带明确对象与真实结果。check3877/build、聚焦116、原PG窗口1通过；原f573d541正常advance零文字/零图片/零新消息，持续主动未通过，不靠重复购买。旧失败恢复、全员无意图后的有效议程及媒体worker接续仍未完成。
+
+44-168第十二批有限修复已部署：27140ef77a9d3fdd8d650aa109fd3fd7c14ae57a / dpl_4kfgceVyrMWxd2yWCqb3aNFDxMsg精确READY绑定Nu；生产103一致、check3877/build、聚焦116/原PG窗口1通过。原f573d541无输入advance为0模型/0消息，公网锁屏约16:16仍是旧重复消息，持续自主未通过；同步记录仍有历史未完成提示，另有1条cancelled_before_send，预备上下文可离线构造，未重试付费。剩余旧失败安全恢复、全员等待后的下一阶段与无模型读取耗时继续待做。小迪175真实worker完成后一次唤醒已报告通过，action入队失败与旧opening夹具仍待其收尾。
