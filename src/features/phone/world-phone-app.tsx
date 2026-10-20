@@ -435,7 +435,13 @@ export function WorldPhoneApp({
       committedSends.current[commandId] = receipt;
       confirmedSendVersion.current = {
         worldId,
-        version: Math.max(currentVersion, receipt.version),
+        version: Math.max(
+          currentVersion,
+          receipt.version,
+          confirmedSendVersion.current.worldId === worldId
+            ? confirmedSendVersion.current.version
+            : 0,
+        ),
       };
       delete sendCommands.current[commandId];
       setLocalMessages((current) =>
