@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
 import type { AgentValidationContext } from '../src/modules/world/domain/agent-kernel.ts';
 import { npcResponseFormat } from '../src/modules/world/infrastructure/npc-model-protocol.ts';
+import { validateActorContinuation } from '../src/modules/world/domain/actor-continuation.ts';
 import { parseAgentProposal } from '../src/modules/world/infrastructure/agent-proposal-parser.ts';
 
 /** Inspect the current delta envelope directly; historical fixtures below keep their original grammar. */
@@ -647,14 +648,16 @@ test('native response schema represents server event permission, never a guessed
   const object = changeFields(required).consideration!;
   assert.equal(object.type, 'object');
   assert.ok((object.required as string[]).includes('choice'));
-  const continuation = changeFields(required).continuation.anyOf.find(
+  const continuations = changeFields(required).continuation.anyOf.filter(
     (x: any) => x.type === 'object',
   );
-  assert.deepEqual(continuation.properties.decision.enum, [
-    'await_response',
-    'await_condition',
-    'no_current_intent',
-  ]);
+  assert.deepEqual(
+    continuations.map((x: any) => x.properties.decision.enum[0]),
+    ['await_response', 'await_condition', 'no_current_intent'],
+  );
+  assert.equal(continuations[0].properties.conditions.maxItems, 0);
+  assert.equal(continuations[1].properties.conditions.minItems, 1);
+  assert.equal(continuations[2].properties.conditions.maxItems, 0);
 });
 
 test('byte-equivalent execution intents are idempotent while conflicting duplicate identifiers are rejected', () => {
@@ -1244,4 +1247,31 @@ test('server player opportunity requires one explicit choice in the same delta, 
     assert.equal(proposal.episodeDecision?.choice, choice);
     assert.equal(proposal.episodeDecision?.requestId, 'request');
   }
+});
+
+test('current continuation only binds conditions for an actual condition wait', () => {
+  const { c } = fixture();
+  const make = (decision: string) =>
+    JSON.stringify({
+      protocol: 'npc-wire-v15',
+      statements: [{ text: '你想什么时候聊？', requestsPlayerReply: true, dependsOnActionIds: [] }],
+      executions: [],
+      changes: {
+        continuation: {
+          decision,
+          reason: '等待下一步',
+          sourceIds: ['source:1'],
+          planIds: [],
+          questionIds: [],
+          conditions: [{ kind: 'at_place', placeId: 'invented-place' }],
+        },
+      },
+    });
+  for (const decision of ['await_response', 'no_current_intent']) {
+    const p = parseAgentProposal(c, make(decision));
+    assert.deepEqual(p.continuation?.conditions, []);
+    assert.doesNotThrow(() => validateActorContinuation(c, p));
+  }
+  const waiting = parseAgentProposal(c, make('await_condition'));
+  assert.throws(() => validateActorContinuation(c, waiting), /INVALID_ACTOR_CONTINUATION/);
 });

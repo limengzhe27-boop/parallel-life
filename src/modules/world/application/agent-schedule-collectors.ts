@@ -435,6 +435,12 @@ async function planReconsiderations(
       f.planIds.includes(plan.id),
     );
     if (
+      // A successful generation action only enqueues media. The existing media
+      // completion observer owns its next wake; a second plan review here can
+      // recreate the same request before or after delivery.
+      (completedStep?.outcome === 'succeeded' &&
+        ['media.generate_image', 'media.generate_video'].includes(nextAction!.capability) &&
+        completedStep.outputRefs?.some((ref) => ref.kind === 'media')) ||
       resultAlreadyWaiting ||
       (!refs.length &&
         !completedStep &&

@@ -931,3 +931,22 @@ test('a successful result already waiting on its own output does not purchase a 
   sync(a);
   assert.equal((await reviews()).length, 1, 'a changed responsibility can resume planning');
 });
+
+test('successful media enqueue uses media completion lifecycle, failed execution can reconsider', async () => {
+  for (const outcome of ['succeeded', 'failed'] as const) {
+    const a = actor();
+    const result = dependency(a, outcome);
+    a.snapshot.state.actions.find((x) => x.id === 'dependency')!.capability =
+      'media.generate_image';
+    result.outputRefs = [{ kind: 'media', id: 'existing-image-request' }];
+    a.snapshot.state.plans[0]!.actionIds = ['dependency'];
+    a.snapshot.state.plans[0]!.nextActionId = 'dependency';
+    a.trustedResults = [result];
+    sync(a);
+    const reviews = (await collect(view([a]), 'actor_plan')).candidates.filter(
+      (x) => x.actionId === null,
+    );
+    assert.equal(reviews.length, outcome === 'succeeded' ? 0 : 1);
+    assert.equal(a.snapshot.state.goals[0]!.status, 'active');
+  }
+});

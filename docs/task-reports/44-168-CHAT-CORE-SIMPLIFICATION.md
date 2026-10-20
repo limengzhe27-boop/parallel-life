@@ -171,3 +171,14 @@ PG连续旅程16/16通过（并发6、恢复9、stage2 1）：A首段后B插入A
 业务a9b2d107 / dpl_GMdBwxzaWaaEVM58wdCX9RwNbooK精确READY绑定Nu，check3873/build最终通过，103生产一致，173冻结测试2/2集成。公网原advance合成档v39→41（31.381s），无新消息；health/workbench200。审查调用记录发现本次新增NPC committed2、invalid_output1、director committed1：离线复用原响应parse通过，validateActorContinuation明确INVALID_ACTOR_CONTINUATION。旧索图计划复查输出await_response同时附无授权at_place条件，未执行生图、未重买。该失败未解决，下一步精简continuation按决策类型的条件契约，不能再称公网所有人物通过。本批总43文字/0图，所有合成档暂停。
 
 小迪173冻结结果测试已进本次业务提交，主表/报告原镜像继续由其维护；本次未覆盖或提交其未冻结文档变化。
+
+
+## 第十一批：旧媒体计划与现有存档验收（2026-10-20）
+
+- 修复成功媒体入队被通用 terminal-plan 再次复盘：后续归原媒体完成观察，保留生成失败/执行失败边界，不自动完成目标、不重试旧 invalid/unknown。
+- 当前 continuation 按 decision 输出条件：await_condition 保留来源认证；await_response 不消费地点条件；no_current_intent 不回显无用途计划/问题引用。原始模型响应保留。原168j公网失败输出离线解析及 continuation 校验通过，未执行该重复索图提案。
+- Chrome现有“渣男体验”f573d541-9055-4058-a132-0590fdd180f8存在manual暂停；正常进入resume原先被拒绝。正常玩家世界现在可从既有锚点继续；普通心跳、过期序列与后台试演保护仍保留。
+- 真实原档：通过原clock activity服务恢复08:32锚点，原advance首轮0模型/0消息；保持原Chrome手机在线后，观察到08:54李之之与08:59青青新运行来信，锁屏未读7→9。没有发送玩家消息、手插内容、创建/复制世界或修改事件条件。截图.local/168k-existing-lockscreen.png。**新内容仍是已发消息/继续等待的重复复述，不计有意义的持续事件演绎通过。**
+- 主检check3875/build通过，clock真实PG12通过；协议/collector聚焦68通过。小迪174冻结e0690fe7的pending媒体与continuation测试集成，真实PG/边界3通过；completed测试是直改状态的不足夹具，不纳入通过证据。
+- 原档三条旧invalid输出保留：一条UNKNOWN_QUESTION_RESPONSIBILITY，两条旧v14 no_current_intent引用已回答问题。没有自动重买或改写历史。
+- 未完成：既有pending失败事件与个人议程接续、重复自我复述、事件库耗尽后的有依据计划调整、媒体worker完成/失败完整后续验收。原档主动调度恢复不等于长期叙事完成。无新SQL迁移；上线READY待记。

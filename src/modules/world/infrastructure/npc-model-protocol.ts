@@ -756,13 +756,33 @@ export function npcResponseFormat(
   );
   // Executions and planIntents already express action. Do not ask the model to
   // declare the same action again in continuation; old stored outputs still decode.
-  changes.continuation!.properties!.decision!.enum = [
-    'await_response',
-    'await_condition',
-    'no_current_intent',
-  ];
-  // Nullable fields still represent no change; the whole unchanged delta is null.
-  changes.continuation = { anyOf: [changes.continuation!, { type: 'null' }] };
+  const continuation = changes.continuation!;
+  changes.continuation = {
+    anyOf: [
+      ...(['await_response', 'await_condition', 'no_current_intent'] as const).map((decision) => ({
+        ...continuation,
+        properties: {
+          ...continuation.properties!,
+          decision: { type: 'string' as const, enum: [decision] },
+          ...(decision === 'no_current_intent'
+            ? {
+                planIds: { ...continuation.properties!.planIds!, maxItems: 0 },
+                questionIds: { ...continuation.properties!.questionIds!, maxItems: 0 },
+              }
+            : {}),
+          conditions:
+            decision === 'await_condition'
+              ? { ...continuation.properties!.conditions!, minItems: 1 }
+              : {
+                  type: 'array' as const,
+                  items: continuation.properties!.conditions!.items,
+                  maxItems: 0,
+                },
+        },
+      })),
+      { type: 'null' },
+    ],
+  };
   schema.properties = {
     protocol: { type: 'string', enum: [CURRENT_NPC_WIRE_PROTOCOL] },
     statements: properties.statements!,
@@ -1669,7 +1689,22 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
         : focus?.kind === 'set'
           ? { focus: focus.value }
           : {}),
-      ...(change.continuation ? { continuation: change.continuation } : {}),
+      ...(change.continuation
+        ? {
+            continuation: {
+              ...change.continuation,
+              ...(change.continuation.decision === 'no_current_intent'
+                ? { planIds: [], questionIds: [] }
+                : {}),
+              // Only condition-wait decisions consume these fields. Keep the raw
+              // response as evidence, but do not promote unused fields into state.
+              conditions:
+                change.continuation.decision === 'await_condition'
+                  ? change.continuation.conditions
+                  : [],
+            },
+          }
+        : {}),
       questionWithdrawals: change.questionWithdrawals ?? [],
       locationReports: change.locationReports ?? [],
     }),

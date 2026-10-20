@@ -173,8 +173,16 @@ export async function updateClockActivity(
         missedBeats: 0,
         summary: null,
       };
+  // Re-entering a normal published life is the player's continue action. Staff
+  // trials and ordinary heartbeats retain their explicit pause protection.
+  if (clock.paused && clock.pauseReason === 'manual' && input.resume && input.mode !== 'away') {
+    const normal = (
+      await sql.query('SELECT parallel_life.world_continuity_admissible($1) AS allowed', [worldId])
+    ).rows[0]?.allowed;
+    if (normal) clock = { ...clock, paused: false, pauseReason: null, lastTickAt: realNow };
+  }
   // Normal player entry adopts the new policy once, at the old legal anchor. Never retroactively
-  // simulate earlier absence, unlock a manual pause, or enroll a staff-controlled trial.
+  // simulate earlier absence or enroll a staff-controlled trial.
   if (
     clock.continuityMode !== 'continuous' &&
     input.resume &&

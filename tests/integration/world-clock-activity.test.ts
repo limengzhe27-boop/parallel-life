@@ -654,7 +654,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
       },
     );
     await t.test(
-      'continuous normal entry and away preserve offline time, SQL parity and manual stop',
+      'continuous normal entry resumes a manual stop at its preserved anchor',
       async () => {
         const id = randomUUID();
         await worlds.initialize(
@@ -739,7 +739,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
               at(4000),
             )
           ).paused,
-          true,
+          false,
         );
         assert.equal((await worlds.get({ userId: owner }, id)).version, 0);
         // Owned fixture cleanup; no production or other task data involved.
