@@ -873,3 +873,32 @@ test('ordinary actionless plan reconsiders only on explicit authorized ready con
     assert.equal((await collect(next, 'actor_plan')).candidates.length, 0, mode);
   }
 });
+
+test('a real terminal next action wakes one plan review without completing the goal or repeating the result', async () => {
+  for (const outcome of ['succeeded', 'failed'] as const) {
+    const a = actor();
+    const result = dependency(a, outcome);
+    a.snapshot.state.plans[0]!.actionIds = ['dependency'];
+    a.snapshot.state.plans[0]!.nextActionId = 'dependency';
+    // The completed action's old execution location no longer gates reflection.
+    a.snapshot.state.plans[0]!.triggers = [{ kind: 'at_place', placeId: 'shop' }];
+    a.trustedResults = [result];
+    sync(a);
+    const v = view([a]);
+    const candidates = (await collect(v, 'actor_plan')).candidates;
+    const c = candidates.find((c) => c.actionId === null);
+    assert.ok(c);
+    assert.equal(a.snapshot.state.goals[0]!.status, 'active');
+    v.consumedCandidateIds = [c.id];
+    assert.equal(
+      (await collect(v, 'actor_plan')).candidates.filter((c) => c.actionId === null).length,
+      0,
+    );
+    v.consumedCandidateIds = [];
+    a.trustedResults = []; // A terminal label alone is not execution proof.
+    assert.equal(
+      (await collect(v, 'actor_plan')).candidates.filter((c) => c.actionId === null).length,
+      0,
+    );
+  }
+});

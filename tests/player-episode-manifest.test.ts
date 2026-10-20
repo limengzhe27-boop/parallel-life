@@ -56,7 +56,11 @@ test('a real private player turn may consider exactly its server-scoped opportun
   assert.equal(parseAgentProposal(context, proposal).episodeDecision?.requestId, 'r');
   assert.equal(context.input.text, '这件事我想再了解一下。');
   const { episodeDecision: _, ...ordinary } = proposal;
-  assert.equal(parseAgentProposal(context, ordinary).episodeDecision, undefined);
+  assert.throws(() => parseAgentProposal(context, ordinary), /EPISODE_DECISION_REQUIRED/);
+  assert.equal(
+    parseAgentProposal({ ...context, episodeManifest: undefined }, ordinary).episodeDecision,
+    undefined,
+  );
   for (const patch of [
     { episodeManifest: undefined },
     { episodeManifest: { ...manifest, actorId: 'other' } },

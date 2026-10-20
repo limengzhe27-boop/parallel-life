@@ -402,13 +402,29 @@ async function planReconsiderations(
   const state = context.snapshot.viewState;
   for (const plan of state.plans) {
     const goal = state.goals.find((g) => g.id === plan.goalId);
+    const nextAction = state.actions.find((a) => a.id === plan.nextActionId);
+    const completedStep =
+      nextAction && plan.actionIds.includes(nextAction.id)
+        ? context.results.find(
+            (r) =>
+              r.actionId === nextAction.id &&
+              r.id === nextAction.resultId &&
+              r.outcome === nextAction.status &&
+              ['succeeded', 'failed'].includes(r.outcome),
+          )
+        : undefined;
+    const reviewConditions: AgentCondition[] = completedStep
+      ? [{ kind: 'result', actionId: completedStep.actionId, outcome: completedStep.outcome }]
+      : plan.triggers;
     const refs = (context.snapshot.episodeFollowUps ?? []).filter((f) =>
       f.planIds.includes(plan.id),
     );
     if (
       (!refs.length &&
-        agentPlanNextStep(plan, state.actions, context.snapshot.channel.allowedCapabilities) !==
-          'reconsider') ||
+        !completedStep &&
+        ((nextAction && ['succeeded', 'failed'].includes(nextAction.status)) ||
+          agentPlanNextStep(plan, state.actions, context.snapshot.channel.allowedCapabilities) !==
+            'reconsider')) ||
       !['active', 'waiting', 'blocked'].includes(plan.status) ||
       !context.basis(plan) ||
       !conditionTimesValid(plan.triggers) ||
@@ -418,14 +434,14 @@ async function planReconsiderations(
       (plan.nextActionId && existing.some((c) => c.actionId === plan.nextActionId)) ||
       !agentConditionsReady(
         context.snapshot,
-        plan.triggers,
+        reviewConditions,
         plan.sourceIds,
         context.results,
         context.position?.placeId,
       )
     )
       continue;
-    const proof = evidence(context, plan.triggers);
+    const proof = evidence(context, reviewConditions);
     const sourceIds = sorted([
       ...plan.sourceIds,
       ...(refs.length ? [] : goal.sourceIds),

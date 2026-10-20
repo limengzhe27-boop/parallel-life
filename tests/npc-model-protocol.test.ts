@@ -647,6 +647,14 @@ test('native response schema represents server event permission, never a guessed
   const object = changeFields(required).consideration!;
   assert.equal(object.type, 'object');
   assert.ok((object.required as string[]).includes('choice'));
+  const continuation = changeFields(required).continuation.anyOf.find(
+    (x: any) => x.type === 'object',
+  );
+  assert.deepEqual(continuation.properties.decision.enum, [
+    'await_response',
+    'await_condition',
+    'no_current_intent',
+  ]);
 });
 
 test('byte-equivalent execution intents are idempotent while conflicting duplicate identifiers are rejected', () => {
@@ -1192,5 +1200,48 @@ test('v4 no-decision null offered by the scoped grammar decodes to an empty coll
     assert.deepEqual(proposal.decisions, []);
     assert.deepEqual(proposal.actions, []);
     assert.deepEqual(raw, before);
+  }
+});
+
+test('server player opportunity requires one explicit choice in the same delta, not spoken assent', () => {
+  const { c } = fixture();
+  c.episodeManifest = {
+    schemaVersion: 1,
+    requestId: 'request',
+    requestRevision: 0,
+    episodeId: 'episode',
+    actorId: 'actor',
+    engineEpoch: 2,
+    createdAtVersion: 0,
+    sourceId: 'episode-intent:request',
+    contentHash: 'a'.repeat(64),
+  };
+  c.sources.push({
+    id: 'episode-intent:request',
+    kind: 'episode_intent',
+    recordId: 'request',
+    worldVersion: 0,
+    at: c.storyAt,
+  } as any);
+  const raw = {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '我愿意聊聊。', dependsOnActionIds: [] }],
+    executions: [],
+    changes: null,
+  };
+  assert.throws(() => parseAgentProposal(c, raw), /RESPONSE_WIRE_SHAPE/);
+  for (const choice of ['engage', 'decline', 'quiet']) {
+    const proposal = parseAgentProposal(c, {
+      ...raw,
+      changes: {
+        consideration: {
+          choice,
+          reason: '这是我的选择。',
+          basisSourceIds: [],
+        },
+      },
+    });
+    assert.equal(proposal.episodeDecision?.choice, choice);
+    assert.equal(proposal.episodeDecision?.requestId, 'request');
   }
 });

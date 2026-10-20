@@ -754,6 +754,13 @@ export function npcResponseFormat(
       ([key]) => !['protocol', 'statements', 'executions'].includes(key),
     ),
   );
+  // Executions and planIntents already express action. Do not ask the model to
+  // declare the same action again in continuation; old stored outputs still decode.
+  changes.continuation!.properties!.decision!.enum = [
+    'await_response',
+    'await_condition',
+    'no_current_intent',
+  ];
   // Nullable fields still represent no change; the whole unchanged delta is null.
   changes.continuation = { anyOf: [changes.continuation!, { type: 'null' }] };
   schema.properties = {
@@ -1420,6 +1427,7 @@ function bindNpcConsideration(
     validPlayerEpisodeManifest(context.episodeManifest)
   ) {
     requestId = context.episodeManifest.requestId;
+    if (!consideration) throw Error('NPC_WIRE_CONSIDERATION_REQUIRED');
   }
   if (consideration && !requestId) throw Error('NPC_WIRE_CONSIDERATION_SCOPE');
   if (

@@ -87,7 +87,7 @@ test('dedicated server coordination requires explicit sourced choice but player 
     contentHash: 'a'.repeat(64),
   };
   f.proposal.statements = [{ text: 'Unrelated reply', dependsOnActionIds: [] }];
-  assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
+  assert.throws(() => validateAgentProposal(f.context, f.proposal), /EPISODE_DECISION_REQUIRED/);
 });
 test('new or changed active plans require legal next action or sourced explicit reconsideration', () => {
   const f = fixture();

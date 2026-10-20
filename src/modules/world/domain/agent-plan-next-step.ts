@@ -10,6 +10,7 @@ export function agentPlanNextStep(
   if (plan.nextActionId) {
     const action = actions.find((a) => a.id === plan.nextActionId);
     if (!action || !plan.actionIds.includes(action.id)) return 'missing_next_step';
+    if (['succeeded', 'failed'].includes(action.status)) return 'reconsider';
     return allowedCapabilities.includes(action.capability) ? 'action' : 'unsupported';
   }
   if (plan.actionIds.length) return 'missing_next_step';

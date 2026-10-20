@@ -575,7 +575,7 @@ test('player chat considers a server-bound pending episode without extra NPC cal
     },
   );
   await t.test(
-    'omitted event decision preserves pending, prevents background recontact, and allows new player turn',
+    'omitted event decision fails without repurchase and preserves pending',
     async () => {
       const f = await fixture('invitation');
       let calls = 0;
@@ -589,11 +589,26 @@ test('player chat considers a server-bound pending episode without extra NPC cal
           );
           const manifest = verifyManifest(f, p);
           manifestId = manifest.requestId;
-          return JSON.stringify(plain());
+          return JSON.stringify(
+            calls === 1
+              ? plain()
+              : {
+                  ...plain(),
+                  episodeDecision: {
+                    requestId: manifest.requestId,
+                    choice: 'quiet',
+                    reason: '当前只回应天气',
+                    sourceIds: [p.input.sourceId, manifest.sourceId],
+                  },
+                },
+          );
         },
       }));
       const first = await command(f, '今天天气怎么样？');
-      await service.sendMessageIfEnabled(f.owner, first);
+      await assert.rejects(
+        service.sendMessageIfEnabled(f.owner, first),
+        (e: any) => e.apiCode === 'INVALID_AI_OUTPUT',
+      );
       assert.equal(calls, 1);
       assert.equal((await requestState(f)).status, 'pending');
       const { dispatchPendingAgentEpisode } =
@@ -615,15 +630,8 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       );
       assert.equal(dispatched, null);
       assert.equal(backgroundCalls, 0);
-      const second = await command(f, '我又有一个新问题。');
-      await service.sendMessageIfEnabled(f.owner, second);
-      assert.equal(calls, 2);
       assert.equal(manifestId, f.requests[0]!.id);
       assert.equal((await requestState(f)).status, 'pending');
-      const receipts = await app.transaction(f.owner, (sql) =>
-        sql.query('SELECT id FROM parallel_life.agent_episode_receipts WHERE world_id=$1', [f.id]),
-      );
-      assert.equal(receipts.rowCount, 0, 'ordinary conversation is not event acceptance');
     },
   );
   await t.test(
@@ -833,7 +841,17 @@ test('player chat considers a server-bound pending episode without extra NPC cal
         await command(f, '无关人物的普通聊天', other.id),
       );
       assert.equal(otherReceipt?.status, 'committed');
-      await runNpcAgent({ attempts: actors, kernel, model: local }, f.owner, e.claim, null);
+      const { npcAgentAdvanceServices } =
+        await import('../../src/server/npc-agent-advance-services.ts');
+      const advance = npcAgentAdvanceServices(
+        app,
+        () => {
+          throw Error('protected recovery must not buy a model');
+        },
+        snapshots,
+        { maxSteps: 1 },
+      );
+      await advance.advanceIfEnabled(f.owner, f.id);
       assert.equal(calls, 1);
       assert.equal((await requestState(f)).status, 'consumed');
       assert.equal((await requestState(f)).input_receipt_id, e.input.id);

@@ -1,5 +1,5 @@
 import type { ActorAgentState, AgentCondition, AgentProposal } from './agent-runtime.ts';
-import type { AgentValidationContext } from './agent-kernel.ts';
+import { AgentValidationError, type AgentValidationContext } from './agent-kernel.ts';
 
 /** A personal decision about what comes next, not a player obligation or execution result. */
 export type ActorContinuationProposal = {
@@ -52,7 +52,7 @@ export function validateActorContinuation(
   const c = proposal.continuation;
   if (!c) return;
   const fail = () => {
-    throw Error('INVALID_ACTOR_CONTINUATION');
+    throw new AgentValidationError('INVALID_ACTOR_CONTINUATION');
   };
   const state = context.viewState ?? context.state;
   const sources = new Map(context.sources.map((s) => [s.id, s]));

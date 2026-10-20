@@ -263,6 +263,8 @@ export function validateAgentProposal(
     if (request?.type === 'npc_episode_consideration')
       requireValid(proposal.episodeDecision !== undefined, 'EPISODE_DECISION_REQUIRED');
   }
+  if (context.input.origin === 'player' && validPlayerEpisodeManifest(context.episodeManifest))
+    requireValid(proposal.episodeDecision !== undefined, 'EPISODE_DECISION_REQUIRED');
   if (proposal.episodeDecision !== undefined) {
     let intent: unknown;
     try {

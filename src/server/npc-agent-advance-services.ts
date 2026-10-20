@@ -335,15 +335,8 @@ export function npcAgentAdvanceServices(
       )) {
         const attempt = await attempts.lookup(ownerId, worldId, pending.commandId);
         if (!attempt || attempt.status !== 'response_received') continue;
-        const state = read.states.find((a) => a.actorId === attempt.actorId);
-        if (
-          attempt.expectedWorldVersion !== world.version ||
-          state?.revision !== attempt.expectedActorRevision
-        ) {
-          await attempts.mark(ownerId, attempt, 'stale_discarded');
-          pending.status = 'stale_discarded';
-          continue;
-        }
+        // Reuse the original paid response and let the unified commit admission
+        // distinguish unrelated appends from changed actor/action dependencies.
         try {
           await batch?.trackWork?.({ kind: 'npc', commandId: attempt.commandId });
           batch?.actorStarted(attempt.actorId);
@@ -359,6 +352,11 @@ export function npcAgentAdvanceServices(
             result.state.projectedWorldVersion,
           );
         } catch (error) {
+          const recovered = await attempts.lookup(ownerId, worldId, pending.commandId);
+          if (recovered?.id === attempt.id && recovered.status === 'stale_discarded') {
+            pending.status = 'stale_discarded';
+            continue;
+          }
           // Retain a received paid result until the business focus permits presentation.
           if (
             typeof error === 'object' &&
