@@ -2772,17 +2772,17 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 ### 44-168 上下文读取与首回复等待优化（核心链路简化子任务）
 
-|44-168-CONTEXT-READ-FIRST-REPLY|[ ] 待验收|dsh-context-read168-20261020；唯一负责人；root 唯一集成/部署|独立 `.local/worktrees/context-read-168`，分支 `codex/context-read-168` 自 `4685cd74`，提交 `06f1777b`；独占 `src/modules/world/infrastructure/{agent-snapshot-repository,actor-observation-inbox,actor-narrative-observation-sources,agent-source-resolver,episode-result-context-repository,world-awareness-repository,actor-media-result-context-repository,actor-situation-repository}.ts`、NEW `tests/integration/context-read-first-reply.test.ts`、NEW `docs/task-reports/44-168-CONTEXT-READ-FIRST-REPLY.md` 及本人主表行/报告镜像；`actor-context.ts`/`memory-store.ts` 审查后未改；NPC 协议/提示词/内核/流式提交/请求恢复/世界版本准入/工具执行/媒体生命周期/公共 SQL/生产配置只读|普通私聊与索图请求上下文实测与去重：narrative 每快照 3 读→1 读并复用；空媒体结果跳过二次头校验；作者方向七表 join 前加轻量 EXISTS；awareness world+event、inbox 场景+群成员合并；strategy 按 handle 类型短路；episode results 复用 blocked。保留最新玩家输入、明确选择、有效计划、关键记忆、媒体结果与版本校验；未再建队列/缓存。|**待验收**：提交 `06f1777b`；同夹具普通 45→32、带计划/记忆 60→39、索图 60→39 次上下文查询；`contextPrepareMs` 42.58→31.09 / 32.41→20.32 / 31.65→23.68ms（单次样本，非 SLA）。`npm test` 3843/3843、聚焦真实 PG 41/41、boundaries 692、typecheck 0、build 通过；0 真实付费模型/生产写/部署。主目录报告已镜像；完整 check/真实模型/READY/公网由 root 统一。剩余建议：有界世界视图替代完整 hydrate、claim 复用 strategy、模型 payload 单次构建，见报告与集成注意。|
+|44-168-CONTEXT-READ-FIRST-REPLY|[x] 已完成|dsh-context-read168-20261020；唯一负责人；root 唯一集成/部署|独立 `.local/worktrees/context-read-168`，分支 `codex/context-read-168` 自 `4685cd74`，提交 `06f1777b`；独占 `src/modules/world/infrastructure/{agent-snapshot-repository,actor-observation-inbox,actor-narrative-observation-sources,agent-source-resolver,episode-result-context-repository,world-awareness-repository,actor-media-result-context-repository,actor-situation-repository}.ts`、NEW `tests/integration/context-read-first-reply.test.ts`、NEW `docs/task-reports/44-168-CONTEXT-READ-FIRST-REPLY.md` 及本人主表行/报告镜像；`actor-context.ts`/`memory-store.ts` 审查后未改；NPC 协议/提示词/内核/流式提交/请求恢复/世界版本准入/工具执行/媒体生命周期/公共 SQL/生产配置只读|普通私聊与索图请求上下文实测与去重：narrative 每快照 3 读→1 读并复用；空媒体结果跳过二次头校验；作者方向七表 join 前加轻量 EXISTS；awareness world+event、inbox 场景+群成员合并；strategy 按 handle 类型短路；episode results 复用 blocked。保留最新玩家输入、明确选择、有效计划、关键记忆、媒体结果与版本校验；未再建队列/缓存。|**待验收**：提交 `06f1777b`；同夹具普通 45→32、带计划/记忆 60→39、索图 60→39 次上下文查询；`contextPrepareMs` 42.58→31.09 / 32.41→20.32 / 31.65→23.68ms（单次样本，非 SLA）。`npm test` 3843/3843、聚焦真实 PG 41/41、boundaries 692、typecheck 0、build 通过；0 真实付费模型/生产写/部署。主目录报告已镜像；完整 check/真实模型/READY/公网由 root 统一。剩余建议：有界世界视图替代完整 hydrate、claim 复用 strategy、模型 payload 单次构建，见报告与集成注意。|
 
 |44-168-CHAT-CORE-SIMPLIFICATION|[ ] 进行中|root-simplify168唯一集成|主目录main自4685cd74；npc-model-protocol.ts、npc-agent-model.ts、npc-execution-intent.ts、agent-proposal-schema.ts、domain/agent-runtime.ts及agent-kernel.ts、原流式/kernel/runtime/services接线、必要测试/专属报告；上下文仓储留其他Agent独立登记|第一批即时工具免目标计划、必要增量协议及删除当前旧协议转换；第二批统一提交/相关冲突与主动消息接续。保留原存档、真实执行和去重。每批真实验收部署，未完成明示。|
 
-|44-168-STANDALONE-ACTION-D|[ ] 待验收|standalone-action168；root唯一集成|独立standalone-action168/codex/standalone-action168自4685cd74；仅domain/agent-runtime.ts、domain/agent-kernel.ts、infrastructure/agent-proposal-schema.ts、NEW tests/standalone-media-action.test.ts及专属报告|即时媒体行动允许无目标计划；不伪造goal，保留权限/来源/结果/去重，仅必要领域验证。无生产/模型/部署。|
+|44-168-STANDALONE-ACTION-D|[x] 已完成|standalone-action168；root唯一集成|独立standalone-action168/codex/standalone-action168自4685cd74；仅domain/agent-runtime.ts、domain/agent-kernel.ts、infrastructure/agent-proposal-schema.ts、NEW tests/standalone-media-action.test.ts及专属报告|即时媒体行动允许无目标计划；不伪造goal，保留权限/来源/结果/去重，仅必要领域验证。无生产/模型/部署。|
 
 44-168-STANDALONE-ACTION-D范围扩展：经root明确同意，增加domain/agent-eligibility.ts，确保合法无goal媒体行动不被资格检查错误挡住；其余TS调用处由root接线。
 
 44-168-STANDALONE-ACTION-D冻结ad12c82b：独立媒体goalId=null无虚构目标/计划；原授权/资格/结果与终态去重保持。新5项及原领域共42/42、边界692通过。类型检查仅剩root范围agent-state-context.ts:177 nullable goalId接线，已告知。0生产/模型/部署，root统一接线验收。
 
-|44-168-COMPACT-SCHEMA-TEST-D|[ ] 待验收|standalone-action168；root唯一集成|独立standalone-action168；仅tests/npc-model-protocol.test.ts及专属报告，root当前协议等源码临时只读副本不提交|适配v15四字段envelope和changes状态结构，保持原语义断言。0生产/模型/部署。|
+|44-168-COMPACT-SCHEMA-TEST-D|[x] 已完成|standalone-action168；root唯一集成|独立standalone-action168；仅tests/npc-model-protocol.test.ts及专属报告，root当前协议等源码临时只读副本不提交|适配v15四字段envelope和changes状态结构，保持原语义断言。0生产/模型/部署。|
 
 44-168-COMPACT-SCHEMA-TEST-D冻结034ea8be，仅协议测试与报告；root当前源码临时拷贝29/29通过，源码副本已还原未提交。其他schema测试7旧断言失败已报root，required changes:null风险已反馈。0模型/生产/部署。
 
@@ -2791,3 +2791,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168-COMPACT-SCHEMA-TEST-D追加冻结d9f70209：7文件+测试helper/报告，临时root源码60/60通过，未提交源，副本已还原；required changes外层保护由root修复，helper兼容其object结构。0模型/生产/部署。
 
 44-168接续：已合并上下文06f1777b及领域/协议测试子任务；check3852/build/原流式与上下文PG通过，生产100迁移一致。独立真实索图无goal/plan已收到真实图；首个无图响应失败保留，普通聊天暴露重复历史索图，清理冲突旧提示词后正在重验，尚未部署。第二批版本/提交简化及持续主动仍未完成。
+
+44-168第一批已部署：dbe42d73 / dpl_DmCfmeFp6VdTpgFqwpo9DsX8AHGj 精确READY、Nu别名一致。v15四字段当前协议直接编译、即时图免goal/plan、上下文重复读取优化及旧冲突提示清理。check3852/追加协议6/模型46/build/原流式与上下文PG/生产100迁移通过。线上普通首句5.285s/整轮5.935s（单次样本）；合成同档索图→普通聊天→再次索图收到真实图且中间无新图，原资产API200。子任务已集成验收释放；root总任务仍进行中：相关版本与同轮提交统一、完整hydrate/提交减负、持续主动推进、媒体提前完成措辞和提供方无图诊断仍未完成。没有改用户档，没有固定台词/手工消息/自动重试unknown。
