@@ -41,9 +41,11 @@ export async function resolveAgentCommitVersion(
     )
   ).rows[0];
   if (
-    r?.document?.channel !== 'private' ||
+    !['private', 'group', 'scene'].includes(r?.document?.channel) ||
     r.document.origin !== 'player' ||
-    r.document.recipientActorId !== attempt.actorId
+    (r.document.channel === 'private'
+      ? r.document.recipientActorId !== attempt.actorId
+      : r.document.recipientActorId !== null && r.document.recipientActorId !== attempt.actorId)
   )
     return null;
   const events = (

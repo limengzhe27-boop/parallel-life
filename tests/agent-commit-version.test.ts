@@ -45,7 +45,17 @@ test('commit position changes without changing the paid model basis', async () =
   });
   assert.equal(await resolveAgentCommitVersion(db(null, 5), 'o', attempt, 6, true), null);
 });
-test('shared effects, own speech, unproven events and nonprivate inputs cannot rebase', async () => {
+test('native player channels use the same unrelated-change proof', async () => {
+  for (const channel of ['group', 'scene'])
+    assert.deepEqual(
+      await resolveAgentCommitVersion(db(otherSpeech, undefined, channel), 'o', attempt, 4),
+      {
+        appendBaseVersion: 4,
+        commitVersion: 5,
+      },
+    );
+});
+test('shared effects, own speech, unproven events and unsupported channels cannot rebase', async () => {
   for (const event of [
     { type: 'appointment.cancelled', data: {} },
     { ...otherSpeech, data: { ...otherSpeech.data, actorId: 'a' } },
@@ -70,7 +80,7 @@ test('shared effects, own speech, unproven events and nonprivate inputs cannot r
   ])
     assert.equal(await resolveAgentCommitVersion(db(event), 'o', attempt, 4), null);
   assert.equal(
-    await resolveAgentCommitVersion(db(otherSpeech, undefined, 'group'), 'o', attempt, 4),
+    await resolveAgentCommitVersion(db(otherSpeech, undefined, 'unsupported'), 'o', attempt, 4),
     null,
   );
   assert.equal(await resolveAgentCommitVersion(db(otherSpeech), 'o', attempt, 5), null);

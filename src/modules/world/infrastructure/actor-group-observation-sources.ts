@@ -110,7 +110,8 @@ export async function readActorGroupObservationSourcesInTransaction(
       `SELECT e.id,e.version,e.payload,
        EXISTS(SELECT 1 FROM parallel_life.agent_attempts a WHERE a.world_id=e.world_id AND a.owner_id=e.owner_id
          AND a.event_id=e.id AND a.command_id=e.command_id AND a.status='committed'
-         AND a.actor_id=e.payload->'data'->>'actorId' AND a.expected_world_version+1=e.version
+         AND a.actor_id=e.payload->'data'->>'actorId' AND a.expected_world_version<e.version
+         AND c.expected_version=e.version-1
          AND a.engine_epoch=(e.payload->'data'->'agentRuntime'->>'engineEpoch')::integer) AS native_committed
      FROM parallel_life.world_events e JOIN parallel_life.commands c
        ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id

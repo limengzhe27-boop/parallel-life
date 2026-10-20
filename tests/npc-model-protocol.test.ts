@@ -58,6 +58,32 @@ function fixture(coordination = false) {
   return { c, wire };
 }
 
+test('one JSON code fence changes only the transport envelope, not proposal validation', () => {
+  const { c } = fixture();
+  const wire = {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '我更在意旋律。', dependsOnActionIds: [] }],
+    executions: [],
+    changes: null,
+  };
+  const raw = JSON.stringify(wire);
+  const expected = parseAgentProposal(c, raw);
+  for (const label of ['json', 'JSON', '']) {
+    assert.deepEqual(parseAgentProposal(c, `\`\`\`${label}\n${raw}\n\`\`\``), expected);
+  }
+  for (const invalid of [
+    `说明\n\`\`\`json\n${raw}\n\`\`\``,
+    `\`\`\`json\n${raw}\n\`\`\`\n\`\`\`json\n${raw}\n\`\`\``,
+    `\`\`\`json\n${raw.slice(0, -1)}\n\`\`\``,
+  ])
+    assert.throws(() => parseAgentProposal(c, invalid), /RESPONSE_JSON/);
+  assert.throws(
+    () =>
+      parseAgentProposal(c, `\`\`\`json\n${JSON.stringify({ ...wire, executions: [{}] })}\n\`\`\``),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+});
+
 test('coordination wire requires the actor own explicit choice and binds only the real request/source', () => {
   const { c, wire } = fixture(true);
   assert.throws(() => parseAgentProposal(c, wire), /RESPONSE_WIRE_SHAPE/);

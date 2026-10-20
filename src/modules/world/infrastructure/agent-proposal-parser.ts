@@ -34,7 +34,10 @@ export function parseAgentProposal(context: AgentValidationContext, raw: unknown
   if (typeof raw === 'string') {
     if (raw.length > 180000) reject('RESPONSE_LIMIT');
     try {
-      parsed = JSON.parse(raw);
+      // A single transport wrapper is not a different proposal. Do not extract
+      // JSON from prose, repair truncated output, or change the saved raw response.
+      const envelope = raw.trim().match(/^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i);
+      parsed = JSON.parse(envelope ? envelope[1]! : raw);
     } catch {
       reject('RESPONSE_JSON');
     }

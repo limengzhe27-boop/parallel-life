@@ -61,17 +61,19 @@ export async function projectNativeAgentChannelInTransaction(
     )
   ).rows[0];
   if (!row) throw new DomainError('NOT_FOUND');
-  if (row.version !== attempt.expectedWorldVersion || snapshot.worldVersion !== row.version)
+  if (snapshot.worldVersion !== attempt.expectedWorldVersion)
     throw new DomainError('VERSION_CONFLICT');
   const fence = (
     await sql.query(
-      "SELECT current_setting('app.agent_commit_attempt_id',true) AS attempt,current_setting('app.agent_world_id',true) AS world,current_setting('app.agent_engine_epoch',true) AS epoch",
+      "SELECT current_setting('app.agent_commit_attempt_id',true) AS attempt,current_setting('app.agent_world_id',true) AS world,current_setting('app.agent_engine_epoch',true) AS epoch,current_setting('app.agent_commit_version',true) AS version",
     )
   ).rows[0];
   if (
     fence.attempt !== attempt.id ||
     fence.world !== attempt.worldId ||
-    Number(fence.epoch) !== attempt.engineEpoch
+    Number(fence.epoch) !== attempt.engineEpoch ||
+    Number(fence.version) !== row.version + 1 ||
+    row.version < attempt.expectedWorldVersion
   )
     reject('AGENT_UOW_REQUIRED');
   const receipt = (
@@ -369,9 +371,7 @@ export async function projectNativeAgentChannelInTransaction(
           status
             ? 'UPDATE parallel_life.world_appointments SET status=$4, document=$5 WHERE world_id=$1 AND owner_id=$2 AND id=$3'
             : 'UPDATE parallel_life.world_appointments SET document=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3',
-          status
-            ? [world.id, ownerId, item.id, status, item]
-            : [world.id, ownerId, item.id, item],
+          status ? [world.id, ownerId, item.id, status, item] : [world.id, ownerId, item.id, item],
         );
       }
     }
