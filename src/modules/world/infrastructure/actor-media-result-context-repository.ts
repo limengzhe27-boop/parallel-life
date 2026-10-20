@@ -1,3 +1,4 @@
+import { isAdmittedAgentCommitHead } from './agent-commit-version.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -80,28 +81,16 @@ export async function readActorMediaResultContextInTransaction(
   if (!world || !world.state.actors?.some((a: any) => a.id === input.actorId))
     throw new DomainError('NOT_FOUND');
   if (world.version !== input.worldVersion) {
-    // Source visibility remains bounded by the original snapshot. The only allowed
-    // newer head is this already-authorized attempt's own committed text prefix.
-    const ownPrefix =
-      world.version === input.worldVersion + 1 &&
-      (
-        await sql.query(
-          `SELECT 1 FROM parallel_life.agent_attempts a
-       JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.command_id=a.command_id
-       JOIN parallel_life.agent_attempt_stream_segments s ON s.world_id=a.world_id AND s.owner_id=a.owner_id
-         AND s.attempt_id=a.id AND s.source_event_id=e.id AND s.status='committed'
-       WHERE a.id=current_setting('app.agent_commit_attempt_id',true) AND a.world_id=$1 AND a.owner_id=$2
-         AND a.actor_id=$3 AND a.engine_epoch=$4 AND a.expected_world_version=$5 AND e.version=$6 LIMIT 1`,
-          [
-            input.worldId,
-            owner,
-            input.actorId,
-            input.engineEpoch,
-            input.worldVersion,
-            world.version,
-          ],
-        )
-      ).rowCount === 1;
+    // Source visibility stays bounded by the original snapshot. A newer head
+    // requires the shared commit admission or this attempt's committed prefix.
+    const ownPrefix = await isAdmittedAgentCommitHead(
+      sql,
+      owner,
+      input.worldId,
+      input.actorId,
+      input.worldVersion,
+      world.version,
+    );
     if (!ownPrefix) throw new DomainError('VERSION_CONFLICT');
   }
   if (input.engineEpoch < 2 || world.engine_epoch !== input.engineEpoch)

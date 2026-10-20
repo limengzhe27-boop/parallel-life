@@ -654,11 +654,10 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
             });
         if (!actor)
           throw new NpcMessageError('INVALID_STATE', '人物状态尚未准备完成，请稍后再进入。', 409);
-        if (
-          previous &&
-          (previous.expectedWorldVersion !== world.version ||
-            previous.expectedActorRevision !== actor.revision)
-        ) {
+        // A paid response retains its original snapshot. The shared commit resolver
+        // decides whether intervening world events are relevant; do not discard it
+        // here merely because another actor spoke.
+        if (previous && previous.expectedActorRevision !== actor.revision) {
           await turnStore.mark(ownerId, previous, 'stale_discarded');
           throw new DomainError('VERSION_CONFLICT');
         }

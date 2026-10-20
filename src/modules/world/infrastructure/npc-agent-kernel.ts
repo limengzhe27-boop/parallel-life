@@ -1186,7 +1186,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               worldId: attempt.worldId,
               actorId: attempt.actorId,
               eventId,
-              worldVersion: attempt.expectedWorldVersion + 1,
+              worldVersion: frame.commitVersion,
               at,
               outcome: 'succeeded',
               handledResponsibilityIds: [],
@@ -1218,7 +1218,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
                     worldId: attempt.worldId,
                     actorId: attempt.actorId,
                     eventId,
-                    worldVersion: attempt.expectedWorldVersion + 1,
+                    worldVersion: frame.commitVersion,
                     fromPlaceId: prepared.plan.route.fromPlaceId,
                     departure,
                   }),
@@ -1287,7 +1287,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           worldId: attempt.worldId,
           actorId: attempt.actorId,
           eventId,
-          worldVersion: attempt.expectedWorldVersion + 1,
+          worldVersion: frame.commitVersion,
           at,
           outcome: failureCode ? 'failed' : 'succeeded',
           ...(failureCode ? { failureCode } : {}),
@@ -1301,7 +1301,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         { ...snapshot, knownActionResults: historicalResults },
         proposal,
         results,
-        attempt.expectedWorldVersion + 1,
+        frame.commitVersion,
+        frame.appendBaseVersion,
       );
       // Project the actual created invitation into this NPC's responsibility inbox.
       // The model does not need to guess a future appointment ID or a response deadline.
@@ -1618,7 +1619,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             input: receivedInput,
             inputSourceId: snapshot.input.sourceId,
             eventId,
-            worldVersion: attempt.expectedWorldVersion + 1,
+            worldVersion: frame.commitVersion,
             reports: proposal.locationReports,
             audience,
           }),
@@ -1664,7 +1665,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       const command = {
         id: attempt.commandId,
         worldId: attempt.worldId,
-        expectedVersion: attempt.expectedWorldVersion,
+        expectedVersion: frame.appendBaseVersion,
         actorId: attempt.actorId,
         text: snapshot.input.text,
         ...(snapshot.input.origin !== 'player' ? { origin: 'director' as const } : {}),
@@ -1686,7 +1687,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           id: eventId,
           worldId: attempt.worldId,
           commandId: attempt.commandId,
-          version: attempt.expectedWorldVersion + 1,
+          version: frame.commitVersion,
           occurredAt,
           storyAt: at,
           type: 'turn.resolved',
@@ -1710,7 +1711,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           id: eventId,
           worldId: attempt.worldId,
           commandId: attempt.commandId,
-          version: attempt.expectedWorldVersion + 1,
+          version: frame.commitVersion,
           occurredAt,
           storyAt: at,
           type: 'agent.state_committed',
@@ -1857,7 +1858,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       }
       if (allSegmentRows.length > 0) {
         const userMessageId = deterministicStreamUserMessageId(eventId);
-        const targetVersion = attempt.expectedWorldVersion + 1;
+        const targetVersion = frame.commitVersion;
         for (const segRow of allSegmentRows) {
           const segIdx = Number(segRow.segment_index);
           if (acceptedOriginalIndices.has(segIdx)) {

@@ -646,13 +646,19 @@ export function reduceActorAgentState(
   proposal: AgentProposal,
   results: AgentActionResult[],
   worldVersion: number,
+  appendBaseVersion = context.worldVersion,
 ): {
   state: ActorAgentState;
   statements: AgentProposal['statements'];
   questionChanges: import('./agent-questions.ts').QuestionApplicationReceipt[];
 } {
   validateAgentProposal(context, proposal);
-  requireValid(worldVersion === context.worldVersion + 1, 'RESULT_WORLD_VERSION');
+  requireValid(
+    Number.isSafeInteger(appendBaseVersion) &&
+      appendBaseVersion >= context.worldVersion &&
+      worldVersion === appendBaseVersion + 1,
+    'RESULT_WORLD_VERSION',
+  );
   const merge = <T extends { id: string }>(old: T[], changes: T[]) => [
     ...new Map([...old, ...changes].map((item) => [item.id, item])).values(),
   ];

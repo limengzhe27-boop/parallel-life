@@ -637,4 +637,101 @@ test('Stage 2 chat latency: incremental segment streaming, prefix sealing on abo
       before,
     );
   }
+  // Real original service interleaving: B finishes while A's single paid response is pending.
+  const otherActorId = world.actors[1]!.id;
+  const otherApi = npcAgentServices(db, () => ({
+    async complete(messages: unknown[]) {
+      const { inputSourceRef, quote } = extractInputInfo(messages);
+      return buildWireV14([{ text: '另一人物的独立日常回复。' }], { inputSourceRef, quote });
+    },
+  }));
+  for (const scenario of ['before', 'after', 'media']) {
+    const afterPrefix = scenario === 'after';
+    const before = await worlds.get({ userId: owner }, worldId);
+    const command = {
+      id: randomUUID(),
+      worldId,
+      actorId,
+      expectedVersion: before.version,
+      text: '这一条请接着说。',
+    };
+    let frozenPrefix: unknown;
+    let otherEventId: string | undefined;
+    streamGenerator = async function* (messages: unknown[]) {
+      const { inputSourceRef, quote } = extractInputInfo(messages);
+      if (afterPrefix) {
+        yield '{"protocol":"npc-wire-v14","executions":[],"statements":[';
+        yield '{"text":"这段已经保存。","dependsOnActionIds":[]},';
+        frozenPrefix = (
+          await admin.query(
+            'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND command_id=$2',
+            [worldId, command.id],
+          )
+        ).rows[0]?.payload;
+        assert.ok(frozenPrefix);
+      }
+      const current = await worlds.get({ userId: owner }, worldId);
+      const other = await otherApi.sendMessageIfEnabled(owner, {
+        id: randomUUID(),
+        worldId,
+        actorId: otherActorId,
+        expectedVersion: current.version,
+        text: '说一件平常的小事就好。',
+      });
+      assert.equal(other?.status, 'committed');
+      otherEventId = other!.eventId;
+      if (afterPrefix)
+        yield '{"text":"后续不可回写历史。","dependsOnActionIds":[]}' +
+          buildWireV14Tail({ quote, inputSourceRef });
+      else if (scenario === 'media')
+        yield JSON.stringify({
+          protocol: 'npc-wire-v15',
+          statements: [{ text: '我找个位置拍一下。', dependsOnActionIds: [] }],
+          executions: [
+            {
+              ref: 'action_1',
+              action: {
+                capability: 'media.generate_image',
+                parameters: { sceneDescription: 'A front camera selfie', purpose: 'portrait' },
+              },
+            },
+          ],
+          changes: null,
+        });
+      else
+        yield buildWireV14([{ text: '生成途中别人发言，我仍能保存。' }], { inputSourceRef, quote });
+    };
+    const result = await api.sendMessageIfEnabled(owner, command);
+    assert.equal(result?.status, 'committed');
+    const stored = (
+      await admin.query(
+        'SELECT a.expected_world_version,e.version,e.payload FROM parallel_life.agent_attempts a JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.id=a.event_id WHERE a.world_id=$1 AND a.command_id=$2',
+        [worldId, command.id],
+      )
+    ).rows[0];
+    assert.equal(stored.expected_world_version, before.version);
+    assert.equal(stored.version, before.version + (afterPrefix ? 1 : 2));
+    if (afterPrefix) assert.deepEqual(stored.payload, frozenPrefix);
+    else
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT completion_status FROM parallel_life.agent_attempt_stream_segments WHERE world_id=$1 AND command_id=$2',
+            [worldId, command.id],
+          )
+        ).rows[0].completion_status,
+        'completed',
+      );
+    assert.equal(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM parallel_life.world_events WHERE world_id=$1 AND id=$2',
+          [worldId, otherEventId],
+        )
+      ).rows[0].n,
+      1,
+    );
+    const replay = await api.sendMessageIfEnabled(owner, command);
+    assert.equal(replay?.eventId, result?.eventId);
+  }
 });

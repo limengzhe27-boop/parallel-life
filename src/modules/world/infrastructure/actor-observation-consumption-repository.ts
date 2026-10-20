@@ -67,10 +67,10 @@ export async function readConsumedSceneObservationSourcesInTransaction(
        i.document AS accepted_input
      FROM parallel_life.agent_attempts a
      JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id
-       AND e.id=a.event_id AND e.command_id=a.command_id AND e.version=a.expected_world_version+1
+       AND e.id=a.event_id AND e.command_id=a.command_id AND e.version>a.expected_world_version
      JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id
        AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
-       AND c.expected_version=a.expected_world_version
+       AND c.expected_version=e.version-1
      JOIN parallel_life.agent_input_receipts i ON i.world_id=a.world_id AND i.owner_id=a.owner_id
        AND i.id=a.input_receipt_id AND i.input_hash=a.input_hash
      WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$4

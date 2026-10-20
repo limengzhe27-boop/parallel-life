@@ -1,4 +1,4 @@
-import { acceptsAgentCommitVersion } from './agent-commit-version.ts';
+import { resolveAgentCommitVersion, isAdmittedAgentCommitHead } from './agent-commit-version.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -53,6 +53,7 @@ function buildPrefixStateAndTransition(input: {
   }[];
   eventId: string;
   storyAt: string;
+  commitVersion: number;
 }): {
   effects: WorldEffect[];
   transition: AgentRuntimeTransition;
@@ -60,7 +61,7 @@ function buildPrefixStateAndTransition(input: {
 } {
   const { attempt, snapshot, receivedInput, currentState, committedSegments, eventId, storyAt } =
     input;
-  const worldVersion = attempt.expectedWorldVersion + 1;
+  const worldVersion = input.commitVersion;
   const effects: WorldEffect[] = committedSegments.map((seg) => ({
     type: 'message.received' as const,
     id: seg.messageId,
@@ -383,9 +384,14 @@ export async function persistAndCommitStreamSegment(
     const isFirstCommit = priorCommitted.length === 0;
     const currentWorldVersion = Number(worldRow.version);
 
-    if (
-      !(await acceptsAgentCommitVersion(sql, ownerId, attempt, currentWorldVersion, !isFirstCommit))
-    ) {
+    const position = await resolveAgentCommitVersion(
+      sql,
+      ownerId,
+      attempt,
+      currentWorldVersion,
+      !isFirstCommit,
+    );
+    if (!position) {
       await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
       return { outcome: 'superseded' as const, reason: 'VERSION_CONFLICT' };
     }
@@ -441,12 +447,13 @@ export async function persistAndCommitStreamSegment(
       committedSegments: allCommitted,
       eventId,
       storyAt,
+      commitVersion: position.commitVersion,
     });
 
     const command = {
       id: attempt.commandId,
       worldId: attempt.worldId,
-      expectedVersion: attempt.expectedWorldVersion,
+      expectedVersion: position.appendBaseVersion,
       actorId: attempt.actorId,
       text: snapshot.input.text,
       ...(snapshot.input.origin !== 'player' ? { origin: 'director' as const } : {}),
@@ -457,7 +464,7 @@ export async function persistAndCommitStreamSegment(
       id: eventId,
       worldId: attempt.worldId,
       commandId: attempt.commandId,
-      version: attempt.expectedWorldVersion + 1,
+      version: position.commitVersion,
       occurredAt,
       storyAt,
       type: 'turn.resolved',
@@ -492,7 +499,7 @@ export async function persistAndCommitStreamSegment(
         attempt.id,
         statement.segmentIndex,
         eventId,
-        attempt.expectedWorldVersion + 1,
+        position.commitVersion,
         userMessageId,
         storyAt,
       ],
@@ -505,7 +512,7 @@ export async function persistAndCommitStreamSegment(
       actorId: attempt.actorId,
       attemptId: attempt.id,
       eventId,
-      version: attempt.expectedWorldVersion + 1,
+      version: position.commitVersion,
       segmentIndex: statement.segmentIndex,
       segmentId,
       unitKind,
@@ -516,7 +523,7 @@ export async function persistAndCommitStreamSegment(
         text: statement.text,
         at: storyAt,
         sourceEventId: eventId,
-        sourceVersion: attempt.expectedWorldVersion + 1,
+        sourceVersion: position.commitVersion,
       },
       ...(isFirstCommit
         ? {
@@ -527,7 +534,7 @@ export async function persistAndCommitStreamSegment(
               text: command.text,
               at: receivedInput.storyAt,
               sourceEventId: eventId,
-              sourceVersion: attempt.expectedWorldVersion + 1,
+              sourceVersion: position.commitVersion,
             },
           }
         : {}),
@@ -573,6 +580,13 @@ export async function sealCommittedStreamPrefix(
 > {
   const { attempt, snapshot, completionStatus, failureCode, partialRawText } = input;
   return db.transaction(ownerId, async (sql) => {
+    const worldRow = (
+      await sql.query(
+        'SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+        [attempt.worldId, ownerId],
+      )
+    ).rows[0];
+    if (!worldRow) return { sealed: false as const };
     const attemptRow = (
       await sql.query(
         'SELECT * FROM parallel_life.agent_attempts WHERE id=$1 AND world_id=$2 AND owner_id=$3 FOR UPDATE',
@@ -672,19 +686,23 @@ export async function sealCommittedStreamPrefix(
       })),
       eventId,
       storyAt,
+      commitVersion: eventVersion,
     });
 
     const acceptedPrefix = eventRow.payload?.data?.agentRuntime as
       AgentRuntimeTransition | undefined;
+    if (Number(worldRow.version) !== eventVersion && !acceptedPrefix)
+      return { sealed: false as const };
     if (
+      Number(worldRow.version) !== eventVersion ||
       acceptedPrefix?.results.some((result) =>
         result.outputRefs?.some((ref) => ref.kind === 'media'),
       )
     ) {
       // The suffix failing cannot erase an already authorized, queued media action.
       effects = eventRow.payload.data.effects;
-      transition = acceptedPrefix;
-      stateAfter = acceptedPrefix.stateAfter;
+      transition = acceptedPrefix!;
+      stateAfter = acceptedPrefix!.stateAfter;
     }
 
     const sealedEvent: WorldEvent = {
@@ -701,17 +719,13 @@ export async function sealCommittedStreamPrefix(
       [String(attempt.engineEpoch), attempt.worldId, attempt.id],
     );
 
-    await sql.query(
-      'UPDATE parallel_life.world_events SET payload=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3',
-      [attempt.worldId, ownerId, eventId, sealedEvent],
-    );
-
-    const worldRow = (
+    // Once another event follows this prefix, it is history: seal only the ledger
+    // and actor state already represented by that event, never rewrite its payload.
+    if (Number(worldRow.version) === eventVersion)
       await sql.query(
-        'SELECT state, version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2',
-        [attempt.worldId, ownerId],
-      )
-    ).rows[0];
+        'UPDATE parallel_life.world_events SET payload=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+        [attempt.worldId, ownerId, eventId, sealedEvent],
+      );
     if (worldRow) {
       const hydrated = await PostgresWorldRepository.hydrateInTransaction(sql, {
         ...(worldRow.state as WorldState),
@@ -891,6 +905,17 @@ export async function isStreamPrefixWorldVersion(
   expectedWorldVersion: number,
   actualWorldVersion: number,
 ): Promise<boolean> {
+  if (
+    await isAdmittedAgentCommitHead(
+      sql,
+      ownerId,
+      worldId,
+      actorId,
+      expectedWorldVersion,
+      actualWorldVersion,
+    )
+  )
+    return true;
   if (actualWorldVersion !== expectedWorldVersion + 1) return false;
   const res = await sql.query(
     `SELECT 1 FROM parallel_life.agent_attempt_stream_segments s

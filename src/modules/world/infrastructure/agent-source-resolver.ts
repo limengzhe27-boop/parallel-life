@@ -455,7 +455,7 @@ async function readNativeStrategyBasis(
     JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id AND e.command_id=a.command_id
     JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.status='committed'
-      AND e.version<=$5 AND e.version=a.expected_world_version+1 AND c.expected_version=a.expected_world_version
+      AND e.version<=$5 AND e.version>a.expected_world_version AND c.expected_version=e.version-1
       AND a.engine_epoch>=2 AND (e.payload->'data'->'agentRuntime'->>'engineEpoch')::integer=a.engine_epoch
       AND a.response_hash IS NOT NULL AND a.response->>'kind'='npc_agent_completion' AND a.response->'schemaVersion'='1'::jsonb
       AND a.response->'snapshot'->'state'->>'worldId'=a.world_id AND a.response->'snapshot'->'state'->>'actorId'=a.actor_id

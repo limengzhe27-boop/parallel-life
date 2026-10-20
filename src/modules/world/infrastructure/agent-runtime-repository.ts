@@ -1,4 +1,4 @@
-import { acceptsAgentCommitVersion } from './agent-commit-version.ts';
+import { resolveAgentCommitVersion, type AgentCommitVersion } from './agent-commit-version.ts';
 import { acceptsAgentInputVersion } from './agent-input-version.ts';
 import type { WorldState } from '../domain/types.ts';
 import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
@@ -864,7 +864,9 @@ export async function beginAgentCommitFrameInTransaction(
   ownerId: string,
   expected: AgentAttempt,
   options: { mediaPrefix?: boolean } = {},
-): Promise<{ state: ActorAgentState; world: WorldState; receipt: AgentInputReceipt }> {
+): Promise<
+  { state: ActorAgentState; world: WorldState; receipt: AgentInputReceipt } & AgentCommitVersion
+> {
   const w = await world(sql, ownerId, expected.worldId),
     row = await loadAttempt(sql, ownerId, expected);
   if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
@@ -885,8 +887,8 @@ export async function beginAgentCommitFrameInTransaction(
     ).rowCount
   )
     fail('SUPERSEDED_BY_USER_INTERRUPT');
-  if (!(await acceptsAgentCommitVersion(sql, ownerId, expected, Number(w.version))))
-    fail('VERSION_CONFLICT');
+  const position = await resolveAgentCommitVersion(sql, ownerId, expected, Number(w.version));
+  if (!position) fail('VERSION_CONFLICT');
   const current = (
     await sql.query(
       'SELECT revision,document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 FOR UPDATE',
@@ -913,10 +915,15 @@ export async function beginAgentCommitFrameInTransaction(
     holder: row,
   });
   await sql.query(
-    "SELECT set_config('app.agent_engine_epoch',$1,true),set_config('app.agent_world_id',$2,true),set_config('app.agent_commit_attempt_id',$3,true)",
-    [String(expected.engineEpoch), expected.worldId, expected.id],
+    "SELECT set_config('app.agent_engine_epoch',$1,true),set_config('app.agent_world_id',$2,true),set_config('app.agent_commit_attempt_id',$3,true),set_config('app.agent_commit_version',$4,true)",
+    [String(expected.engineEpoch), expected.worldId, expected.id, String(position.commitVersion)],
   );
-  return { state: current.document, world: { ...w.state, version: Number(w.version) }, receipt };
+  return {
+    state: current.document,
+    world: { ...w.state, version: Number(w.version) },
+    receipt,
+    ...position,
+  };
 }
 /** Compatibility for callers that only need the actor; admission has one implementation. */
 export async function beginAgentCommitInTransaction(
@@ -955,7 +962,8 @@ export async function finishAgentCommitInTransaction(
           ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
           AND c.status='succeeded' AND c.result_event_id=e.id
           WHERE e.world_id=w.id AND e.owner_id=w.owner_id AND e.id=$4 AND e.version=w.version
-            AND e.command_id=$5 AND c.expected_version=$6 AND e.payload->'data'->>'actorId'=$7) AS evidence
+            AND e.command_id=$5 AND c.expected_version=e.version-1 AND a.expected_world_version=$6
+            AND e.version::text=current_setting('app.agent_commit_version',true) AND e.payload->'data'->>'actorId'=$7) AS evidence
        FROM parallel_life.worlds w JOIN parallel_life.agent_attempts a
          ON a.world_id=w.id AND a.owner_id=w.owner_id AND a.id=$3
        LEFT JOIN parallel_life.agent_runtime_worlds r ON r.world_id=w.id AND r.owner_id=w.owner_id
@@ -977,7 +985,7 @@ export async function finishAgentCommitInTransaction(
   if (Number(head.engine_epoch) !== expected.engineEpoch) fail('ENGINE_EPOCH_CONFLICT');
   if (!row.live || row.status !== 'response_received') fail('ATTEMPT_STALE');
   if (
-    w.version !== expected.expectedWorldVersion + 1 ||
+    w.version < expected.expectedWorldVersion + 1 ||
     state.worldId !== expected.worldId ||
     state.actorId !== expected.actorId ||
     state.revision !== expected.expectedActorRevision + 1 ||
