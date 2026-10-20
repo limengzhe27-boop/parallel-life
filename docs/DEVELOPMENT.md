@@ -2849,3 +2849,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 44-168第八批补充tests/agent-commit-version.test.ts由root维护：原nonprivate一律拒绝断言需更新为player group/scene复用相同无关私聊证明，保留未知渠道/共享变化/同人物变化拒绝。未触碰小迪171文件。
 
 44-168第八批公网阻断：3985b554/0103已READY，但合成群PUT在120s超时，task running且无新NPC attempt，不计公网验收通过。root扩展src/server/npc-agent-channel-services.ts仅记录不含正文的阶段/耗时以定位原入口，不重试旧任务、不重买unknown；本地同存档只读snapshot/preflight可完成。小迪171文件不改。
+
+44-168公网阻塞定位：root扩展agent-runtime-repository.ts的requireInputAuthority群聊查询；生产活动记录显示15表重复成员来源join持续执行超过90秒并阻塞renew_task，尚未调用模型。改为一次认证成员来源再检查输入/执行双时点，保留权限证据。171文件不动。
+
+44-168第八批交付：1e1c6698577704d5cb72c8b4befa14af802dc1ac / dpl_3bSW2Usvak4pujip5HHM3arXLBby精确READY绑定Nu；生产103/103一致。check3865/build通过，native实际追加PG3/3，协议30；旧scene actor_left_presence失败基线已复现未掩盖。原15表群聊权限查询阻塞超过90秒，改为认证来源一次再检查双时点，同生产合成档只读666ms。原零调用失败任务经原恢复入口完成v35，本地真实模型1次；公网接续原群真实模型1次，v36输入/v37回复，8.001s，历史可读，测试档暂停。本批累计10次真实文字/0图，无用户档写。完成群/现场限定无关私聊追加与群权限查询精简；相关共享effect分离、人物事件选择遗漏、长期主动及模型输出稳定性仍未完成。171状态/测试由小迪维护，不修改其文件。
