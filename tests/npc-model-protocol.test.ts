@@ -531,7 +531,7 @@ test('new strict model media choices keep existing goals scoped, while old prote
   const root = schema.schema as { properties: Record<string, unknown>; required: string[] };
   assert.ok(!root.required.includes('mediaDecision'));
   assert.equal(root.properties.mediaDecision, undefined);
-  assert(!root.required.includes('executions'));
+  assert(root.required.includes('executions'));
   const own = npcResponseFormat({
     goals: [
       { id: 'my-goal', summary: '我的目标', status: 'active', sourceIds: ['input'], resultIds: [] },
@@ -1321,7 +1321,7 @@ test('v15 ordinary message may omit executions and changes entirely', () => {
   assert.deepEqual(proposal.decisions, []);
 });
 
-test('execution action does not require model-authored targets or execution graph', () => {
+test('strict execution schema requires action fields while defaults remain permissive', () => {
   const { c } = fixture();
   c.channel.allowedCapabilities = ['appointment.propose'];
   const format = npcResponseFormat(c.state, 'forbidden', c);
@@ -1332,7 +1332,7 @@ test('execution action does not require model-authored targets or execution grap
       'dependsOnActionIds',
       'handlesResponsibilityIds',
     ])
-      assert.ok(!((action.required as string[] | undefined) ?? []).includes(field), field);
+      assert.ok(((action.required as string[] | undefined) ?? []).includes(field), field);
   }
 });
 
