@@ -98,11 +98,18 @@ export class YibuTextModel implements TextModel {
         (late) => cancelBody(late.body),
       );
       stage = 'response';
-      if (!response.ok)
+      if (!response.ok) {
+        const rejection = (await response.text().catch(() => '')).slice(0, 1000);
+        console.error(
+          'MODEL_REQUEST_REJECTED',
+          response.status,
+          rejection.replace(/[A-Za-z0-9_-]{24,}/g, '<redacted>'),
+        );
         throw new GatewayError('UPSTREAM_FAILED', {
           stage: 'response',
           httpStatus: response.status,
         });
+      }
       let data: unknown;
       try {
         if (!response.body) throw new GatewayError('INVALID_RESPONSE');
@@ -206,11 +213,18 @@ export class YibuTextModel implements TextModel {
         combined,
         (late) => cancelBody(late.body),
       );
-      if (!response.ok)
+      if (!response.ok) {
+        const rejection = (await response.text().catch(() => '')).slice(0, 1000);
+        console.error(
+          'MODEL_REQUEST_REJECTED',
+          response.status,
+          rejection.replace(/[A-Za-z0-9_-]{24,}/g, '<redacted>'),
+        );
         throw new GatewayError('UPSTREAM_FAILED', {
           stage: 'response',
           httpStatus: response.status,
         });
+      }
       if (!response.body)
         throw new GatewayError('INVALID_RESPONSE', {
           stage: 'response',
