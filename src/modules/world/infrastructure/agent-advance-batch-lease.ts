@@ -29,6 +29,28 @@ export async function claimAgentAdvanceBatch(
         [worldId, ownerId, Number(world.epoch), token],
       )
     ).rows[0];
+    if (!claimed) {
+      const lease = (
+        await sql.query(
+          `SELECT lease_until,engine_epoch,lease_until<=clock_timestamp() AS expired,
+                  clock_timestamp() AS now
+             FROM parallel_life.agent_advance_batch_leases
+            WHERE world_id=$1 AND owner_id=$2`,
+          [worldId, ownerId],
+        )
+      ).rows[0];
+      console.info(
+        JSON.stringify({
+          scope: 'advance-lease-busy',
+          worldId,
+          epoch: Number(world.epoch),
+          leaseUntil: lease?.lease_until ?? null,
+          leaseEpoch: lease?.engine_epoch ?? null,
+          expired: lease?.expired ?? null,
+          now: lease?.now ?? null,
+        }),
+      );
+    }
     return claimed
       ? { status: 'claimed' as const, token }
       : { status: 'busy' as const, storyNow: String(world.story_time) };
