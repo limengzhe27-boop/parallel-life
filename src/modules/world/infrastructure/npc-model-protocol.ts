@@ -546,10 +546,7 @@ export function npcResponseFormat(
     anyOf: planVariants.filter((p) => {
       const kind = p.properties!.kind!.enum?.[0];
       if (p.properties!.nextStep) p.properties!.nextStep = { $ref: '#/$defs/npc_plan_next_step' };
-      // A plan may be a durable intention without an executable next step.
-      // Keep nextStep in the grammar for old callers, but do not require it.
-      if (Array.isArray(p.required))
-        p.required = p.required.filter((field) => field !== 'nextStep');
+      // Strict providers require every property in required; keep nextStep.
       if (kind === 'create') {
         const goal = p.properties!.goal;
         const goalAlternatives = goal?.anyOf ?? (goal ? [goal] : []);
