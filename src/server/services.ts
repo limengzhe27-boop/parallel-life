@@ -127,7 +127,7 @@ function createServices() {
         ).rows[0];
         const actorAttempts = (
           await sql.query(
-            `SELECT actor_id,status,response->>'response' AS response_text,created_at
+            `SELECT actor_id,status,response AS response_document,created_at
                FROM parallel_life.agent_attempts WHERE owner_id=$1 AND world_id=$2
               ORDER BY created_at DESC LIMIT 3`,
             [ownerId, worldId],
