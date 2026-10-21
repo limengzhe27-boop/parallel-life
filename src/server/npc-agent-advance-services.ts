@@ -205,6 +205,7 @@ export function npcAgentAdvanceServices(
       worldId: string,
       retryDirectorAttemptId?: string,
       batch?: AgentAdvanceBatchContext,
+      options?: { forceDirectorReview?: boolean },
     ): Promise<AdvanceResult | null> {
       const control = await db.transaction(
         ownerId,
@@ -950,14 +951,18 @@ export function npcAgentAdvanceServices(
       const directorReview = await directorReviewRepository.read(ownerId, worldId);
       // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
       const directorNow = new Date().toISOString();
-      const directorDue = directorReviewDue(directorReview, directorNow);
-      const emptyDirectorDue = emptyDirectorReviewDue({
-        state: directorReview,
-        storyAt: directorNow,
-        selectedCount: scheduled.selected.length,
-        retry: !!retryCommandId,
-        handledActorCount: batch?.handledActorIds.size ?? 0,
-      });
+      const forceDirectorReview = options?.forceDirectorReview === true;
+      const forceNonce = forceDirectorReview ? randomUUID() : undefined;
+      const directorDue = forceDirectorReview || directorReviewDue(directorReview, directorNow);
+      const emptyDirectorDue = forceDirectorReview
+        ? !retryCommandId && scheduled.selected.length === 0 && !batch?.handledActorIds.size
+        : emptyDirectorReviewDue({
+            state: directorReview,
+            storyAt: directorNow,
+            selectedCount: scheduled.selected.length,
+            retry: !!retryCommandId,
+            handledActorCount: batch?.handledActorIds.size ?? 0,
+          });
       const emptyDirectorRecovery =
         !emptyDirectorDue &&
         emptyDirectorRecoveryDue({
@@ -1037,9 +1042,10 @@ export function npcAgentAdvanceServices(
                 : wake.cause
                   ? 'wake'
                   : 'recovery',
-            directorReview?.lastStatus === 'stale_discarded'
-              ? directorReview.lastReviewedAt
-              : undefined,
+            forceNonce ??
+              (directorReview?.lastStatus === 'stale_discarded'
+                ? directorReview.lastReviewedAt
+                : undefined),
           );
         } catch (error) {
           if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED') {
@@ -1330,19 +1336,26 @@ export function npcAgentAdvanceServices(
       worldId: string,
       retryDirectorAttemptId?: string,
       trackWork?: (work: AdvanceWorkRef) => Promise<void>,
+      options?: { forceDirectorReview?: boolean },
     ) {
       const lease = await claimAgentAdvanceBatch(db, ownerId, worldId);
       if (lease.status === 'legacy')
-        return service.advanceOne(ownerId, worldId, retryDirectorAttemptId);
+        return service.advanceOne(ownerId, worldId, retryDirectorAttemptId, undefined, options);
       if (lease.status === 'busy')
         return { ...quiet(lease.storyNow), deferred: 'scheduler_busy' as const };
       try {
         if (retryDirectorAttemptId)
-          return await service.advanceOne(ownerId, worldId, retryDirectorAttemptId);
+          return await service.advanceOne(
+            ownerId,
+            worldId,
+            retryDirectorAttemptId,
+            undefined,
+            options,
+          );
         return await runAgentAdvanceBatch(
           async (batch) => {
             try {
-              return await service.advanceOne(ownerId, worldId, undefined, batch);
+              return await service.advanceOne(ownerId, worldId, undefined, batch, options);
             } catch (error) {
               const scoped = error as {
                 directorCoordinationPending?: boolean;
