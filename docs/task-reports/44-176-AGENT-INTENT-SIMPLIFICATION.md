@@ -111,17 +111,16 @@
 ## 已知边界
 
 - 这是第一阶段，不是全部字段删除。
-- `reviewAt` 使用 storyAt；同一时间重复 entry 不会重复唤醒，时间推进后才会有新复查窗口。真正的 nextReviewAt 持久化仍需后续。
-- plan-only 候选现在可以主动，但还没有独立 integration 旅程验证模型输出 → 内核提交 → 手机页面锁屏通知。
+- plan review identity 使用 plan summary/status，不再用 storyAt；同一 plan immediate advance 不重复，但还没有持久 nextReviewAt 来安排未来复查。
+- integration 已覆盖 advance 到 actor wake，不包含页面锁屏通知/真实浏览器刷新。
+- plan-only 候选已完成真实 PG 的模型输出 → plan → advance → actor wake；页面锁屏通知仍未验证。
 - action 的 `status/resultId/targetIds/preconditions` 等运行时字段仍主要在内核侧；模型侧已减少 required，但旧协议仍兼容。
 - goal.resultIds、continuation、question/responsibility/decision 的重叠尚未删除。
 - 旧存档仍可读；没有重写历史。
 
 ## 后续（按减法方案）
 
-0. 已补 actionless plan 真实 advance 旅程；验证一次主动复查与 immediate re-advance 不重复。
-
-1. 增加 actionless plan 的完整真实 PG 旅程（模型 proposal → advance → 页面消息）。
+1. 增加 actionless plan 的页面锁屏/刷新旅程（在现有 advance 旅程上补 UI 投影）。
 2. 让 action execution 的模型 DTO 进一步只保留 capability/parameters/source。
 3. 把 goal result、question resolution、continuation 的重复表达收敛。
 4. 调度使用持久 nextReviewAt，而不是仅 storyAt。
