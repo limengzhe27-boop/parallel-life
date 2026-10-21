@@ -24,8 +24,8 @@
 
 ## 部署
 
-- 代码提交：`d7ee5158` + `657bd440`；全量 check 3883/3883、build 通过。
-- Production READY：`dpl_87PMogHbCxM2hwH7pC31xYoESq7h` / `https://parallel-life-57w422vor-limengzhe27-boops-projects.vercel.app` @ `657bd440`；生产 migration 0104 applied。
+- 代码提交：`d7ee5158` + `657bd440` + `6f545510` + `5bba3515`；全量 check 3885/3885、build 通过。
+- Production READY：`dpl_Hq125344GN4sjNZnMyNCTsRxe2qs` / `https://parallel-life-9s9ot3gki-limengzhe27-boops-projects.vercel.app` @ `5bba3515`；生产 migration 0104 applied。
 - 正式 Nu `/api/health` 200。
 
 ## 证据

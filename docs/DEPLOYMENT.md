@@ -1,3 +1,8 @@
+## 2026-10-21 · 44-178 plan 目标推断
+
+44-178追加生产部署：业务`5bba35156853f0064f9d981d3f2f9ec64d152841` / dpl_Hq125344GN4sjNZnMyNCTsRxe2qs，Production READY，正式Nu health 200。full check 3885/3885、build通过。
+
+v15 planIntent create可省略goal，由plan summary/source推断目标；历史v7仍要求显式goal。生产migration 0104已应用；无用户档写/真实模型。entry elapsed、页面锁屏旅程仍未完成。
 ## 2026-10-21 · 44-178 持久计划复查窗口
 
 44-178阶段二已生产部署：业务`657bd440e165c2721ee858121867f2c283e56520` / dpl_87PMogHbCxM2hwH7pC31xYoESq7h，Production READY，正式Nu health 200。full check 3884/3884、build通过；生产migration 0104 `agent_plan_reviews` 已应用，RLS owner隔离。
