@@ -342,6 +342,10 @@ export function useWorldTime(
       enabled &&
       (!clock || clock.paused || !!session.current?.returning || working || !!pendingWait),
     displayTime: clock ? projectStoryTime(clock, new Date(now).toISOString()) : null,
+    /** Entry/return is a transport opportunity, not a new model authorization. */
+    requestCheck: () => {
+      immediateCheck.current = true;
+    },
     observeIncoming: (ids: readonly string[]) => {
       checkHistory.current = observePhoneIncoming(checkHistory.current, ids, Date.now());
       saveCheckHistory();

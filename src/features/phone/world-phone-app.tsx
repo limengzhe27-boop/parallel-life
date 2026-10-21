@@ -720,6 +720,8 @@ export function WorldPhoneApp({
       if (!hidden) return;
       hidden = false;
       lastBackgroundCheck.current = 0;
+      // Entry is an explicit review opportunity; server review cadence still owns duplicates.
+      liveTimeRef.current.requestCheck();
       // Present already committed changes first, then inspect current work without an idle delay.
       void load().finally(() => directorCheck.current());
     };

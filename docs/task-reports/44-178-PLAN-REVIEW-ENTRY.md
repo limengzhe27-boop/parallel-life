@@ -15,6 +15,12 @@
 - 保留显式 existing goal 校验、未知/终态目标拒绝。
 - 新增空 goal 旅程测试。
 
+## 进入世界主动复查入口
+
+- `use-world-time.requestCheck()` 在页面从隐藏回到可见时设置 immediate check。
+- `world-phone-app` 的 `onReturn` 先请求 entry review，再 `load` + directorCheck；服务端持久 review cadence 继续负责去重。
+- 这不是新的模型授权，只是不再被前端 35 秒 idle 门槛挡住。
+
 ## 持久 review state
 
 - `0104_agent_plan_reviews.sql` 已加入并应用生产；RLS owner 隔离。
