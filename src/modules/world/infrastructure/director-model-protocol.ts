@@ -449,7 +449,9 @@ export function directorWireCatalog(snapshot: DirectorSnapshot) {
         ...snapshot.observations.map((o) => o.sourceId),
         ...snapshot.episodes.map((e) => e.origin.sourceId),
         ...snapshot.candidates.flatMap((c) => c.sourceIds),
-        ...snapshot.actorStates.map((state) => state.definitionRef),
+        ...snapshot.actorStates.map(
+          (state) => `definition:${state.definitionRef.replace(/^definition:/, '')}`,
+        ),
       ].filter((id) => !id.startsWith('authored:')),
     ),
   ];

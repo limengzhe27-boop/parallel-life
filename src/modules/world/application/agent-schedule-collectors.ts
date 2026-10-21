@@ -855,7 +855,7 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
   if (!view.userInactiveMs || view.userInactiveMs < 90_000) return [];
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
-  const sourceId = snapshot.state.definitionRef;
+  const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(
       JSON.stringify({
