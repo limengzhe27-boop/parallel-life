@@ -25,20 +25,29 @@ const Goal = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('new'), summary: Text, sourceIds: Basis }),
 ]);
 const Body = { summary: Text, sourceIds: Basis, nextStep: NextStep.optional() };
+const planIntentSchema = (goalRequired: boolean) =>
+  z.discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('create'),
+      ref: Id,
+      goal: goalRequired ? Goal : Goal.optional(),
+      ...Body,
+    }),
+    z.strictObject({ kind: z.literal('replace'), ref: Id, planId: Id, ...Body }),
+    z.strictObject({ kind: z.literal('update'), planId: Id, ...Body }),
+    z.strictObject({
+      kind: z.literal('close'),
+      planId: Id,
+      status: z.enum(['finished', 'withdrawn']),
+      reason: Text,
+      sourceIds: Basis,
+    }),
+  ]);
 /** Explicit non-executing choices only; never inferred from a dangling goalId. */
-export const NativePlanIntentSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('create'), ref: Id, goal: Goal.optional(), ...Body }),
-  z.strictObject({ kind: z.literal('replace'), ref: Id, planId: Id, ...Body }),
-  z.strictObject({ kind: z.literal('update'), planId: Id, ...Body }),
-  z.strictObject({
-    kind: z.literal('close'),
-    planId: Id,
-    status: z.enum(['finished', 'withdrawn']),
-    reason: Text,
-    sourceIds: Basis,
-  }),
-]);
+export const NativePlanIntentSchema = planIntentSchema(false);
 export const NativePlanIntentsSchema = z.array(NativePlanIntentSchema).max(24);
+/** Historical v7 grammar keeps the required goal envelope for replay compatibility. */
+export const LegacyNativePlanIntentsSchema = z.array(planIntentSchema(true)).max(24);
 export type NativePlanIntent = z.infer<typeof NativePlanIntentSchema>;
 function invalid(code: string): never {
   throw Object.assign(Error(code), { code: 'INVALID_PROPOSAL', reason: code });

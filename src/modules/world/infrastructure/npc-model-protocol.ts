@@ -5,7 +5,11 @@ import {
   mapNpcSourceFields,
   npcSourceReferenceSchema,
 } from './npc-source-reference.ts';
-import { NativePlanIntentsSchema, compileNpcPlanIntents } from './npc-plan-intent.ts';
+import {
+  LegacyNativePlanIntentsSchema,
+  NativePlanIntentsSchema,
+  compileNpcPlanIntents,
+} from './npc-plan-intent.ts';
 import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
@@ -271,7 +275,7 @@ const PreviousInterpretationWire = PreviousModelWire.omit({
 });
 const PreviousPlanWire = PreviousInterpretationWire.omit({ plans: true }).extend({
   protocol: z.literal(PREVIOUS_PLAN_PROTOCOL),
-  planIntents: NativePlanIntentsSchema,
+  planIntents: LegacyNativePlanIntentsSchema,
 });
 const AgendaReview = z.strictObject({
   decision: z.enum(['quiet', 'update_plan', 'contact']),
@@ -944,7 +948,7 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
       npcSourceReferences(context.sources),
       'decode',
     ) as Record<string, unknown>;
-    const intents = NativePlanIntentsSchema.parse(transport(mapped.planIntents ?? [], false));
+    const intents = LegacyNativePlanIntentsSchema.parse(transport(mapped.planIntents ?? [], false));
     const touched = new Set(
       intents.flatMap((intent) => ('planId' in intent ? [intent.planId] : [])),
     );
@@ -1625,7 +1629,9 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     protocol: true,
     statements: true,
     executions: true,
-  }).partial();
+  })
+    .partial()
+    .extend({ planIntents: NativePlanIntentsSchema.optional() });
   const change = changeSchema.parse(
     Object.fromEntries(Object.entries(mapped.changes).filter(([, value]) => value !== null)),
   );
