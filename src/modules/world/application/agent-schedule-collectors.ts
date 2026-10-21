@@ -464,7 +464,8 @@ async function planReconsiderations(
             semantic: {
               planId: plan.id,
               goalId: plan.goalId,
-              reviewAt: view.storyAt,
+              summary: plan.summary,
+              status: plan.status,
             },
             reason:
               '本人未完成计划进入主动复查窗口；可以主动说明、等待、调整或结束，不推定执行或完成。',
