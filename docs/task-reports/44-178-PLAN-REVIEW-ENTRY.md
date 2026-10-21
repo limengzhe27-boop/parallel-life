@@ -30,7 +30,7 @@
 
 ## 部署
 
-- 代码提交：`d7ee5158` + `657bd440` + `6f545510` + `5bba3515`；全量 check 3885/3885、build 通过。
+- 代码提交：`d7ee5158` + `657bd440` + `6f545510` + `5bba3515`；全量 check 3886/3886、build 通过。
 - Production READY：`dpl_GXHZGhkHLZmnuthpZ1LKoeE4mqG4` / `https://parallel-life-ks1bf8y9s-limengzhe27-boops-projects.vercel.app` @ `840aa236`；生产 migration 0104 applied。
 - 正式 Nu `/api/health` 200。
 

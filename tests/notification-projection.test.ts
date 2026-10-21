@@ -165,3 +165,30 @@ test('authored preset and historical origins never become lock-screen alerts eve
     0,
   );
 });
+
+test('a proactive assistant message becomes one unread lock-screen item and disappears after viewing', () => {
+  const proactive = {
+    id: 'proactive-plan-1',
+    actorId: 'actor-a',
+    role: 'assistant' as const,
+    text: '我还记得那件没完成的事。',
+    at: '2026-10-21T10:00:00.000Z',
+  };
+  const visible = projectMessageNotifications(
+    [proactive],
+    [{ id: 'actor-a', name: '阿宁' }],
+    new Set(),
+    (at) => at.slice(11, 16),
+  );
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0]?.id, proactive.id);
+  assert.equal(visible[0]?.summary, proactive.text);
+  assert.equal(visible[0]?.target, 'actor-a');
+  const viewed = projectMessageNotifications(
+    [proactive],
+    [{ id: 'actor-a', name: '阿宁' }],
+    new Set([proactive.id]),
+    (at) => at.slice(11, 16),
+  );
+  assert.equal(viewed.length, 0);
+});
