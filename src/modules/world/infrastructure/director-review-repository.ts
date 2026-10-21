@@ -8,6 +8,11 @@ export function nextDirectorReviewAt(storyAt: string, intervalMs = REVIEW_INTERV
   return new Date(at + intervalMs).toISOString();
 }
 
+/**
+ * The existing durable director attempt ledger is the cadence source. No
+ * separate table or migration is required: the last attempt's real timestamp
+ * is enough to suppress duplicate global reviews.
+ */
 export class PostgresDirectorReviewRepository {
   private readonly db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
@@ -15,44 +20,28 @@ export class PostgresDirectorReviewRepository {
   }
   async read(ownerId: string, worldId: string): Promise<DirectorReviewState | null> {
     return this.db.transaction(ownerId, async (sql) => {
-      const row = (
+      const last = (
         await sql.query(
-          `SELECT next_review_at,last_reviewed_at,review_count
-             FROM parallel_life.agent_director_reviews
+          `SELECT created_at,updated_at
+             FROM parallel_life.director_runtime_attempts
+            WHERE owner_id=$1 AND world_id=$2
+            ORDER BY created_at DESC LIMIT 1`,
+          [ownerId, worldId],
+        )
+      ).rows[0];
+      if (!last) return null;
+      const count = (
+        await sql.query(
+          `SELECT count(*)::int AS n FROM parallel_life.director_runtime_attempts
             WHERE owner_id=$1 AND world_id=$2`,
           [ownerId, worldId],
         )
       ).rows[0];
-      if (!row) return null;
+      const lastReviewedAt = new Date(last.updated_at ?? last.created_at).toISOString();
       return {
-        nextReviewAt: new Date(row.next_review_at).toISOString(),
-        lastReviewedAt: new Date(row.last_reviewed_at).toISOString(),
-        reviewCount: Number(row.review_count),
-      };
-    });
-  }
-  async schedule(ownerId: string, worldId: string, storyAt: string): Promise<DirectorReviewState> {
-    const lastReviewedAt = new Date(storyAt).toISOString();
-    const nextReviewAt = nextDirectorReviewAt(storyAt);
-    return this.db.transaction(ownerId, async (sql) => {
-      const row = (
-        await sql.query(
-          `INSERT INTO parallel_life.agent_director_reviews
-             (world_id,owner_id,next_review_at,last_reviewed_at,review_count)
-           VALUES($1,$2,$3,$4,1)
-           ON CONFLICT(world_id,owner_id) DO UPDATE SET
-             next_review_at=EXCLUDED.next_review_at,
-             last_reviewed_at=EXCLUDED.last_reviewed_at,
-             review_count=parallel_life.agent_director_reviews.review_count+1,
-             updated_at=now()
-           RETURNING next_review_at,last_reviewed_at,review_count`,
-          [worldId, ownerId, nextReviewAt, lastReviewedAt],
-        )
-      ).rows[0];
-      return {
-        nextReviewAt: new Date(row.next_review_at).toISOString(),
-        lastReviewedAt: new Date(row.last_reviewed_at).toISOString(),
-        reviewCount: Number(row.review_count),
+        nextReviewAt: nextDirectorReviewAt(lastReviewedAt),
+        lastReviewedAt,
+        reviewCount: Number(count.n),
       };
     });
   }

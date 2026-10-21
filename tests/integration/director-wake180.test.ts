@@ -97,24 +97,27 @@ test('zero-candidate world wakes director once per durable review cadence', asyn
     assert.equal(npcCalls, 0);
     assert.equal(directorCalls, 1, 'director wakes with zero actor candidates');
     assert.equal(first?.played, 0);
-    const rows = (
+    const attempts = (
       await admin.query(
-        'SELECT next_review_at,review_count FROM parallel_life.agent_director_reviews WHERE world_id=$1',
+        'SELECT count(*)::int AS n FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
         [worldId],
       )
     ).rows;
-    assert.equal(rows.length, 1);
-    assert.equal(Number(rows[0].review_count), 1);
+    assert.equal(
+      Number(attempts[0].n),
+      1,
+      'director cadence is derived from the existing attempt ledger',
+    );
     await advance.advanceIfEnabled(owner, worldId);
     assert.equal(directorCalls, 1, 'immediate advance does not repeat the director review');
     assert.equal(
       Number(
         (
           await admin.query(
-            'SELECT review_count FROM parallel_life.agent_director_reviews WHERE world_id=$1',
+            'SELECT count(*)::int AS n FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
             [worldId],
           )
-        ).rows[0].review_count,
+        ).rows[0].n,
       ),
       1,
     );

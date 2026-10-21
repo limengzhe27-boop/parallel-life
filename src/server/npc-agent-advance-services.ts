@@ -1023,9 +1023,6 @@ export function npcAgentAdvanceServices(
             return execute(independent.candidate, independent.guidance);
           throw error;
         }
-        if (emptyDirectorDue) {
-          await directorReviewRepository.schedule(ownerId, worldId, storyAt);
-        }
         if (
           decision?.openingContext?.disposition === 'confirm' &&
           decision.openingContext.premises.length
