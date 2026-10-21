@@ -459,14 +459,17 @@ export function WorldPhoneApp({
         ),
       };
       delete sendCommands.current[commandId];
-      setLocalMessages((current) =>
-        current.map((message) => (message.id === commandId ? confirmed : message)),
-      );
       if (receipt.messages?.length) {
         setData((current) =>
           current?.id === worldId ? projectCommittedTurnReceipt(current, receipt) : current,
         );
-      }
+        // The projected server message is now authoritative; keeping the
+        // optimistic command bubble would render the same text twice.
+        setLocalMessages((current) => current.filter((message) => message.id !== commandId));
+      } else
+        setLocalMessages((current) =>
+          current.map((message) => (message.id === commandId ? confirmed : message)),
+        );
     } catch (sendError) {
       if ((sendError as { code?: string })?.code === 'VERSION_CONFLICT') await load();
       setLocalMessages((current) =>
@@ -487,11 +490,7 @@ export function WorldPhoneApp({
               };
               observeReplyReceipt(receipt, command);
               delete sendCommands.current[commandId];
-              setLocalMessages((current) =>
-                current.map((message) =>
-                  message.id === commandId ? { ...message, status: 'sent' } : message,
-                ),
-              );
+              setLocalMessages((current) => current.filter((message) => message.id !== commandId));
               await load();
               return;
             }
@@ -513,11 +512,7 @@ export function WorldPhoneApp({
           );
           if (landed) {
             setData(latest);
-            setLocalMessages((current) =>
-              current.map((message) =>
-                message.id === commandId ? { ...message, status: 'sent' } : message,
-              ),
-            );
+            setLocalMessages((current) => current.filter((message) => message.id !== commandId));
             delete sendCommands.current[commandId];
             return;
           }
