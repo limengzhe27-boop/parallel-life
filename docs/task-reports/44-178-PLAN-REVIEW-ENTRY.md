@@ -37,7 +37,7 @@
 ## 证据
 
 - `agent-schedule-collectors`：38/38；
-- `plan-advance176` 真实 PG：1/1（含 durable review row）；
+- `plan-advance176` 真实 PG：1/1（durable row；immediate suppress；到期后追加一次消息）；
 - 聚焦合计：39/39（本轮相关）。
 
 ## 未完成

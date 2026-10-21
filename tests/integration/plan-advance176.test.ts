@@ -184,6 +184,29 @@ test('actionless plan advances into one proactive review and does not repeat on 
       1,
       'the proactive actor message is committed exactly once',
     );
+    await admin.query(
+      "UPDATE parallel_life.agent_plan_reviews SET next_review_at='2000-01-01T00:00:00.000Z' WHERE world_id=$1",
+      [id],
+    );
+    await advance.advanceIfEnabled(owner, id);
+    assert.equal(npcCalls, 3, 'a due persistent review gets one new proactive opportunity');
+    const dueWorld = await worlds.get({ userId: owner }, id);
+    assert.equal(
+      dueWorld.messages.filter((m) => m.text.includes('我还记得那件没完成的事')).length,
+      2,
+      'the later due review commits one additional message',
+    );
+    assert.equal(
+      Number(
+        (
+          await admin.query(
+            'SELECT review_count FROM parallel_life.agent_plan_reviews WHERE world_id=$1',
+            [id],
+          )
+        ).rows[0].review_count,
+      ),
+      2,
+    );
     assert.equal(after.goals[0]!.status, 'active');
     assert.deepEqual(after.goals[0]!.resultIds, []);
     assert.deepEqual(after.actions, []);
@@ -194,7 +217,7 @@ test('actionless plan advances into one proactive review and does not repeat on 
         id: randomUUID(),
       }),
     );
-    assert.equal(npcCalls, 2);
+    assert.equal(npcCalls, 3);
   } finally {
     await db.close();
     await admin.end();
