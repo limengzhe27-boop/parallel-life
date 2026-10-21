@@ -385,8 +385,25 @@ export function WorldPhoneApp({
       entry,
     ]);
     try {
+      // Chat is optimistic: another NPC turn may have advanced the world while
+      // the player was typing. Read the latest version before allocating the
+      // command so a normal send is not rejected by a stale composer frame.
+      let latestWorld: Awaited<ReturnType<typeof client.world>> | null = null;
+      try {
+        latestWorld = await client.world(worldId);
+      } catch {
+        /* Keep the current frame; the command's expectedVersion remains honest. */
+      }
+      if (latestWorld) {
+        setData((current) =>
+          current?.id === worldId && (current.version ?? 0) <= (latestWorld!.version ?? 0)
+            ? latestWorld!
+            : current,
+        );
+      }
       const currentVersion = Math.max(
         data?.version ?? 0,
+        latestWorld?.version ?? 0,
         confirmedSendVersion.current.worldId === worldId ? confirmedSendVersion.current.version : 0,
       );
       rememberCommand(currentVersion);
