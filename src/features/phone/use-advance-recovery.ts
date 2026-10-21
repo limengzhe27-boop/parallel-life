@@ -4,7 +4,7 @@ import type { LifeClient } from '../api/client.ts';
 import type { AdvanceOperationReceipt } from '../../contracts/advance-operation.ts';
 import {
   restorePendingAdvances,
-  coalesceAdvanceRecovery,
+  pruneAdvanceRecovery,
   advanceRecoveryAction,
   type PendingAdvance,
 } from './advance-recovery-state.ts';
@@ -19,7 +19,7 @@ export function useAdvanceRecovery(
   const persist = useCallback(
     (values: PendingAdvance[]) => {
       if (current.current.worldId !== worldId) return;
-      values = coalesceAdvanceRecovery(values);
+      values = pruneAdvanceRecovery(values);
       current.current.items = values;
       setItems(values);
       try {

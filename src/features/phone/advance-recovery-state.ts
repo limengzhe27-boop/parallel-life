@@ -9,13 +9,19 @@ export const PendingAdvanceSchema = z.strictObject({
   receipt: AdvanceOperationReceiptSchema.optional(),
 });
 export type PendingAdvance = z.infer<typeof PendingAdvanceSchema>;
+/** Terminal failed bookkeeping is not retryable; cap legacy noise from old sessions. */
+export function pruneAdvanceRecovery(items: readonly PendingAdvance[]): PendingAdvance[] {
+  return coalesceAdvanceRecovery(items)
+    .filter((item) => item.state !== 'failed')
+    .slice(-5);
+}
 export function restorePendingAdvances(raw: string | null): PendingAdvance[] {
   try {
     const parsed = z
       .array(PendingAdvanceSchema)
       .max(1000)
       .safeParse(JSON.parse(raw ?? '[]'));
-    return parsed.success ? coalesceAdvanceRecovery(parsed.data) : [];
+    return parsed.success ? pruneAdvanceRecovery(parsed.data) : [];
   } catch {
     return [];
   }

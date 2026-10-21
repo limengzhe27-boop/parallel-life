@@ -348,11 +348,9 @@ export function WorldPhoneApp({
     updateOp?: (patch: { canInterrupt?: boolean }) => void,
   ) {
     if (automatic) await liveTimeRef.current.startConversation();
-    const unresolved = localMessages.find(
-      (message) =>
-        message.actorId === actorId && message.status === 'unknown' && message.id !== replacing,
-    );
-    if (unresolved) throw new ApiFailure('UNKNOWN', '上一条发送结果还未确认，请先核对。');
+    // Keep an earlier unknown message visible and recoverable, but never let it
+    // freeze the whole composer. This is a NEW command, so it cannot replay the
+    // old paid attempt. Receipt lookup for the old command remains independent.
     const entry: PhoneMessage = {
       id: commandId,
       actorId,
@@ -1008,24 +1006,6 @@ export function WorldPhoneApp({
             )}
           </div>
         )}
-      {advanceRecovery.items.some((i) => i.state !== 'running') && (
-        <details style={{ fontSize: 12, padding: '4px 12px', color: '#64748b' }}>
-          <summary>同步记录</summary>
-          {advanceRecovery.items
-            .filter((i) => i.state !== 'running')
-            .map((i) => (
-              <p key={i.id}>
-                {i.receipt?.waitingOn === 'clock_or_attention'
-                  ? '已有进展正在等待合适时机继续，不需要重新发送。'
-                  : i.state === 'failed'
-                    ? '有一项进展未完成，原记录已保留，其他事项仍可继续。'
-                    : i.state === 'unknown'
-                      ? '有一项进展的结果尚未确认，系统不会重复执行。'
-                      : '正在核对原记录，不需要重新发送。'}
-              </p>
-            ))}
-        </details>
-      )}
       <div style={{ flex: 1, minHeight: 0 }}>
         {!data ? (
           <div className="world-loading">
