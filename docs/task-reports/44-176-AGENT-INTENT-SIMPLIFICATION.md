@@ -106,7 +106,8 @@
   - `agent-schedule-collectors`：36/36。
 
 未跑全量真实 PG；未调用真实模型。
-- 尝试复用 `actor-plan-next-step` 做 actionless plan 服务旅程时，原测试在当前 main 上先因旧夹具 source/端口失配报 `UNKNOWN_SOURCE`；本批未把该失败算作产品结论，也没有修改该旧夹具。
+- 已用 v15 planIntent 建出 actionless plan，并单独调用 `actor_plan` source 得到 candidate；但真实 `npcAgentAdvanceServices` 的 director wireCatalog 中 candidates 为空，advance 仍 quiet，actor model 未收到 wake。说明候选生成已通，但完整服务路径还没有把该候选交给 advance；这是下一阶段必须修的真实断点，不能用单测通过替代。
+- 旧 `actor-plan-next-step` 夹具本身也与当前 source/协议不匹配，本批未改它。
 
 ## 已知边界
 
