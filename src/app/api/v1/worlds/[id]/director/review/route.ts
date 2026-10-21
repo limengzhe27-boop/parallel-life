@@ -14,7 +14,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return json({ result: await s.forceDirectorReview(s.ownerId, world.data) });
     } catch (error) {
       console.error('DIRECTOR_FORCE_REVIEW_FAILED', error);
-      throw error;
+      return json({
+        error: {
+          name: error instanceof Error ? error.name : 'unknown',
+          message: error instanceof Error ? error.message : String(error),
+          code: (error as { code?: unknown } | null)?.code ?? null,
+        },
+      });
     }
   });
 }
