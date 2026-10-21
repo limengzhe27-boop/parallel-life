@@ -10,12 +10,12 @@ const Basis = z.array(Id).min(1).max(64);
 const NextStep = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('reconsider'),
-    conditions: AgentProposalSchema.shape.plans.element.shape.triggers.min(1),
+    conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers.unwrap().min(1),
     missing: z.array(Text).max(16),
   }),
   z.strictObject({
     kind: z.literal('wait'),
-    conditions: AgentProposalSchema.shape.plans.element.shape.triggers,
+    conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers.unwrap(),
     missing: z.array(Text).min(1).max(16),
   }),
   z.strictObject({ kind: z.literal('blocked'), missing: z.array(Text).min(1).max(16) }),
@@ -24,7 +24,7 @@ const Goal = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('existing'), id: Id }),
   z.strictObject({ kind: z.literal('new'), summary: Text, sourceIds: Basis }),
 ]);
-const Body = { summary: Text, sourceIds: Basis, nextStep: NextStep };
+const Body = { summary: Text, sourceIds: Basis, nextStep: NextStep.optional() };
 /** Explicit non-executing choices only; never inferred from a dangling goalId. */
 export const NativePlanIntentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('create'), ref: Id, goal: Goal, ...Body }),
@@ -179,7 +179,7 @@ export function compileNpcPlanIntents(
       continue;
     }
     const next = intent.nextStep;
-    if (next.kind !== 'blocked')
+    if (next && next.kind !== 'blocked')
       for (const condition of next.conditions) {
         if (
           (condition.kind === 'observation' || condition.kind === 'at_or_after') &&
@@ -202,11 +202,16 @@ export function compileNpcPlanIntents(
       goalId: resolvedGoalId!,
       summary: intent.summary,
       sourceIds,
-      status: next.kind === 'reconsider' ? 'active' : next.kind === 'wait' ? 'waiting' : 'blocked',
+      status:
+        !next || next.kind === 'reconsider'
+          ? 'active'
+          : next.kind === 'wait'
+            ? 'waiting'
+            : 'blocked',
       actionIds: intent.kind === 'update' ? [...previous!.actionIds] : [],
       nextActionId: null,
-      triggers: next.kind === 'blocked' ? [] : structuredClone(next.conditions),
-      missingConditions: [...next.missing],
+      triggers: !next || next.kind === 'blocked' ? [] : structuredClone(next.conditions),
+      missingConditions: next ? [...next.missing] : [],
       ...(intent.kind === 'replace'
         ? { supersedesPlanId: previous!.id }
         : previous?.supersedesPlanId

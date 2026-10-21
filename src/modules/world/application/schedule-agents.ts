@@ -178,6 +178,7 @@ function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandi
       'priority',
       'reason',
       'requiresCoordination',
+      'planReview',
     ]) &&
     id(v.id) &&
     v.worldId === input.worldId &&

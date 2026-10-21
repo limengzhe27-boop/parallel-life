@@ -436,6 +436,43 @@ async function planReconsiderations(
     const refs = (context.snapshot.episodeFollowUps ?? []).filter((f) =>
       f.planIds.includes(plan.id),
     );
+    // A plan may be a durable intention without an executable next action or a
+    // trigger. It still deserves a bounded review opportunity: the actor can
+    // speak, wait, revise or close it. This is deliberately separate from the
+    // action path below, which remains condition-gated.
+    if (
+      !plan.nextActionId &&
+      !plan.triggers.length &&
+      !completedStep &&
+      !refs.length &&
+      ['active', 'waiting', 'blocked'].includes(plan.status) &&
+      context.basis(plan) &&
+      goal &&
+      ['active', 'deferred'].includes(goal.status) &&
+      context.basis(goal) &&
+      !existing.some((c) => c.planReview?.planId === plan.id)
+    ) {
+      const sourceIds = sorted([...plan.sourceIds, ...goal.sourceIds]);
+      if (sourceIds.every((id) => context.sources.has(id)))
+        out.push(
+          await candidate(view, context, {
+            source: 'actor_plan',
+            actionId: null,
+            planReview: { planId: plan.id, goalId: plan.goalId },
+            sourceIds,
+            responsibilities: [],
+            semantic: {
+              planId: plan.id,
+              goalId: plan.goalId,
+              summary: plan.summary,
+              status: plan.status,
+            },
+            reason:
+              '本人未完成计划进入主动复查窗口；可以主动说明、等待、调整或结束，不推定执行或完成。',
+          }),
+        );
+      continue;
+    }
     if (
       // A successful generation action only enqueues media. The existing media
       // completion observer owns its next wake; a second plan review here can

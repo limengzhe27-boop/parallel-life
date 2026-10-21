@@ -10,6 +10,7 @@ import type {
   AgentPlan,
   AgentAction,
 } from '../src/modules/world/domain/agent-runtime.ts';
+import { AgentProposalSchema } from '../src/modules/world/infrastructure/agent-proposal-schema.ts';
 function fixture() {
   const at = '2026-10-18T08:00:00.000Z';
   const state = emptyActorAgentState({ worldId: 'w', actorId: 'a' }, 'd', 0);
@@ -89,10 +90,10 @@ test('dedicated server coordination requires explicit sourced choice but player 
   f.proposal.statements = [{ text: 'Unrelated reply', dependsOnActionIds: [] }];
   assert.throws(() => validateAgentProposal(f.context, f.proposal), /EPISODE_DECISION_REQUIRED/);
 });
-test('new or changed active plans require legal next action or sourced explicit reconsideration', () => {
+test('actionless plans are durable intentions; claimed next actions still require a legal action', () => {
   const f = fixture();
   f.proposal.plans = [f.plan];
-  assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_NEXT_STEP_REQUIRED/);
+  assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.plan.triggers = [{ kind: 'observation', sourceId: 's' }];
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.plan.triggers = [{ kind: 'observation', sourceId: 'foreign' }];
@@ -124,9 +125,9 @@ test('waiting and blocked are explanatory, historical unchanged empty plans rema
   f.proposal.plans = [structuredClone(f.plan)];
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans[0]!.summary = 'A material new commitment';
-  assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_NEXT_STEP_REQUIRED/);
+  assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans = [{ ...f.plan, status: 'waiting' }];
-  assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_WAITING_BASIS_REQUIRED/);
+  assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans[0]!.missingConditions = ['Awaiting an explicit player decision'];
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans = [
@@ -139,4 +140,55 @@ test('waiting and blocked are explanatory, historical unchanged empty plans rema
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans[0]!.missingConditions = ['   '];
   assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_BLOCKED_REASON_REQUIRED/);
+});
+
+test('action proposal omits empty execution graph and defaults status without granting success', () => {
+  const parsed = AgentProposalSchema.parse({
+    actions: [
+      {
+        id: 'a-min',
+        goalId: 'g',
+        capability: 'plan.record',
+        parameters: {},
+        sourceIds: ['s'],
+      },
+    ],
+  });
+  assert.equal(parsed.actions[0]!.status, 'proposed');
+  assert.deepEqual(parsed.actions[0]!.targetIds, []);
+  assert.deepEqual(parsed.actions[0]!.preconditions, []);
+  assert.deepEqual(parsed.actions[0]!.dependsOnActionIds, []);
+  assert.deepEqual(parsed.actions[0]!.handlesResponsibilityIds, []);
+  assert.equal(parsed.actions[0]!.resultId, undefined);
+});
+
+test('plan/goal/responsibility proposal fields default when semantically empty', () => {
+  const parsed = AgentProposalSchema.parse({
+    goals: [{ id: 'g-min', summary: 'Minimal goal', status: 'active', sourceIds: ['s'] }],
+    plans: [
+      {
+        id: 'p-min',
+        goalId: 'g-min',
+        summary: 'Remember this',
+        status: 'active',
+        sourceIds: ['s'],
+      },
+    ],
+    responsibilities: [
+      {
+        id: 'r-min',
+        subject: { kind: 'matter', id: 'm-min' },
+        summary: 'Waiting without a scripted condition',
+        status: 'waiting',
+        waitingOn: 'player',
+        sourceIds: ['s'],
+      },
+    ],
+  });
+  assert.deepEqual(parsed.goals[0]!.resultIds, []);
+  assert.deepEqual(parsed.plans[0]!.actionIds, []);
+  assert.equal(parsed.plans[0]!.nextActionId, null);
+  assert.deepEqual(parsed.plans[0]!.triggers, []);
+  assert.deepEqual(parsed.plans[0]!.missingConditions, []);
+  assert.deepEqual(parsed.responsibilities[0]!.nextCheck, []);
 });

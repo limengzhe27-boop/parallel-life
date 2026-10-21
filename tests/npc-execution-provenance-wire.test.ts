@@ -355,14 +355,14 @@ test('v14 schema separates reschedule identity parameters and retains nonempty w
     assert.equal(parameters.additionalProperties, false);
     assert.equal(parameters.properties.title, undefined);
   }
-  const next = schema.$defs.npc_plan_next_step.anyOf;
+  const next = visit(schema.$defs.npc_plan_next_step);
   for (const kind of ['wait', 'blocked'])
     assert.equal(
-      next.find((n: any) => n.properties.kind.enum[0] === kind).properties.missing.minItems,
+      next.find((n: any) => n.properties?.kind?.enum?.[0] === kind).properties.missing.minItems,
       1,
     );
   assert.equal(
-    next.find((n: any) => n.properties.kind.enum[0] === 'reconsider').properties.conditions
+    next.find((n: any) => n.properties?.kind?.enum?.[0] === 'reconsider').properties.conditions
       .minItems,
     1,
   );

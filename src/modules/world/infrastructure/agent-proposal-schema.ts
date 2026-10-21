@@ -81,12 +81,13 @@ export const AgentProposalSchema = z.strictObject({
     .array(
       z.strictObject({
         text: Text,
-        dependsOnActionIds: z.array(Id).max(16),
+        dependsOnActionIds: z.array(Id).max(16).default([]),
         requestsPlayerReply: z.boolean().optional(),
         questionForResponsibilityId: Id.optional(),
       }),
     )
-    .max(8),
+    .max(8)
+    .default([]),
   goals: z
     .array(
       z.strictObject({
@@ -94,11 +95,12 @@ export const AgentProposalSchema = z.strictObject({
         id: Id,
         summary: Text,
         status: z.enum(['active', 'deferred', 'fulfilled', 'withdrawn']),
-        resultIds: z.array(Id).max(32),
+        resultIds: z.array(Id).max(32).default([]),
         endReason: Text.optional(),
       }),
     )
-    .max(24),
+    .max(24)
+    .default([]),
   plans: z
     .array(
       z.strictObject({
@@ -107,14 +109,15 @@ export const AgentProposalSchema = z.strictObject({
         goalId: Id,
         summary: Text,
         status: z.enum(['active', 'waiting', 'blocked', 'finished', 'withdrawn']),
-        actionIds: z.array(Id).max(32),
-        nextActionId: Id.nullable(),
-        triggers: z.array(Condition).max(16),
-        missingConditions: z.array(Text).max(16),
+        actionIds: z.array(Id).max(32).default([]),
+        nextActionId: Id.nullable().default(null),
+        triggers: z.array(Condition).max(16).default([]),
+        missingConditions: z.array(Text).max(16).default([]),
         supersedesPlanId: Id.optional(),
       }),
     )
-    .max(24),
+    .max(24)
+    .default([]),
   actions: z
     .array(
       z.strictObject({
@@ -122,7 +125,7 @@ export const AgentProposalSchema = z.strictObject({
         id: Id,
         goalId: Id.nullable(),
         capability: Id,
-        targetIds: z.array(Id).max(32),
+        targetIds: z.array(Id).max(32).default([]),
         parameters: z.record(
           z.string().max(80),
           z.union([
@@ -133,23 +136,26 @@ export const AgentProposalSchema = z.strictObject({
             z.array(Id).max(32),
           ]),
         ),
-        preconditions: z.array(Condition).max(16),
-        dependsOnActionIds: z.array(Id).max(16),
-        handlesResponsibilityIds: z.array(Id).max(32),
-        status: z.enum([
-          'proposed',
-          'ready',
-          'waiting',
-          'blocked',
-          'executing',
-          'succeeded',
-          'failed',
-          'withdrawn',
-        ]),
+        preconditions: z.array(Condition).max(16).default([]),
+        dependsOnActionIds: z.array(Id).max(16).default([]),
+        handlesResponsibilityIds: z.array(Id).max(32).default([]),
+        status: z
+          .enum([
+            'proposed',
+            'ready',
+            'waiting',
+            'blocked',
+            'executing',
+            'succeeded',
+            'failed',
+            'withdrawn',
+          ])
+          .default('proposed'),
         resultId: Id.optional(),
       }),
     )
-    .max(16),
+    .max(16)
+    .default([]),
   responsibilities: z
     .array(
       z.strictObject({
@@ -163,12 +169,13 @@ export const AgentProposalSchema = z.strictObject({
         status: z.enum(['open', 'waiting', 'deferred', 'fulfilled', 'withdrawn', 'expired']),
         waitingOn: z.enum(['player', 'self', 'world']).nullable(),
         deadline: z.strictObject({ at: z.iso.datetime({ offset: true }), sourceId: Id }).optional(),
-        nextCheck: z.array(Condition).max(16),
+        nextCheck: z.array(Condition).max(16).default([]),
         resolutionResultId: Id.optional(),
         endReason: Text.optional(),
       }),
     )
-    .max(32),
+    .max(32)
+    .default([]),
   decisions: z
     .array(
       z.strictObject({
@@ -179,7 +186,8 @@ export const AgentProposalSchema = z.strictObject({
         quote: Text,
       }),
     )
-    .max(16),
+    .max(16)
+    .default([]),
   focus: z
     .strictObject({
       channel: z.enum(['private', 'group', 'scene']),

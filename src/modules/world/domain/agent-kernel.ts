@@ -432,7 +432,10 @@ export function validateAgentProposal(
     // Do not retroactively invalidate unchanged historical plans on ordinary dialogue.
     if (!previous || !sameValue(previous, plan)) {
       const missing = plan.missingConditions.some((text) => text.trim().length > 0);
-      if (plan.status === 'active') {
+      // A plan is also a durable intention. A plan without an action is a
+      // legitimate communication/review anchor; only a plan that claims an
+      // action must bind a valid executable next step.
+      if (plan.status === 'active' && plan.nextActionId) {
         const next = plan.nextActionId ? actions.get(plan.nextActionId) : undefined;
         const executable =
           next &&
@@ -440,13 +443,9 @@ export function validateAgentProposal(
           plan.actionIds.includes(next.id) &&
           ['proposed', 'ready', 'waiting', 'blocked'].includes(next.status) &&
           context.channel.allowedCapabilities.includes(next.capability);
-        requireValid(
-          !!executable ||
-            (plan.nextActionId === null && !plan.actionIds.length && plan.triggers.length > 0),
-          'PLAN_NEXT_STEP_REQUIRED',
-        );
+        requireValid(!!executable, 'PLAN_NEXT_STEP_REQUIRED');
       }
-      if (plan.status === 'waiting') {
+      if (plan.status === 'waiting' && plan.nextActionId) {
         const next = plan.nextActionId ? actions.get(plan.nextActionId) : undefined;
         const actionWait =
           next &&
