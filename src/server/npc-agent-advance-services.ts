@@ -72,6 +72,11 @@ import {
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
 import { PostgresPlanReviewRepository } from '../modules/world/infrastructure/plan-review-repository.ts';
+import { PostgresDirectorReviewRepository } from '../modules/world/infrastructure/director-review-repository.ts';
+import {
+  directorReviewDue,
+  emptyDirectorReviewDue,
+} from '../modules/world/domain/director-review.ts';
 import { PostgresWorldAwarenessRepository } from '../modules/world/infrastructure/world-awareness-repository.ts';
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
@@ -190,6 +195,7 @@ export function npcAgentAdvanceServices(
     attempts = new PostgresAgentRuntimeRepository(db, agendaConfig),
     directors = new PostgresDirectorRuntimeRepository(db),
     planReviewRepository = new PostgresPlanReviewRepository(db),
+    directorReviewRepository = new PostgresDirectorReviewRepository(db),
     awareness = new PostgresWorldAwarenessRepository(db);
   const policy = agentAdvanceBatchPolicy(batchOptions);
   const service = {
@@ -934,6 +940,15 @@ export function npcAgentAdvanceServices(
           observations: [],
         },
       );
+      const directorReview = await directorReviewRepository.read(ownerId, worldId);
+      const directorDue = directorReviewDue(directorReview, storyAt);
+      const emptyDirectorDue = emptyDirectorReviewDue({
+        state: directorReview,
+        storyAt,
+        selectedCount: scheduled.selected.length,
+        retry: !!retryCommandId,
+        handledActorCount: batch?.handledActorIds.size ?? 0,
+      });
       // Selection may fail closed, but infrastructure failure is not a quiet decision.
       // Preserve the original cause on the operation so recovery can query it.
       if (
@@ -970,6 +985,7 @@ export function npcAgentAdvanceServices(
       if (
         !coordinated &&
         (retryCommandId ||
+          emptyDirectorDue ||
           observed.needsEvaluation ||
           wake.cause ||
           (wake.hasPendingDirector && !wake.deferred))
@@ -982,7 +998,11 @@ export function npcAgentAdvanceServices(
                 !scheduled.blocked.some((blocked) => blocked.candidate.id === candidate.id),
             ),
             scheduled.snapshot.blockers,
-            observed.needsEvaluation ? 'normal' : wake.cause ? 'wake' : 'recovery',
+            emptyDirectorDue || observed.needsEvaluation
+              ? 'normal'
+              : wake.cause
+                ? 'wake'
+                : 'recovery',
           );
         } catch (error) {
           if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED') {
@@ -1002,6 +1022,9 @@ export function npcAgentAdvanceServices(
           )
             return execute(independent.candidate, independent.guidance);
           throw error;
+        }
+        if (emptyDirectorDue) {
+          await directorReviewRepository.schedule(ownerId, worldId, storyAt);
         }
         if (
           decision?.openingContext?.disposition === 'confirm' &&
