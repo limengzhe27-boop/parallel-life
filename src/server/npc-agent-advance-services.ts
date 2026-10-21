@@ -740,6 +740,7 @@ export function npcAgentAdvanceServices(
           const lastActivity = lastPlayer?.at ?? world.messages.at(-1)?.at ?? world.time;
           return Math.max(0, Date.now() - Date.parse(lastActivity));
         })(),
+        localInitiativeActorId: [...world.messages].reverse().find((m) => m.actorId)?.actorId,
       });
       const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (

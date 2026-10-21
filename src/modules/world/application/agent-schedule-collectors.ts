@@ -41,6 +41,8 @@ export type SchedulingView = {
   planReviews?: ReadonlyMap<string, PlanReviewState>;
   /** Real elapsed time since the owner's last message; no Director decision is required. */
   userInactiveMs?: number;
+  /** The one locally relevant actor for idle initiative; avoids a multi-actor Director round. */
+  localInitiativeActorId?: string;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -855,6 +857,7 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
   if (!view.userInactiveMs || view.userInactiveMs < 90_000) return [];
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
+  if (view.localInitiativeActorId !== snapshot.state.actorId) return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(
