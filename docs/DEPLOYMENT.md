@@ -1,3 +1,11 @@
+## 2026-10-21 · 44-176 人物意图减法与主动 plan 复查
+
+44-176已合入main并生产部署：业务`6c8f54fc3ecc470d0ac7e221d594c849ee72a671` / dpl_B6oVkFnFgjUkd1iVCaLYoRV1cXgy，Production READY，正式Nu `/api/health` 200（stage interview）。full check 3882/3882、typecheck、boundaries、build通过；无新增SQL迁移、未写用户存档、未调用真实模型。
+
+交付：plan.nextStep可选；actionless plan在真实PG journey中经`npcAgentAdvanceServices`唤醒一次actor并提交一次主动assistant消息，immediate re-advance不重复；空proposal/plan/action字段默认；v15可省略executions/changes；修复`scheduleAgents`缺少`planReview`白名单导致的`invalid_collection`。保留旧decoder、source/action执行校验、unknown防重。
+
+未完成：页面内锁屏/刷新完整旅程、持久nextReviewAt、action DTO继续精简、goal/continuation/question重叠收敛、旧writer清理；未以本批宣称用户原档或真实模型验收。
+
 ## 2026-10-21 · 44-168 失败占位与计划复盘对象
 
 44-168第十二批有限修复已部署：27140ef77a9d3fdd8d650aa109fd3fd7c14ae57a / dpl_4kfgceVyrMWxd2yWCqb3aNFDxMsg精确READY绑定Nu；生产103一致、check3877/build、聚焦116/原PG窗口1通过。原f573d541无输入advance为0模型/0消息，公网锁屏约16:16仍是旧重复消息，持续自主未通过；同步记录仍有历史未完成提示，另有1条cancelled_before_send，预备上下文可离线构造，未重试付费。剩余旧失败安全恢复、全员等待后的下一阶段与无模型读取耗时继续待做。小迪175真实worker完成后一次唤醒已报告通过，action入队失败与旧opening夹具仍待其收尾。

@@ -95,15 +95,21 @@
 - `resultId/failureCode` 仍由内核写；
 - 有真实能力/参数/source 才进入内核校验。
 
-## 部署预览
+## 部署
 
 - 分支已推送到 `origin/codex/intent-simplification-176`；Vercel Git 预览 READY：
   `https://parallel-life-3w8nk0zuq-limengzhe27-boops-projects.vercel.app`
 - 精确部署：`dpl_EEhowHowaQ67Qh9w2H8pM5nKGhVT`，git SHA `167e3e226bd3fa70ddd7fc79d070c407dcaef386`。
 - 预览受 Vercel Authentication 保护；已用 `vercel curl` 认证读取 `/api/health` 返回 `{"service":"parallel-life","status":"ok","stage":"ui-preview"}`。
-- 这是 Preview，不是 Production；正式 Nu 仍是原 main 部署，需主 Agent 合并后走生产发布/迁移门禁。
+- 已合并 main：`6c8f54fc3ecc470d0ac7e221d594c849ee72a671`。
+- Production READY：`dpl_B6oVkFnFgjUkd1iVCaLYoRV1cXgy` / `https://parallel-life-j5gaut3i8-limengzhe27-boops-projects.vercel.app`，target production，SHA `6c8f54fc`。
+- 正式 Nu `/api/health` 返回 200：`{"service":"parallel-life","status":"ok","stage":"interview"}`。
+- 无新增 SQL 迁移；未写用户存档、未调用真实模型。
 
 ## 验证
+
+- 全量 `npm run check`：3882/3882；
+- `npm run build`：通过；
 
 - `npm run check:boundaries`：通过（698 files）；
 - `npm run typecheck`：通过；
