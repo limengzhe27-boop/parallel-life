@@ -118,6 +118,7 @@ const Candidate = z
       'agenda_review',
       'authored_event',
       'actor_plan',
+      'actor_local',
       'responsibility',
       'conversation',
       'observation',
