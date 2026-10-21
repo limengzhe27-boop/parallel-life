@@ -109,6 +109,24 @@ function createServices() {
   );
   return {
     db,
+    directorStatus: (ownerId: string, worldId: string) =>
+      db.transaction(ownerId, async (sql) => {
+        const row = (
+          await sql.query(
+            `SELECT a.status,a.updated_at,a.decision_id,
+                    d.document->'audit' AS audit,
+                    jsonb_array_length(COALESCE(d.document->'opportunities','[]'::jsonb)) AS opportunities,
+                    jsonb_array_length(COALESCE(d.document->'selectedCandidateIds','[]'::jsonb)) AS selected
+               FROM parallel_life.director_runtime_attempts a
+               LEFT JOIN parallel_life.director_decisions d
+                 ON d.id=a.decision_id AND d.world_id=a.world_id AND d.owner_id=a.owner_id
+              WHERE a.owner_id=$1 AND a.world_id=$2
+              ORDER BY a.created_at DESC LIMIT 1`,
+            [ownerId, worldId],
+          )
+        ).rows[0];
+        return row ?? null;
+      }),
     records: new PostgresPlayerRecords(db),
     space: new PostgresWorldSpace(db, officialLifeCatalog),
     withWorldActivityLock: <T>(worldId: string, run: () => Promise<T>) =>
