@@ -117,9 +117,12 @@ function systemFor(snapshot: AgentSnapshot): string {
     .join('\n');
 }
 
-function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
+function invalid(
+  code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT',
+  reason = 'unknown',
+): never {
   // Never put source text, identities or raw model output in errors/logs.
-  throw Object.assign(Error(code), { code });
+  throw Object.assign(Error(`${code}:${reason}`), { code });
 }
 
 function responseFormatFor(snapshot: AgentSnapshot) {
@@ -165,7 +168,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     !['player', 'wake', 'coordination'].includes(snapshot.input.origin) ||
     typeof snapshot.input.text !== 'string'
   )
-    invalid('NPC_AGENT_INVALID_SNAPSHOT');
+    invalid('NPC_AGENT_INVALID_SNAPSHOT', 'snapshot_shape');
   const ids = new Set(snapshot.sources.map((s) => s.id));
   if (
     ids.size !== snapshot.sources.length ||
@@ -243,7 +246,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
           !r.modeLabel,
       ))
   )
-    invalid('NPC_AGENT_INVALID_SNAPSHOT');
+    invalid('NPC_AGENT_INVALID_SNAPSHOT', 'world_context');
   const responseFormat = responseFormatFor(snapshot);
   const considerationRequired =
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest !== undefined;
@@ -302,7 +305,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
           snapshot.sources.filter((s) => s.usage === 'private_strategy').map((s) => s.id),
         ),
       },
-      () => invalid('NPC_AGENT_INVALID_SNAPSHOT'),
+      () => invalid('NPC_AGENT_INVALID_SNAPSHOT', 'state_context'),
     ),
     ...(snapshot.channel.kind === 'private' &&
     viewState.continuation &&
