@@ -125,7 +125,7 @@ export const AgentProposalSchema = z.strictObject({
         id: Id,
         goalId: Id.nullable(),
         capability: Id,
-        targetIds: z.array(Id).max(32),
+        targetIds: z.array(Id).max(32).default([]),
         parameters: z.record(
           z.string().max(80),
           z.union([
@@ -136,19 +136,21 @@ export const AgentProposalSchema = z.strictObject({
             z.array(Id).max(32),
           ]),
         ),
-        preconditions: z.array(Condition).max(16),
-        dependsOnActionIds: z.array(Id).max(16),
-        handlesResponsibilityIds: z.array(Id).max(32),
-        status: z.enum([
-          'proposed',
-          'ready',
-          'waiting',
-          'blocked',
-          'executing',
-          'succeeded',
-          'failed',
-          'withdrawn',
-        ]),
+        preconditions: z.array(Condition).max(16).default([]),
+        dependsOnActionIds: z.array(Id).max(16).default([]),
+        handlesResponsibilityIds: z.array(Id).max(32).default([]),
+        status: z
+          .enum([
+            'proposed',
+            'ready',
+            'waiting',
+            'blocked',
+            'executing',
+            'succeeded',
+            'failed',
+            'withdrawn',
+          ])
+          .default('proposed'),
         resultId: Id.optional(),
       }),
     )

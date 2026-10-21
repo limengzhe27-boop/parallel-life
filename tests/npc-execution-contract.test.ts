@@ -10,6 +10,7 @@ import type {
   AgentPlan,
   AgentAction,
 } from '../src/modules/world/domain/agent-runtime.ts';
+import { AgentProposalSchema } from '../src/modules/world/infrastructure/agent-proposal-schema.ts';
 function fixture() {
   const at = '2026-10-18T08:00:00.000Z';
   const state = emptyActorAgentState({ worldId: 'w', actorId: 'a' }, 'd', 0);
@@ -139,4 +140,24 @@ test('waiting and blocked are explanatory, historical unchanged empty plans rema
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans[0]!.missingConditions = ['   '];
   assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_BLOCKED_REASON_REQUIRED/);
+});
+
+test('action proposal omits empty execution graph and defaults status without granting success', () => {
+  const parsed = AgentProposalSchema.parse({
+    actions: [
+      {
+        id: 'a-min',
+        goalId: 'g',
+        capability: 'plan.record',
+        parameters: {},
+        sourceIds: ['s'],
+      },
+    ],
+  });
+  assert.equal(parsed.actions[0]!.status, 'proposed');
+  assert.deepEqual(parsed.actions[0]!.targetIds, []);
+  assert.deepEqual(parsed.actions[0]!.preconditions, []);
+  assert.deepEqual(parsed.actions[0]!.dependsOnActionIds, []);
+  assert.deepEqual(parsed.actions[0]!.handlesResponsibilityIds, []);
+  assert.equal(parsed.actions[0]!.resultId, undefined);
 });
