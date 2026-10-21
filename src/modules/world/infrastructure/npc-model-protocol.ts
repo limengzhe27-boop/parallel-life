@@ -858,6 +858,9 @@ export function npcResponseFormat(
     'triggers',
     'missingConditions',
     'nextCheck',
+    'planIds',
+    'questionIds',
+    'conditions',
   ]);
   const relaxActionRequired = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(relaxActionRequired);

@@ -27,9 +27,9 @@ export const ActorContinuationSchema = z.strictObject({
   decision: z.enum(['act', 'await_response', 'await_condition', 'no_current_intent']),
   reason: Text.max(2000),
   sourceIds: z.array(Id).min(1).max(64),
-  planIds: z.array(Id).max(16),
-  questionIds: z.array(Id).max(16),
-  conditions: z.array(Condition).max(16),
+  planIds: z.array(Id).max(16).default([]),
+  questionIds: z.array(Id).max(16).default([]),
+  conditions: z.array(Condition).max(16).default([]),
 });
 export const AgentProposalSchema = z.strictObject({
   continuation: ActorContinuationSchema.optional(),

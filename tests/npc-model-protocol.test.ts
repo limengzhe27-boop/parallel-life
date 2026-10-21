@@ -1357,3 +1357,22 @@ test('v15 plan intent can create its own goal from the plan summary', () => {
   assert.equal(proposal.goals[0]!.summary, '等合适时继续');
   assert.equal(proposal.plans[0]!.goalId, proposal.goals[0]!.id);
 });
+
+test('continuation only needs decision, reason and source when it has no targets or conditions', () => {
+  const { c } = fixture();
+  const proposal = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '我先安静听你说。', dependsOnActionIds: [] }],
+    executions: [],
+    changes: {
+      continuation: {
+        decision: 'no_current_intent',
+        reason: '此刻没有需要执行或追问的事项。',
+        sourceIds: ['source:1'],
+      },
+    },
+  });
+  assert.deepEqual(proposal.continuation?.planIds, []);
+  assert.deepEqual(proposal.continuation?.questionIds, []);
+  assert.deepEqual(proposal.continuation?.conditions, []);
+});
