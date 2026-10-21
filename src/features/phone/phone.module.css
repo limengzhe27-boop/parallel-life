@@ -760,14 +760,14 @@
 .banner {
   position: absolute;
   z-index: 8;
-  top: calc(104px + env(safe-area-inset-top));
+  top: calc(152px + env(safe-area-inset-top));
   left: 12px;
   right: 12px;
   animation: bannerEnter 0.3s ease-out;
   color: var(--phone-ink);
 }
 .phone:has(> .notice) .banner {
-  top: calc(128px + env(safe-area-inset-top));
+  top: calc(176px + env(safe-area-inset-top));
 }
 .banner .notification {
   padding-right: 36px;
