@@ -86,7 +86,8 @@ export const AgentProposalSchema = z.strictObject({
         questionForResponsibilityId: Id.optional(),
       }),
     )
-    .max(8),
+    .max(8)
+    .default([]),
   goals: z
     .array(
       z.strictObject({
@@ -98,7 +99,8 @@ export const AgentProposalSchema = z.strictObject({
         endReason: Text.optional(),
       }),
     )
-    .max(24),
+    .max(24)
+    .default([]),
   plans: z
     .array(
       z.strictObject({
@@ -114,7 +116,8 @@ export const AgentProposalSchema = z.strictObject({
         supersedesPlanId: Id.optional(),
       }),
     )
-    .max(24),
+    .max(24)
+    .default([]),
   actions: z
     .array(
       z.strictObject({
@@ -149,7 +152,8 @@ export const AgentProposalSchema = z.strictObject({
         resultId: Id.optional(),
       }),
     )
-    .max(16),
+    .max(16)
+    .default([]),
   responsibilities: z
     .array(
       z.strictObject({
@@ -168,7 +172,8 @@ export const AgentProposalSchema = z.strictObject({
         endReason: Text.optional(),
       }),
     )
-    .max(32),
+    .max(32)
+    .default([]),
   decisions: z
     .array(
       z.strictObject({
@@ -179,7 +184,8 @@ export const AgentProposalSchema = z.strictObject({
         quote: Text,
       }),
     )
-    .max(16),
+    .max(16)
+    .default([]),
   focus: z
     .strictObject({
       channel: z.enum(['private', 'group', 'scene']),

@@ -89,10 +89,10 @@ test('dedicated server coordination requires explicit sourced choice but player 
   f.proposal.statements = [{ text: 'Unrelated reply', dependsOnActionIds: [] }];
   assert.throws(() => validateAgentProposal(f.context, f.proposal), /EPISODE_DECISION_REQUIRED/);
 });
-test('new or changed active plans require legal next action or sourced explicit reconsideration', () => {
+test('actionless plans are durable intentions; claimed next actions still require a legal action', () => {
   const f = fixture();
   f.proposal.plans = [f.plan];
-  assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_NEXT_STEP_REQUIRED/);
+  assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.plan.triggers = [{ kind: 'observation', sourceId: 's' }];
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.plan.triggers = [{ kind: 'observation', sourceId: 'foreign' }];
@@ -124,9 +124,9 @@ test('waiting and blocked are explanatory, historical unchanged empty plans rema
   f.proposal.plans = [structuredClone(f.plan)];
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans[0]!.summary = 'A material new commitment';
-  assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_NEXT_STEP_REQUIRED/);
+  assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans = [{ ...f.plan, status: 'waiting' }];
-  assert.throws(() => validateAgentProposal(f.context, f.proposal), /PLAN_WAITING_BASIS_REQUIRED/);
+  assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans[0]!.missingConditions = ['Awaiting an explicit player decision'];
   assert.doesNotThrow(() => validateAgentProposal(f.context, f.proposal));
   f.proposal.plans = [

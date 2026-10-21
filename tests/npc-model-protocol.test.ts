@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
 import type { AgentValidationContext } from '../src/modules/world/domain/agent-kernel.ts';
-import { npcResponseFormat } from '../src/modules/world/infrastructure/npc-model-protocol.ts';
+import {
+  decodeNpcWire,
+  npcResponseFormat,
+} from '../src/modules/world/infrastructure/npc-model-protocol.ts';
 import { validateActorContinuation } from '../src/modules/world/domain/actor-continuation.ts';
 import { parseAgentProposal } from '../src/modules/world/infrastructure/agent-proposal-parser.ts';
 
@@ -397,9 +400,9 @@ test('native model schema is closed and required, and existing goals are scoped 
     assert.ok(!('oneOf' in x));
     if (x.type === 'object') {
       assert.equal(x.additionalProperties, false);
-      assert.deepEqual(
-        new Set(x.required as string[]),
-        new Set(Object.keys(x.properties as object)),
+      assert.ok(
+        Array.isArray(x.required) &&
+          (x.required as string[]).every((key) => key in (x.properties as object)),
       );
     }
     assert.ok(Object.keys(x).length);
@@ -528,7 +531,7 @@ test('new strict model media choices keep existing goals scoped, while old prote
   const root = schema.schema as { properties: Record<string, unknown>; required: string[] };
   assert.ok(!root.required.includes('mediaDecision'));
   assert.equal(root.properties.mediaDecision, undefined);
-  assert(root.required.includes('executions'));
+  assert(!root.required.includes('executions'));
   const own = npcResponseFormat({
     goals: [
       { id: 'my-goal', summary: '我的目标', status: 'active', sourceIds: ['input'], resultIds: [] },
@@ -1274,4 +1277,61 @@ test('current continuation only binds conditions for an actual condition wait', 
   }
   const waiting = parseAgentProposal(c, make('await_condition'));
   assert.throws(() => validateActorContinuation(c, waiting), /INVALID_ACTOR_CONTINUATION/);
+});
+
+test('v15 plan intent can record a durable intention without nextStep or conditions', () => {
+  const { c } = fixture();
+  const proposal = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '我会记得这件事。', dependsOnActionIds: [] }],
+    executions: [],
+    changes: {
+      planIntents: [
+        {
+          kind: 'create',
+          ref: 'remember',
+          goal: { kind: 'new', summary: '记住这件未完成的事', sourceIds: ['source:1'] },
+          summary: '等合适的时机再继续',
+          sourceIds: ['source:1'],
+        },
+      ],
+    },
+  });
+  assert.equal(proposal.plans.length, 1);
+  assert.equal(proposal.plans[0]!.status, 'active');
+  assert.equal(proposal.plans[0]!.nextActionId, null);
+  assert.deepEqual(proposal.plans[0]!.triggers, []);
+  assert.deepEqual(proposal.plans[0]!.missingConditions, []);
+});
+
+test('v15 ordinary message may omit executions and changes entirely', () => {
+  const { c } = fixture();
+  const proposal = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '我先听你说。', dependsOnActionIds: [] }],
+  });
+  assert.deepEqual(
+    proposal.statements.map((s) => s.text),
+    ['我先听你说。'],
+  );
+  assert.deepEqual(proposal.goals, []);
+  assert.deepEqual(proposal.plans, []);
+  assert.deepEqual(proposal.actions, []);
+  assert.deepEqual(proposal.responsibilities, []);
+  assert.deepEqual(proposal.decisions, []);
+});
+
+test('execution action does not require model-authored targets or execution graph', () => {
+  const { c } = fixture();
+  c.channel.allowedCapabilities = ['appointment.propose'];
+  const format = npcResponseFormat(c.state, 'forbidden', c);
+  for (const { action } of executionBranches(format)) {
+    for (const field of [
+      'targetIds',
+      'preconditions',
+      'dependsOnActionIds',
+      'handlesResponsibilityIds',
+    ])
+      assert.ok(!((action.required as string[] | undefined) ?? []).includes(field), field);
+  }
 });

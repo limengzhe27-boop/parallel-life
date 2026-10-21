@@ -6,7 +6,7 @@ import { AgentProposalSchema } from './agent-proposal-schema.ts';
 const Id = z.string().trim().min(1).max(240);
 const Text = z.string().trim().min(1).max(12000);
 const Basis = z.array(Id).min(1).max(64);
-const Action = AgentProposalSchema.shape.actions.element;
+const Action = AgentProposalSchema.shape.actions.unwrap().element;
 
 /** Explicit intent only: old transports exclude media; v4 shares one action channel. */
 export const NativeExecutionIntentSchema = z.strictObject({
@@ -22,7 +22,7 @@ export const NativeExecutionIntentSchema = z.strictObject({
   }),
   action: z.strictObject({
     capability: Id,
-    targetIds: Action.shape.targetIds,
+    targetIds: Action.shape.targetIds.default([]),
     parameters: z
       .array(
         z.strictObject({
@@ -31,9 +31,9 @@ export const NativeExecutionIntentSchema = z.strictObject({
         }),
       )
       .max(64),
-    preconditions: Action.shape.preconditions,
-    dependsOnActionIds: Action.shape.dependsOnActionIds,
-    handlesResponsibilityIds: Action.shape.handlesResponsibilityIds,
+    preconditions: Action.shape.preconditions.default([]),
+    dependsOnActionIds: Action.shape.dependsOnActionIds.default([]),
+    handlesResponsibilityIds: Action.shape.handlesResponsibilityIds.default([]),
     sourceIds: Basis,
   }),
 });

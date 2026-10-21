@@ -137,8 +137,8 @@ const Wire = z.strictObject({
   /** Absent only when replaying older protected model responses. */
   mediaDecision: MediaDecision.optional(),
   executions: z.array(Execution).max(16).optional(),
-  statements: z.array(z.unknown()).max(32),
-  goals: z.array(z.unknown()).max(24),
+  statements: z.array(z.unknown()).max(32).default([]),
+  goals: z.array(z.unknown()).max(24).default([]),
   plans: z
     .array(
       z.strictObject({
@@ -150,10 +150,11 @@ const Wire = z.strictObject({
         supersedesPlanId: Id.optional(),
       }),
     )
-    .max(24),
-  actions: z.array(z.unknown()).max(16),
-  responsibilities: z.array(z.unknown()).max(32),
-  decisions: z.array(z.unknown()).max(32),
+    .max(24)
+    .default([]),
+  actions: z.array(z.unknown()).max(16).default([]),
+  responsibilities: z.array(z.unknown()).max(32).default([]),
+  decisions: z.array(z.unknown()).max(32).default([]),
   focus: z.unknown().optional(),
   replyAssessments: z.unknown().optional(),
   questionWithdrawals: z.unknown().optional(),
@@ -174,20 +175,23 @@ const PreviousModelWire = Wire.omit({ mediaDecision: true, actions: true }).exte
   statements: AgentProposalSchema.shape.statements,
   goals: z
     .array(
-      AgentProposalSchema.shape.goals.element.omit({ resultIds: true }).extend({
-        status: z.enum(['active', 'deferred', 'withdrawn']),
-      }),
+      AgentProposalSchema.shape.goals
+        .unwrap()
+        .element.omit({ resultIds: true })
+        .extend({
+          status: z.enum(['active', 'deferred', 'withdrawn']),
+        }),
     )
     .max(24),
   plans: z
     .array(
-      Wire.shape.plans.element.extend({
+      Wire.shape.plans.unwrap().element.extend({
         nextStep: z.union([
           NextStep.options[1].extend({
-            conditions: AgentProposalSchema.shape.plans.element.shape.triggers,
+            conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers,
           }),
           NextStep.options[2].extend({
-            conditions: AgentProposalSchema.shape.plans.element.shape.triggers,
+            conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers,
           }),
           NextStep.options[3],
           NextStep.options[4],
@@ -197,9 +201,12 @@ const PreviousModelWire = Wire.omit({ mediaDecision: true, actions: true }).exte
     .max(24),
   responsibilities: z
     .array(
-      AgentProposalSchema.shape.responsibilities.element.omit({ resolutionResultId: true }).extend({
-        status: z.enum(['open', 'waiting', 'deferred', 'withdrawn', 'expired']),
-      }),
+      AgentProposalSchema.shape.responsibilities
+        .unwrap()
+        .element.omit({ resolutionResultId: true })
+        .extend({
+          status: z.enum(['open', 'waiting', 'deferred', 'withdrawn', 'expired']),
+        }),
     )
     .max(32),
   decisions: AgentProposalSchema.shape.decisions,
@@ -506,9 +513,18 @@ export function npcResponseFormat(
       ),
     ),
   );
-  const nextStep = planVariants.find((p) => p.properties!.kind!.enum?.[0] === 'create')!.properties!
-    .nextStep!;
-  for (const choice of nextStep.anyOf ?? []) {
+  const rawNextStep = planVariants.find((p) => p.properties!.kind!.enum?.[0] === 'create')!
+    .properties!.nextStep!;
+  const unwrapNextStep = (node: any): any =>
+    node?.anyOf?.length === 1 && node.anyOf[0]?.anyOf ? unwrapNextStep(node.anyOf[0]) : node;
+  const nextStep = unwrapNextStep(rawNextStep);
+  const nextChoices: any[] = [];
+  const collectNextChoices = (node: any) => {
+    if (node?.properties?.kind) nextChoices.push(node);
+    else if (Array.isArray(node?.anyOf)) node.anyOf.forEach(collectNextChoices);
+  };
+  collectNextChoices(nextStep);
+  for (const choice of nextChoices) {
     const kind = choice.properties?.kind?.enum?.[0];
     if ((kind === 'wait' || kind === 'blocked') && choice.properties?.missing)
       choice.properties.missing.minItems = 1;
@@ -523,6 +539,10 @@ export function npcResponseFormat(
     anyOf: planVariants.filter((p) => {
       const kind = p.properties!.kind!.enum?.[0];
       if (p.properties!.nextStep) p.properties!.nextStep = { $ref: '#/$defs/npc_plan_next_step' };
+      // A plan may be a durable intention without an executable next step.
+      // Keep nextStep in the grammar for old callers, but do not require it.
+      if (Array.isArray(p.required))
+        p.required = p.required.filter((field) => field !== 'nextStep');
       if (kind === 'create') {
         scopeGoal(p, editableGoals);
         return true;
@@ -792,7 +812,17 @@ export function npcResponseFormat(
         {
           type: 'object',
           properties: changes,
-          required: Object.keys(changes),
+          required: Object.keys(changes).filter(
+            (key) =>
+              ![
+                'goals',
+                'plans',
+                'actions',
+                'responsibilities',
+                'decisions',
+                'statements',
+              ].includes(key),
+          ),
           additionalProperties: false,
         },
         { type: 'null' },
@@ -801,7 +831,36 @@ export function npcResponseFormat(
   };
   if (considerationScope === 'required' || reviewScope)
     schema.properties.changes = schema.properties.changes!.anyOf![0]!;
-  schema.required = Object.keys(schema.properties!);
+  const optionalActionFields = new Set([
+    'targetIds',
+    'preconditions',
+    'dependsOnActionIds',
+    'handlesResponsibilityIds',
+  ]);
+  const relaxActionRequired = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(relaxActionRequired);
+    if (!value || typeof value !== 'object') return value;
+    const node = value as Record<string, any>;
+    if (node.properties?.action && Array.isArray(node.required))
+      node.required = node.required.filter((field: string) => !optionalActionFields.has(field));
+    if (node.properties && Array.isArray(node.required))
+      node.required = node.required.filter((field: string) => !optionalActionFields.has(field));
+    for (const [key, child] of Object.entries(node)) node[key] = relaxActionRequired(child);
+    return node;
+  };
+  relaxActionRequired(schema);
+  schema.required = Object.keys(schema.properties!).filter(
+    (key) =>
+      ![
+        'statements',
+        'executions',
+        'goals',
+        'plans',
+        'actions',
+        'responsibilities',
+        'decisions',
+      ].includes(key),
+  );
   return {
     ...NPC_RESPONSE_FORMAT,
     schema: shareNpcConditionSchema(
@@ -1526,7 +1585,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
       protocol: z.literal(CURRENT_NPC_WIRE_PROTOCOL),
       statements: AgentProposalSchema.shape.statements,
       executions: z.array(z.unknown()).max(1).nullable().optional(),
-      changes: z.record(z.string(), z.unknown()).nullable(),
+      changes: z.record(z.string(), z.unknown()).nullable().optional(),
     })
     .parse(transport(raw, false));
   const mapped = mapNpcSourceFields(

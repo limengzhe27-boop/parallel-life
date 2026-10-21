@@ -830,7 +830,7 @@ test('actual invitation answers wake only their actor with stable receipt identi
   }
 });
 
-test('ordinary actionless plan reconsiders only on explicit authorized ready conditions with stable identity', async () => {
+test('ordinary actionless plan reviews with a durable trigger and also without one', async () => {
   const a = actor();
   a.snapshot.state.actions = [];
   const p = a.snapshot.state.plans[0]!;
@@ -870,7 +870,11 @@ test('ordinary actionless plan reconsiders only on explicit authorized ready con
         { kind: 'at_or_after', at: '2026-10-16T10:00:00.000Z', sourceId: 's' },
       ];
     snap.viewState = structuredClone(snap.state);
-    assert.equal((await collect(next, 'actor_plan')).candidates.length, 0, mode);
+    assert.equal(
+      (await collect(next, 'actor_plan')).candidates.length,
+      mode === 'empty' ? 1 : 0,
+      mode,
+    );
   }
 });
 
