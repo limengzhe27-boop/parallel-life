@@ -136,9 +136,7 @@ function createServices() {
       agentAdvance.advanceIfEnabled(owner, world, undefined, track),
     ),
     forceDirectorReview: (ownerId: string, worldId: string) =>
-      agentAdvance.advanceIfEnabled(ownerId, worldId, undefined, undefined, {
-        forceDirectorReview: true,
-      }),
+      agentAdvance.reviewDirectorDirect(ownerId, worldId),
     /**
      * Guest-creation quota for one caller. The route stays unaware of how a
      * caller is identified or hashed; the policy lives with the server wiring.

@@ -1331,6 +1331,12 @@ export function npcAgentAdvanceServices(
     },
   };
   return {
+    /** Owner-authorized explicit review; bypasses the automatic batch lease only for this deliberate call. */
+    async reviewDirectorDirect(ownerId: string, worldId: string) {
+      return service.advanceOne(ownerId, worldId, undefined, undefined, {
+        forceDirectorReview: true,
+      });
+    },
     async advanceIfEnabled(
       ownerId: string,
       worldId: string,
