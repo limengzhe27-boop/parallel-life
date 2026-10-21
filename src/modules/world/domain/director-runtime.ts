@@ -70,6 +70,18 @@ export type DirectorSnapshot = {
   focus: { channel: 'private' | 'group' | 'scene'; threadId: string; actorIds: string[] }[];
   /** A legacy/unscoped active conversation is still attention, not permission to guess its NPC. */
   conversationWithoutTarget?: boolean;
+  /** Real recent-contact facts; a return may be a low-pressure check-in, never a fabricated event. */
+  returnContext?: {
+    lastMessageAt: string;
+    lastMessageRole: 'player' | 'assistant';
+    lastMessageActorId?: string;
+    lastMessageText?: string;
+    lastMessageSourceId?: string;
+    lastPlayerAt?: string;
+    lastAssistantAt?: string;
+    unansweredAssistant: boolean;
+    elapsedSinceLastMessageMs: number;
+  };
 };
 export type DirectorOpportunity = {
   id: string;

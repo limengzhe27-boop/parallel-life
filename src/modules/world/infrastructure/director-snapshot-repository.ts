@@ -1076,6 +1076,53 @@ export class PostgresDirectorSnapshotRepository {
         }
       const actorDirectionMaterials = await readDirections();
       const openingContextAuthority = input.nativeTurn ? undefined : await readOpening();
+      const latest = (
+        await sql.query(
+          `SELECT actor_id,document,ordinal FROM parallel_life.world_messages
+            WHERE world_id=$1 AND owner_id=$2 ORDER BY ordinal DESC,id DESC LIMIT 2`,
+          [h.world.id, owner],
+        )
+      ).rows;
+      const latestRow = latest[0];
+      const latestMessage = latestRow?.document as
+        { id?: string; at?: string; role?: string; text?: string } | undefined;
+      const latestSourceId = latestMessage?.id ? `message:${latestMessage.id}` : undefined;
+      if (latestRow && latestSourceId)
+        sources.observations.unshift({
+          sourceId: latestSourceId,
+          text:
+            latestMessage?.role === 'assistant'
+              ? `Recent message from ${String(latestRow.actor_id)}: ${String(latestMessage.text ?? '').slice(0, 800)}`
+              : `Recent player message: ${String(latestMessage?.text ?? '').slice(0, 800)}`,
+          kind: 'speech',
+          knownByActorIds: latestRow.actor_id ? [String(latestRow.actor_id)] : [],
+        });
+      const returnContext = latestRow
+        ? (() => {
+            const doc = latestRow.document as {
+              at?: string;
+              role?: string;
+              text?: string;
+            };
+            const row = latest.find((r) => (r.document as { role?: string }).role === 'user');
+            return {
+              lastMessageAt: String(doc.at ?? h.storyAt),
+              lastMessageRole: doc.role === 'user' ? ('player' as const) : ('assistant' as const),
+              ...(latestRow.actor_id ? { lastMessageActorId: String(latestRow.actor_id) } : {}),
+              ...(doc.text ? { lastMessageText: doc.text.slice(0, 800) } : {}),
+              ...(latestSourceId ? { lastMessageSourceId: latestSourceId } : {}),
+              ...(row
+                ? { lastPlayerAt: String((row.document as { at?: string }).at ?? h.storyAt) }
+                : {}),
+              ...(doc.role === 'assistant' ? { lastAssistantAt: String(doc.at ?? h.storyAt) } : {}),
+              unansweredAssistant: doc.role === 'assistant',
+              elapsedSinceLastMessageMs: Math.max(
+                0,
+                Date.parse(h.storyAt) - Date.parse(String(doc.at ?? h.storyAt)),
+              ),
+            };
+          })()
+        : undefined;
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         ...(openingContextAuthority ? { openingContextAuthority } : {}),
@@ -1113,6 +1160,7 @@ export class PostgresDirectorSnapshotRepository {
         observations: sources.observations,
         focus,
         conversationWithoutTarget: attention.conversationWithoutTarget,
+        ...(returnContext ? { returnContext } : {}),
       };
       snapshot.deliberationWindow = selectDirectorDeliberationWindow(snapshot);
       if (
