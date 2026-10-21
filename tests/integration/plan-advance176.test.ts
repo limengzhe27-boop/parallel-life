@@ -112,7 +112,7 @@ test('actionless plan advances into one proactive review and does not repeat on 
         assert.equal(JSON.parse(p.input.text).actionId, null);
         return JSON.stringify({
           protocol: 'npc-wire-v15',
-          statements: [],
+          statements: [{ text: '我还记得那件没完成的事。', dependsOnActionIds: [] }],
           executions: [],
           changes: null,
         });
@@ -158,6 +158,12 @@ test('actionless plan advances into one proactive review and does not repeat on 
     assert.equal(npcCalls, 2, 'same evidence quiet wake must never repeat');
     const after = await store.read(owner, { worldId: id, actorId });
     assert(after);
+    const finalWorld = await worlds.get({ userId: owner }, id);
+    assert.equal(
+      finalWorld.messages.filter((m) => m.text.includes('我还记得那件没完成的事')).length,
+      1,
+      'the proactive actor message is committed exactly once',
+    );
     assert.equal(after.goals[0]!.status, 'active');
     assert.deepEqual(after.goals[0]!.resultIds, []);
     assert.deepEqual(after.actions, []);
