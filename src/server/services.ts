@@ -125,6 +125,14 @@ function createServices() {
             [ownerId, worldId],
           )
         ).rows[0];
+        const actorAttempts = (
+          await sql.query(
+            `SELECT actor_id,status,response->>'response' AS response_text,created_at
+               FROM parallel_life.agent_attempts WHERE owner_id=$1 AND world_id=$2
+              ORDER BY created_at DESC LIMIT 3`,
+            [ownerId, worldId],
+          )
+        ).rows;
         const episodes = (
           await sql.query(
             `SELECT id,actor_id,status,created_at FROM parallel_life.agent_episode_requests
@@ -132,7 +140,7 @@ function createServices() {
             [ownerId, worldId],
           )
         ).rows;
-        return row ? { ...row, episodes } : { episodes };
+        return row ? { ...row, episodes, actorAttempts } : { episodes, actorAttempts };
       }),
     records: new PostgresPlayerRecords(db),
     space: new PostgresWorldSpace(db, officialLifeCatalog),
