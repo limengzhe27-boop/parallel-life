@@ -942,6 +942,21 @@ export function npcAgentAdvanceServices(
       );
       const directorReview = await directorReviewRepository.read(ownerId, worldId);
       const directorDue = directorReviewDue(directorReview, storyAt);
+      if (!scheduled.selected.length) {
+        console.info(
+          JSON.stringify({
+            scope: 'director-review-probe',
+            worldId,
+            storyAt,
+            selected: 0,
+            scheduledReason: scheduled.reason,
+            lastReviewedAt: directorReview?.lastReviewedAt ?? null,
+            nextReviewAt: directorReview?.nextReviewAt ?? null,
+            reviewCount: directorReview?.reviewCount ?? 0,
+            due: directorDue,
+          }),
+        );
+      }
       const emptyDirectorDue = emptyDirectorReviewDue({
         state: directorReview,
         storyAt,
