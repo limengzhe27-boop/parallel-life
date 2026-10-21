@@ -5,7 +5,7 @@
 - main：`d79705a1`
 - 工作树：`.local/worktrees/intent-simplification-176`
 - 分支：`codex/intent-simplification-176`
-- 本阶段提交：`607f99b5` + `a82b2410` + `f3e9fd65` + `91a1fa52`
+- 本阶段提交：`607f99b5` + `a82b2410` + `f3e9fd65` + `91a1fa52` + `3d1f8d38`
 - 范围：模型协议、内核 plan 校验、调度 plan 候选、提示词；旧存档解码保留。
 
 ## 本阶段已完成
@@ -107,13 +107,13 @@
 
 除专属 actionless-plan 旅程外未跑全量真实 PG；未调用真实模型。
 - 已用 v15 planIntent 建出 actionless plan，并通过真实 `npcAgentAdvanceServices` 完成一次 actor wake；重复 immediate advance 不再调用模型。根因是 `scheduleAgents` 的 candidate 校验白名单缺少 `planReview`，把整条 `actor_plan` collection 判为 `invalid_collection`；已补白名单，并把 plan review identity 从 storyAt 改为 summary/status，避免每次时钟推进重复购买。
-- 新增真实 PG 旅程 `tests/integration/plan-advance176.test.ts`，1/1 通过。
+- 新增真实 PG 旅程 `tests/integration/plan-advance176.test.ts`，1/1 通过；断言 wake 中产生的 assistant 主动消息只提交一次，immediate re-advance 不重复。
 ## 已知边界
 
 - 这是第一阶段，不是全部字段删除。
 - plan review identity 使用 plan summary/status，不再用 storyAt；同一 plan immediate advance 不重复，但还没有持久 nextReviewAt 来安排未来复查。
-- integration 已覆盖 advance 到 actor wake，不包含页面锁屏通知/真实浏览器刷新。
-- plan-only 候选已完成真实 PG 的模型输出 → plan → advance → actor wake；页面锁屏通知仍未验证。
+- integration 已覆盖 advance 到 actor wake 以及主动消息提交，不包含页面锁屏通知/真实浏览器刷新。
+- plan-only 候选已完成真实 PG 的模型输出 → plan → advance → actor wake → 主动消息提交；页面锁屏通知仍未验证。
 - action 的 `status/resultId/targetIds/preconditions` 等运行时字段仍主要在内核侧；模型侧已减少 required，但旧协议仍兼容。
 - goal.resultIds、continuation、question/responsibility/decision 的重叠尚未删除。
 - 旧存档仍可读；没有重写历史。
