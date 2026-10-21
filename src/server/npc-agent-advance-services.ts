@@ -71,6 +71,7 @@ import {
 } from '../modules/world/infrastructure/director-agent-model.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
+import { PostgresPlanReviewRepository } from '../modules/world/infrastructure/plan-review-repository.ts';
 import { PostgresWorldAwarenessRepository } from '../modules/world/infrastructure/world-awareness-repository.ts';
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
@@ -188,6 +189,7 @@ export function npcAgentAdvanceServices(
   const worlds = new PostgresWorldRepository(db),
     attempts = new PostgresAgentRuntimeRepository(db, agendaConfig),
     directors = new PostgresDirectorRuntimeRepository(db),
+    planReviewRepository = new PostgresPlanReviewRepository(db),
     awareness = new PostgresWorldAwarenessRepository(db);
   const policy = agentAdvanceBatchPolicy(batchOptions);
   const service = {
@@ -639,6 +641,28 @@ export function npcAgentAdvanceServices(
           appointments: world.appointments.filter((a) => a.participantIds.includes(state.actorId)),
         })),
       );
+      const planReviewStates = new Map(
+        (
+          await Promise.all(
+            actors.map(async (actor) => {
+              const planIds = actor.snapshot.state.plans
+                .filter(
+                  (plan) =>
+                    !plan.nextActionId &&
+                    !plan.triggers.length &&
+                    ['active', 'waiting', 'blocked'].includes(plan.status),
+                )
+                .map((plan) => plan.id);
+              return planReviewRepository.read(
+                ownerId,
+                worldId,
+                actor.snapshot.state.actorId,
+                planIds,
+              );
+            }),
+          )
+        ).flatMap((reviews) => [...reviews]),
+      );
       const agendaReviews = new Map<string, OwnAgendaReviewWork>();
       const candidateCommand = (candidate: AgentCandidate) => {
         const agenda = agendaReviews.get(candidate.id)?.commandId;
@@ -682,6 +706,7 @@ export function npcAgentAdvanceServices(
         activeAttempts: read.prior,
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
+        planReviews: planReviewStates,
       });
       const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (
@@ -1068,6 +1093,16 @@ export function npcAgentAdvanceServices(
           )
         )
           throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
+        const originalCandidate = originalCandidates.get(candidate.id);
+        if (originalCandidate?.planReview) {
+          await planReviewRepository.schedule(
+            ownerId,
+            worldId,
+            candidate.actorId,
+            originalCandidate.planReview.planId,
+            storyAt,
+          );
+        }
         const existing = await attempts.lookup(ownerId, worldId, commandForCandidate(candidate));
         const recovering = existing?.status === 'response_received';
         const reservation = recovering ? undefined : batch?.reserveModel();

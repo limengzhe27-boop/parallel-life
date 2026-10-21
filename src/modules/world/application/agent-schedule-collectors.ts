@@ -3,6 +3,7 @@ import { collectPendingSceneObservationCandidates } from '../domain/actor-observ
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
 import { agentConditionsReady } from './agent-condition-checks.ts';
 import type { AgentSnapshot } from './agent-runtime-ports.ts';
+import type { PlanReviewState } from '../domain/plan-review.ts';
 import type { RegisteredAgentCandidateSource } from './schedule-agents.ts';
 import type {
   AgentAction,
@@ -36,6 +37,8 @@ export type SchedulingView = {
   consumedCandidateIds: readonly string[];
   /** Server-attested permission, never a model-created agenda. */
   agendaInitializeGrants?: readonly ActorAgendaInitializeGrant[];
+  /** Durable actionless-plan review cadence, scoped to this actor. */
+  planReviews?: ReadonlyMap<string, PlanReviewState>;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -440,11 +443,13 @@ async function planReconsiderations(
     // trigger. It still deserves a bounded review opportunity: the actor can
     // speak, wait, revise or close it. This is deliberately separate from the
     // action path below, which remains condition-gated.
+    const savedReview = view.planReviews?.get(plan.id);
     if (
       !plan.nextActionId &&
       !plan.triggers.length &&
       !completedStep &&
       !refs.length &&
+      (!savedReview || Date.parse(savedReview.nextReviewAt) <= Date.parse(view.storyAt)) &&
       ['active', 'waiting', 'blocked'].includes(plan.status) &&
       context.basis(plan) &&
       goal &&
@@ -469,6 +474,7 @@ async function planReconsiderations(
               // One bounded review window per story hour. This is a cadence,
               // not a new source or an authorization to execute.
               reviewWindow: Math.floor(Date.parse(view.storyAt) / 3_600_000),
+              nextReviewAt: savedReview?.nextReviewAt ?? null,
             },
             reason:
               '本人未完成计划进入主动复查窗口；可以主动说明、等待、调整或结束，不推定执行或完成。',

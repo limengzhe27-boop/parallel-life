@@ -154,8 +154,28 @@ test('actionless plan advances into one proactive review and does not repeat on 
     );
     await advance.advanceIfEnabled(owner, id);
     assert.equal(npcCalls, 2, 'one original message and one actionless plan review');
+    const reviewRows = (
+      await admin.query(
+        'SELECT plan_id,next_review_at,review_count FROM parallel_life.agent_plan_reviews WHERE world_id=$1',
+        [id],
+      )
+    ).rows;
+    assert.equal(reviewRows.length, 1, 'durable plan review state exists');
+    assert.equal(Number(reviewRows[0].review_count), 1);
     await advance.advanceIfEnabled(owner, id);
     assert.equal(npcCalls, 2, 'same evidence quiet wake must never repeat');
+    assert.equal(
+      Number(
+        (
+          await admin.query(
+            'SELECT review_count FROM parallel_life.agent_plan_reviews WHERE world_id=$1',
+            [id],
+          )
+        ).rows[0].review_count,
+      ),
+      1,
+      'immediate re-advance does not rewrite the review cadence',
+    );
     const after = await store.read(owner, { worldId: id, actorId });
     assert(after);
     const finalWorld = await worlds.get({ userId: owner }, id);

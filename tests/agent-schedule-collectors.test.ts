@@ -977,3 +977,31 @@ test('actionless plan gets one bounded proactive review per story hour', async (
   const second = (await collect(next, 'actor_plan')).candidates[0]!;
   assert.notEqual(second.id, first.id);
 });
+
+test('persisted plan review cadence suppresses a not-yet-due actionless review', async () => {
+  const a = actor();
+  a.snapshot.state.actions = [];
+  a.snapshot.state.plans[0]!.actionIds = [];
+  a.snapshot.state.plans[0]!.nextActionId = null;
+  a.snapshot.state.plans[0]!.triggers = [];
+  sync(a);
+  const due = view([a]);
+  due.planReviews = new Map([
+    [
+      'plan',
+      {
+        planId: 'plan',
+        nextReviewAt: '2026-10-15T10:30:00.000Z',
+        lastReviewedAt: '2026-10-15T09:30:00.000Z',
+        reviewCount: 1,
+      },
+    ],
+  ]);
+  assert.equal((await collect(due, 'actor_plan')).candidates.length, 0);
+  const dueNow = structuredClone(due);
+  dueNow.storyAt = '2026-10-15T10:30:00.000Z';
+  dueNow.actors[0]!.snapshot.storyAt = dueNow.storyAt;
+  dueNow.actors[0]!.snapshot.worldContext!.time.storyAt = dueNow.storyAt;
+  dueNow.actors[0]!.snapshot.viewState = structuredClone(dueNow.actors[0]!.snapshot.state);
+  assert.equal((await collect(dueNow, 'actor_plan')).candidates.length, 1);
+});
