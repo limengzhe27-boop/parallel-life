@@ -40,6 +40,7 @@ import { advanceWorld } from '../modules/world/application/advance-world.ts';
 import { describeImpact, normalizeDirection } from '../modules/world/domain/direction.ts';
 import { DomainError } from '../modules/world/domain/errors.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
+import { retireUnknownDirectorAttempts } from '../modules/world/infrastructure/director-unknown-recovery.ts';
 import { PostgresDirectionStore } from '../modules/world/infrastructure/direction-repository.ts';
 import {
   loadActorMemories,
@@ -109,6 +110,8 @@ function createServices() {
   );
   return {
     db,
+    retireUnknownDirector: (ownerId: string, worldId: string) =>
+      retireUnknownDirectorAttempts(db, ownerId, worldId),
     records: new PostgresPlayerRecords(db),
     space: new PostgresWorldSpace(db, officialLifeCatalog),
     withWorldActivityLock: <T>(worldId: string, run: () => Promise<T>) =>
