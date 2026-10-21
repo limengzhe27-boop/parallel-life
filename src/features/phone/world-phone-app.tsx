@@ -458,6 +458,30 @@ export function WorldPhoneApp({
         ),
       );
       if (sendFailureStatus(sendError) === 'unknown') {
+        const command = sendCommands.current[commandId];
+        if (command) {
+          try {
+            const { worldId: _worldId, ...lookupInput } = command;
+            const receipt = await receiptClient.lookup(worldId, lookupInput);
+            if (receipt.status === 'committed') {
+              confirmedSendVersion.current = {
+                worldId,
+                version: Math.max(confirmedSendVersion.current.version, receipt.version),
+              };
+              observeReplyReceipt(receipt, command);
+              delete sendCommands.current[commandId];
+              setLocalMessages((current) =>
+                current.map((message) =>
+                  message.id === commandId ? { ...message, status: 'sent' } : message,
+                ),
+              );
+              await load();
+              return;
+            }
+          } catch {
+            /* Fall through: the exact command remains recoverable. */
+          }
+        }
         restoredSends.current = [
           ...restoredSends.current.filter((m) => m.id !== commandId),
           { ...entry, status: 'unknown' },
