@@ -944,20 +944,6 @@ export function npcAgentAdvanceServices(
       // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
       const directorNow = new Date().toISOString();
       const directorDue = directorReviewDue(directorReview, directorNow);
-      if (!scheduled.selected.length) {
-        console.info(
-          JSON.stringify({
-            scope: 'director-review-probe',
-            worldId,
-            selected: 0,
-            scheduledReason: scheduled.reason,
-            lastReviewedAt: directorReview?.lastReviewedAt ?? null,
-            nextReviewAt: directorReview?.nextReviewAt ?? null,
-            reviewCount: directorReview?.reviewCount ?? 0,
-            due: directorDue,
-          }),
-        );
-      }
       const emptyDirectorDue = emptyDirectorReviewDue({
         state: directorReview,
         storyAt: directorNow,
