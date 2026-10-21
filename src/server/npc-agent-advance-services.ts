@@ -1345,6 +1345,31 @@ export function npcAgentAdvanceServices(
     },
   };
   return {
+    /** Deliver a committed Director opportunity whose original HTTP request was interrupted. */
+    async dispatchPendingEpisodeDirect(ownerId: string, worldId: string) {
+      const world = await worlds.get({ userId: ownerId }, worldId);
+      const epoch = await db.transaction(ownerId, async (sql) => {
+        const row = (
+          await sql.query(
+            'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
+            [worldId, ownerId],
+          )
+        ).rows[0];
+        return Number(row?.engine_epoch ?? 1);
+      });
+      if (epoch < 2) return null;
+      const npcModel = new NpcAgentModel({
+        complete: (...args) => modelFactory().complete(...args),
+      });
+      return dispatchPendingAgentEpisode(
+        db,
+        npcModel,
+        ownerId,
+        world,
+        epoch,
+        new Date().toISOString(),
+      );
+    },
     /** Owner-authorized explicit review; bypasses the automatic batch lease only for this deliberate call. */
     async reviewDirectorDirect(ownerId: string, worldId: string) {
       return service.advanceOne(ownerId, worldId, undefined, undefined, {

@@ -144,6 +144,8 @@ function createServices() {
     ),
     forceDirectorReview: (ownerId: string, worldId: string) =>
       agentAdvance.reviewDirectorDirect(ownerId, worldId),
+    dispatchDirectorEpisode: (ownerId: string, worldId: string) =>
+      agentAdvance.dispatchPendingEpisodeDirect(ownerId, worldId),
     /**
      * Guest-creation quota for one caller. The route stays unaware of how a
      * caller is identified or hashed; the policy lives with the server wiring.
