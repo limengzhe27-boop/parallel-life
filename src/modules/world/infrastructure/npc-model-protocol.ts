@@ -847,20 +847,7 @@ export function npcResponseFormat(
   };
   if (considerationScope === 'required' || reviewScope)
     schema.properties.changes = schema.properties.changes!.anyOf![0]!;
-  const optionalActionFields = new Set([
-    'targetIds',
-    'preconditions',
-    'dependsOnActionIds',
-    'handlesResponsibilityIds',
-    'resultIds',
-    'actionIds',
-    'nextActionId',
-    'triggers',
-    'missingConditions',
-    'nextCheck',
-    'planIds',
-    'questionIds',
-  ]);
+  const optionalActionFields = new Set<string>();
   const relaxActionRequired = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(relaxActionRequired);
     if (!value || typeof value !== 'object') return value;
