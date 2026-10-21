@@ -138,8 +138,16 @@ function LifePhone({
     // Delivery and unread state continue during conversation; unrelated banners
     // need not interrupt the player who is reading or responding.
     const inConversation = !locked && route.app === 'messages' && !!route.target;
-    if (incoming.length && !inConversation) {
-      const incomingSet = new Set(incoming);
+    // A different conversation may still arrive as a quiet top banner. It never
+    // switches the current thread; the current chat's own messages stay silent.
+    const incomingOther = inConversation
+      ? incoming.filter((id) => {
+          const item = notifications.find((n) => n.id === id);
+          return !!item && item.target !== route.target;
+        })
+      : incoming;
+    if (incomingOther.length) {
+      const incomingSet = new Set(incomingOther);
       const newest = latestNotification(notifications.filter((item) => incomingSet.has(item.id)));
       setBannerId(newest?.id ?? incoming.at(-1));
       playReceiveSound();
