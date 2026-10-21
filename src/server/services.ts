@@ -150,6 +150,20 @@ function createServices() {
     advanceOperations: agentAdvanceOperations(db, (owner, world, track) =>
       agentAdvance.advanceIfEnabled(owner, world, undefined, track),
     ),
+    schemaStatus: (ownerId: string) =>
+      db.transaction(ownerId, async (sql) => {
+        const row = (
+          await sql.query(
+            `SELECT
+               to_regclass('parallel_life.agent_plan_reviews') AS plan_reviews,
+               to_regclass('parallel_life.worlds') AS worlds`,
+          )
+        ).rows[0];
+        return {
+          planReviews: row?.plan_reviews ? String(row.plan_reviews) : null,
+          worlds: row?.worlds ? String(row.worlds) : null,
+        };
+      }),
     forceDirectorReview: (ownerId: string, worldId: string) =>
       agentAdvance.reviewDirectorDirect(ownerId, worldId),
     dispatchDirectorEpisode: (ownerId: string, worldId: string) =>
