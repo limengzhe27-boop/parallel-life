@@ -2,6 +2,12 @@ import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts'
 import type { PlanReviewState } from '../domain/plan-review.ts';
 
 const HOUR_MS = 60 * 60 * 1000;
+function missingTable(error: unknown) {
+  return (error as { code?: unknown } | null)?.code === '42P01';
+}
+function warnMissing() {
+  console.error('PLAN_REVIEW_TABLE_MISSING', '0104_agent_plan_reviews.sql');
+}
 export function nextPlanReviewAt(storyAt: string, hours = 1): string {
   const at = Date.parse(storyAt);
   if (!Number.isFinite(at)) throw Error('INVALID_PLAN_REVIEW_TIME');
@@ -21,27 +27,33 @@ export class PostgresPlanReviewRepository {
     planIds: readonly string[],
   ): Promise<ReadonlyMap<string, PlanReviewState>> {
     if (!planIds.length) return new Map();
-    return this.db.transaction(ownerId, async (sql) => {
-      const rows = (
-        await sql.query(
-          `SELECT plan_id,next_review_at,last_reviewed_at,review_count
+    try {
+      return await this.db.transaction(ownerId, async (sql) => {
+        const rows = (
+          await sql.query(
+            `SELECT plan_id,next_review_at,last_reviewed_at,review_count
              FROM parallel_life.agent_plan_reviews
             WHERE owner_id=$1 AND world_id=$2 AND actor_id=$3 AND plan_id=ANY($4::text[])`,
-          [ownerId, worldId, actorId, planIds],
-        )
-      ).rows;
-      return new Map(
-        rows.map((row) => [
-          String(row.plan_id),
-          {
-            planId: String(row.plan_id),
-            nextReviewAt: new Date(row.next_review_at).toISOString(),
-            lastReviewedAt: new Date(row.last_reviewed_at).toISOString(),
-            reviewCount: Number(row.review_count),
-          },
-        ]),
-      );
-    });
+            [ownerId, worldId, actorId, planIds],
+          )
+        ).rows;
+        return new Map(
+          rows.map((row) => [
+            String(row.plan_id),
+            {
+              planId: String(row.plan_id),
+              nextReviewAt: new Date(row.next_review_at).toISOString(),
+              lastReviewedAt: new Date(row.last_reviewed_at).toISOString(),
+              reviewCount: Number(row.review_count),
+            },
+          ]),
+        );
+      });
+    } catch (error) {
+      if (!missingTable(error)) throw error;
+      warnMissing();
+      return new Map();
+    }
   }
 
   async schedule(
@@ -54,10 +66,11 @@ export class PostgresPlanReviewRepository {
   ): Promise<PlanReviewState> {
     const lastReviewedAt = new Date(storyAt).toISOString();
     const nextReviewAt = nextPlanReviewAt(storyAt, hours);
-    return this.db.transaction(ownerId, async (sql) => {
-      const row = (
-        await sql.query(
-          `INSERT INTO parallel_life.agent_plan_reviews
+    try {
+      return await this.db.transaction(ownerId, async (sql) => {
+        const row = (
+          await sql.query(
+            `INSERT INTO parallel_life.agent_plan_reviews
              (world_id,owner_id,actor_id,plan_id,next_review_at,last_reviewed_at,review_count)
            VALUES($1,$2,$3,$4,$5,$6,1)
            ON CONFLICT(world_id,owner_id,actor_id,plan_id) DO UPDATE SET
@@ -66,15 +79,20 @@ export class PostgresPlanReviewRepository {
              review_count=parallel_life.agent_plan_reviews.review_count+1,
              updated_at=now()
            RETURNING plan_id,next_review_at,last_reviewed_at,review_count`,
-          [worldId, ownerId, actorId, planId, nextReviewAt, lastReviewedAt],
-        )
-      ).rows[0];
-      return {
-        planId: String(row.plan_id),
-        nextReviewAt: new Date(row.next_review_at).toISOString(),
-        lastReviewedAt: new Date(row.last_reviewed_at).toISOString(),
-        reviewCount: Number(row.review_count),
-      };
-    });
+            [worldId, ownerId, actorId, planId, nextReviewAt, lastReviewedAt],
+          )
+        ).rows[0];
+        return {
+          planId: String(row.plan_id),
+          nextReviewAt: new Date(row.next_review_at).toISOString(),
+          lastReviewedAt: new Date(row.last_reviewed_at).toISOString(),
+          reviewCount: Number(row.review_count),
+        };
+      });
+    } catch (error) {
+      if (!missingTable(error)) throw error;
+      warnMissing();
+      return { planId, nextReviewAt, lastReviewedAt, reviewCount: 0 };
+    }
   }
 }
