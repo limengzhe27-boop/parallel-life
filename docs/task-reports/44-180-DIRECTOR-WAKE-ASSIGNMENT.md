@@ -39,6 +39,20 @@
 - 失败 attempt 写入后 `reviewCount` 增加，下一次 cadence 变为 1 小时后；这是付费/unknown 保护，不是调度器未触发。
 - 因此当前不能验证作者事件派发，因为上游模型失败；不能把 503 算成导演或 NPC 逻辑通过。
 
+## 受控全链路验证
+
+新增真实 PG `director-opportunity180`：
+
+- 零 actor candidate；
+- 导演 due；
+- 导演返回一个 emergent opportunity；
+- 人物收到 `npc_episode_consideration`；
+- 人物返回 `choice: engage`；
+- 提交一条主动 assistant 消息；
+- 第二次 advance 不重复导演/消息。
+
+同时修正：零候选时不会再因为刚提交的消息产生 `observed.needsEvaluation` 而重复叫导演；只有 director cadence 或真实 wake cause 才触发。
+
 ## 未完成/下一步
 
 - 本轮只验证零候选导演被调用/quiet + cadence 去重，还没有证明导演从作者事件库成功派发一次事件。

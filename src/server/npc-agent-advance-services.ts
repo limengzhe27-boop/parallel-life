@@ -988,9 +988,9 @@ export function npcAgentAdvanceServices(
         !coordinated &&
         (retryCommandId ||
           emptyDirectorDue ||
-          observed.needsEvaluation ||
           wake.cause ||
-          (wake.hasPendingDirector && !wake.deferred))
+          (wake.hasPendingDirector && !wake.deferred) ||
+          (scheduled.selected.length > 0 && observed.needsEvaluation))
       ) {
         let decision: DirectorDecision | null;
         try {
