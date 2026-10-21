@@ -856,7 +856,16 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
   const sourceId = snapshot.state.definitionRef;
-  if (!context.sources.has(sourceId)) return [];
+  if (!context.sources.has(sourceId)) {
+    console.info(
+      JSON.stringify({
+        scope: 'local-initiative-skip',
+        reason: 'definition_missing',
+        actorId: snapshot.state.actorId,
+      }),
+    );
+    return [];
+  }
   const bucket = Math.floor(Date.now() / 3_600_000);
   return [
     await candidate(view, context, {
