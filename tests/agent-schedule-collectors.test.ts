@@ -959,3 +959,21 @@ test('successful media enqueue uses media completion lifecycle, failed execution
     assert.equal(a.snapshot.state.goals[0]!.status, 'active');
   }
 });
+
+test('actionless plan gets one bounded proactive review per story hour', async () => {
+  const a = actor();
+  a.snapshot.state.actions = [];
+  a.snapshot.state.plans[0]!.actionIds = [];
+  a.snapshot.state.plans[0]!.nextActionId = null;
+  a.snapshot.state.plans[0]!.triggers = [];
+  sync(a);
+  const firstView = view([a]);
+  const first = (await collect(firstView, 'actor_plan')).candidates[0]!;
+  const next = structuredClone(firstView);
+  next.storyAt = '2026-10-15T11:00:00.000Z';
+  next.actors[0]!.snapshot.storyAt = next.storyAt;
+  next.actors[0]!.snapshot.worldContext!.time.storyAt = next.storyAt;
+  next.actors[0]!.snapshot.viewState = structuredClone(next.actors[0]!.snapshot.state);
+  const second = (await collect(next, 'actor_plan')).candidates[0]!;
+  assert.notEqual(second.id, first.id);
+});

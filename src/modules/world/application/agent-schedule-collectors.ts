@@ -466,6 +466,9 @@ async function planReconsiderations(
               goalId: plan.goalId,
               summary: plan.summary,
               status: plan.status,
+              // One bounded review window per story hour. This is a cadence,
+              // not a new source or an authorization to execute.
+              reviewWindow: Math.floor(Date.parse(view.storyAt) / 3_600_000),
             },
             reason:
               '本人未完成计划进入主动复查窗口；可以主动说明、等待、调整或结束，不推定执行或完成。',
