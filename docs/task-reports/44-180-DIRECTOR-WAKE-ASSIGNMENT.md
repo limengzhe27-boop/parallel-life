@@ -58,4 +58,4 @@
 - 本轮只验证零候选导演被调用/quiet + cadence 去重，还没有证明导演从作者事件库成功派发一次事件。
 - 尚未在现有渣男体验世界验证导演选作者事件 → NPC 自主参与 → 锁屏新消息。
 - 下一步接入/验证 authored event/opportunity → actor scoped task；保持导演不写 NPC 最终台词。
-- 生产部署与真实世界复测待本提交完成后执行。
+- 生产部署：`ebbc06d4` / `dpl_2iYFdN854CHX5fmat1jU768npukd`；正式 Nu health 200；受控全链路通过，真实渣男体验仍受上游 503/cadence 影响。
