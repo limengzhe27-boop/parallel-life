@@ -7,6 +7,15 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return endpoint(async () => {
     const s = await authenticated(request);
-    return json(await s.ensure0104(s.ownerId));
+    try {
+      return json(await s.ensure0104(s.ownerId));
+    } catch (error) {
+      return json({
+        error: {
+          message: error instanceof Error ? error.message : String(error),
+          code: (error as { code?: unknown } | null)?.code ?? null,
+        },
+      });
+    }
   });
 }
