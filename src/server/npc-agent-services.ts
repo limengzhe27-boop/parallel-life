@@ -1026,7 +1026,7 @@ function rethrowMessageError(error: unknown): never {
   if (['NPC_AGENT_INVALID_SNAPSHOT', 'NPC_AGENT_SNAPSHOT_LIMIT'].includes(code))
     throw new NpcMessageError(
       'INVALID_STATE',
-      '这次人物资料尚未准备好，你的消息已保留，请核对后再试。',
+      `这次人物资料尚未准备好（${code}），你的消息已保留，请核对后再试。`,
       422,
       diagnostic,
     );
