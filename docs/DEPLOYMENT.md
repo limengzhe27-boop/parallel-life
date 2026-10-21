@@ -1,3 +1,8 @@
+## 2026-10-21 · 44-180 导演真实时间 cadence 修复
+
+44-180修复：导演复查 cadence 改用真实当前时间，不再用落后于真实时间的 storyAt 比较 director attempt 时间。业务 `69cf4ec8` / dpl_cgf7uztyq，Production READY；doc `949219ca`。全量 check 3889/build 通过。
+
+真实渣男体验日志：修复前 due:false；修复后 due:true，导演实际被调用；上游模型 gateway 返回 503，约24s后UNAVAILABLE，无新消息；attempt写入后进入1h保护。未验证作者事件派发/NPC锁屏，不能以503算通过。
 ## 2026-10-21 · 44-180 零候选导演唤醒
 
 44-180阶段一生产部署：业务`d28659db` / docs `1da4cb98`，dpl_HiwKFdgBfqfb5R2BfKXX2pECsZp4，Production READY，正式Nu health200。全量check3889/build通过；无新迁移、无用户档写、无真实模型（现有世界entry只返回work[]/played0）。

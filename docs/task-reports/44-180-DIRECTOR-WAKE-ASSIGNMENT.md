@@ -31,6 +31,14 @@
 - 现有渣男体验 entry 实际仍多次返回 `work: []`/`played:0`，没有观察到导演或 NPC 新消息。
 - 目前无法读取该世界最近一次 director attempt 的时间；因此不能判断是 cadence 未到期、尚无 eligible event，还是其他 quiet 保护。不能把这次结果算作导演派事件通过。
 
+## 真实 cadence 根因与修复
+
+- 实机日志暴露出：上一版用 `storyAt`（2026-10-17）比较真实 director attempt 时间（2026-10-20/21），导致 `due` 永久为 false。
+- 已改为用真实当前时间比较 director attempt cadence（`directorNow`），修复后现有世界日志显示 `due:true`。
+- 修复后 director 实际被调用；但这次上游模型 gateway 返回 503，约 24s 后 API 返回 `UNAVAILABLE`，没有新消息。
+- 失败 attempt 写入后 `reviewCount` 增加，下一次 cadence 变为 1 小时后；这是付费/unknown 保护，不是调度器未触发。
+- 因此当前不能验证作者事件派发，因为上游模型失败；不能把 503 算成导演或 NPC 逻辑通过。
+
 ## 未完成/下一步
 
 - 本轮只验证零候选导演被调用/quiet + cadence 去重，还没有证明导演从作者事件库成功派发一次事件。
