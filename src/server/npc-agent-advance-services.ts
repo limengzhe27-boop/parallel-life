@@ -711,6 +711,20 @@ export function npcAgentAdvanceServices(
       };
       const commandForCandidate = (candidate: AgentCandidate) =>
         candidateCommand(candidate).commandId;
+      // A committed Director opportunity creates one pending episode request. Deliver
+      // it before a new review so an interrupted manual/HTTP request cannot orphan it.
+      if (!retryCommandId) {
+        const pendingEpisode = await dispatchPendingAgentEpisode(
+          db,
+          npcModel,
+          ownerId,
+          world,
+          engineEpoch,
+          storyAt,
+          batch,
+        );
+        if (pendingEpisode) return pendingEpisode;
+      }
       const registrations = createAgentScheduleSources({
         worldId,
         engineEpoch,
