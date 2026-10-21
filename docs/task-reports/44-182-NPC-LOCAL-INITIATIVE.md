@@ -25,13 +25,17 @@
   - 李之之
   - 真实时间 21:31。
 - 之后立即再次 advance 产生了重复消息（81→83），暴露冷却缺失。
-- 已加 30 分钟 lastAssistantAt 冷却；待部署后复测不重复。
+- 已加 30 分钟 lastAssistantAt 冷却；部署后立即 advance 复测：version 13、messages 83 保持不变，不再重复。
+
+## 锁屏截图
+
+![李之之主动消息锁屏](assets/44-182-lockscreen.png)
 
 ## 验证
 
 - full check 3892/3892
 - build 通过
-- Production 已部署 schema 修复；冷却待本提交部署
+- Production `45d68589` / `dpl_is5zic8qf`；冷却已部署；立即 advance 不重复。
 
 ## 边界
 
