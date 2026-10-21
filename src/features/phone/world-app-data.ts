@@ -96,96 +96,105 @@ export function worldAppData(
     }),
     photos,
     messages: [
-      ...world.messages.map((message) => {
-        let photo: PhonePhoto | undefined = undefined;
-        const isVideo = message.mediaType === 'video';
-        if (message.photoId) {
-          const matchedPhoto = photos.find((p) => p.id === message.photoId);
-          if (matchedPhoto) {
+      ...world.messages
+        .filter(
+          (message) =>
+            message.text.trim().length > 0 ||
+            !!message.photoId ||
+            message.mediaStatus === 'pending' ||
+            message.mediaStatus === 'failed' ||
+            !!(message as { attachment?: unknown }).attachment,
+        )
+        .map((message) => {
+          let photo: PhonePhoto | undefined = undefined;
+          const isVideo = message.mediaType === 'video';
+          if (message.photoId) {
+            const matchedPhoto = photos.find((p) => p.id === message.photoId);
+            if (matchedPhoto) {
+              photo = {
+                ...matchedPhoto,
+                mediaType:
+                  message.mediaType ?? (matchedPhoto.mimeType === 'video/mp4' ? 'video' : 'image'),
+              };
+            } else {
+              photo = {
+                id: message.photoId,
+                date: message.at,
+                title: message.mediaTitle || (isVideo ? '剧情视频' : '剧情照片'),
+                description: isVideo ? '剧情关键片段视频' : '剧情事件照片',
+                status: 'ready' as const,
+                tag: 'event' as const,
+                mediaType: isVideo ? 'video' : 'image',
+                url: runtimeAssetUrlFor(world.id, message.photoId, 1),
+              };
+            }
+          } else if (message.mediaStatus === 'pending') {
             photo = {
-              ...matchedPhoto,
-              mediaType:
-                message.mediaType ?? (matchedPhoto.mimeType === 'video/mp4' ? 'video' : 'image'),
-            };
-          } else {
-            photo = {
-              id: message.photoId,
+              id: `pending_${message.id}`,
               date: message.at,
-              title: message.mediaTitle || (isVideo ? '剧情视频' : '剧情照片'),
-              description: isVideo ? '剧情关键片段视频' : '剧情事件照片',
-              status: 'ready' as const,
+              title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
+              description: isVideo
+                ? 'AI 视频片段生成中，完成后将在此展示'
+                : 'AI 摄影记录中，生成后将在此展示并同步至相册',
+              status: 'generating' as const,
               tag: 'event' as const,
               mediaType: isVideo ? 'video' : 'image',
-              url: runtimeAssetUrlFor(world.id, message.photoId, 1),
             };
-          }
-        } else if (message.mediaStatus === 'pending') {
-          photo = {
-            id: `pending_${message.id}`,
-            date: message.at,
-            title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
-            description: isVideo
-              ? 'AI 视频片段生成中，完成后将在此展示'
-              : 'AI 摄影记录中，生成后将在此展示并同步至相册',
-            status: 'generating' as const,
-            tag: 'event' as const,
-            mediaType: isVideo ? 'video' : 'image',
-          };
-        } else if (message.mediaStatus === 'failed') {
-          photo = {
-            id: `failed_${message.id}`,
-            date: message.at,
-            title: message.mediaTitle || (isVideo ? '视频生成未完成' : '画面记录未完成'),
-            description: '生成未成功或已取消',
-            status: 'failed' as const,
-            tag: 'event' as const,
-            mediaType: isVideo ? 'video' : 'image',
-          };
-        } else if (message.text) {
-          const match = message.text.match(/^\[分享了相册照片：《(.+?)》\]$/);
-          if (match) {
-            const matchedPhoto = photos.find((p) => p.title === match[1]);
-            if (matchedPhoto) {
-              photo = matchedPhoto;
+          } else if (message.mediaStatus === 'failed') {
+            photo = {
+              id: `failed_${message.id}`,
+              date: message.at,
+              title: message.mediaTitle || (isVideo ? '视频生成未完成' : '画面记录未完成'),
+              description: '生成未成功或已取消',
+              status: 'failed' as const,
+              tag: 'event' as const,
+              mediaType: isVideo ? 'video' : 'image',
+            };
+          } else if (message.text) {
+            const match = message.text.match(/^\[分享了相册照片：《(.+?)》\]$/);
+            if (match) {
+              const matchedPhoto = photos.find((p) => p.title === match[1]);
+              if (matchedPhoto) {
+                photo = matchedPhoto;
+              }
             }
           }
-        }
-        const media = (
-          message as typeof message & {
-            attachment?: {
-              kind: 'image' | 'video';
-              assetId: string;
-              label?: string;
-            };
-          }
-        ).attachment;
-        return {
-          ...(history.find((e) => e.messageId === message.id)
-            ? { links: historyLinks(history.find((e) => e.messageId === message.id)!) }
-            : {}),
-          id: message.id,
-          actorId: message.actorId,
-          text: message.text,
-          /* The server already staggers opening timestamps; display them as stored. */
-          at: message.at,
-          role: message.role ?? 'assistant',
-          status: 'sent' as const,
-          ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
-          ...(message.origin ? { origin: message.origin } : {}),
-          ...(message.mediaType ? { mediaType: message.mediaType } : {}),
-          ...(photo ? { photo } : {}),
-          ...(media && (media.kind === 'image' || media.kind === 'video') && media.assetId
-            ? {
-                attachment: {
-                  kind: media.kind,
-                  assetId: media.assetId,
-                  ...(media.label ? { label: media.label } : {}),
-                  url: mediaUrlFor(world.id, media.assetId),
-                },
-              }
-            : {}),
-        };
-      }),
+          const media = (
+            message as typeof message & {
+              attachment?: {
+                kind: 'image' | 'video';
+                assetId: string;
+                label?: string;
+              };
+            }
+          ).attachment;
+          return {
+            ...(history.find((e) => e.messageId === message.id)
+              ? { links: historyLinks(history.find((e) => e.messageId === message.id)!) }
+              : {}),
+            id: message.id,
+            actorId: message.actorId,
+            text: message.text,
+            /* The server already staggers opening timestamps; display them as stored. */
+            at: message.at,
+            role: message.role ?? 'assistant',
+            status: 'sent' as const,
+            ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
+            ...(message.origin ? { origin: message.origin } : {}),
+            ...(message.mediaType ? { mediaType: message.mediaType } : {}),
+            ...(photo ? { photo } : {}),
+            ...(media && (media.kind === 'image' || media.kind === 'video') && media.assetId
+              ? {
+                  attachment: {
+                    kind: media.kind,
+                    assetId: media.assetId,
+                    ...(media.label ? { label: media.label } : {}),
+                    url: mediaUrlFor(world.id, media.assetId),
+                  },
+                }
+              : {}),
+          };
+        }),
       ...local.map((message) => ({ ...message })),
     ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
     notes: (world.notes ?? []).map((note) => ({ ...note })),
