@@ -869,15 +869,32 @@ export function npcResponseFormat(
         'decisions',
       ].includes(key),
   );
-  return {
-    ...NPC_RESPONSE_FORMAT,
-    schema: shareNpcConditionSchema(
-      npcSourceReferenceSchema(
-        schema as Record<string, unknown>,
-        npcSourceReferences(current?.sources ?? []),
-      ),
+  const finalized = shareNpcConditionSchema(
+    npcSourceReferenceSchema(
+      schema as Record<string, unknown>,
+      npcSourceReferences(current?.sources ?? []),
     ),
+  );
+  const requireAll = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(requireAll);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    const node = value as Record<string, unknown>;
+    if (node.properties && typeof node.properties === 'object') {
+      const properties = node.properties as Record<string, unknown>;
+      node.required = Object.keys(properties);
+      Object.values(properties).forEach(requireAll);
+    }
+    if (Array.isArray(node.anyOf)) node.anyOf.forEach(requireAll);
+    if (Array.isArray(node.oneOf)) node.oneOf.forEach(requireAll);
+    if (node.items) requireAll(node.items);
+    if (node.$defs && typeof node.$defs === 'object')
+      Object.values(node.$defs as Record<string, unknown>).forEach(requireAll);
   };
+  requireAll(finalized);
+  return { ...NPC_RESPONSE_FORMAT, schema: finalized };
 }
 
 const optionalNullKeys = new Set([
