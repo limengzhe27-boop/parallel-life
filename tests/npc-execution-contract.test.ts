@@ -161,3 +161,34 @@ test('action proposal omits empty execution graph and defaults status without gr
   assert.deepEqual(parsed.actions[0]!.handlesResponsibilityIds, []);
   assert.equal(parsed.actions[0]!.resultId, undefined);
 });
+
+test('plan/goal/responsibility proposal fields default when semantically empty', () => {
+  const parsed = AgentProposalSchema.parse({
+    goals: [{ id: 'g-min', summary: 'Minimal goal', status: 'active', sourceIds: ['s'] }],
+    plans: [
+      {
+        id: 'p-min',
+        goalId: 'g-min',
+        summary: 'Remember this',
+        status: 'active',
+        sourceIds: ['s'],
+      },
+    ],
+    responsibilities: [
+      {
+        id: 'r-min',
+        subject: { kind: 'matter', id: 'm-min' },
+        summary: 'Waiting without a scripted condition',
+        status: 'waiting',
+        waitingOn: 'player',
+        sourceIds: ['s'],
+      },
+    ],
+  });
+  assert.deepEqual(parsed.goals[0]!.resultIds, []);
+  assert.deepEqual(parsed.plans[0]!.actionIds, []);
+  assert.equal(parsed.plans[0]!.nextActionId, null);
+  assert.deepEqual(parsed.plans[0]!.triggers, []);
+  assert.deepEqual(parsed.plans[0]!.missingConditions, []);
+  assert.deepEqual(parsed.responsibilities[0]!.nextCheck, []);
+});

@@ -81,7 +81,7 @@ export const AgentProposalSchema = z.strictObject({
     .array(
       z.strictObject({
         text: Text,
-        dependsOnActionIds: z.array(Id).max(16),
+        dependsOnActionIds: z.array(Id).max(16).default([]),
         requestsPlayerReply: z.boolean().optional(),
         questionForResponsibilityId: Id.optional(),
       }),
@@ -95,7 +95,7 @@ export const AgentProposalSchema = z.strictObject({
         id: Id,
         summary: Text,
         status: z.enum(['active', 'deferred', 'fulfilled', 'withdrawn']),
-        resultIds: z.array(Id).max(32),
+        resultIds: z.array(Id).max(32).default([]),
         endReason: Text.optional(),
       }),
     )
@@ -109,10 +109,10 @@ export const AgentProposalSchema = z.strictObject({
         goalId: Id,
         summary: Text,
         status: z.enum(['active', 'waiting', 'blocked', 'finished', 'withdrawn']),
-        actionIds: z.array(Id).max(32),
-        nextActionId: Id.nullable(),
-        triggers: z.array(Condition).max(16),
-        missingConditions: z.array(Text).max(16),
+        actionIds: z.array(Id).max(32).default([]),
+        nextActionId: Id.nullable().default(null),
+        triggers: z.array(Condition).max(16).default([]),
+        missingConditions: z.array(Text).max(16).default([]),
         supersedesPlanId: Id.optional(),
       }),
     )
@@ -169,7 +169,7 @@ export const AgentProposalSchema = z.strictObject({
         status: z.enum(['open', 'waiting', 'deferred', 'fulfilled', 'withdrawn', 'expired']),
         waitingOn: z.enum(['player', 'self', 'world']).nullable(),
         deadline: z.strictObject({ at: z.iso.datetime({ offset: true }), sourceId: Id }).optional(),
-        nextCheck: z.array(Condition).max(16),
+        nextCheck: z.array(Condition).max(16).default([]),
         resolutionResultId: Id.optional(),
         endReason: Text.optional(),
       }),

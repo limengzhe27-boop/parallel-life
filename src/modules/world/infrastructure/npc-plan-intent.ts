@@ -10,12 +10,12 @@ const Basis = z.array(Id).min(1).max(64);
 const NextStep = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('reconsider'),
-    conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers.min(1),
+    conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers.unwrap().min(1),
     missing: z.array(Text).max(16),
   }),
   z.strictObject({
     kind: z.literal('wait'),
-    conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers,
+    conditions: AgentProposalSchema.shape.plans.unwrap().element.shape.triggers.unwrap(),
     missing: z.array(Text).min(1).max(16),
   }),
   z.strictObject({ kind: z.literal('blocked'), missing: z.array(Text).min(1).max(16) }),
