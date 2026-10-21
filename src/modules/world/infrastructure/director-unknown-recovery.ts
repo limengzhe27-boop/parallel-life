@@ -4,8 +4,9 @@ import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts'
  * Explicit operator recovery for a pre-existing unknown director attempt.
  *
  * This never resends the old request and never fabricates a decision. It only
- * retires an attempt that is durable-unknown, has no response at all, and whose
- * lease has expired. The next advance may then make a fresh bounded decision.
+ * removes an attempt that is durable-unknown, has no response at all, and whose
+ * lease has expired. Deletion is required because the same coordination command
+ * would otherwise replay a terminal attempt instead of making a fresh decision.
  */
 export async function retireUnknownDirectorAttempts(
   db: PostgresDatabase,
@@ -14,10 +15,9 @@ export async function retireUnknownDirectorAttempts(
 ): Promise<number> {
   return db.transaction(ownerId, async (sql) => {
     const retired = await sql.query(
-      `UPDATE parallel_life.director_runtime_attempts
-          SET status='stale_discarded',updated_at=now()
+      `DELETE FROM parallel_life.director_runtime_attempts
         WHERE owner_id=$1 AND world_id=$2
-          AND status='unknown_after_send'
+          AND status IN ('unknown_after_send','stale_discarded')
           AND response IS NULL AND response_hash IS NULL
           AND lease_until <= clock_timestamp()
         RETURNING id`,
