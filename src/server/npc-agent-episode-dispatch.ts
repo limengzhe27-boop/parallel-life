@@ -78,13 +78,23 @@ export async function dispatchPendingAgentEpisode(
   });
   if (!pending) return null;
   const store = new PostgresAgentRuntimeRepository(db);
-  for (const { request, commandId } of eligibleEpisodeDispatches(
+  const dispatches = eligibleEpisodeDispatches(
     world.id,
     world.version,
     pending.requests,
     pending.attention,
     pending.attempts,
-  )) {
+  );
+  console.info(
+    JSON.stringify({
+      scope: 'episode-dispatch-state',
+      worldId: world.id,
+      requests: pending.requests.map((r) => ({ id: r.id, actorId: r.actorId })),
+      eligible: dispatches.length,
+      attempts: pending.attempts.map((a) => ({ actorId: a.actorId, status: a.status })),
+    }),
+  );
+  for (const { request, commandId } of dispatches) {
     if (batch?.handledActorIds.has(request.actorId)) continue;
     if (batch && !batch.canStartModel()) return null;
     try {
