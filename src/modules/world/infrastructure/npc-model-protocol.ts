@@ -515,15 +515,16 @@ export function npcResponseFormat(
   );
   const rawNextStep = planVariants.find((p) => p.properties!.kind!.enum?.[0] === 'create')!
     .properties!.nextStep!;
-  const unwrapNextStep = (node: any): any =>
-    node?.anyOf?.length === 1 && node.anyOf[0]?.anyOf ? unwrapNextStep(node.anyOf[0]) : node;
-  const nextStep = unwrapNextStep(rawNextStep);
   const nextChoices: any[] = [];
   const collectNextChoices = (node: any) => {
     if (node?.properties?.kind) nextChoices.push(node);
     else if (Array.isArray(node?.anyOf)) node.anyOf.forEach(collectNextChoices);
   };
-  collectNextChoices(nextStep);
+  collectNextChoices(rawNextStep);
+  const planNextChoices = nextChoices.filter((choice) =>
+    ['reconsider', 'wait', 'blocked'].includes(choice.properties?.kind?.enum?.[0]),
+  );
+  const nextStep = { anyOf: planNextChoices };
   for (const choice of nextChoices) {
     const kind = choice.properties?.kind?.enum?.[0];
     if ((kind === 'wait' || kind === 'blocked') && choice.properties?.missing)
