@@ -9,6 +9,12 @@
 - 新增单测：同一小时不重复、下一小时新 candidate。
 - 复用已有真实 PG `plan-advance176`：主动消息提交一次，immediate re-advance 不重复。
 
+## 部署
+
+- 代码提交：`d7ee5158`；全量 check 3883/3883、build 通过。
+- Production READY：`dpl_8f4fzncg2` / `https://parallel-life-8f4fzncg2-limengzhe27-boops-projects.vercel.app` @ `d7ee5158`。
+- 正式 Nu `/api/health` 200。
+
 ## 证据
 
 - `agent-schedule-collectors`：37/37；
