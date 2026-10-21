@@ -43,8 +43,6 @@ export type SchedulingView = {
   userInactiveMs?: number;
   /** The one locally relevant actor for idle initiative; avoids a multi-actor Director round. */
   localInitiativeActorId?: string;
-  /** Latest assistant message; used for a local contact cooldown. */
-  lastAssistantAt?: string;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -860,11 +858,6 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
   if (view.localInitiativeActorId !== snapshot.state.actorId) return [];
-  if (
-    view.lastAssistantAt &&
-    Date.parse(view.storyAt) - Date.parse(view.lastAssistantAt) < 30 * 60 * 1000
-  )
-    return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(

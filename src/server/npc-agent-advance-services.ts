@@ -740,8 +740,26 @@ export function npcAgentAdvanceServices(
           const lastActivity = lastPlayer?.at ?? world.messages.at(-1)?.at ?? world.time;
           return Math.max(0, Date.now() - Date.parse(lastActivity));
         })(),
-        localInitiativeActorId: [...world.messages].reverse().find((m) => m.actorId)?.actorId,
-        lastAssistantAt: [...world.messages].reverse().find((m) => m.role === 'assistant')?.at,
+        localInitiativeActorId: (() => {
+          const lastByActor = new Map<string, string>();
+          for (const message of world.messages)
+            if (message.role === 'assistant' && message.actorId)
+              lastByActor.set(message.actorId, message.at);
+          const latestAssistant = [...lastByActor.values()].sort().at(-1);
+          if (latestAssistant && Date.parse(storyAt) - Date.parse(latestAssistant) < 60_000)
+            return undefined;
+          const eligible = world.actors
+            .filter((actor) => {
+              const last = lastByActor.get(actor.id);
+              return !last || Date.parse(storyAt) - Date.parse(last) >= 30 * 60_000;
+            })
+            .sort((a, b) => {
+              const at = lastByActor.get(a.id);
+              const bt = lastByActor.get(b.id);
+              return (at ? Date.parse(at) : 0) - (bt ? Date.parse(bt) : 0);
+            });
+          return eligible[0]?.id;
+        })(),
       });
       const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (
