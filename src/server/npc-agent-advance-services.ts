@@ -966,6 +966,20 @@ export function npcAgentAdvanceServices(
           retry: !!retryCommandId,
           handledActorCount: batch?.handledActorIds.size ?? 0,
         });
+      if (!scheduled.selected.length) {
+        console.info(
+          JSON.stringify({
+            scope: 'director-review-state',
+            worldId,
+            lastStatus: directorReview?.lastStatus ?? null,
+            lastReviewedAt: directorReview?.lastReviewedAt ?? null,
+            nextReviewAt: directorReview?.nextReviewAt ?? null,
+            due: directorDue,
+            recovery: emptyDirectorRecovery,
+            scheduledReason: scheduled.reason,
+          }),
+        );
+      }
       // Selection may fail closed, but infrastructure failure is not a quiet decision.
       // Preserve the original cause on the operation so recovery can query it.
       if (
