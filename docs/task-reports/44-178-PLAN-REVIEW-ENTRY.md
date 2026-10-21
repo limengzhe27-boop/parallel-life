@@ -53,7 +53,9 @@
 - 进入前/后 15s：world API version 7、messages 80 未变。
 - 页面内手机锁屏实际渲染了既有未读通知：李之之 07:28「我刚发了张吧台的自拍…」。
 - 这次通知是既有真实存档消息，不是本轮 entry 新生成；只能证明 PhoneShell 真实锁屏显示，不能证明 entry 新消息旅程。
-- 进入未在 15s 内触发新模型/新消息；不能把既有通知算作 44-178 通过。
+- 15s 初始窗口未触发新模型/新消息；继续等待约 45s 后，浏览器实际发出多次 `advance/operation`、`clock`、`opening` 请求，但 world API 仍 version 7/messages 80。
+- 因此 entry review 的网络触发已实际发生；服务端在现有世界返回 quiet/无新消息，不能把既有通知算作 44-178 通过。
+- 下一步需只读确认该世界是否存在到期 actionless plan review，或服务端是否因其他保护 quiet。
 
 ## 边界
 
