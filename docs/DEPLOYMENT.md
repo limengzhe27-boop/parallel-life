@@ -1,3 +1,8 @@
+## 2026-10-21 · 44-179 continuation 空集合减法
+
+44-179生产部署：业务`cc8ab43d34bee21804e0bcabbd3f87dedefe0aa9` / dpl_3t2h4JiAZHaSonQsDG2Q7UmWxErP，Production READY，正式Nu health200。full check3887/3887、build通过；无新SQL、无用户档写、无真实模型。
+
+continuation的planIds/questionIds/conditions默认空；普通判断只需decision/reason/sourceIds；来源与条件校验、旧协议解码保持不变。
 ## 2026-10-21 · 44-178 进入世界即时复查入口
 
 44-178进入行为生产部署：业务`840aa236fbfbdbc4a7c64d767080d72a1b101337` / dpl_GXHZGhkHLZmnuthpZ1LKoeE4mqG4，Production READY，正式Nu health200。full check3885/build通过；无新SQL、无用户档写、无真实模型。

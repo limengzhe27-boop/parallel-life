@@ -13,6 +13,13 @@
 - `npc-model-protocol`：37/37
 - 全量 check：3887/3887；build：通过。
 
+## 部署
+
+- 代码提交：`cc8ab43d`
+- 全量 check：3887/3887；build 通过
+- Production READY：`dpl_3t2h4JiAZHaSonQsDG2Q7UmWxErP` / `https://parallel-life-m8xsoq7sp-limengzhe27-boops-projects.vercel.app` @ `cc8ab43d`
+- 正式 Nu health：200
+
 ## 边界
 
 - 这不是删除 continuation，也不是放宽 condition 来源；
