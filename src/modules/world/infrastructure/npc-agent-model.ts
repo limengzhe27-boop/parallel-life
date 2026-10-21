@@ -29,10 +29,10 @@ import {
 
 export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v50-compact-changes';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
-export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
+export const NPC_AGENT_PAYLOAD_LIMIT = 64_000;
 // Includes the generated response schema as well as the message envelope.
-export const NPC_AGENT_MESSAGE_LIMIT = 48_000;
-export const NPC_AGENT_REQUEST_LIMIT = 56_000;
+export const NPC_AGENT_MESSAGE_LIMIT = 128_000;
+export const NPC_AGENT_REQUEST_LIMIT = 160_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
