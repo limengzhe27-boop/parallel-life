@@ -1,3 +1,8 @@
+## 2026-10-21 · 44-178 持久计划复查窗口
+
+44-178阶段二已生产部署：业务`657bd440e165c2721ee858121867f2c283e56520` / dpl_87PMogHbCxM2hwH7pC31xYoESq7h，Production READY，正式Nu health 200。full check 3884/3884、build通过；生产migration 0104 `agent_plan_reviews` 已应用，RLS owner隔离。
+
+actionless plan 的 `next_review_at` 持久化；未到期不生成候选；候选执行写下一小时review；immediate re-advance不重写。真实PG plan-advance1/1含durable row断言。未完成：entry elapsed补演、页面PhoneShell锁屏完整旅程、真实用户档/模型验收。
 ## 2026-10-21 · 44-178 计划复查 story-hour 窗口
 
 44-178阶段一已生产部署：业务`d7ee51589f449b12ce114ae15dc01c90f90f8466` / dpl_FM3RUL1f4SWRGvM7834qMLJh4bDE，Production READY，正式Nu health 200。full check 3883/3883、build通过；无新SQL、无用户档写、无真实模型。

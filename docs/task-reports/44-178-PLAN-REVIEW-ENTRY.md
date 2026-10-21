@@ -9,21 +9,28 @@
 - 新增单测：同一小时不重复、下一小时新 candidate。
 - 复用已有真实 PG `plan-advance176`：主动消息提交一次，immediate re-advance 不重复。
 
+## 持久 review state
+
+- `0104_agent_plan_reviews.sql` 已加入并应用生产；RLS owner 隔离。
+- 调度读取 `next_review_at`，未到期不生成 actionless plan candidate。
+- candidate 执行时写下一小时 review；immediate re-advance 不重写。
+- 真实 PG `plan-advance176` 断言 durable row 存在、count=1、重复 advance 不增加。
+
 ## 部署
 
-- 代码提交：`d7ee5158`；全量 check 3883/3883、build 通过。
-- Production READY：`dpl_FM3RUL1f4SWRGvM7834qMLJh4bDE` / `https://parallel-life-8f4fzncg2-limengzhe27-boops-projects.vercel.app` @ `d7ee5158`。
+- 代码提交：`d7ee5158` + `657bd440`；全量 check 3883/3883、build 通过。
+- Production READY：`dpl_87PMogHbCxM2hwH7pC31xYoESq7h` / `https://parallel-life-57w422vor-limengzhe27-boops-projects.vercel.app` @ `657bd440`；生产 migration 0104 applied。
 - 正式 Nu `/api/health` 200。
 
 ## 证据
 
-- `agent-schedule-collectors`：37/37；
-- `plan-advance176` 真实 PG：1/1；
-- 聚焦合计：38/38（本轮相关）。
+- `agent-schedule-collectors`：38/38；
+- `plan-advance176` 真实 PG：1/1（含 durable review row）；
+- 聚焦合计：39/39（本轮相关）。
 
 ## 未完成
 
-- 真正的持久 `nextReviewAt` / review state（当前是确定性 story-hour window，不是数据库持久状态）；
+- 持久 review state 已落库并生产应用；entry elapsed 补演仍未做。
 - 用户进入世界时基于 elapsed 的 return context；
 - 页面 `PhoneShell` 锁屏/刷新完整旅程；
 - 真实用户原档/真实模型验收。
