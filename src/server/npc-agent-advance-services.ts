@@ -941,13 +941,14 @@ export function npcAgentAdvanceServices(
         },
       );
       const directorReview = await directorReviewRepository.read(ownerId, worldId);
-      const directorDue = directorReviewDue(directorReview, storyAt);
+      // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
+      const directorNow = new Date().toISOString();
+      const directorDue = directorReviewDue(directorReview, directorNow);
       if (!scheduled.selected.length) {
         console.info(
           JSON.stringify({
             scope: 'director-review-probe',
             worldId,
-            storyAt,
             selected: 0,
             scheduledReason: scheduled.reason,
             lastReviewedAt: directorReview?.lastReviewedAt ?? null,
@@ -959,7 +960,7 @@ export function npcAgentAdvanceServices(
       }
       const emptyDirectorDue = emptyDirectorReviewDue({
         state: directorReview,
-        storyAt,
+        storyAt: directorNow,
         selectedCount: scheduled.selected.length,
         retry: !!retryCommandId,
         handledActorCount: batch?.handledActorIds.size ?? 0,
