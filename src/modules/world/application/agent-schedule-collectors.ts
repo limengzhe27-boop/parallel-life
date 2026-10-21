@@ -41,8 +41,8 @@ export type SchedulingView = {
   planReviews?: ReadonlyMap<string, PlanReviewState>;
   /** Real elapsed time since the owner's last message; no Director decision is required. */
   userInactiveMs?: number;
-  /** The one locally relevant actor for idle initiative; avoids a multi-actor Director round. */
-  localInitiativeActorId?: string;
+  /** Per-actor last assistant time; each actor's local initiative is independent. */
+  lastAssistantAtByActor?: Readonly<Record<string, string>>;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -857,7 +857,9 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
   if (!view.userInactiveMs || view.userInactiveMs < 90_000) return [];
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
-  if (view.localInitiativeActorId !== snapshot.state.actorId) return [];
+  const lastAssistantAt = view.lastAssistantAtByActor?.[snapshot.state.actorId];
+  if (lastAssistantAt && Date.parse(view.storyAt) - Date.parse(lastAssistantAt) < 30 * 60 * 1000)
+    return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(
@@ -876,7 +878,6 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
       actionId: null,
       sourceIds: [sourceId],
       responsibilities: [],
-      resourceIds: [`local:${view.worldId}:${bucket}`],
       semantic: { bucket, inactiveMs: view.userInactiveMs },
       reason:
         '用户已有一段时间没有操作。你可以自主决定是否主动联系，也可以继续等待或保持安静；不需要导演批准。',

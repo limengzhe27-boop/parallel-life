@@ -78,7 +78,6 @@ import {
   emptyDirectorRecoveryDue,
   emptyDirectorReviewDue,
 } from '../modules/world/domain/director-review.ts';
-import { selectLocalInitiativeActor } from '../modules/world/domain/local-initiative.ts';
 import { PostgresWorldAwarenessRepository } from '../modules/world/infrastructure/world-awareness-repository.ts';
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
@@ -741,19 +740,11 @@ export function npcAgentAdvanceServices(
           const lastActivity = lastPlayer?.at ?? world.messages.at(-1)?.at ?? world.time;
           return Math.max(0, Date.now() - Date.parse(lastActivity));
         })(),
-        localInitiativeActorId: (() => {
-          const lastByActor = new Map<string, string>();
-          for (const message of world.messages)
-            if (message.role === 'assistant' && message.actorId)
-              lastByActor.set(message.actorId, message.at);
-          return selectLocalInitiativeActor({
-            storyAt,
-            actors: world.actors.map((actor) => ({
-              id: actor.id,
-              lastAssistantAt: lastByActor.get(actor.id),
-            })),
-          });
-        })(),
+        lastAssistantAtByActor: Object.fromEntries(
+          world.messages
+            .filter((message) => message.role === 'assistant' && message.actorId)
+            .map((message) => [message.actorId!, message.at]),
+        ),
       });
       const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (
