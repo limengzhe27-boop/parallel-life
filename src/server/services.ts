@@ -125,7 +125,14 @@ function createServices() {
             [ownerId, worldId],
           )
         ).rows[0];
-        return row ?? null;
+        const episodes = (
+          await sql.query(
+            `SELECT id,actor_id,status,created_at FROM parallel_life.agent_episode_requests
+              WHERE owner_id=$1 AND world_id=$2 ORDER BY created_at DESC LIMIT 5`,
+            [ownerId, worldId],
+          )
+        ).rows;
+        return row ? { ...row, episodes } : { episodes };
       }),
     records: new PostgresPlayerRecords(db),
     space: new PostgresWorldSpace(db, officialLifeCatalog),
