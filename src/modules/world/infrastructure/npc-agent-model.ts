@@ -35,24 +35,9 @@ export const NPC_AGENT_MESSAGE_LIMIT = 48_000;
 export const NPC_AGENT_REQUEST_LIMIT = 56_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
-/** Keep authored dimensions separate; do not flatten them into a generic persona. */
-function authoredPersonaDimensions(persona: string): Record<string, string> | undefined {
-  try {
-    const modules = (JSON.parse(persona) as { modules?: Record<string, unknown> }).modules;
-    if (!modules) return undefined;
-    const keys = ['lifeContext', 'traits', 'drives', 'behavior', 'relationships'] as const;
-    const dimensions = Object.fromEntries(
-      keys.flatMap((key) => (typeof modules[key] === 'string' ? [[key, modules[key]]] : [])),
-    );
-    return Object.keys(dimensions).length === 5 ? dimensions : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 const SYSTEM = `
 你演绎replyAs绑定的唯一虚构人物。actor.persona五维决定性格、关系、诉求、行为与口吻，不是咨询客服；自然回应，不汇报后台规则或反复问玩家需要什么。有依据时提出本人具体想法，缺关键事实才询问；没有玩家任务不等于本人没有动机。导演只是机会建议，可自主参与、调整、暂缓或拒绝，不移植玩家或他人主张。
-actor.personaDimensions（若提供）和actor.persona中的lifeContext/traits/drives/behavior/relationships必须分别理解：lifeContext决定经历和已知边界，traits决定防御和情绪反应，drives决定此刻想争取什么，behavior决定句长、节奏、是否连续补发和表达习惯，relationships决定亲密度与边界。behavior优先决定怎么发，不能五维平均成人格模板。像真人在手机打字：通常一到三句，可以短句、停顿、先说一半再补，可以不完美、回避、嘴硬或暂缓；不要总结整段关系，不要心理咨询式共情，不要每句解释动机，不要机械复述玩家，不要每句反问。
+actor.persona的lifeContext/traits/drives/behavior/relationships必须分别理解：lifeContext决定经历和已知边界，traits决定防御和情绪反应，drives决定此刻想争取什么，behavior决定句长、节奏、是否连续补发和表达习惯，relationships决定亲密度与边界。behavior优先决定怎么发，不能五维平均成人格模板。像真人在手机打字：通常一到三句，可以短句、停顿、先说一半再补，可以不完美、回避、嘴硬或暂缓；不要总结整段关系，不要心理咨询式共情，不要每句解释动机，不要机械复述玩家，不要每句反问。
 replyAs.actorId=state.actorId，“我”仅指本人。conversationParticipants绑定发言者与收件人；private收件人是玩家，audienceActorIds含本人只是授权范围，不是自言自语；group/scene面向当前频道，不能变私聊。channel仅限定可见资料、受众与表达，不改变持续身份，不替他人说话或决定。
 input.speaker=player时，input.text是玩家原话，不是台词草稿；结合本人人设理解并回应，可赞同、拒绝、暂缓或追问。不要仅改写或复述玩家问题来冒充回应，也不把玩家第一人称当作本人经历；引用须标明对方。
 input.speaker=system时，是wake/coordination触发，不是玩家新话或同意；system不是私聊收件人。末条user消息只是同一input.sourceId原话/唤醒原因的重复呈现，不增加授权。由本人决定是否联系真实recipient，不复述任务当回复。历史speech的speaker由已存消息绑定，不从人称猜作者，kind=actor且actorId=replyAs.actorId才是本人原话；其中“我”仍指原发言者，“你”指当时对方。旧分工只是该发言者的提议，未获确认不能变成约定，更不能互换本人和玩家的职责。本人state目标、计划与责任不等于玩家目标或执行成果。
@@ -451,18 +436,12 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       sources: snapshot.sources,
       state: snapshot.viewState ?? snapshot.state,
     }),
-    actor: (() => {
-      const dimensions = authoredPersonaDimensions(snapshot.actor.persona);
-      return {
-        name: snapshot.actor.name,
-        persona: dimensions
-          ? '按personaDimensions五维独立读取；不要把它们合并成通用人格。'
-          : snapshot.actor.persona,
-        ...(dimensions ? { personaDimensions: dimensions } : {}),
-        boundaries: snapshot.actor.boundaries,
-        definitionRef: snapshot.actor.definitionRef,
-      };
-    })(),
+    actor: {
+      name: snapshot.actor.name,
+      persona: snapshot.actor.persona,
+      boundaries: snapshot.actor.boundaries,
+      definitionRef: snapshot.actor.definitionRef,
+    },
     channel: {
       kind: snapshot.channel.kind,
       threadId: snapshot.channel.threadId,
