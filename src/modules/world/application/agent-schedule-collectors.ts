@@ -860,7 +860,10 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
   if (view.localInitiativeActorId !== snapshot.state.actorId) return [];
-  if (view.lastAssistantAt && Date.now() - Date.parse(view.lastAssistantAt) < 30 * 60 * 1000)
+  if (
+    view.lastAssistantAt &&
+    Date.parse(view.storyAt) - Date.parse(view.lastAssistantAt) < 30 * 60 * 1000
+  )
     return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
