@@ -9,6 +9,12 @@
 - 新增单测：同一小时不重复、下一小时新 candidate。
 - 复用已有真实 PG `plan-advance176`：主动消息提交一次，immediate re-advance 不重复。
 
+## 额外减法：plan 可推断 goal
+
+- v15 `planIntents.create` 的 `goal` 可选；省略时用 plan summary/source 建立目标，不再强制模型重复写 goal。
+- 保留显式 existing goal 校验、未知/终态目标拒绝。
+- 新增空 goal 旅程测试。
+
 ## 持久 review state
 
 - `0104_agent_plan_reviews.sql` 已加入并应用生产；RLS owner 隔离。

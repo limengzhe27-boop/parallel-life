@@ -107,7 +107,7 @@ test('explicit new goal and non-executing plan compile deterministically and pas
     nativePlanIntentIds({ ...c, input: { ...c.input, sourceId: 'other' } }, 'plan_1').planId,
   );
 });
-test('existing goals are referenced explicitly without duplicating or overwriting them', () => {
+test('existing goals are referenced explicitly; omitted goal is inferred from the plan', () => {
   const c = existing(),
     intent = { ...create(), goal: { kind: 'existing', id: 'g' } };
   const r = compileNpcPlanIntents(c, [intent]);
@@ -116,7 +116,10 @@ test('existing goals are referenced explicitly without duplicating or overwritin
   rejects(c, [{ ...intent, goal: { kind: 'existing', id: 'goal_1' } }]);
   const absent = { ...create() } as any;
   delete absent.goal;
-  rejects(c, [absent]);
+  const inferred = compileNpcPlanIntents(c, [absent]);
+  assert.equal(inferred.goals.length, 1);
+  assert.equal(inferred.goals[0]!.summary, absent.summary);
+  assert.equal(inferred.plans[0]!.goalId, inferred.goals[0]!.id);
 });
 test('full-state-only and terminal goals or plans cannot be changed', () => {
   const c = existing();

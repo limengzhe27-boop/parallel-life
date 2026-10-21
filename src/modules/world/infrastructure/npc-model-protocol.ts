@@ -479,7 +479,9 @@ export function npcResponseFormat(
     const alternatives = execution.properties?.goal?.anyOf;
     if (!alternatives) throw Error('NPC_RESPONSE_SCHEMA');
     const usable = alternatives.filter((g) => {
-      if (g.properties!.kind!.enum?.[0] !== 'existing') return true;
+      if (!g.properties?.kind) return false;
+      if (g.properties.kind.enum?.[0] !== 'existing') return true;
+      if (!g.properties.id) return false;
       if (!allowedIds.length) return false;
       g.properties!.id!.enum = allowedIds;
       return true;
@@ -545,7 +547,16 @@ export function npcResponseFormat(
       if (Array.isArray(p.required))
         p.required = p.required.filter((field) => field !== 'nextStep');
       if (kind === 'create') {
-        scopeGoal(p, editableGoals);
+        const goal = p.properties!.goal;
+        const goalAlternatives = goal?.anyOf ?? (goal ? [goal] : []);
+        if (goalAlternatives.some((g: any) => g?.properties?.kind)) {
+          scopeGoal(p, editableGoals);
+        } else if (goal) {
+          // No visible existing goal: the optional goal is omitted and the
+          // compiler derives one from the plan summary/source.
+          delete p.properties!.goal;
+          if (Array.isArray(p.required)) p.required = p.required.filter((f) => f !== 'goal');
+        }
         return true;
       }
       const ids = (kind === 'replace' ? validPlans : safeUpdates).map((p) => p.id);
@@ -1129,7 +1140,7 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     const intents = native.planIntents.map((intent) => ({
       ...intent,
       sourceIds: bindBasis(intent.sourceIds),
-      ...(intent.kind === 'create' && intent.goal.kind === 'new'
+      ...(intent.kind === 'create' && intent.goal?.kind === 'new'
         ? { goal: { ...intent.goal, sourceIds: bindBasis(intent.goal.sourceIds) } }
         : {}),
     }));
@@ -1644,7 +1655,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
   const planIntents = NativePlanIntentsSchema.parse(change.planIntents ?? []).map((intent) => ({
     ...intent,
     sourceIds: basis(intent.sourceIds),
-    ...(intent.kind === 'create' && intent.goal.kind === 'new'
+    ...(intent.kind === 'create' && intent.goal?.kind === 'new'
       ? { goal: { ...intent.goal, sourceIds: basis(intent.goal.sourceIds) } }
       : {}),
   }));

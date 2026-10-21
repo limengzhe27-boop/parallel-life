@@ -27,7 +27,7 @@ const Goal = z.discriminatedUnion('kind', [
 const Body = { summary: Text, sourceIds: Basis, nextStep: NextStep.optional() };
 /** Explicit non-executing choices only; never inferred from a dangling goalId. */
 export const NativePlanIntentSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('create'), ref: Id, goal: Goal, ...Body }),
+  z.strictObject({ kind: z.literal('create'), ref: Id, goal: Goal.optional(), ...Body }),
   z.strictObject({ kind: z.literal('replace'), ref: Id, planId: Id, ...Body }),
   z.strictObject({ kind: z.literal('update'), planId: Id, ...Body }),
   z.strictObject({
@@ -138,7 +138,7 @@ export function compileNpcPlanIntents(
     if (intent.kind !== 'create') previous = knownPlan(intent.planId, intent.kind === 'replace');
     const goalId =
       intent.kind === 'create'
-        ? intent.goal.kind === 'existing'
+        ? intent.goal?.kind === 'existing'
           ? knownGoal(intent.goal.id).id
           : undefined
         : previous!.goalId;
@@ -150,15 +150,17 @@ export function compileNpcPlanIntents(
       const ids = nativePlanIntentIds(context, intent.ref);
       reserve(ids.planId);
       id = ids.planId;
-      if (intent.kind === 'create' && intent.goal.kind === 'new') {
-        basis(intent.goal.sourceIds);
+      if (intent.kind === 'create' && (!intent.goal || intent.goal.kind === 'new')) {
+        const goal = intent.goal;
+        const goalSources = goal?.kind === 'new' ? goal.sourceIds : intent.sourceIds;
+        basis(goalSources);
         reserve(ids.goalId);
         resolvedGoalId = ids.goalId;
         goals.push({
           id: ids.goalId,
-          summary: intent.goal.summary,
+          summary: goal?.kind === 'new' ? goal.summary : intent.summary,
           status: 'active',
-          sourceIds: [...intent.goal.sourceIds],
+          sourceIds: [...goalSources],
           resultIds: [],
         });
       }

@@ -1335,3 +1335,25 @@ test('execution action does not require model-authored targets or execution grap
       assert.ok(!((action.required as string[] | undefined) ?? []).includes(field), field);
   }
 });
+
+test('v15 plan intent can create its own goal from the plan summary', () => {
+  const { c } = fixture();
+  const proposal = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '我先把这件事记下。', dependsOnActionIds: [] }],
+    executions: [],
+    changes: {
+      planIntents: [
+        {
+          kind: 'create',
+          ref: 'remember',
+          summary: '等合适时继续',
+          sourceIds: ['source:1'],
+        },
+      ],
+    },
+  });
+  assert.equal(proposal.goals.length, 1);
+  assert.equal(proposal.goals[0]!.summary, '等合适时继续');
+  assert.equal(proposal.plans[0]!.goalId, proposal.goals[0]!.id);
+});
