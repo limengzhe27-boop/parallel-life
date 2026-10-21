@@ -36,7 +36,7 @@ export function modelRequestRejection(error: unknown): { httpStatus: number } | 
     error.responseOutcome !== 'rejected' ||
     !('httpStatus' in error) ||
     typeof error.httpStatus !== 'number' ||
-    ![400, 401, 403, 404, 413, 415, 422].includes(error.httpStatus)
+    ![400, 401, 403, 404, 408, 413, 415, 422, 429, 500, 502, 503, 504].includes(error.httpStatus)
   )
     return null;
   return { httpStatus: error.httpStatus };

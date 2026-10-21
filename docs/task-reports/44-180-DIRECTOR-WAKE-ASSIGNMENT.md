@@ -63,6 +63,12 @@
 - 用户进入/advance 时先检查零候选和 director 状态，不再用一个固定小时直接吞掉入口；
 - recovery 命中已有 response 时仍可恢复导演决策，不重复付费。
 
+## 5xx 分类修复
+
+- `modelRequestRejection` 现在识别 408/429/500/502/503/504 为显式 provider rejection，而不是未知结果。
+- 新发生的 503 会进入 `invalid_output`，15 秒后可重试，不会卡 1 小时/永久 unknown。
+- 旧的历史 `unknown_after_send` attempt 仍按安全策略只 recovery，不盲重发；它需要新的叙事证据或专门修复流程才能退休。
+
 ## 未完成/下一步
 
 - 本轮只验证零候选导演被调用/quiet + cadence 去重，还没有证明导演从作者事件库成功派发一次事件。
