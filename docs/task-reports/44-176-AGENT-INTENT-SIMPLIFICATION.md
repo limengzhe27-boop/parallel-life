@@ -5,7 +5,7 @@
 - main：`d79705a1`
 - 工作树：`.local/worktrees/intent-simplification-176`
 - 分支：`codex/intent-simplification-176`
-- 本阶段提交：`607f99b5`
+- 本阶段提交：`607f99b5` + `a82b2410`
 - 范围：模型协议、内核 plan 校验、调度 plan 候选、提示词；旧存档解码保留。
 
 ## 本阶段已完成
@@ -76,14 +76,23 @@
 - execution action 可省略默认空字段；
 - 仍要求真实 action 走原内核，不伪造完成。
 
+### 6. action 空执行图字段默认
+
+`agent-proposal-schema.ts`：
+
+- action 的 `targetIds/preconditions/dependsOnActionIds/handlesResponsibilityIds` 默认空；
+- 缺省 `status` 为 `proposed`；
+- `resultId/failureCode` 仍由内核写；
+- 有真实能力/参数/source 才进入内核校验。
+
 ## 验证
 
 - `npm run check:boundaries`：通过（698 files）；
 - `npm run typecheck`：通过；
-- 聚焦单测：86/86；
+- 聚焦单测：87/87；
   - `npc-model-protocol`：35/35；
   - `npc-execution-provenance-wire`：12/12；
-  - `npc-execution-contract`：3/3；
+  - `npc-execution-contract`：4/4；
   - `agent-schedule-collectors`：36/36。
 
 未跑全量真实 PG；未调用真实模型。
