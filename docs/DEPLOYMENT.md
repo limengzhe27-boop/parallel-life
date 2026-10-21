@@ -1,6 +1,6 @@
 ## 2026-10-21 · 44-178 计划复查 story-hour 窗口
 
-44-178阶段一已生产部署：业务`d7ee51589f449b12ce114ae15dc01c90f90f8466` / dpl_8f4fzncg2，Production READY，正式Nu health 200。full check 3883/3883、build通过；无新SQL、无用户档写、无真实模型。
+44-178阶段一已生产部署：业务`d7ee51589f449b12ce114ae15dc01c90f90f8466` / dpl_FM3RUL1f4SWRGvM7834qMLJh4bDE，Production READY，正式Nu health 200。full check 3883/3883、build通过；无新SQL、无用户档写、无真实模型。
 
 actionless plan 同一 story hour 内 candidate identity 稳定，immediate advance/refresh 不重复；下一 story hour 产生新复查机会。仍有真实PG plan-advance 1/1。未完成：持久nextReviewAt、用户进入世界elapsed补演、页面PhoneShell锁屏完整旅程、真实用户档/模型验收。
 ## 2026-10-21 · 44-176 人物意图减法与主动 plan 复查

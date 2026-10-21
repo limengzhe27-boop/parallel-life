@@ -12,7 +12,7 @@
 ## 部署
 
 - 代码提交：`d7ee5158`；全量 check 3883/3883、build 通过。
-- Production READY：`dpl_8f4fzncg2` / `https://parallel-life-8f4fzncg2-limengzhe27-boops-projects.vercel.app` @ `d7ee5158`。
+- Production READY：`dpl_FM3RUL1f4SWRGvM7834qMLJh4bDE` / `https://parallel-life-8f4fzncg2-limengzhe27-boops-projects.vercel.app` @ `d7ee5158`。
 - 正式 Nu `/api/health` 200。
 
 ## 证据
