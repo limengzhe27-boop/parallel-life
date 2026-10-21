@@ -499,6 +499,31 @@ export function WorldPhoneApp({
             /* Fall through: the exact command remains recoverable. */
           }
         }
+        // The receipt can be unconfirmed while the user message is already
+        // projected. Never ask the user to retry a message that is visibly sent.
+        try {
+          const latest = await client.world(worldId);
+          const known = new Set((data?.messages ?? []).map((message) => message.id));
+          const landed = latest.messages.some(
+            (message) =>
+              message.role === 'user' &&
+              message.actorId === actorId &&
+              message.text === text &&
+              !known.has(message.id),
+          );
+          if (landed) {
+            setData(latest);
+            setLocalMessages((current) =>
+              current.map((message) =>
+                message.id === commandId ? { ...message, status: 'sent' } : message,
+              ),
+            );
+            delete sendCommands.current[commandId];
+            return;
+          }
+        } catch {
+          /* Keep the exact command recoverable. */
+        }
         restoredSends.current = [
           ...restoredSends.current.filter((m) => m.id !== commandId),
           { ...entry, status: 'unknown' },
