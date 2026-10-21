@@ -523,7 +523,10 @@ export function directorSnapshotInputHash(snapshot: DirectorSnapshot) {
 }
 function snapshotShape(value: DirectorSnapshot): DirectorSnapshot {
   const result = Snapshot.safeParse(value);
-  if (!result.success) fail('INVALID_DIRECTOR_SNAPSHOT');
+  if (!result.success) {
+    console.error('DIRECTOR_SNAPSHOT_INVALID', JSON.stringify(result.error.issues.slice(0, 8)));
+    fail('INVALID_DIRECTOR_SNAPSHOT');
+  }
   body(result.data, DIRECTOR_SNAPSHOT_MAX_BYTES);
   // Unknown-typed persisted state children still need a detached capture before
   // asynchronous SQL; caller mutation cannot change the protected hashed input.
