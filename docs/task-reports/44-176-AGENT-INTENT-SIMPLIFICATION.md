@@ -106,6 +106,7 @@
   - `agent-schedule-collectors`：36/36。
 
 未跑全量真实 PG；未调用真实模型。
+- 尝试复用 `actor-plan-next-step` 做 actionless plan 服务旅程时，原测试在当前 main 上先因旧夹具 source/端口失配报 `UNKNOWN_SOURCE`；本批未把该失败算作产品结论，也没有修改该旧夹具。
 
 ## 已知边界
 
