@@ -5,7 +5,7 @@
 - main：`d79705a1`
 - 工作树：`.local/worktrees/intent-simplification-176`
 - 分支：`codex/intent-simplification-176`
-- 本阶段提交：`607f99b5` + `a82b2410`
+- 本阶段提交：`607f99b5` + `a82b2410` + `f3e9fd65`
 - 范围：模型协议、内核 plan 校验、调度 plan 候选、提示词；旧存档解码保留。
 
 ## 本阶段已完成
@@ -76,7 +76,17 @@
 - execution action 可省略默认空字段；
 - 仍要求真实 action 走原内核，不伪造完成。
 
-### 6. action 空执行图字段默认
+### 6. plan/goal/responsibility 空字段默认
+
+`agent-proposal-schema.ts` + `npc-plan-intent.ts`：
+
+- plan `actionIds/triggers/missingConditions` 默认空，`nextActionId` 默认 null；
+- goal `resultIds` 默认空；
+- responsibility `nextCheck` 默认空；
+- JSON schema 不再要求这些空集合；
+- 有真实 action 时仍由内核验证。
+
+### 7. action 空执行图字段默认
 
 `agent-proposal-schema.ts`：
 
@@ -89,10 +99,10 @@
 
 - `npm run check:boundaries`：通过（698 files）；
 - `npm run typecheck`：通过；
-- 聚焦单测：87/87；
+- 聚焦单测：88/88；
   - `npc-model-protocol`：35/35；
   - `npc-execution-provenance-wire`：12/12；
-  - `npc-execution-contract`：4/4；
+  - `npc-execution-contract`：5/5；
   - `agent-schedule-collectors`：36/36。
 
 未跑全量真实 PG；未调用真实模型。
