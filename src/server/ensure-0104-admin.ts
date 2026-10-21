@@ -39,6 +39,8 @@ export async function ensure0104Admin(): Promise<{ created: boolean; via: string
   for (const user of candidates) {
     const url = new URL(raw);
     url.username = user;
+    url.searchParams.delete('sslmode');
+    url.searchParams.delete('ssl');
     const client = new pg.Client({
       connectionString: url.toString(),
       ssl:
