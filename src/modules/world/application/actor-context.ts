@@ -76,6 +76,7 @@ export function actorContext(
   const messages = state.messages.filter(
     (message) =>
       message.actorId === actorId &&
+      message.text.trim().length > 0 &&
       !blockedSources.has(message.id) &&
       !blockedSources.has(message.sourceEventId),
   );
