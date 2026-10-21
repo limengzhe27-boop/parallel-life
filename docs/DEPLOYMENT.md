@@ -1,3 +1,8 @@
+## 2026-10-21 · 44-180 零候选导演唤醒
+
+44-180阶段一生产部署：业务`d28659db` / docs `1da4cb98`，dpl_HiwKFdgBfqfb5R2BfKXX2pECsZp4，Production READY，正式Nu health200。全量check3889/build通过；无新迁移、无用户档写、无真实模型（现有世界entry只返回work[]/played0）。
+
+零actor candidate且director due时调用现有导演；cadence复用director_runtime_attempts，无新表。真实验证仍缺：现有渣男世界director attempt due状态、作者事件派发、NPC主动消息/锁屏。
 ## 2026-10-21 · 44-179 continuation 空集合减法
 
 44-179生产部署：业务`cc8ab43d34bee21804e0bcabbd3f87dedefe0aa9` / dpl_3t2h4JiAZHaSonQsDG2Q7UmWxErP，Production READY，正式Nu health200。full check3887/3887、build通过；无新SQL、无用户档写、无真实模型。
