@@ -75,6 +75,7 @@ import { PostgresPlanReviewRepository } from '../modules/world/infrastructure/pl
 import { PostgresDirectorReviewRepository } from '../modules/world/infrastructure/director-review-repository.ts';
 import {
   directorReviewDue,
+  emptyDirectorRecoveryDue,
   emptyDirectorReviewDue,
 } from '../modules/world/domain/director-review.ts';
 import { PostgresWorldAwarenessRepository } from '../modules/world/infrastructure/world-awareness-repository.ts';
@@ -951,6 +952,14 @@ export function npcAgentAdvanceServices(
         retry: !!retryCommandId,
         handledActorCount: batch?.handledActorIds.size ?? 0,
       });
+      const emptyDirectorRecovery =
+        !emptyDirectorDue &&
+        emptyDirectorRecoveryDue({
+          state: directorReview,
+          selectedCount: scheduled.selected.length,
+          retry: !!retryCommandId,
+          handledActorCount: batch?.handledActorIds.size ?? 0,
+        });
       // Selection may fail closed, but infrastructure failure is not a quiet decision.
       // Preserve the original cause on the operation so recovery can query it.
       if (
@@ -988,6 +997,7 @@ export function npcAgentAdvanceServices(
         !coordinated &&
         (retryCommandId ||
           emptyDirectorDue ||
+          emptyDirectorRecovery ||
           wake.cause ||
           (wake.hasPendingDirector && !wake.deferred) ||
           (scheduled.selected.length > 0 && observed.needsEvaluation))
@@ -1000,11 +1010,13 @@ export function npcAgentAdvanceServices(
                 !scheduled.blocked.some((blocked) => blocked.candidate.id === candidate.id),
             ),
             scheduled.snapshot.blockers,
-            emptyDirectorDue || observed.needsEvaluation
-              ? 'normal'
-              : wake.cause
-                ? 'wake'
-                : 'recovery',
+            emptyDirectorRecovery
+              ? 'recovery'
+              : emptyDirectorDue || observed.needsEvaluation
+                ? 'normal'
+                : wake.cause
+                  ? 'wake'
+                  : 'recovery',
           );
         } catch (error) {
           if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED') {

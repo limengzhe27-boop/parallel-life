@@ -1,12 +1,5 @@
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
-import type { DirectorReviewState } from '../domain/director-review.ts';
-
-const REVIEW_INTERVAL_MS = 60 * 60 * 1000;
-export function nextDirectorReviewAt(storyAt: string, intervalMs = REVIEW_INTERVAL_MS): string {
-  const at = Date.parse(storyAt);
-  if (!Number.isFinite(at)) throw Error('INVALID_DIRECTOR_REVIEW_TIME');
-  return new Date(at + intervalMs).toISOString();
-}
+import { nextDirectorReviewAt, type DirectorReviewState } from '../domain/director-review.ts';
 
 /**
  * The existing durable director attempt ledger is the cadence source. No
@@ -22,7 +15,7 @@ export class PostgresDirectorReviewRepository {
     return this.db.transaction(ownerId, async (sql) => {
       const last = (
         await sql.query(
-          `SELECT created_at,updated_at
+          `SELECT created_at,updated_at,status
              FROM parallel_life.director_runtime_attempts
             WHERE owner_id=$1 AND world_id=$2
             ORDER BY created_at DESC LIMIT 1`,
@@ -38,10 +31,12 @@ export class PostgresDirectorReviewRepository {
         )
       ).rows[0];
       const lastReviewedAt = new Date(last.updated_at ?? last.created_at).toISOString();
+      const lastStatus = String(last.status);
       return {
-        nextReviewAt: nextDirectorReviewAt(lastReviewedAt),
+        nextReviewAt: nextDirectorReviewAt(lastReviewedAt, lastStatus),
         lastReviewedAt,
         reviewCount: Number(count.n),
+        lastStatus,
       };
     });
   }

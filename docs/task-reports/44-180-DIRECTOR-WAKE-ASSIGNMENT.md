@@ -53,6 +53,16 @@
 
 同时修正：零候选时不会再因为刚提交的消息产生 `observed.needsEvaluation` 而重复叫导演；只有 director cadence 或真实 wake cause 才触发。
 
+## 项目级入口/失败策略
+
+不只是针对渣男体验：
+
+- 最近 attempt 为 `invalid_output/cancelled_before_send/stale_discarded`：15 秒后可重试；
+- 最近 attempt 为 committed/quiet：1 小时后台 cadence；
+- 最近 attempt 为 `unknown_after_send` 等：entry 只做 recovery，不自动购买新调用；
+- 用户进入/advance 时先检查零候选和 director 状态，不再用一个固定小时直接吞掉入口；
+- recovery 命中已有 response 时仍可恢复导演决策，不重复付费。
+
 ## 未完成/下一步
 
 - 本轮只验证零候选导演被调用/quiet + cadence 去重，还没有证明导演从作者事件库成功派发一次事件。
