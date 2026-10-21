@@ -5,7 +5,7 @@
 - main：`d79705a1`
 - 工作树：`.local/worktrees/intent-simplification-176`
 - 分支：`codex/intent-simplification-176`
-- 本阶段提交：`607f99b5` + `a82b2410` + `f3e9fd65`
+- 本阶段提交：`607f99b5` + `a82b2410` + `f3e9fd65` + `91a1fa52`
 - 范围：模型协议、内核 plan 校验、调度 plan 候选、提示词；旧存档解码保留。
 
 ## 本阶段已完成
@@ -99,16 +99,15 @@
 
 - `npm run check:boundaries`：通过（698 files）；
 - `npm run typecheck`：通过；
-- 聚焦单测：88/88；
+- 聚焦单测：88/88；真实 PG：1/1；合计 89/89。
   - `npc-model-protocol`：35/35；
   - `npc-execution-provenance-wire`：12/12；
   - `npc-execution-contract`：5/5；
   - `agent-schedule-collectors`：36/36。
 
-未跑全量真实 PG；未调用真实模型。
-- 已用 v15 planIntent 建出 actionless plan，并单独调用 `actor_plan` source 得到 candidate；但真实 `npcAgentAdvanceServices` 的 director wireCatalog 中 candidates 为空，advance 仍 quiet，actor model 未收到 wake。说明候选生成已通，但完整服务路径还没有把该候选交给 advance；这是下一阶段必须修的真实断点，不能用单测通过替代。
-- 旧 `actor-plan-next-step` 夹具本身也与当前 source/协议不匹配，本批未改它。
-
+除专属 actionless-plan 旅程外未跑全量真实 PG；未调用真实模型。
+- 已用 v15 planIntent 建出 actionless plan，并通过真实 `npcAgentAdvanceServices` 完成一次 actor wake；重复 immediate advance 不再调用模型。根因是 `scheduleAgents` 的 candidate 校验白名单缺少 `planReview`，把整条 `actor_plan` collection 判为 `invalid_collection`；已补白名单，并把 plan review identity 从 storyAt 改为 summary/status，避免每次时钟推进重复购买。
+- 新增真实 PG 旅程 `tests/integration/plan-advance176.test.ts`，1/1 通过。
 ## 已知边界
 
 - 这是第一阶段，不是全部字段删除。
@@ -119,6 +118,8 @@
 - 旧存档仍可读；没有重写历史。
 
 ## 后续（按减法方案）
+
+0. 已补 actionless plan 真实 advance 旅程；验证一次主动复查与 immediate re-advance 不重复。
 
 1. 增加 actionless plan 的完整真实 PG 旅程（模型 proposal → advance → 页面消息）。
 2. 让 action execution 的模型 DTO 进一步只保留 capability/parameters/source。
