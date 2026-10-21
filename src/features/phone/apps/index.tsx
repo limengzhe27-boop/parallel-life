@@ -19,12 +19,12 @@ export function PhoneAppView(context: PhoneAppContext) {
   const hasData = Object.values(data).some((rows) => rows.length > 0);
   return (
     <div className={s.surface} data-phone-app={context.app}>
-      {(loading || Boolean(loadError)) && (
+      {loadError ? (
         <div className={s.syncBar}>
-          {loading ? <span role="status">正在更新…</span> : <span role="alert">{loadError}</span>}
+          <span role="alert">{loadError}</span>
           <Refresh />
         </div>
-      )}
+      ) : null}
       {context.app === 'map' ? (
         <MapApp {...context} />
       ) : context.app === 'scenes' ? (
