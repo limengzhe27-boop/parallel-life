@@ -1,3 +1,8 @@
+## 2026-10-21 · 44-178 进入世界即时复查入口
+
+44-178进入行为生产部署：业务`840aa236fbfbdbc4a7c64d767080d72a1b101337` / dpl_GXHZGhkHLZmnuthpZ1LKoeE4mqG4，Production READY，正式Nu health200。full check3885/build通过；无新SQL、无用户档写、无真实模型。
+
+页面从隐藏返回可见时`requestCheck`设置immediate review，不再被35秒idle门槛挡住；服务端持久review cadence防重复。页面内PhoneShell通知继续使用既有已提交消息投影。未完成：真实浏览器/PG entry+锁屏完整旅程、真实用户档/模型验收。
 ## 2026-10-21 · 44-178 plan 目标推断
 
 44-178追加生产部署：业务`5bba35156853f0064f9d981d3f2f9ec64d152841` / dpl_Hq125344GN4sjNZnMyNCTsRxe2qs，Production READY，正式Nu health 200。full check 3885/3885、build通过。
