@@ -39,6 +39,8 @@ export type SchedulingView = {
   agendaInitializeGrants?: readonly ActorAgendaInitializeGrant[];
   /** Durable actionless-plan review cadence, scoped to this actor. */
   planReviews?: ReadonlyMap<string, PlanReviewState>;
+  /** Real elapsed time since the owner's last message; no Director decision is required. */
+  userInactiveMs?: number;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -259,12 +261,13 @@ async function candidate(
   view: SchedulingView,
   context: ActorContext,
   input: {
-    source: 'actor_plan' | 'responsibility' | 'observation';
+    source: 'actor_plan' | 'actor_local' | 'responsibility' | 'observation';
     actionId: string | null;
     sourceIds: string[];
     responsibilities: readonly AgentResponsibility[];
     episodeIds?: string[];
     semantic: unknown;
+    resourceIds?: string[];
     planReview?: AgentCandidate['planReview'];
     reason: string;
   },
@@ -274,11 +277,12 @@ async function candidate(
     ...input.responsibilities.filter((r) => r.subject.kind === 'episode').map((r) => r.subject.id),
     ...(input.episodeIds ?? []),
   ]);
-  const resourceIds = sorted(
-    input.responsibilities
+  const resourceIds = sorted([
+    ...input.responsibilities
       .filter((r) => r.subject.kind === 'appointment' || r.subject.kind === 'matter')
       .map((r) => `${r.subject.kind}:${r.subject.id}`),
-  );
+    ...(input.resourceIds ?? []),
+  ]);
   return {
     id: `${input.source}:${await fingerprint({
       worldId: view.worldId,
@@ -301,7 +305,14 @@ async function candidate(
     sourceIds: sorted(input.sourceIds),
     expectedWorldVersion: view.worldVersion,
     expectedActorRevision: snapshot.state.revision,
-    priority: input.source === 'actor_plan' ? 60 : input.source === 'responsibility' ? 50 : 40,
+    priority:
+      input.source === 'actor_plan'
+        ? 60
+        : input.source === 'responsibility'
+          ? 50
+          : input.source === 'actor_local'
+            ? 30
+            : 40,
     reason: input.reason,
     requiresCoordination: episodes.length > 1,
   };
@@ -839,6 +850,27 @@ async function observations(view: SchedulingView, context: ActorContext) {
   return out;
 }
 
+/** Local, director-free initiative: elapsed idle is enough to let the actor consider contact. */
+async function localInitiative(view: SchedulingView, context: ActorContext) {
+  if (!view.userInactiveMs || view.userInactiveMs < 90_000) return [];
+  const snapshot = context.snapshot;
+  if (snapshot.channel.kind !== 'private') return [];
+  const sourceId = snapshot.state.definitionRef;
+  if (!context.sources.has(sourceId)) return [];
+  const bucket = Math.floor(Date.now() / 3_600_000);
+  return [
+    await candidate(view, context, {
+      source: 'actor_local',
+      actionId: null,
+      sourceIds: [sourceId],
+      responsibilities: [],
+      resourceIds: [`local:${view.worldId}:${bucket}`],
+      semantic: { bucket, inactiveMs: view.userInactiveMs },
+      reason:
+        '用户已有一段时间没有操作。你可以自主决定是否主动联系，也可以继续等待或保持安静；不需要导演批准。',
+    }),
+  ];
+}
 export function createAgentScheduleSources(
   input: SchedulingView,
 ): readonly RegisteredAgentCandidateSource[] {
@@ -883,6 +915,7 @@ export function createAgentScheduleSources(
       (
         [
           'actor_plan',
+          ...((view.userInactiveMs ?? 0) >= 90_000 ? ['actor_local' as const] : []),
           'responsibility',
           ...(view.agendaInitializeGrants?.some((g) => g.actorId === actor.snapshot.state.actorId)
             ? ['agenda_initialize' as const]
@@ -971,7 +1004,9 @@ export function createAgentScheduleSources(
                     ])
                   : source === 'responsibility'
                     ? responsibilities(view, actor, context)
-                    : observations(view, context))
+                    : source === 'actor_local'
+                      ? localInitiative(view, context)
+                      : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };
           },

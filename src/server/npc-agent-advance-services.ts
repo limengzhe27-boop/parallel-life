@@ -735,6 +735,10 @@ export function npcAgentAdvanceServices(
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
         planReviews: planReviewStates,
+        userInactiveMs: (() => {
+          const lastPlayer = [...world.messages].reverse().find((m) => m.role === 'user');
+          return lastPlayer ? Math.max(0, Date.now() - Date.parse(lastPlayer.at)) : 0;
+        })(),
       });
       const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (
