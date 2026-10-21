@@ -454,6 +454,7 @@ export function npcAgentAdvanceServices(
         candidates: AgentCandidate[],
         blockers: AgentBlocker[],
         admission: 'normal' | 'wake' | 'recovery' = 'normal',
+        freshCommand?: string,
       ): Promise<DirectorDecision | null> => {
         // A batch can dispatch several participants from its saved arrangement.
         // Their own commits do not justify purchasing another global arrangement
@@ -538,7 +539,12 @@ export function npcAgentAdvanceServices(
             const unsent = await directors.readUnsentFrameAttempts(ownerId, snapshot);
             if (unsent.length) identity = hash(['director-unsent-frame-v1', identity, unsent]);
           }
-          const commandId = retryCommandId ?? agentWakeCommandId(worldId, identity);
+          const commandId =
+            retryCommandId ??
+            agentWakeCommandId(
+              worldId,
+              freshCommand ? `${identity}:fresh:${freshCommand}` : identity,
+            );
           await batch?.trackWork?.({ kind: 'director', commandId });
           const previous = await directors.lookup(ownerId, worldId, commandId);
           // A durable known-invalid director result is not retry permission. Its
@@ -1017,6 +1023,9 @@ export function npcAgentAdvanceServices(
                 : wake.cause
                   ? 'wake'
                   : 'recovery',
+            directorReview?.lastStatus === 'stale_discarded'
+              ? directorReview.lastReviewedAt
+              : undefined,
           );
         } catch (error) {
           if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED') {
