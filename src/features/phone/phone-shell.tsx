@@ -115,6 +115,7 @@ function LifePhone({
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set());
   const [showAllGroups, setShowAllGroups] = useState(false);
   const knownIds = useRef<ReadonlySet<string>>(new Set(notifications.map((n) => n.id)));
+  const notificationBaseline = useRef(false);
   const unlockButton = useRef<HTMLButtonElement>(null);
   const swipeStart = useRef<number | undefined>(undefined);
   const ignoreUnlockClick = useRef(false);
@@ -131,6 +132,11 @@ function LifePhone({
   const notificationSignature = JSON.stringify(notifications.map((n) => n.id));
   useEffect(() => {
     const ids: string[] = JSON.parse(notificationSignature);
+    if (!notificationBaseline.current) {
+      notificationBaseline.current = true;
+      knownIds.current = new Set(ids);
+      return;
+    }
     const incoming = arrivingIds(knownIds.current, ids);
     knownIds.current = new Set(ids);
     // Delivery and unread state continue during conversation; unrelated banners
