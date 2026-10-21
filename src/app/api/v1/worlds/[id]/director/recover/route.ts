@@ -10,7 +10,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const s = await authenticated(request);
     const world = Id.safeParse((await context.params).id);
     if (!world.success) throw new HttpError('NOT_FOUND', 404);
-    const retired = await s.retireUnknownDirector(s.ownerId, world.data);
+    let retired: number;
+    try {
+      retired = await s.retireUnknownDirector(s.ownerId, world.data);
+    } catch (error) {
+      console.error('DIRECTOR_RECOVERY_FAILED', error);
+      throw error;
+    }
     return json({ retired });
   });
 }
