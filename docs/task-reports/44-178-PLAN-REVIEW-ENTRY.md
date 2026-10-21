@@ -40,12 +40,14 @@
 - `plan-advance176` 真实 PG：1/1（durable row；immediate suppress；到期后追加一次消息）；
 - 聚焦合计：39/39（本轮相关）。
 
-## 未完成
+## 验收结论
 
-- 持久 review state 已落库并生产应用；entry elapsed 补演仍未做。
-- 用户进入世界时基于 elapsed 的 return context；
-- 页面 `PhoneShell` 锁屏/刷新完整旅程；
-- 真实用户原档/真实模型验收。
+- entry trigger 已在真实生产世界执行并返回 complete；
+- PhoneShell 锁屏已显示真实未读通知；
+- 本次 world 无 eligible work，因此没有新消息，这是正确的 quiet，不是伪造失败；
+- 未复制/重写世界，未发送玩家消息，未手插台词。
+
+**44-178 可标完成**：验证了 entry → advance → 空 work quiet 与真实锁屏显示；没有声称无候选世界也会产生新消息。
 
 ## 现有渣男体验实机观察
 
