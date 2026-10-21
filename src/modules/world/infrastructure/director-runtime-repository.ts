@@ -313,6 +313,20 @@ const Snapshot = z
       .optional(),
     occupiedAuthoredEventKeys: keys.optional(),
     conversationWithoutTarget: z.boolean().optional(),
+    returnContext: z
+      .object({
+        lastMessageAt: Time,
+        lastMessageRole: z.enum(['player', 'assistant']),
+        lastMessageActorId: Key.optional(),
+        lastMessageText: z.string().max(800).optional(),
+        lastMessageSourceId: Key.optional(),
+        lastPlayerAt: Time.optional(),
+        lastAssistantAt: Time.optional(),
+        unansweredAssistant: z.boolean(),
+        elapsedSinceLastMessageMs: Int.nonnegative(),
+      })
+      .strict()
+      .optional(),
     actorDirectionMaterials: z
       .array(
         z.strictObject({
