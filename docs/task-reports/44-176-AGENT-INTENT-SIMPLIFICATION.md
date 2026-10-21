@@ -5,6 +5,7 @@
 - main：`d79705a1`
 - 工作树：`.local/worktrees/intent-simplification-176`
 - 分支：`codex/intent-simplification-176`
+- 本阶段提交：`607f99b5`
 - 范围：模型协议、内核 plan 校验、调度 plan 候选、提示词；旧存档解码保留。
 
 ## 本阶段已完成
