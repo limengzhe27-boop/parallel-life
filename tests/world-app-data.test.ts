@@ -444,3 +444,23 @@ test('authored preset contents remain editable/readable history without inflatin
     [],
   );
 });
+
+test('empty assistant rows are omitted while authored attachment-only rows remain', () => {
+  const data = worldAppData({
+    ...world,
+    messages: [
+      { ...world.messages[0]!, id: 'empty', text: '', role: 'assistant' },
+      {
+        ...world.messages[0]!,
+        id: 'image',
+        text: '',
+        role: 'assistant',
+        attachment: { kind: 'image', assetId: 'asset-i' },
+      },
+    ],
+  } as Parameters<typeof worldAppData>[0]);
+  assert.deepEqual(
+    data.messages.map((message) => message.id),
+    ['image'],
+  );
+});
