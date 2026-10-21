@@ -95,6 +95,14 @@
 - `resultId/failureCode` 仍由内核写；
 - 有真实能力/参数/source 才进入内核校验。
 
+## 部署预览
+
+- 分支已推送到 `origin/codex/intent-simplification-176`；Vercel Git 预览 READY：
+  `https://parallel-life-3w8nk0zuq-limengzhe27-boops-projects.vercel.app`
+- 精确部署：`dpl_EEhowHowaQ67Qh9w2H8pM5nKGhVT`，git SHA `167e3e226bd3fa70ddd7fc79d070c407dcaef386`。
+- 预览受 Vercel Authentication 保护；已用 `vercel curl` 认证读取 `/api/health` 返回 `{"service":"parallel-life","status":"ok","stage":"ui-preview"}`。
+- 这是 Preview，不是 Production；正式 Nu 仍是原 main 部署，需主 Agent 合并后走生产发布/迁移门禁。
+
 ## 验证
 
 - `npm run check:boundaries`：通过（698 files）；
