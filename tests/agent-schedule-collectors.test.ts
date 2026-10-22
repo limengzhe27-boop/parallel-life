@@ -1006,7 +1006,7 @@ test('persisted plan review cadence suppresses a not-yet-due actionless review',
   assert.equal((await collect(dueNow, 'actor_plan')).candidates.length, 1);
 });
 
-test('actor-local uses the same 30-minute cooldown in story and real time', async () => {
+test('actor-local uses one 30-minute real cooldown, not accelerated story time', async () => {
   const now = new Date();
   const recentReal = new Date(now.getTime() - 60_000).toISOString();
   const earlyReal = new Date(now.getTime() - 11 * 60_000).toISOString();
@@ -1055,7 +1055,8 @@ test('actor-local uses the same 30-minute cooldown in story and real time', asyn
     lastAssistantAtByActor: { a: at },
     lastAssistantRealAtByActor: { a: recentReal },
   };
-  assert.equal((await source(oldStory).source.collect('owner', 'w')).candidates.length, 1);
+  // Two hours of accelerated story time is still only one real minute.
+  assert.equal((await source(oldStory).source.collect('owner', 'w')).candidates.length, 0);
 });
 
 test('only the least recently heard actor gets local initiative in one scheduling read', async () => {

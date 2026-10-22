@@ -859,26 +859,18 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
   const cooldown = 30 * 60 * 1000;
-  const gap = (actorId: string) => {
-    const storyAt = view.lastAssistantAtByActor?.[actorId];
+  const realGap = (actorId: string) => {
     const realAt = view.lastAssistantRealAtByActor?.[actorId];
-    return {
-      story: storyAt ? Date.parse(view.storyAt) - Date.parse(storyAt) : Number.POSITIVE_INFINITY,
-      real: realAt ? Date.now() - Date.parse(realAt) : Number.POSITIVE_INFINITY,
-    };
+    return realAt ? Date.now() - Date.parse(realAt) : Number.POSITIVE_INFINITY;
   };
-  const currentGap = gap(snapshot.state.actorId);
-  // The story cooldown is the normal beat. If the story clock is stalled, the real
-  // fallback uses the same 30 minutes; 10-minute proximity caused repeated contact.
-  if (currentGap.story < cooldown && currentGap.real < cooldown) return [];
+  // This is a real-time idle behavior; story-clock speed must not turn a 12x world
+  // into unprompted messages every two minutes. One clock, thirty minutes.
+  if (realGap(snapshot.state.actorId) < cooldown) return [];
   // One local initiative per scheduling read keeps a multi-actor world from emitting
   // several unprompted private messages at once; choose the least recently heard actor.
   const eligible = view.actors
     .filter((actor) => actor.snapshot.channel.kind === 'private')
-    .filter((actor) => {
-      const actorGap = gap(actor.snapshot.state.actorId);
-      return actorGap.story >= cooldown || actorGap.real >= cooldown;
-    })
+    .filter((actor) => realGap(actor.snapshot.state.actorId) >= cooldown)
     .sort((a, b) => {
       const aAt = view.lastAssistantAtByActor?.[a.snapshot.state.actorId];
       const bAt = view.lastAssistantAtByActor?.[b.snapshot.state.actorId];
