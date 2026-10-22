@@ -9,12 +9,18 @@ import {
 
 export type { NpcParsedStreamEvent };
 
-const StatementWireElementSchema = z.strictObject({
-  text: z.string().trim().min(1).max(12000),
-  dependsOnActionIds: z.array(z.string().min(1).max(240)).max(16),
-  requestsPlayerReply: z.boolean().nullable().optional(),
-  questionForResponsibilityId: z.string().min(1).max(240).nullable().optional(),
-});
+const StatementWireElementSchema = z
+  .strictObject({
+    text: z.string().trim().max(12000),
+    stickerId: z.string().min(1).max(24).nullable().optional(),
+    dependsOnActionIds: z.array(z.string().min(1).max(240)).max(16),
+    requestsPlayerReply: z.boolean().nullable().optional(),
+    questionForResponsibilityId: z.string().min(1).max(240).nullable().optional(),
+  })
+  .refine(
+    (statement) => statement.text.length > 0 || typeof statement.stickerId === 'string',
+    'empty statement',
+  );
 
 export class NpcStreamParser {
   private readonly channelKind: 'private' | 'group' | 'scene';
@@ -361,6 +367,7 @@ export class NpcStreamParser {
     const draft: NpcStreamStatementDraft = {
       segmentIndex,
       text: data.text,
+      ...(typeof data.stickerId === 'string' ? { stickerId: data.stickerId } : {}),
       dependsOnActionIds: data.dependsOnActionIds,
       ...(typeof data.requestsPlayerReply === 'boolean'
         ? { requestsPlayerReply: data.requestsPlayerReply }

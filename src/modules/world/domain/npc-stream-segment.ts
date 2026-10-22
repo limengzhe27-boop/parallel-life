@@ -9,6 +9,7 @@ export type NpcStreamCompletionStatus =
 export type NpcStreamStatementDraft = Readonly<{
   segmentIndex: number;
   text: string;
+  stickerId?: string;
   dependsOnActionIds: readonly string[];
   requestsPlayerReply?: boolean;
   questionForResponsibilityId?: string;

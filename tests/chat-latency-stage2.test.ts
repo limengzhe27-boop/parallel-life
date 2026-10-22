@@ -352,3 +352,22 @@ test('Stage 2 unit: WorldMessageStreamEventSchema validation & toContractStreamS
   assert.equal(contractSummary.committedSegmentCount, 2);
   assert.equal(contractSummary.totalSegmentCount, 4); // 2 + 1 + 1 + 0
 });
+
+test('stream parser accepts structured sticker-only statements and nullable sticker ids', () => {
+  const opts = {
+    channelKind: 'private' as const,
+    inputOrigin: 'player' as const,
+    existingResponsibilityIds: [] as string[],
+  };
+  const parser = new NpcStreamParser(opts);
+  const events = parser.pushChunk(
+    '{"statements":[{"text":"知道了","stickerId":null,"dependsOnActionIds":[]},{"text":"","stickerId":"kun","dependsOnActionIds":[]}]}',
+  );
+  assert.equal(events.length, 2);
+  assert.equal(events[0]!.kind, 'statement');
+  assert.equal(events[1]!.kind, 'statement');
+  if (events[1]!.kind === 'statement') {
+    assert.equal(events[1]!.statement.text, '');
+    assert.equal(events[1]!.statement.stickerId, 'kun');
+  }
+});

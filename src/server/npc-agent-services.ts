@@ -752,6 +752,9 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
               onStreamEvent: async (attempt, execSnapshot, event) => {
                 if (streamAbortController.signal.aborted) return;
                 if (event.kind === 'statement') {
+                  // A sticker-only bubble has no safe text projection yet; the final
+                  // structured commit persists it once with its stickerId.
+                  if (!event.statement.text.trim() && event.statement.stickerId) return;
                   const segOutcome = await persistAndCommitStreamSegment(
                     turnDb,
                     turnWorlds,
