@@ -1935,3 +1935,10 @@ READY，`/api/health` 200。生产库已应用 `0105`/`0106`/`0107`/`0108` 并�
 五维抽样，分别出现店面交车、不勉强、先收拾活、师傅徒弟、短句不绕弯；对林悦的“今晚想
 抱抱你”得到“我倒是愿意…别突然反悔”的成年自愿自然回复，无客服免责腔。详见
 [44-185 报告](task-reports/44-185-FIVE-DIMENSION-VOICE.md)。逐字重复硬拦截仍留 44-186。
+
+## 2026-10-23 · 44-187 新域名范围收口
+
+新域名 `parallel-world-eosin.vercel.app` health 200；旧 owner 6 个世界可见；真实发送、
+撤回、sticker-only、服务端主动均在新域名落库；`/api/v1/session/handoff` 200 并签发
+`/api/v1/session/claim` 链接，guest 会话保持 authenticated。旧域名和其他 Agent 的
+`pl_app` 连接按用户指示暂缓，不宣称兼容。最新业务 `63d0d45e`，Production READY。
