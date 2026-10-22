@@ -3,6 +3,17 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
-  "regions": ["hnd1"],
-  "crons": [{ "path": "/api/cron/worlds", "schedule": "0 4 * * *" }]
+  "regions": [
+    "hnd1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/worlds",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/proactive",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }
