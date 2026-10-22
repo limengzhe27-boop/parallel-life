@@ -3,8 +3,36 @@ import type { DirectorPendingReason } from '../domain/world-awareness.ts';
 import type { AuthoredReconsiderationReason } from '../domain/authored-reconsideration.ts';
 import { DomainError } from '../domain/errors.ts';
 
-/** Authenticate wake evidence against the immutable executed event, not a caller's report. */
+/** Stale evidence must not block an otherwise valid wake; losing it is safer than 503. */
 export async function readAuthoredReconsiderationEvidence(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+  worldVersion: number,
+): Promise<AuthoredReconsiderationReason[]> {
+  try {
+    return await readAuthoredReconsiderationEvidenceUnsafe(sql, ownerId, worldId, worldVersion);
+  } catch (error) {
+    if (
+      (error as { code?: unknown })?.code === 'INVALID_PROPOSAL' &&
+      (error as Error).message === 'INVALID_AUTHORED_RECONSIDERATION_EVIDENCE'
+    ) {
+      console.warn(
+        JSON.stringify({
+          scope: 'authored-reconsideration-skip',
+          reason: 'stale_evidence',
+          worldId,
+          worldVersion,
+        }),
+      );
+      return [];
+    }
+    throw error;
+  }
+}
+
+/** Authenticate wake evidence against the immutable executed event, not a caller's report. */
+async function readAuthoredReconsiderationEvidenceUnsafe(
   sql: SqlClient,
   ownerId: string,
   worldId: string,
