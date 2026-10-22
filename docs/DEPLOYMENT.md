@@ -1973,3 +1973,28 @@ READY，`/api/health` 200。生产库已应用 `0105`/`0106`/`0107`/`0108` 并�
 撤回、sticker-only、服务端主动均在新域名落库；`/api/v1/session/handoff` 200 并签发
 `/api/v1/session/claim` 链接，guest 会话保持 authenticated。旧域名和其他 Agent 的
 `pl_app` 连接按用户指示暂缓，不宣称兼容。最新业务 `63d0d45e`，Production READY。
+
+## 2026-10-23 · 44-196 NPC 人感清单合并与公网首轮验收
+
+业务代码 `3dd7eca9`、二次修复 `204ddfa3` 均已推送到 `main`；新 Vercel 项目
+`parallel-world` 对应部署 `D3JhCFJsycvaDKxALr6MrdN1iUCe`、`GbpKiUPkwy8dvPCAswVnzN4NthZQ`
+READY，`parallel-world-eosin.vercel.app/api/health` 200。旧 `parallel-life` 项目因
+Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
+
+本地 `npm run check` 3941/3941、`npm run build` 通过。公网在既有 guest owner 的
+`县城黄毛` `5f296b6e-805e-4923-b888-9f0d47de6108` 验收：
+
+- 前台 `/clock` 真实返回 `speed:3`；页面 10 分钟推进约 30 故事分钟。
+- 真实改期并接受一条日程（world v163）后，锁屏出现“约定快到了 / 16:00 / R17车辆交接”
+  日历卡，总共 3 条；二次部署后旧的“继续观察着”等待腔被锁屏投影过滤。截图
+  [锁屏](task-reports/assets/44-196-lock-screen-three.png)。
+- 聊天内嵌邀约卡真实渲染并在滚动后保持可见；点“前往老周修车铺”打开地图
+  `target=repair_shop`，真实旅行到达，点“看看这里（进入现场）”创建现场
+  `9964a558-2d05-4c2e-b300-e7ec3c213ded`。截图
+  [邀约卡](task-reports/assets/44-196-chat-invitation-card.png)。
+- 真实向老周发送消息后，Grok 返回两条短气泡，无空计划句或逐字重复。
+
+未完成：现场任务 `9cafe9d3-22c2-4668-88ef-60a1c22f10c6` 仍 `queued`，现场只有玩家，
+没有老周；需要既有独立 worker，未为验收启动生产 worker 或伪造 NPC 到场。T2-7
+“现场 NPC 对话”因此保持待验收，44-196 不勾完成。详见
+[44-196 报告](task-reports/44-196-NPC-HUMAN-FEEL-CLOSURE-PLAN.md)。
