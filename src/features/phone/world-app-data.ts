@@ -9,6 +9,7 @@ import type { PhoneAppsData, PhoneMessage, PhonePhoto } from './apps/types.ts';
  * Server messages are honestly `sent`; a local entry keeps its own pending/failed
  * state, so a failed send never looks delivered.
  */
+
 export function worldAppData(
   world: WorldPhone,
   viewed: ReadonlySet<string> = new Set(),
@@ -196,7 +197,23 @@ export function worldAppData(
           };
         }),
       ...local.map((message) => ({ ...message })),
-    ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
+    ]
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+      .filter((message, index, all) => {
+        if (message.role !== 'assistant' || message.origin || message.photo || message.attachment)
+          return true;
+        const previous = all[index - 1];
+        return !(
+          previous &&
+          previous.actorId === message.actorId &&
+          previous.role === 'assistant' &&
+          !previous.origin &&
+          !previous.photo &&
+          !previous.attachment &&
+          previous.text.trim() === message.text.trim() &&
+          Date.parse(message.at) - Date.parse(previous.at) <= 5 * 60_000
+        );
+      }),
     notes: (world.notes ?? []).map((note) => ({ ...note })),
     choices: (world.choices ?? []).map((choice) => ({
       id: choice.id,
