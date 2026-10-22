@@ -1790,7 +1790,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             )}
           </article>
         ))}
-        {operation?.busy && messages.at(-1)?.role === 'user' && (
+        {operation?.busy && (
           <div className={s.typingBubble} aria-live="polite">
             <span>{actor.name}正在输入</span>
             <i />
