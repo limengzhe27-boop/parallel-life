@@ -427,6 +427,8 @@ export async function readPrivateAgentSnapshot(
             sourceId: handle,
             text: memory.text,
             kind: memory.kind === 'commitment' ? 'plan' : 'belief',
+            memoryTier:
+              memory.kind === 'commitment' || memory.kind === 'correction' ? 'exact' : 'fuzzy',
           });
       }
     if (situation)

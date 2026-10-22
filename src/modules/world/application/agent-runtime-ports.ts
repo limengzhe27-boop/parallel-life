@@ -51,6 +51,8 @@ export type AgentSnapshot = {
     sourceId: string;
     text: string;
     kind: 'fact' | 'belief' | 'speech' | 'plan' | 'result';
+    /** Retrieval contract: exact commitments vs fuzzy life context. */
+    memoryTier?: 'exact' | 'fuzzy';
     /** Bound from the persisted message, never inferred from first-person text. */
     speaker?: { kind: 'player' } | { kind: 'actor'; actorId: string };
     evidenceKind?:
