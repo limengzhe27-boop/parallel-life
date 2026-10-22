@@ -1172,7 +1172,7 @@ export class PostgresWorldRepository implements WorldRepository {
       throw new DomainError('INVALID_COMMAND', 'Invalid fork version');
     }
 
-    return this.db.transaction(userId, async (sql) => {
+    const forked = await this.db.transaction(userId, async (sql) => {
       const parentRow = (
         await sql.query(
           'SELECT id, title, version, asset_revision, state, parent_world_id, fork_version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR SHARE',
@@ -1352,52 +1352,6 @@ export class PostgresWorldRepository implements WorldRepository {
         [newWorldId, userId, newBaselineState, approvedSeed],
       );
 
-      // A fork is a playable world, not only a state row: preserve the parent
-      // build/seed binding so the phone projection and opening remain readable.
-      // Legacy/custom forks may have no build row; never fail the fork for that.
-      try {
-        const parentBuild = (
-          await sql.query(
-            'SELECT seed_id, opening FROM parallel_life.world_builds WHERE world_id=$1 AND owner_id=$2',
-            [parentWorldId, userId],
-          )
-        ).rows[0];
-        const parentSeed = parentBuild
-          ? (
-              await sql.query(
-                'SELECT profile_id, request_hash, document FROM parallel_life.approved_seeds WHERE id=$1 AND owner_id=$2',
-                [parentBuild.seed_id, userId],
-              )
-            ).rows[0]
-          : undefined;
-        if (parentBuild?.opening && parentSeed) {
-          const forkSeedId = randomUUID();
-          await sql.query(
-            `INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document)
-             VALUES($1,$2,$3,$4,$5,$6)`,
-            [
-              forkSeedId,
-              userId,
-              parentSeed.profile_id,
-              randomUUID(),
-              parentSeed.request_hash,
-              parentSeed.document,
-            ],
-          );
-          await sql.query(
-            `INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id,opening,created_at)
-             VALUES($1,$2,$3,$4,now())`,
-            [forkSeedId, userId, newWorldId, parentBuild.opening],
-          );
-        }
-      } catch (error) {
-        console.warn(
-          JSON.stringify({
-            scope: 'fork-build-binding-skip',
-            code: (error as { code?: unknown })?.code ?? 'FAILED',
-          }),
-        );
-      }
       await sql.query(
         `INSERT INTO parallel_life.world_clock(world_id, owner_id, story_now, last_tick_at, speed, paused)
          VALUES($1, $2, $3, now(), 1, false)
@@ -1465,5 +1419,50 @@ export class PostgresWorldRepository implements WorldRepository {
         createdAt: nowIso,
       };
     });
+    try {
+      await this.db.transaction(userId, async (sql) => {
+        const parentBuild = (
+          await sql.query(
+            'SELECT seed_id, opening FROM parallel_life.world_builds WHERE world_id=$1 AND owner_id=$2',
+            [parentWorldId, userId],
+          )
+        ).rows[0];
+        const parentSeed = parentBuild
+          ? (
+              await sql.query(
+                'SELECT profile_id, request_hash, document FROM parallel_life.approved_seeds WHERE id=$1 AND owner_id=$2',
+                [parentBuild.seed_id, userId],
+              )
+            ).rows[0]
+          : undefined;
+        if (!parentBuild?.opening || !parentSeed) return;
+        const forkSeedId = randomUUID();
+        await sql.query(
+          `INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document)
+           VALUES($1,$2,$3,$4,$5,$6)`,
+          [
+            forkSeedId,
+            userId,
+            parentSeed.profile_id,
+            randomUUID(),
+            parentSeed.request_hash,
+            parentSeed.document,
+          ],
+        );
+        await sql.query(
+          `INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id,opening,created_at)
+           VALUES($1,$2,$3,$4,now())`,
+          [forkSeedId, userId, forked.id, parentBuild.opening],
+        );
+      });
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          scope: 'fork-build-binding-skip',
+          code: (error as { code?: unknown })?.code ?? 'FAILED',
+        }),
+      );
+    }
+    return forked;
   }
 }
