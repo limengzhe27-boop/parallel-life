@@ -74,6 +74,24 @@ export function worldAppData(
       ...(photo.mimeType ? { mimeType: photo.mimeType } : {}),
     };
   });
+  const recalledMessageIds = new Set<string>();
+  const recallMarkerIds = new Set<string>();
+  world.messages.forEach((message, index) => {
+    if (message.role !== 'assistant' || message.text.trim() !== '[[recall:last]]') return;
+    recallMarkerIds.add(message.id);
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const candidate = world.messages[i]!;
+      if (
+        candidate.role === 'assistant' &&
+        candidate.actorId === message.actorId &&
+        candidate.text.trim() !== '[[recall:last]]' &&
+        !recalledMessageIds.has(candidate.id)
+      ) {
+        recalledMessageIds.add(candidate.id);
+        break;
+      }
+    }
+  });
   return {
     contacts: world.actors.map((actor) => {
       const art = resolveAvatarArt(world, actor);
@@ -100,11 +118,12 @@ export function worldAppData(
       ...world.messages
         .filter(
           (message) =>
-            message.text.trim().length > 0 ||
-            !!message.photoId ||
-            message.mediaStatus === 'pending' ||
-            message.mediaStatus === 'failed' ||
-            !!(message as { attachment?: unknown }).attachment,
+            !recalledMessageIds.has(message.id) &&
+            (message.text.trim().length > 0 ||
+              !!message.photoId ||
+              message.mediaStatus === 'pending' ||
+              message.mediaStatus === 'failed' ||
+              !!(message as { attachment?: unknown }).attachment),
         )
         .map((message) => {
           let photo: PhonePhoto | undefined = undefined;
@@ -175,7 +194,7 @@ export function worldAppData(
               : {}),
             id: message.id,
             actorId: message.actorId,
-            text: message.text,
+            text: recallMarkerIds.has(message.id) ? '对方撤回了一条消息' : message.text,
             /* The server already staggers opening timestamps; display them as stored. */
             at: message.at,
             role: message.role ?? 'assistant',

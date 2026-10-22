@@ -2,7 +2,7 @@
 export type MessageNotificationState = {
   role?: 'user' | 'assistant';
   initialRead?: boolean;
-  origin?: 'fictional_history' | 'publication_preset';
+  origin?: 'fictional_history' | 'publication_preset' | 'recall';
 };
 
 /** Authored phone contents remain in chat but are not newly delivered runtime activity. */
@@ -11,6 +11,7 @@ export function isIncomingRuntimeMessage(message: MessageNotificationState): boo
     message.role !== 'user' &&
     message.initialRead !== true &&
     message.origin !== 'fictional_history' &&
-    message.origin !== 'publication_preset'
+    message.origin !== 'publication_preset' &&
+    message.origin !== 'recall'
   );
 }

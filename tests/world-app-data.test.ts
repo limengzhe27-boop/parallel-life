@@ -480,3 +480,16 @@ test('exact repeated NPC bubbles within five minutes are projected once', () => 
     ['m1', 'new'],
   );
 });
+
+test('recall marker replaces the previous assistant bubble with a recall notice', () => {
+  const recalled = {
+    ...world,
+    messages: [
+      { ...world.messages[0]!, id: 'a1', role: 'assistant', text: '刚才那句' },
+      { ...world.messages[0]!, id: 'a2', role: 'assistant', text: '[[recall:last]]' },
+    ],
+  };
+  const data = worldAppData(recalled as Parameters<typeof worldAppData>[0]);
+  assert.equal(data.messages.length, 1);
+  assert.equal(data.messages[0]?.text, '对方撤回了一条消息');
+});
