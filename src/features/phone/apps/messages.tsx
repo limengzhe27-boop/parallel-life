@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { parseStickerText } from '../stickers.ts';
+import { parseStickerText, STICKER_LABELS, type StickerId } from '../stickers.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
@@ -594,15 +594,17 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                         >
                           {latest
                             ? latest.text.trim() ||
-                              (latest.photo
-                                ? latest.photo.mediaType === 'video'
-                                  ? '[视频]'
-                                  : '[图片]'
-                                : latest.attachment?.kind === 'image'
-                                  ? '[图片]'
-                                  : latest.attachment?.kind === 'video'
+                              (latest.stickerId
+                                ? `[${STICKER_LABELS[latest.stickerId as StickerId] ?? '表情'}]`
+                                : latest.photo
+                                  ? latest.photo.mediaType === 'video'
                                     ? '[视频]'
-                                    : '开始聊聊')
+                                    : '[图片]'
+                                  : latest.attachment?.kind === 'image'
+                                    ? '[图片]'
+                                    : latest.attachment?.kind === 'video'
+                                      ? '[视频]'
+                                      : '开始聊聊')
                             : '开始聊聊'}
                         </small>
                       </span>

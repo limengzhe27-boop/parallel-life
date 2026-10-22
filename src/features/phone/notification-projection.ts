@@ -3,11 +3,13 @@ import {
   type MessageNotificationState,
 } from './message-notification-policy.ts';
 import type { PhoneNotification } from './phone-shell.tsx';
+import { STICKER_LABELS, type StickerId } from './stickers.ts';
 
 type Message = MessageNotificationState & {
   id: string;
   actorId: string;
   text: string;
+  stickerId?: string;
   at: string;
   photoId?: string;
   mediaType?: string;
@@ -37,13 +39,15 @@ export function projectMessageNotifications(
       title: names.get(message.actorId) ?? '微信消息',
       summary:
         message.text ||
-        (message.mediaType === 'video' ||
-        message.photo?.mediaType === 'video' ||
-        message.attachment?.kind === 'video'
-          ? '[视频]'
-          : message.photoId || message.photo || message.attachment?.kind === 'image'
-            ? '[图片]'
-            : ''),
+        (message.stickerId
+          ? `[${STICKER_LABELS[message.stickerId as StickerId] ?? '表情'}]`
+          : message.mediaType === 'video' ||
+              message.photo?.mediaType === 'video' ||
+              message.attachment?.kind === 'video'
+            ? '[视频]'
+            : message.photoId || message.photo || message.attachment?.kind === 'image'
+              ? '[图片]'
+              : ''),
       app: 'messages' as const,
       conversationKind: 'private' as const,
       target: message.actorId,

@@ -192,3 +192,22 @@ test('a proactive assistant message becomes one unread lock-screen item and disa
   );
   assert.equal(viewed.length, 0);
 });
+
+test('a sticker-only message has a visible notification summary', () => {
+  const result = projectMessageNotifications(
+    [
+      {
+        id: 's1',
+        actorId: 'actor-a',
+        role: 'assistant',
+        text: '',
+        stickerId: 'keyi',
+        at: '2026-10-09T10:00:00.000Z',
+      },
+    ],
+    [{ id: 'actor-a', name: '阿宁' }],
+    new Set(),
+    (at) => at,
+  );
+  assert.equal(result[0]?.summary, '[可以]');
+});
