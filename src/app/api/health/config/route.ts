@@ -1,6 +1,24 @@
+import pg from 'pg';
 import { json } from '../../../../server/http.ts';
 export const runtime = 'nodejs';
 export async function GET() {
+  let database: { ok: boolean; code?: string } = { ok: false };
+  if (process.env.APP_DATABASE_URL) {
+    const client = new pg.Client({
+      connectionString: process.env.APP_DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 8000,
+    });
+    try {
+      await client.connect();
+      await client.query('select 1');
+      database = { ok: true };
+    } catch (error) {
+      database = { ok: false, code: String((error as { code?: unknown })?.code ?? 'FAILED') };
+    } finally {
+      await client.end().catch(() => {});
+    }
+  }
   const raw = process.env.APP_DATABASE_URL ?? process.env.DATABASE_URL;
   let dbUser: string | null = null;
   try {
@@ -17,5 +35,6 @@ export async function GET() {
     supabaseUrl: !!process.env.SUPABASE_URL,
     serviceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     yibuKey: !!process.env.YIBU_API_KEY,
+    database,
   });
 }
