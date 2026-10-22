@@ -41,9 +41,17 @@ export function withAmbientSticker(
     return proposal;
   }
   const text = input.text.trim();
-  if (text.length < 2 || !stableGate(text)) return proposal;
+  if (!text || !stableGate(text)) return proposal;
   const cue = CUES.find(([pattern]) => pattern.test(text));
   if (!cue) return proposal;
+  const lastText = proposal.statements[proposal.statements.length - 1]?.text.trim() ?? '';
+  // A very short acknowledgement can be just a sticker; do not drop real content.
+  if (lastText.length <= 6) {
+    return {
+      ...proposal,
+      statements: [{ text: `[[sticker:${cue[1]}]]`, dependsOnActionIds: [] }],
+    };
+  }
   return {
     ...proposal,
     statements: [...proposal.statements, { text: `[[sticker:${cue[1]}]]`, dependsOnActionIds: [] }],

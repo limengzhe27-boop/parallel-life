@@ -36,3 +36,15 @@ test('explicit sticker is not duplicated', () => {
     1,
   );
 });
+test('a very short acknowledgement can become sticker-only', () => {
+  const short = {
+    statements: [{ text: '好', dependsOnActionIds: [] }],
+  } as unknown as AgentProposal;
+  const result = withAmbientSticker(short, {
+    channelKind: 'private',
+    origin: 'player',
+    text: '好的',
+  });
+  assert.equal(result.statements.length, 1);
+  assert.match(result.statements[0]!.text, /^\[\[sticker:/);
+});
