@@ -17,6 +17,90 @@ type Message = MessageNotificationState & {
   attachment?: { kind: string };
 };
 type Contact = { id: string; name: string };
+type LockInvitation = {
+  id: string;
+  title: string;
+  at: string;
+  status: 'proposed' | 'confirmed' | 'cancelled' | 'attended' | 'missed';
+};
+
+/**
+ * Lock-screen projection. The phone keeps every unread item for the app lists, but
+ * the lock shows at most three high-stakes items. Calendar consequences outrank
+ * undifferentiated chat; one actor cannot fill all three slots with a burst.
+ * Returns a new array and never mutates or invents a message.
+ */
+export const LOCK_SCREEN_LIMIT = 3;
+export function lockScreenNotifications(
+  notifications: readonly PhoneNotification[],
+  invitations: readonly LockInvitation[],
+  referenceTime: string | undefined,
+  timeLabel: (at: string) => string,
+  limit = LOCK_SCREEN_LIMIT,
+): PhoneNotification[] {
+  const now = referenceTime ? Date.parse(referenceTime) : Number.NaN;
+  if (!Number.isFinite(now) || limit <= 0) return notifications.slice(0, Math.max(0, limit));
+  const cards: PhoneNotification[] = [];
+  const rank = new Map<string, number>();
+  const represented = new Set<string>();
+  for (const invitation of invitations) {
+    const at = Date.parse(invitation.at);
+    if (!Number.isFinite(at)) continue;
+    let title = '',
+      summary = '',
+      priority = 0;
+    if (invitation.status === 'confirmed' && at <= now && at >= now - 12 * 60 * 60_000) {
+      const overdue = now >= at + 60 * 60_000;
+      title = overdue ? '约定时间已过' : '约定时间到了';
+      summary = `${invitation.title} · ${overdue ? '还没有结果记录' : '还没有到场记录'}`;
+      priority = overdue ? 1 : 2;
+    } else if (invitation.status === 'confirmed' && at > now && at - now <= 2 * 60 * 60_000) {
+      title = '约定快到了';
+      summary = `${invitation.title} · 记得确认出发安排`;
+      priority = 3;
+    } else if (invitation.status === 'proposed' && at > now) {
+      title = '邀约待回复';
+      summary = `${invitation.title} · 还没有替你答应`;
+      priority = 4;
+    }
+    if (!priority) continue;
+    represented.add(invitation.id);
+    const id = `lock-appointment:${invitation.id}`;
+    rank.set(id, priority);
+    cards.push({
+      id,
+      title,
+      summary,
+      app: 'calendar',
+      target: invitation.id,
+      at: invitation.at,
+      timeLabel: timeLabel(invitation.at),
+      actionableUntil: invitation.at,
+    });
+  }
+  // High-stakes calendar moments first; within a class the oldest unresolved moment
+  // is the most urgent. Chat then follows newest-first, one item per destination.
+  cards.sort(
+    (a, b) =>
+      (rank.get(a.id) ?? 9) - (rank.get(b.id) ?? 9) ||
+      Date.parse(a.at ?? '') - Date.parse(b.at ?? ''),
+  );
+  const result: PhoneNotification[] = [];
+  const destinations = new Set<string>();
+  const push = (item: PhoneNotification) => {
+    if (result.length >= limit) return;
+    const key = item.target ? `${item.app}:${item.target}` : `id:${item.id}`;
+    if (destinations.has(key)) return;
+    destinations.add(key);
+    result.push(item);
+  };
+  for (const card of cards) push(card);
+  const chat = notifications
+    .filter((item) => !(item.app === 'calendar' && item.target && represented.has(item.target)))
+    .sort((a, b) => Date.parse(b.at ?? '') - Date.parse(a.at ?? ''));
+  for (const item of chat) push(item);
+  return result;
+}
 
 /** Keep every authorized, unread, persisted message. Presentation limits belong to the lock screen. */
 export function projectMessageNotifications(

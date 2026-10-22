@@ -540,7 +540,7 @@ test('actual owner-scoped conversation attention shares existing clock leases an
         { clientId: b, sequence: 1, mode: 'away' },
         at(5),
       );
-      assert.equal(browsing.speed, 12);
+      assert.equal(browsing.speed, 3);
       assert.deepEqual((await read(f, 6)).focus, []);
     },
   );

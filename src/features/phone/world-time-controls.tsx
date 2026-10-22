@@ -78,7 +78,8 @@ export function TimeExperienceControls({
         )}
       </div>
       <p style={{ margin: '0 0 6px', lineHeight: 1.5 }}>
-        世界持续运行；浏览时加速，交谈时放缓，离线按现实时间流逝。等待途中有重要变化，会先停下来。
+        页面可见时故事以 3× 前进；锁屏、切到后台或离开后按现实 1×
+        前进。聊天、地图和现场不会降低速度。 等待途中有重要变化，会先停下来。
       </p>
       {time.notice && (
         <p role="status" style={{ margin: '4px 0' }}>

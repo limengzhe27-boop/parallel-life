@@ -19,7 +19,7 @@ test('Task 44-130 / R11: Time pacing, day transition and completion rules audit'
   const futureExpires = new Date(realNowMs + CLOCK_ACTIVITY_LEASE_MS).toISOString();
   const pastExpires = new Date(realNowMs - 1000).toISOString();
 
-  await t.test('1. Browsing mode runs at 12x speed for natural world exploration', () => {
+  await t.test('1. Any visible tab runs at 3x; page visibility is the only speed signal', () => {
     const leases: ClockActivityLease[] = [
       {
         clientId: 'client-1',
@@ -30,11 +30,11 @@ test('Task 44-130 / R11: Time pacing, day transition and completion rules audit'
     ];
     const mode = activityMode(leases, realNow);
     assert.equal(mode.speed, BROWSING_SPEED);
-    assert.equal(mode.speed, 12);
+    assert.equal(mode.speed, 3);
     assert.equal(mode.activeUntil, futureExpires);
   });
 
-  await t.test('2. Conversation and scene reading modes run at 1x real-time speed for human interaction', () => {
+  await t.test('2. An open conversation keeps the same 3x foreground speed', () => {
     const leases: ClockActivityLease[] = [
       {
         clientId: 'client-1',
@@ -46,14 +46,14 @@ test('Task 44-130 / R11: Time pacing, day transition and completion rules audit'
     ];
     const mode = activityMode(leases, realNow);
     assert.equal(mode.speed, CONVERSATION_SPEED);
-    assert.equal(mode.speed, 1);
+    assert.equal(mode.speed, 3);
   });
 
   await t.test('3. Away mode or lease expiration pauses the clock automatically', () => {
     const expiredClock: WorldClock = {
       storyNow: '2026-10-18T12:00:00.000Z',
       lastTickAt: '2026-10-18T09:59:00.000Z',
-      speed: 12,
+      speed: 3,
       paused: false,
       missedBeats: 0,
       summary: null,
@@ -71,7 +71,7 @@ test('Task 44-130 / R11: Time pacing, day transition and completion rules audit'
     const baseClock: WorldClock = {
       storyNow: '2026-10-18T14:00:00.000Z',
       lastTickAt: realNow,
-      speed: 12,
+      speed: 3,
       paused: false,
       missedBeats: 0,
       summary: null,
@@ -85,9 +85,9 @@ test('Task 44-130 / R11: Time pacing, day transition and completion rules audit'
 
     const deadline = appointmentDeadline(baseClock, appointments);
     assert.ok(deadline);
-    // Real time deadline must correspond to story time 14:30 at 12x speed
+    // Real time deadline must correspond to story time 14:30 at 3x speed
     const durationStoryMs = Date.parse('2026-10-18T14:30:00.000Z') - Date.parse(baseClock.storyNow);
-    const expectedRealMs = realNowMs + Math.ceil(durationStoryMs / 12);
+    const expectedRealMs = realNowMs + Math.ceil(durationStoryMs / 3);
     assert.equal(Date.parse(deadline!), expectedRealMs);
   });
 

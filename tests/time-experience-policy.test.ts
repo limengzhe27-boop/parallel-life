@@ -81,7 +81,7 @@ test('clock and wait readback retain pause deadline without exposing author cond
       storyNow: '2026-10-15T01:00:00Z',
       lastTickAt: '2026-10-15T01:00:00Z',
       paused: true,
-      speed: 12,
+      speed: 3,
       missedBeats: 0,
       summary: null,
       managed: true,

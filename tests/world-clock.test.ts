@@ -5,7 +5,7 @@ import {
   projectStoryTime,
   beatCue,
   clampSpeed,
-  MAX_BEATS_PER_ADVANCE,
+  MAX_RETURN_BEATS,
   selectSpeaker,
   type WorldClock,
 } from '../src/modules/world/domain/clock.ts';
@@ -52,27 +52,30 @@ test('time runs 1:1 by default and plays one beat per half hour', () => {
   assert.equal(result.clock.summary, null);
 });
 
-test('speed multiplies story time but beats stay capped', () => {
+test('speed multiplies story time but a folded interval replays only its latest beats', () => {
   const fast = advanceClock(clock({ speed: 2 }), '2026-09-24T01:00:00.000Z');
   assert.equal(fast.clock.storyNow, '2026-09-24T02:00:00.000Z');
-  assert.equal(fast.beats.length, 3, 'still at most the cap');
-  assert.equal(fast.folded, 1, 'the fourth beat is folded, not played');
+  assert.equal(fast.beats.length, MAX_RETURN_BEATS);
+  assert.equal(fast.folded, 2, 'older beats are folded, not replayed');
+  assert.deepEqual(fast.beats, ['2026-09-24T01:00:00.000Z', '2026-09-24T01:30:00.000Z']);
 });
 
-test('a long absence folds the extra beats into a summary instead of paying for them', () => {
+test('a long absence folds the extra beats and replays only the latest moments', () => {
   const result = advanceClock(clock(), '2026-09-24T06:00:00.000Z');
-  assert.equal(result.beats.length, MAX_BEATS_PER_ADVANCE);
-  assert.equal(result.folded, 9);
+  assert.equal(result.beats.length, MAX_RETURN_BEATS);
+  assert.equal(result.folded, 10);
   assert.match(result.clock.summary ?? '', /世界照常运转/);
+  assert.match(result.clock.summary ?? '', /最近 2 个时刻/);
   assert.equal(result.clock.storyNow, '2026-09-24T06:00:00.000Z');
 });
 
-test('five days away produces a few beats on different days, not three on the first morning', () => {
+test('five days away produces only the latest one or two moments, not a backlog', () => {
   const result = advanceClock(clock(), '2026-09-29T00:00:00.000Z');
-  assert.equal(result.beats.length, 3);
-  assert.equal(new Set(result.beats.map((beat) => beat.slice(0, 10))).size, 3);
+  assert.equal(result.beats.length, MAX_RETURN_BEATS);
+  assert.equal(new Set(result.beats.map((beat) => beat.slice(0, 10))).size, 1);
+  assert.deepEqual(result.beats, ['2026-09-28T23:00:00.000Z', '2026-09-28T23:30:00.000Z']);
   assert.ok(result.beats[0]! > '2026-09-25T00:00:00.000Z');
-  assert.ok(result.beats[2]! < result.clock.storyNow);
+  assert.ok(result.beats[1]! < result.clock.storyNow);
 });
 
 test('an established conversation can create one later check-in, without repeating it daily', () => {
@@ -139,7 +142,7 @@ test('speed is clamped to a legal range', () => {
   assert.equal(clampSpeed(-3), 0);
   assert.equal(clampSpeed(1000), 60);
   assert.equal(clampSpeed(1.234), 1.23);
-  assert.equal(clampSpeed(Number.NaN), 12);
+  assert.equal(clampSpeed(Number.NaN), 3);
 });
 
 const state = (): WorldState => ({

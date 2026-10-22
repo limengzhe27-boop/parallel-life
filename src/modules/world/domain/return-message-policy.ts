@@ -38,13 +38,17 @@ export function returnMessageLines(
     ),
     thread?.kind === 'departure_inquiry'
       ? '你只亲眼看到主角离开原地点，完全不知道他去了哪里；不可假装知晓目的地，更不能声称他在新地点做了什么。'
-      : thread?.kind === 'appointment_due' || thread?.kind === 'proposed_appointment'
-        ? '约定仍按已保存状态处理；时间已过就谈当前可做的调整，不假装刚发邀请，更不能替主角确认、到场或失约。'
-        : thread?.kind === 'choice_result' ||
-            thread?.kind === 'appointment_result' ||
-            thread?.kind === 'matter_result'
-          ? '先承接已保存的新结果；旧阻碍或危机已处理就说当前下一步，不能再把旧问题当突发坏消息。'
-          : '承接原来那件事和你自己的目标；短间隔只走一小步，长间隔也不自动产生事故、背叛、失联或惩罚。',
+      : thread?.kind === 'appointment_upcoming'
+        ? '这次约定已经确认且时间临近，可以提醒或核对出发安排；不得说已经见面、已经赴约，也不得替主角确认到场。'
+        : thread?.kind === 'appointment_overdue'
+          ? '约定时间已经过去一小时以上，仍没有到场或结果记录。只承接真实经过的时间和你自己做了什么；不得指责主角故意失约，不得编造事故，也不得声称关系已经改变。'
+          : thread?.kind === 'appointment_due' || thread?.kind === 'proposed_appointment'
+            ? '约定仍按已保存状态处理；时间已过就谈当前可做的调整，不假装刚发邀请，更不能替主角确认、到场或失约。'
+            : thread?.kind === 'choice_result' ||
+                thread?.kind === 'appointment_result' ||
+                thread?.kind === 'matter_result'
+              ? '先承接已保存的新结果；旧阻碍或危机已处理就说当前下一步，不能再把旧问题当突发坏消息。'
+              : '承接原来那件事和你自己的目标；短间隔只走一小步，长间隔也不自动产生事故、背叛、失联或惩罚。',
     '本轮来信要有一个具体的新进展或可实行的下一步、你此刻联系主角的原因、一个可自然回应的点。不要把这三项写成标题或选择菜单，通常一两句，保持自己说话习惯。',
     '消息正文必须带出上述话题中至少一个有辨识度的对象或限制，以及针对它的具体操作；不能只用“那件事/你的部分/准备好了”代称整个话题。不要重复上次已提出的帮助，换成一个更具体、可以立即回答的小步骤。',
     ...(state.choices ?? [])

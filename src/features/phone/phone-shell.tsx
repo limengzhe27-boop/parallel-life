@@ -68,6 +68,8 @@ export type PhoneShellProps = {
   /** Caller supplies an authorized URL. No default photo is presented as world data. */
   wallpaperUrl?: string;
   notifications?: readonly PhoneNotification[];
+  /** Optional bounded lock-screen projection; app lists still use `notifications`. */
+  lockNotifications?: readonly PhoneNotification[];
   /** Persisted story time for checking whether an action is still available. */
   referenceTime?: string;
   /** A caller with group routing can open a group notification without using private-chat routes. */
@@ -96,6 +98,7 @@ function LifePhone({
   timeLabel,
   wallpaperUrl,
   notifications = [],
+  lockNotifications,
   referenceTime,
   onOpenNotification,
   renderApp,
@@ -166,6 +169,9 @@ function LifePhone({
   const banner = pending.find((n) => n.id === bannerId);
   const groups = groupNotifications(pending, referenceTime);
   const visibleGroups = showAllGroups ? groups : groups.slice(0, 3);
+  const boundedLock = lockNotifications
+    ? lockNotifications.filter((n) => !openedIds.has(n.id)).slice(0, 3)
+    : null;
   useEffect(() => {
     if (locked) unlockButton.current?.focus({ preventScroll: true });
     else heading.current?.focus({ preventScroll: true });
@@ -534,8 +540,8 @@ function LifePhone({
                 className={`${styles.notifications} ${styles.lockNotifications}`}
                 aria-label="锁屏通知"
               >
-                {visibleGroups.map(groupCard)}
-                {groups.length > 3 && (
+                {boundedLock ? boundedLock.map(notificationCard) : visibleGroups.map(groupCard)}
+                {!boundedLock && groups.length > 3 && (
                   <button
                     className={styles.moreNotifications}
                     aria-expanded={showAllGroups}

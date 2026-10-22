@@ -37,20 +37,30 @@ test('a sourced later milestone permits the same contact on a later story date',
   assert.equal(agenda[0]!.sourceId, undefined);
   assert(!beatCue(w, 'a', agenda).includes('[choice:ap]'));
 });
-test('same UTC+08 story day or less than 12h never licenses another beat', () => {
+test('a code-timed date milestone can share the day with an unrelated chat, but ordinary nudges cannot', () => {
   const w = world();
-  assert.deepEqual(
+  assert.equal(
     followupAgenda(w, buildAgenda(w), '2026-10-10T14:00:00.000Z', [
       { actorId: 'a', at: '2026-10-10T01:00:00.000Z', version: 2 },
-    ]),
-    [],
+    ]).length,
+    1,
+  );
+  assert.equal(
+    followupAgenda(
+      w,
+      [{ kind: 'commitment', actorId: 'a', detail: 'same-day nudge' }],
+      '2026-10-10T14:00:00.000Z',
+      [{ actorId: 'a', at: '2026-10-10T01:00:00.000Z', version: 2 }],
+    ).length,
+    0,
   );
   w.appointments[0]!.at = '2026-10-09T18:00:00.000Z';
-  assert.deepEqual(
-    followupAgenda(w, buildAgenda(w), '2026-10-10T01:00:00.000Z', [
+  w.time = '2026-10-10T01:00:00.000Z';
+  assert.equal(
+    followupAgenda(w, buildAgenda(w), w.time, [
       { actorId: 'a', at: '2026-10-09T15:00:00.000Z', version: 2 },
-    ]),
-    [],
+    ]).length,
+    1,
   );
 });
 test('old milestone, old commitment and a new date alone cannot produce daily reminders', () => {
@@ -96,11 +106,12 @@ test('a fresh player result can be acknowledged on a later date but its old vers
   assert.equal(followupAgenda(w, agenda, next, delivered).length, 1);
   assert.deepEqual(followupAgenda(w, agenda, next, [{ ...delivered[0]!, version: 3 }]), []);
 });
-test('past unconfirmed invitation is quiet and an overdue confirmed node never implies attendance', () => {
+test('past unconfirmed invitation is quiet and a just-due confirmed node never implies attendance', () => {
   const w = world();
   w.appointments[0]!.status = 'proposed';
   assert.deepEqual(buildAgenda(w), []);
   w.appointments[0]!.status = 'confirmed';
+  w.appointments[0]!.at = '2026-10-10T15:30:00.000Z';
   const cue = beatCue(w, 'a', buildAgenda(w));
   assert.match(cue, /原定于/);
   assert.match(cue, /不继续催赴已经过时的约/);

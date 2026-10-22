@@ -6,16 +6,19 @@ import type { WorldState } from './types.ts';
 /**
  * The director's deterministic half.
  *
- * A world uses a projected clock (12x browsing, 1x conversation, pausable). Time itself is
- * computed, never simulated minute by minute: when the user comes back, the clock
- * jumps to the real elapsed time and only a bounded number of beats are actually
- * played — the rest are folded into a summary, exactly as PRODUCT.md §10 requires.
+ * A world uses a projected clock (3x while the phone is visible, 1x once it is
+ * hidden or closed, pausable). Time itself is computed, never simulated minute by
+ * minute: when the user comes back, the clock jumps to the real elapsed time and
+ * only a bounded number of beats are actually played — the rest are folded into a
+ * summary, exactly as PRODUCT.md §10 requires.
  * Everything here is a pure function so it can be reasoned about and tested.
  */
-export const DEFAULT_SPEED = 12;
+export const DEFAULT_SPEED = 3;
 export const MAX_SPEED = 60;
 /** Beats actually played on one resume or advance. */
 export const MAX_BEATS_PER_ADVANCE = 3;
+/** A long absence replays only the latest moments; older slots are history, not a backlog. */
+export const MAX_RETURN_BEATS = 2;
 /** How long one beat represents in story time. */
 export const BEAT_MINUTES = 30;
 /** Never let one advance speak for more than this many characters. */
@@ -64,7 +67,7 @@ export function clockElapsedReal(clock: WorldClock, realNow: string): number {
   return Math.max(0, until - Date.parse(clock.lastTickAt));
 }
 
-/** One timeline policy shared by reads, execution and SQL; offline is 1x, not an expired 12x lease. */
+/** One timeline policy shared by reads, execution and SQL; offline is 1x, not an expired 3x lease. */
 export function elapsedStoryMilliseconds(clock: WorldClock, realNow: string): number {
   if (clock.paused) return 0;
   if (clock.continuityMode !== 'continuous') return clockElapsedReal(clock, realNow) * clock.speed;
@@ -101,18 +104,15 @@ export function advanceClock(
     return { clock: { ...nextTick, missedBeats: 0 }, beats: [], folded: 0 };
   const elapsedStory = elapsedStoryMilliseconds(clock, realNow);
   const due = Math.floor(elapsedStory / beatMs);
-  const played = Math.min(due, maxBeats);
+  const folded = due > maxBeats;
+  const played = folded ? Math.min(maxBeats, MAX_RETURN_BEATS) : due;
   const storyStart = Date.parse(clock.storyNow);
   const beats: string[] = [];
   for (let index = 1; index <= played; index += 1) {
-    // A long absence is sampled across the elapsed days, not replayed entirely
-    // in the first ninety minutes after the player last opened the phone.
-    const slot =
-      due <= played
-        ? index
-        : index === played
-          ? Math.max(1, due - 1)
-          : Math.floor((due * index) / (played + 0.5));
+    // Old moments are not replayed. A long absence catches the world up and plays
+    // only the most recent one or two half-hour slots, so returning cannot produce
+    // a burst of messages from the first morning after the player left.
+    const slot = due <= played ? index : due - played + index - 1;
     beats.push(new Date(storyStart + slot * beatMs).toISOString());
   }
   return {
@@ -123,7 +123,7 @@ export function advanceClock(
       missedBeats: Math.max(0, due - played),
       summary:
         due > played
-          ? `你离开的这段时间里，世界照常运转了大约 ${Math.round(elapsedStory / MINUTE / 60)} 小时。`
+          ? `你离开的这段时间里，世界照常运转了大约 ${Math.round(elapsedStory / MINUTE / 60)} 小时；只回放了最近 ${played} 个时刻。`
           : null,
     },
     beats,
@@ -158,6 +158,15 @@ export function selectSpeaker(
     (thread) => thread.kind === 'choice_followup' && available(thread.actorId),
   );
   if (choice) return choice.actorId;
+  const upcoming =
+    agenda.find(
+      (thread) =>
+        thread.kind === 'appointment_upcoming' &&
+        available(thread.actorId) &&
+        focusActorIds.includes(thread.actorId),
+    ) ??
+    agenda.find((thread) => thread.kind === 'appointment_upcoming' && available(thread.actorId));
+  if (upcoming) return upcoming.actorId;
   const pending =
     agenda.find(
       (thread) =>
@@ -167,6 +176,10 @@ export function selectSpeaker(
     ) ??
     agenda.find((thread) => thread.kind === 'proposed_appointment' && available(thread.actorId));
   if (pending) return pending.actorId;
+  const overdue = agenda.find(
+    (thread) => thread.kind === 'appointment_overdue' && available(thread.actorId),
+  );
+  if (overdue) return overdue.actorId;
   const due = agenda.find(
     (thread) => thread.kind === 'appointment_due' && available(thread.actorId),
   );

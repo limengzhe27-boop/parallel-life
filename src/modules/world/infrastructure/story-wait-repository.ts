@@ -8,6 +8,7 @@ import { DomainError } from '../domain/errors.ts';
 import { PostgresWorldRepository } from './postgres-world-repository.ts';
 import { lockWorldActivity, assertSpaceIdle } from './space-repository.ts';
 import { storedActivityClock, updateClockActivity } from './clock-activity-repository.ts';
+import { DEFAULT_SPEED } from '../domain/clock.ts';
 import {
   buildStoryPlan,
   evaluateStory,
@@ -406,7 +407,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
         : {
             storyNow: world.time,
             lastTickAt: now,
-            speed: 12,
+            speed: DEFAULT_SPEED,
             paused: true,
             missedBeats: 0,
             summary: null,
@@ -455,8 +456,8 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
         [worldId, event.version, stored, ownerId],
       );
       await sql.query(
-        'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until) VALUES($1,$2,$3,$4,12,true,0,NULL,true,NULL) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,updated_at=now()',
-        [worldId, ownerId, event.storyAt, now],
+        'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until) VALUES($1,$2,$3,$4,$5,true,0,NULL,true,NULL) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,updated_at=now()',
+        [worldId, ownerId, event.storyAt, now, DEFAULT_SPEED],
       );
       await updateClockActivity(
         sql,

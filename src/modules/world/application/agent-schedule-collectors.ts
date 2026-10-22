@@ -863,8 +863,8 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
     const realAt = view.lastAssistantRealAtByActor?.[actorId];
     return realAt ? Date.now() - Date.parse(realAt) : Number.POSITIVE_INFINITY;
   };
-  // This is a real-time idle behavior; story-clock speed must not turn a 12x world
-  // into unprompted messages every two minutes. One clock, thirty minutes.
+  // This is a real-time idle behavior; story-clock speed must not turn a 3x world
+  // into unprompted messages every few minutes. One clock, thirty minutes.
   if (realGap(snapshot.state.actorId) < cooldown) return [];
   // One local initiative per scheduling read keeps a multi-actor world from emitting
   // several unprompted private messages at once; choose the least recently heard actor.

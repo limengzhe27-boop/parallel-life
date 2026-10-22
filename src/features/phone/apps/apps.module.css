@@ -773,6 +773,73 @@
   border-radius: 10px;
   font-size: 13px;
 }
+.chatInvitation {
+  margin: 4px 2px 12px;
+  padding: 13px 14px;
+  border: 1px solid #e3e5e8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+.chatInvitation header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.chatInvitation header small {
+  color: #8a8f98;
+  font-size: 11px;
+}
+.chatInvitation h3 {
+  margin: 0;
+  color: #17181a;
+  font-size: 16px;
+  line-height: 1.35;
+}
+.chatInvitation p {
+  margin: 6px 0 0;
+  color: #5f6570;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.chatInvitationStatus {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #ffe9ea;
+  color: #c4313b;
+  font-size: 11px;
+}
+.chatInvitationActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+.chatInvitationActions button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #dcdfe4;
+  border-radius: 9px;
+  background: #f7f7f8;
+  color: #25272b;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chatInvitationActions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.chatInvitationActions .chatInvitationPrimary {
+  border-color: #07c160;
+  background: #07c160;
+  color: #fff;
+}
+.chatInvitationActions .chatInvitationDanger {
+  color: #c4313b;
+}
 .invitationActions {
   display: flex;
   flex-wrap: wrap;

@@ -18,29 +18,60 @@ export function followupAgenda(
     const now = Date.parse(plannedFor);
     if (!Number.isFinite(now)) return false;
     // Never deliver a result or dated milestone before its saved story instant.
+    // The pre-date reminder is the one thread whose meaningful basisAt is ahead.
     if (
+      thread.kind !== 'appointment_upcoming' &&
       thread.basisAt &&
       (!Number.isFinite(Date.parse(thread.basisAt)) || Date.parse(thread.basisAt) > now)
     )
       return false;
     const previous = [...delivered].reverse().find((beat) => beat.actorId === thread.actorId);
     if (!previous) return true;
+    // A confirmed date has two new, code-timed moments: the pre-date reminder and
+    // the post-date consequence. They may fall on the same story day as an unrelated
+    // chat; repetition is already suppressed by the exact message windows in agenda.
+    const dateMilestone =
+      thread.kind === 'appointment_upcoming' || thread.kind === 'appointment_overdue';
     if (
-      worldDayKey(previous.at) === worldDayKey(plannedFor) ||
-      now - Date.parse(previous.at) < COOLDOWN
+      !dateMilestone &&
+      (worldDayKey(previous.at) === worldDayKey(plannedFor) ||
+        now - Date.parse(previous.at) < COOLDOWN)
     )
       return false;
-    if (thread.kind === 'appointment_due' || thread.kind === 'appointment_result') {
+    if (
+      thread.kind === 'appointment_upcoming' ||
+      thread.kind === 'appointment_overdue' ||
+      thread.kind === 'appointment_due' ||
+      thread.kind === 'appointment_result'
+    ) {
       const appointment = state.appointments.find(
         (a) => a.id === thread.basisId && a.participantIds.includes(thread.actorId),
       );
       if (!appointment) return false;
-      return thread.kind === 'appointment_due'
-        ? appointment.status === 'confirmed' &&
-            Date.parse(appointment.at) > Date.parse(previous.at) &&
-            Date.parse(appointment.at) <= now
-        : ['attended', 'missed'].includes(appointment.status ?? '') &&
-            (appointment.responseVersion ?? 0) > previous.version;
+      if (thread.kind === 'appointment_upcoming')
+        return (
+          appointment.status === 'confirmed' &&
+          Date.parse(appointment.at) > Date.parse(previous.at) &&
+          Date.parse(appointment.at) > now &&
+          Date.parse(appointment.at) - now <= 2 * 60 * 60_000
+        );
+      if (thread.kind === 'appointment_due')
+        return (
+          appointment.status === 'confirmed' &&
+          Date.parse(appointment.at) > Date.parse(previous.at) &&
+          Date.parse(appointment.at) <= now &&
+          now <= Date.parse(appointment.at) + 12 * 60 * 60_000
+        );
+      if (thread.kind === 'appointment_overdue')
+        return (
+          appointment.status === 'confirmed' &&
+          Date.parse(appointment.at) + 60 * 60_000 <= now &&
+          now <= Date.parse(appointment.at) + 12 * 60 * 60_000
+        );
+      return (
+        ['attended', 'missed'].includes(appointment.status ?? '') &&
+        (appointment.responseVersion ?? 0) > previous.version
+      );
     }
     if (thread.kind === 'matter_result') {
       const m = state.matters?.find((m) => m.id === thread.basisId);

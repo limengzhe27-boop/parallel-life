@@ -14,6 +14,8 @@ export type AgendaThread = {
   kind:
     | 'awaiting_reply'
     | 'proposed_appointment'
+    | 'appointment_upcoming'
+    | 'appointment_overdue'
     | 'appointment_due'
     | 'appointment_result'
     | 'choice_followup'
@@ -90,6 +92,35 @@ export function buildAgenda(
         appointment.status === 'confirmed' &&
         Date.parse(appointment.at) <= Date.parse(state.time)
       ) {
+        const at = Date.parse(appointment.at);
+        const now = Date.parse(state.time);
+        // A missed date is only actionable close to its actual time. Days-old
+        // appointments are history, not a reason to send a fresh consequence.
+        if (now > at + 12 * 60 * 60_000) continue;
+        // After the grace window, the consequence is a code-timed follow-up. It is
+        // still not evidence that the protagonist attended, deliberately missed, or
+        // that the actor waited at the venue; the character may speak only to what
+        // time has actually passed and what they themselves did.
+        if (now >= at + 60 * 60_000) {
+          if (
+            state.messages.some(
+              (message) =>
+                message.actorId === participantId &&
+                message.role === 'assistant' &&
+                Date.parse(message.at) >= at + 60 * 60_000,
+            )
+          )
+            continue;
+          const venue = state.space?.places.find((p) => p.appointmentIds.includes(appointment.id));
+          threads.push({
+            kind: 'appointment_overdue',
+            actorId: participantId,
+            basisId: appointment.id,
+            basisAt: appointment.at,
+            detail: `你们确认的「${appointment.title}」约在${worldDateTimeLabel(appointment.at)}${venue ? `，地点是「${venue.name}」` : ''}，现在已经过去一小时以上，仍没有到场或结果记录。可以承接这段真实经过的等待、离开或改期，但不能编造主角到场、故意失约、出事故，也不能说关系已经因此改变。`,
+          });
+          continue;
+        }
         if (
           state.messages.some(
             (message) =>
@@ -114,6 +145,32 @@ export function buildAgenda(
           detail,
         });
         continue;
+      }
+      // A confirmed date inside the next two story hours is a code-timed reminder,
+      // not model invention. It is not a new invitation and never implies arrival.
+      if (appointment.status === 'confirmed') {
+        const minutesUntil = Math.ceil(
+          (Date.parse(appointment.at) - Date.parse(state.time)) / 60_000,
+        );
+        if (minutesUntil > 0 && minutesUntil <= 120) {
+          const reminderWindowStart = Date.parse(appointment.at) - 2 * 60 * 60_000;
+          const alreadySpoke = state.messages.some(
+            (message) =>
+              message.actorId === participantId &&
+              message.role === 'assistant' &&
+              Date.parse(message.at) >= reminderWindowStart,
+          );
+          if (alreadySpoke) continue;
+          const venue = state.space?.places.find((p) => p.appointmentIds.includes(appointment.id));
+          threads.push({
+            kind: 'appointment_upcoming',
+            actorId: participantId,
+            basisId: appointment.id,
+            basisAt: appointment.at,
+            detail: `你们已确认「${appointment.title}」，约在${worldDateTimeLabel(appointment.at)}${venue ? `，地点是「${venue.name}」` : ''}，距现在约${minutesUntil}分钟。可以提醒/确认出发安排，或说清自己能否按时到；不要说已经见面、已经赴约，也不要替主角确认。`,
+          });
+          continue;
+        }
       }
       if (appointment.status === 'attended' || appointment.status === 'missed') {
         if (!appointment.responseAt || !appointment.responseVersion) continue;
@@ -319,6 +376,8 @@ export function threadFor(agenda: AgendaThread[], actorId: string): AgendaThread
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'awaiting_reply') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'choice_result') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'appointment_result') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'appointment_upcoming') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'appointment_overdue') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'matter_result') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'departure_inquiry') ??
     agenda.find((thread) => thread.actorId === actorId)

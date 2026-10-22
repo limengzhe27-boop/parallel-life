@@ -110,7 +110,7 @@ test('major offscreen outcomes and completed-photo claims need actual canonical/
   assert.equal(unsupportedReturnClaim(s, 'a', '我可以先帮你核一下片长，发我当前版本就行'), false);
 });
 
-test('one long-absence message is recent enough to respond to, while multiple beats keep distinct historical dates', async () => {
+test('one long-absence message is recent enough to respond to, and extra beats stay in the latest window', async () => {
   const { advanceClock } = await import('../src/modules/world/domain/clock.ts');
   const c = {
     storyNow: '2026-10-08T00:00:00.000Z',
@@ -124,7 +124,7 @@ test('one long-absence message is recent enough to respond to, while multiple be
   const one = advanceClock(c, now, { maxBeats: 1 });
   assert.equal(one.beats[0], '2026-10-12T23:30:00.000Z');
   const three = advanceClock(c, now, { maxBeats: 3 });
-  assert.equal(new Set(three.beats.map((t) => t.slice(0, 10))).size, 3);
+  assert.equal(new Set(three.beats.map((t) => t.slice(0, 10))).size, 1);
   assert.equal(three.beats.at(-1), one.beats[0]);
   assert(three.beats.every((t) => t < now));
 });

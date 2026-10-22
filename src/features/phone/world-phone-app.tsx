@@ -34,7 +34,7 @@ import { SceneClient } from './scenes/client.ts';
 import { SceneWorldSync } from './scenes/world-sync.ts';
 import { useGroups } from './groups/use-groups.ts';
 import { isJoined, groupTarget } from './groups/state.ts';
-import { projectMessageNotifications } from './notification-projection.ts';
+import { projectMessageNotifications, lockScreenNotifications } from './notification-projection.ts';
 import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { MessageReceiptClient } from '../api/message-receipt-client.ts';
@@ -1587,6 +1587,66 @@ export function WorldPhoneSurface({
       setWaitWorking(false);
     }
   }
+  const phoneNotifications = [
+    ...projectMessageNotifications(mergedData.messages, data.actors, viewed, (at) =>
+      formatChatTime(at, currentReferenceTime),
+    ),
+    ...Object.values(groups.details)
+      .filter((d) => isJoined(d.group))
+      .flatMap((d) =>
+        d.messages
+          .filter((m) => m.sender.kind === 'actor' && m.sourceVersion > d.lastReadVersion)
+          .map((m) => ({
+            id: m.id,
+            title: d.group.title,
+            summary: m.text,
+            app: 'messages' as const,
+            conversationKind: 'group' as const,
+            target: d.group.id,
+            at: d.messageTimes[m.id]!.storyAt,
+            timeLabel: formatChatTime(d.messageTimes[m.id]!.storyAt, currentReferenceTime),
+          })),
+      ),
+    ...(data.invitations ?? [])
+      .filter(
+        (inv) => inv.status === 'proposed' && Date.parse(inv.at) > Date.parse(currentReferenceTime),
+      )
+      .map((inv) => ({
+        id: `notif-inv-${inv.id}`,
+        title: inv.title,
+        summary: `${worldDateTimeLabel(inv.at)} · 邀请 · 待回复`,
+        app: 'calendar' as const,
+        target: inv.id,
+        actionableUntil: inv.at,
+        timeLabel: '待回复',
+      })),
+    ...(records?.status === 'ready'
+      ? records.data.current
+          .filter(
+            (item) =>
+              item.kind === 'world_matter' &&
+              (item.state === 'in_progress' || item.state === 'blocked'),
+          )
+          .map((item) => ({
+            id: `notif-matter-${item.id}`,
+            title: item.title,
+            summary: `${item.stateLabel} · ${recordAttribution(item)} · ${item.text}`,
+            app: 'notes' as const,
+            target: item.id,
+            at:
+              item.source.kind === 'world_matter' || item.source.kind === 'world_event'
+                ? item.source.at
+                : undefined,
+            timeLabel: item.stateLabel,
+          }))
+      : []),
+  ];
+  const lockNotifications = lockScreenNotifications(
+    phoneNotifications,
+    phoneData.invitations,
+    currentReferenceTime,
+    (at) => formatChatTime(at, currentReferenceTime),
+  );
   return (
     <PhoneAppsProvider
       transport={transport}
@@ -1770,61 +1830,8 @@ export function WorldPhoneSurface({
                 : notification.target,
           });
         }}
-        notifications={[
-          ...projectMessageNotifications(mergedData.messages, data.actors, viewed, (at) =>
-            formatChatTime(at, currentReferenceTime),
-          ),
-          ...Object.values(groups.details)
-            .filter((d) => isJoined(d.group))
-            .flatMap((d) =>
-              d.messages
-                .filter((m) => m.sender.kind === 'actor' && m.sourceVersion > d.lastReadVersion)
-                .map((m) => ({
-                  id: m.id,
-                  title: d.group.title,
-                  summary: m.text,
-                  app: 'messages' as const,
-                  conversationKind: 'group' as const,
-                  target: d.group.id,
-                  at: d.messageTimes[m.id]!.storyAt,
-                  timeLabel: formatChatTime(d.messageTimes[m.id]!.storyAt, currentReferenceTime),
-                })),
-            ),
-          ...(data.invitations ?? [])
-            .filter(
-              (inv) =>
-                inv.status === 'proposed' && Date.parse(inv.at) > Date.parse(currentReferenceTime),
-            )
-            .map((inv) => ({
-              id: `notif-inv-${inv.id}`,
-              title: inv.title,
-              summary: `${worldDateTimeLabel(inv.at)} · 邀请 · 待回复`,
-              app: 'calendar' as const,
-              target: inv.id,
-              actionableUntil: inv.at,
-              timeLabel: '待回复',
-            })),
-          ...(records?.status === 'ready'
-            ? records.data.current
-                .filter(
-                  (item) =>
-                    item.kind === 'world_matter' &&
-                    (item.state === 'in_progress' || item.state === 'blocked'),
-                )
-                .map((item) => ({
-                  id: `notif-matter-${item.id}`,
-                  title: item.title,
-                  summary: `${item.stateLabel} · ${recordAttribution(item)} · ${item.text}`,
-                  app: 'notes' as const,
-                  target: item.id,
-                  at:
-                    item.source.kind === 'world_matter' || item.source.kind === 'world_event'
-                      ? item.source.at
-                      : undefined,
-                  timeLabel: item.stateLabel,
-                }))
-            : []),
-        ]}
+        notifications={phoneNotifications}
+        lockNotifications={lockNotifications}
         renderHome={({ open, openPanel }) => (
           <PhoneDesktop
             title={data.title}

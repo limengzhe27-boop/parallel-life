@@ -29,9 +29,9 @@ test('explicit target end, browsing and away clear focus even if a target was su
   ])
     assert.equal(nextClockConversationFocus(value, previous), null);
 });
-test('legacy unscoped conversation remains 1x without inventing a known target', () => {
+test('legacy unscoped conversation keeps foreground 3x without inventing a known target', () => {
   assert.equal(nextClockConversationFocus(input), null);
-  assert.equal(activityMode([{ ...previous, focus: null }], '2026-10-15T08:00:01Z').speed, 1);
+  assert.equal(activityMode([{ ...previous, focus: null }], '2026-10-15T08:00:01Z').speed, 3);
 });
 test('explicit switch is exact; leaving conversation then returning without focus does not resurrect it', () => {
   const next = { channel: 'group' as const, threadId: 'group-id' };

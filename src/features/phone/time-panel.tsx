@@ -58,7 +58,9 @@ export function TimePanel({
       <section className={s.card}>
         <small>这段人生的时间</small>
         <h3>{clock ? worldDateTimeLabel(clock.storyNow) : '正在读取…'}</h3>
-        <p>{clock ? (clock.paused ? '已暂停' : `${clock.speed}× 流逝中`) : ''}</p>
+        <p>
+          {clock ? (clock.paused ? '已暂停' : `${clock.speed}× 流逝中（页面可见时固定 3×）`) : ''}
+        </p>
         <div className={s.buttons}>
           <button
             disabled={!clock || busy}
@@ -72,21 +74,6 @@ export function TimePanel({
           >
             {clock?.paused ? '继续' : '暂停'}
           </button>
-          {[1, 2].map((speed) => (
-            <button
-              key={speed}
-              aria-pressed={clock?.speed === speed}
-              disabled={!clock || busy}
-              onClick={() =>
-                void run(async () => {
-                  setClock(await client.setWorldClock(worldId, { speed }));
-                  setNote(`速度已设为 ${speed}×`);
-                })
-              }
-            >
-              {speed}×
-            </button>
-          ))}
         </div>
         <button
           disabled={!clock || busy || clock.paused}

@@ -12,6 +12,7 @@ import type { OfficialLifeCatalog } from '../application/official-life-pack.ts';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import { requestHash, TaskError } from '../../tasks/infrastructure/task-repository.ts';
 import { officialGenesis } from '../../world/domain/official-genesis.ts';
+import { DEFAULT_SPEED } from '../../world/domain/clock.ts';
 
 /** Uses the existing world/initial/clock tables in one owner transaction. No AI creation task. */
 export class OfficialLifeRepository {
@@ -152,8 +153,8 @@ export class OfficialLifeRepository {
           ],
         );
         await sql.query(
-          'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,12,false,$4,0,NULL)',
-          [worldId, owner, state.time, realNow],
+          'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,$4,false,$5,0,NULL)',
+          [worldId, owner, state.time, DEFAULT_SPEED, realNow],
         );
         await sql.query(
           'INSERT INTO parallel_life.official_life_instances(owner_id,preset_id,content_version,seed_id,world_id) VALUES($1,$2,$3,$4,$5)',

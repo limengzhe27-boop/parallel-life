@@ -2,8 +2,17 @@ import { DomainError } from './errors.ts';
 import { projectStoryTime, type WorldClock } from './clock.ts';
 
 export const CLOCK_ACTIVITY_LEASE_MS = 45_000;
-export const BROWSING_SPEED = 12;
-export const CONVERSATION_SPEED = 1;
+/**
+ * Story time is driven only by whether the phone page is visible. Chat, the map and
+ * scenes are not separate time modes: an open conversation still receives the same
+ * foreground speed. `conversation` survives solely as the lease that carries an
+ * authorized private/group/scene focus; it must not change the clock.
+ */
+export const FOREGROUND_SPEED = 3;
+export const BACKGROUND_SPEED = 1;
+/** Compatibility names for older imports; both are the one foreground policy. */
+export const BROWSING_SPEED = FOREGROUND_SPEED;
+export const CONVERSATION_SPEED = FOREGROUND_SPEED;
 export type ClockConversationFocus = { channel: 'private' | 'group' | 'scene'; threadId: string };
 export type ClockActivityInput = {
   clientId: string;
@@ -79,7 +88,9 @@ export function activityMode(leases: readonly ClockActivityLease[], realNow: str
     (l) => l.mode !== 'away' && Date.parse(l.expiresAt) > Date.parse(realNow),
   );
   return {
-    speed: live.some((l) => l.mode === 'conversation') ? CONVERSATION_SPEED : BROWSING_SPEED,
+    // Presence is the only time signal. The lease mode remains for focus/attention,
+    // but a visible private chat is not a slower world than the home screen.
+    speed: live.length ? FOREGROUND_SPEED : BACKGROUND_SPEED,
     activeUntil: live.length
       ? new Date(Math.max(...live.map((l) => Date.parse(l.expiresAt)))).toISOString()
       : null,
