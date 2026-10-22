@@ -2,6 +2,7 @@ import { attachAgentFailure } from './agent-failure-diagnostic.ts';
 import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { withAmbientSticker } from '../domain/ambient-sticker.ts';
+import { withRecallRequest } from '../domain/recall-request.ts';
 import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
 import {
@@ -263,6 +264,11 @@ export async function runNpcAgent(
       };
       proposal = deps.kernel.parse(clones.snapshot, clones.response);
       proposal = withAmbientSticker(proposal, {
+        channelKind: clones.snapshot.channel?.kind,
+        origin: clones.snapshot.input?.origin,
+        text: clones.snapshot.input?.text ?? '',
+      });
+      proposal = withRecallRequest(proposal, {
         channelKind: clones.snapshot.channel?.kind,
         origin: clones.snapshot.input?.origin,
         text: clones.snapshot.input?.text ?? '',
