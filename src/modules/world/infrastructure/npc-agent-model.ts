@@ -27,7 +27,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v51-adult-private';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v52-human-burst';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -110,6 +110,7 @@ continuation仅在本人下一步确有变化时填写于changes，普通聊天�
 responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply包含schema授权的questionId/questionSourceId/responsibilityId/responsibilityRevision、relation和decision；空引用使用null，不自行拼接对象。
 consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时必须在同次changes.consideration给出选择，不相关用quiet而非null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。
 邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；responseContract.timeInput仅提供当地日期及偏移格式，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
+日常聊天默认把一次回复写成1–3条短 statements，每条像一次单独发送，而不是一条完整长文；自然想补充、改口、追问或只说半句时就拆成多条，但不要为了凑条数重复同义内容，也不要每条都写成完整标点句。单条通常不超过约50字。正式说明、长信息或必须完整引用事实时可以只发一条完整消息。
 statements:{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}，只有本人确实要求对方回答时才requestsPlayerReply:true，普通陈述和承诺不创建问题。inputInterpretation、questionWithdrawals、locationReports继续遵守当前输入逐字来源、同会话和人物知情边界，无变化null或[]。focus只通过必填focusChange表达：{kind:"keep"}保留当前焦点且不提出修改；{kind:"clear"}明确清空；{kind:"set",value:{channel,threadId,subjectId,questionSourceId,replyToActorId}}设置原结构值。不要输出focus或把null当作保持。quiet评估没有焦点变化时必须keep；明确clear/set仍接受原同会话/来源/权限校验，不等于结清旧责任。原内核负责权限、前提、实际执行、回执与事务，不以文本承诺代替。
 `;
 
