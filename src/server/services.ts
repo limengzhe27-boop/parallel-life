@@ -164,6 +164,37 @@ function createServices() {
           worlds: row?.worlds ? String(row.worlds) : null,
         };
       }),
+    advanceLeaseStatus: (ownerId: string, worldId: string) =>
+      db.transaction(ownerId, async (sql) => {
+        const row = (
+          await sql.query(
+            `SELECT token, engine_epoch, lease_until,
+                    lease_until <= clock_timestamp() AS expired,
+                    clock_timestamp() AS now
+               FROM parallel_life.agent_advance_batch_leases
+              WHERE world_id=$1 AND owner_id=$2`,
+            [worldId, ownerId],
+          )
+        ).rows[0];
+        return row
+          ? {
+              present: true as const,
+              engineEpoch: Number(row.engine_epoch),
+              leaseUntil: row.lease_until,
+              expired: Boolean(row.expired),
+              now: row.now,
+            }
+          : { present: false as const };
+      }),
+    clearAdvanceLease: (ownerId: string, worldId: string) =>
+      db.transaction(ownerId, async (sql) => {
+        const result = await sql.query(
+          `DELETE FROM parallel_life.agent_advance_batch_leases
+            WHERE world_id=$1 AND owner_id=$2 RETURNING token`,
+          [worldId, ownerId],
+        );
+        return { cleared: result.rowCount ?? 0 };
+      }),
     forceDirectorReview: (ownerId: string, worldId: string) =>
       agentAdvance.reviewDirectorDirect(ownerId, worldId),
     dispatchDirectorEpisode: (ownerId: string, worldId: string) =>
