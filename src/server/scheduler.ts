@@ -6,12 +6,10 @@ import { getServices } from './services.ts';
 
 let source: PostgresSchedulerRepository | undefined;
 export async function runProactiveWorlds() {
-  const url = process.env.SCHEDULER_DATABASE_URL;
-  if (!url) throw Error('SCHEDULER_NOT_CONFIGURED');
-  source ??= new PostgresSchedulerRepository(url);
   const services = getServices();
-  return runProactiveScheduler(source, (ownerId, worldId) =>
-    services.advanceWorld(ownerId, worldId, 1, true),
+  return runProactiveScheduler(
+    { claimProactive: () => services.claimProactiveWorlds() },
+    (ownerId, worldId) => services.advanceWorld(ownerId, worldId, 1, true),
   );
 }
 

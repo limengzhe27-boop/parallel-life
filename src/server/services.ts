@@ -491,6 +491,15 @@ function createServices() {
     memoryCandidates: new MemoryCandidateRepository(db),
     profile: new ProfileRepository(db),
     assets: new AssetRepository(db, assetStore),
+    claimProactiveWorlds: async () => {
+      const result = await db.pool.query(
+        "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds(2, interval '30 minutes', interval '10 minutes')",
+      );
+      return result.rows.map((row) => ({
+        ownerId: String(row.claimed_owner_id),
+        worldId: String(row.claimed_world_id),
+      }));
+    },
     verifyCronToken: async (tokenHash: string) => {
       const result = await db.pool.query('SELECT parallel_life.verify_cron_token($1) AS valid', [
         tokenHash,
