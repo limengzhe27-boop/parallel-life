@@ -138,8 +138,9 @@ export function rankAndBudgetMemories(params: {
     }
 
     let weight = record.importance ?? 1;
-    if (record.sourceType === 'user_correction') weight += 100;
-    if (record.kind === 'commitment') weight += 50;
+    // Exact contract memories must not be pushed out by high-importance trivia.
+    if (record.sourceType === 'user_correction') weight += 2000;
+    if (record.kind === 'commitment') weight += 1000;
     if (record.kind === 'preference') weight += 20;
 
     return { record, score: matchCount * 10 + weight };

@@ -563,3 +563,38 @@ test('8. 角色上下文 actorContext：分支与角色记忆隔离，预算收�
   assert.equal(ctx.retrievedMemories.length, 1);
   assert.equal(ctx.retrievedMemories[0]?.id, 'mem_lighthouse');
 });
+
+test('5. exact 承诺记忆优先于高重要性 fuzzy 生活记忆', () => {
+  const base = {
+    ownerId: 'user_tier',
+    scopeType: 'branch' as const,
+    scopeId: 'world_tier',
+    sourceType: 'world_event' as const,
+    sourceIds: ['event_tier'],
+    status: 'active' as const,
+    createdAt: '2026-10-22T00:00:00.000Z',
+  };
+  const records: MemoryRecord[] = [
+    {
+      ...base,
+      id: 'mem_fuzzy',
+      kind: 'episode',
+      text: '昨天在楼下吃了一碗很辣的面，天气有点闷。',
+      importance: 100,
+    },
+    {
+      ...base,
+      id: 'mem_exact',
+      kind: 'commitment',
+      text: '周六下午三点在河边咖啡馆见面。',
+      importance: 1,
+    },
+  ];
+  const ranked = rankAndBudgetMemories({
+    records,
+    blockedSources: new Set(),
+    query: '我们约的几点在哪里',
+    charBudget: 5000,
+  });
+  assert.equal(ranked[0]?.id, 'mem_exact');
+});
