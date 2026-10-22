@@ -1,0 +1,26 @@
+name: proactive-worlds
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: proactive-worlds
+  cancel-in-progress: false
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask the server for one bounded proactive tick
+        run: |
+          set -euo pipefail
+          token=$(curl -fsS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=parallel-world-proactive" | jq -r .value)
+          test -n "$token"
+          curl -fsS --max-time 300 \
+            -H "Authorization: Bearer ${token}" \
+            https://parallel-world-eosin.vercel.app/api/cron/proactive
