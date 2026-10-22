@@ -997,8 +997,10 @@ export function npcAgentAdvanceServices(
       const forceDirectorReview = options?.forceDirectorReview === true;
       const forceNonce = forceDirectorReview ? randomUUID() : undefined;
       const directorDue = forceDirectorReview || directorReviewDue(directorReview, directorNow);
+      // An explicit owner review must reach the Director even when a local actor
+      // candidate exists; the Director can still decline or defer that opportunity.
       const emptyDirectorDue = forceDirectorReview
-        ? !retryCommandId && scheduled.selected.length === 0 && !batch?.handledActorIds.size
+        ? !retryCommandId && !batch?.handledActorIds.size
         : emptyDirectorReviewDue({
             state: directorReview,
             storyAt: directorNow,

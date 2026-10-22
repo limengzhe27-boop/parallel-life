@@ -20,6 +20,7 @@ test('content-free waiting lines are not proactive contact', () => {
     '暂时没有新的想法，还是先观察观察吧。',
     '我就继续观察着，等有啥具体情况了再说。',
     '我看着还行，暂时没有什么要特别做的。',
+    '今晚先这样，等时机成熟再说吧。',
   ])
     assert.equal(isGenericProactiveLine(text), true, text);
 });
