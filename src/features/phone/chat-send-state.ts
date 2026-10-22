@@ -24,6 +24,16 @@ export function sendFailureStatus(error: unknown): 'failed' | 'unknown' {
     : 'unknown';
 }
 
+/**
+ * An unresolved old send must remain visible, but it cannot own the composer forever.
+ * Only a send that is still actually in flight blocks a new independent command.
+ */
+export function hasInFlightLocalSend(
+  messages: readonly Pick<PhoneMessage, 'role' | 'status'>[],
+): boolean {
+  return messages.some((message) => message.role === 'user' && message.status === 'pending');
+}
+
 export function hasLocalSendFailure(
   operation: Operation | undefined,
   messages: readonly PhoneMessage[],

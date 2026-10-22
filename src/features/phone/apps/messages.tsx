@@ -9,7 +9,7 @@ import { PersonCard } from './person-card.tsx';
 import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
-import { hasLocalSendFailure } from '../chat-send-state.ts';
+import { hasInFlightLocalSend, hasLocalSendFailure } from '../chat-send-state.ts';
 import { Id } from '../../../contracts/api.ts';
 import { useGroups } from '../groups/use-groups.ts';
 import { GroupCreate } from '../groups/group-create.tsx';
@@ -1179,7 +1179,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const disabled =
     (operation?.busy && !operation?.canInterrupt) ||
     (operation?.status === 'accepted' && operation.signature === text) ||
-    messages.some((m) => m.role === 'user' && (m.status === 'unknown' || m.status === 'pending'));
+    hasInFlightLocalSend(messages);
   const relatedInvitation = findRelatedInvitation(data.invitations, actor.id, data.referenceTime);
 
   return (
@@ -1785,7 +1785,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   if (
                     m.status === 'unknown' &&
                     !window.confirm(
-                      '上次可能已发送。再次尝试可能重复发送并再次生成回复，要继续吗？',
+                      '先核对上次是否已经发送。核对不会重新生成回复；原消息会继续保留，你也可以先继续聊天。',
                     )
                   )
                     return;

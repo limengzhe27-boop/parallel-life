@@ -1006,14 +1006,15 @@ test('persisted plan review cadence suppresses a not-yet-due actionless review',
   assert.equal((await collect(dueNow, 'actor_plan')).candidates.length, 1);
 });
 
-test('actor-local uses story cooldown with a real-time fallback and no global activity gate', async () => {
+test('actor-local uses the same 30-minute cooldown in story and real time', async () => {
   const now = new Date();
   const recentReal = new Date(now.getTime() - 60_000).toISOString();
-  const olderReal = new Date(now.getTime() - 11 * 60_000).toISOString();
+  const earlyReal = new Date(now.getTime() - 11 * 60_000).toISOString();
+  const olderReal = new Date(now.getTime() - 31 * 60_000).toISOString();
   const source = (v: SchedulingView) =>
     createAgentScheduleSources(v).find((s) => s.id === 'actor_local:a')!;
-  const withDefinition = () => {
-    const a = actor('a');
+  const withDefinition = (id = 'a') => {
+    const a = actor(id);
     a.snapshot.sources.push({
       id: 'definition:authored:fixture',
       kind: 'authored',
@@ -1030,6 +1031,13 @@ test('actor-local uses story cooldown with a real-time fallback and no global ac
     lastAssistantRealAtByActor: { a: recentReal },
   };
   assert.equal((await source(recent).source.collect('owner', 'w')).candidates.length, 0);
+
+  const early = {
+    ...view([withDefinition()]),
+    lastAssistantAtByActor: { a: at },
+    lastAssistantRealAtByActor: { a: earlyReal },
+  };
+  assert.equal((await source(early).source.collect('owner', 'w')).candidates.length, 0);
 
   const stalledStory = {
     ...view([withDefinition()]),
@@ -1048,4 +1056,38 @@ test('actor-local uses story cooldown with a real-time fallback and no global ac
     lastAssistantRealAtByActor: { a: recentReal },
   };
   assert.equal((await source(oldStory).source.collect('owner', 'w')).candidates.length, 1);
+});
+
+test('only the least recently heard actor gets local initiative in one scheduling read', async () => {
+  const now = new Date();
+  const olderReal = new Date(now.getTime() - 31 * 60_000).toISOString();
+  const withDefinition = (id: string) => {
+    const a = actor(id);
+    a.snapshot.sources.push({
+      id: 'definition:authored:fixture',
+      kind: 'authored',
+      recordId: 'definition',
+      worldVersion: 0,
+      at: before,
+    });
+    return a;
+  };
+  const a = withDefinition('a');
+  const b = withDefinition('b');
+  const v = {
+    ...view([a, b]),
+    lastAssistantAtByActor: {
+      a: '2026-10-15T09:40:00.000Z',
+      b: '2026-10-15T08:00:00.000Z',
+    },
+    lastAssistantRealAtByActor: { a: olderReal, b: olderReal },
+  };
+  const outputs = await Promise.all(
+    createAgentScheduleSources(v)
+      .filter((s) => s.id.startsWith('actor_local:'))
+      .map((s) => s.source.collect('owner', 'w')),
+  );
+  const candidates = outputs.flatMap((o) => o.candidates);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0]!.actorId, 'b');
 });

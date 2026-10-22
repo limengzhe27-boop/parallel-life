@@ -1159,6 +1159,10 @@ export function WorldPhoneApp({
               try {
                 const { worldId: originalWorldId, ...input } = original;
                 result = await receiptClient.lookup(originalWorldId, input);
+                // A protected saved response may be applied without a new model call;
+                // unknown/pending results remain read-only in both endpoints.
+                if (result.status === 'unconfirmed' && result.recovery === 'response_received')
+                  result = await receiptClient.recover(originalWorldId, input);
               } catch {
                 throw new ApiFailure('UNKNOWN', '暂时无法核对，原消息仍待确认。请稍后再核对。');
               }
@@ -1188,7 +1192,7 @@ export function WorldPhoneApp({
               if (failed.status === 'unknown' && commandId === messageId)
                 throw new ApiFailure(
                   'UNKNOWN',
-                  '尚未查到已提交结果，原消息仍待确认。可继续核对，或明确选择再次尝试。',
+                  '尚未查到已提交结果，原消息仍保留。你可以先继续聊天，稍后再点这里核对。',
                 );
               // A different command is permitted only by the explicit retry/confirmation button.
               await deliverMessage(failed.actorId, failed.text, commandId, messageId);

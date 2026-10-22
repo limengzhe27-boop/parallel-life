@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
   sendFailureStatus,
+  hasInFlightLocalSend,
   hasLocalSendFailure,
   storeSendMessages,
   restoreSendMessages,
@@ -51,6 +52,12 @@ test('lost response, timeout and ambiguous failures stay unknown, explicit rejec
     'INVALID_AI_OUTPUT',
   ])
     assert.equal(sendFailureStatus({ code }), 'failed');
+});
+test('an unresolved old send stays recoverable but cannot freeze the composer forever', () => {
+  assert.equal(hasInFlightLocalSend([{ role: 'user', status: 'unknown' }]), false);
+  assert.equal(hasInFlightLocalSend([{ role: 'user', status: 'failed' }]), false);
+  assert.equal(hasInFlightLocalSend([{ role: 'assistant', status: 'pending' }]), false);
+  assert.equal(hasInFlightLocalSend([{ role: 'user', status: 'pending' }]), true);
 });
 test('only the same visible player command handles composer error; other commands and NPCs never mask it', () => {
   assert.equal(hasLocalSendFailure(op, [message]), true);

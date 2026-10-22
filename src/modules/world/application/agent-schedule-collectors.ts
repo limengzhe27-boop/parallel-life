@@ -858,17 +858,36 @@ async function observations(view: SchedulingView, context: ActorContext) {
 async function localInitiative(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
-  const lastAssistantAt = view.lastAssistantAtByActor?.[snapshot.state.actorId];
-  const storyGap = lastAssistantAt
-    ? Date.parse(view.storyAt) - Date.parse(lastAssistantAt)
-    : Number.POSITIVE_INFINITY;
-  const lastAssistantRealAt = view.lastAssistantRealAtByActor?.[snapshot.state.actorId];
-  const realGap = lastAssistantRealAt
-    ? Date.now() - Date.parse(lastAssistantRealAt)
-    : Number.POSITIVE_INFINITY;
-  // The story cooldown is the normal beat. If the story clock is stalled, a real
-  // fallback still lets an actor choose to contact the player; neither is a global gate.
-  if (storyGap < 30 * 60 * 1000 && realGap < 10 * 60 * 1000) return [];
+  const cooldown = 30 * 60 * 1000;
+  const gap = (actorId: string) => {
+    const storyAt = view.lastAssistantAtByActor?.[actorId];
+    const realAt = view.lastAssistantRealAtByActor?.[actorId];
+    return {
+      story: storyAt ? Date.parse(view.storyAt) - Date.parse(storyAt) : Number.POSITIVE_INFINITY,
+      real: realAt ? Date.now() - Date.parse(realAt) : Number.POSITIVE_INFINITY,
+    };
+  };
+  const currentGap = gap(snapshot.state.actorId);
+  // The story cooldown is the normal beat. If the story clock is stalled, the real
+  // fallback uses the same 30 minutes; 10-minute proximity caused repeated contact.
+  if (currentGap.story < cooldown && currentGap.real < cooldown) return [];
+  // One local initiative per scheduling read keeps a multi-actor world from emitting
+  // several unprompted private messages at once; choose the least recently heard actor.
+  const eligible = view.actors
+    .filter((actor) => actor.snapshot.channel.kind === 'private')
+    .filter((actor) => {
+      const actorGap = gap(actor.snapshot.state.actorId);
+      return actorGap.story >= cooldown || actorGap.real >= cooldown;
+    })
+    .sort((a, b) => {
+      const aAt = view.lastAssistantAtByActor?.[a.snapshot.state.actorId];
+      const bAt = view.lastAssistantAtByActor?.[b.snapshot.state.actorId];
+      return (
+        (aAt ? Date.parse(aAt) : 0) - (bAt ? Date.parse(bAt) : 0) ||
+        a.snapshot.state.actorId.localeCompare(b.snapshot.state.actorId)
+      );
+    });
+  if (eligible[0]?.snapshot.state.actorId !== snapshot.state.actorId) return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(

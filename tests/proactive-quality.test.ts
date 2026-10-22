@@ -18,6 +18,8 @@ test('content-free waiting lines are not proactive contact', () => {
     '我这边条件稳定，准备继续关注修车细节，确保没遗漏什么重要信息。',
     '我这边已经整理好了今晚见面前的心情，没什么要补充的了。',
     '暂时没有新的想法，还是先观察观察吧。',
+    '我就继续观察着，等有啥具体情况了再说。',
+    '我看着还行，暂时没有什么要特别做的。',
   ])
     assert.equal(isGenericProactiveLine(text), true, text);
 });
@@ -28,6 +30,8 @@ test('concrete observations, plans and stickers survive the gate', () => {
     '锅里依旧有饭，你回家的时候告诉我一声，我给你留着。',
     '明天下午三点我在河边咖啡馆等你。',
     '我暂时没什么新打算，不过明天还是去店里把车交了。',
+    '我继续盯着修车，等老周来了再说。',
+    '今晚的准备差不多告一段落了，等晚上的饭局再看情况吧。',
   ])
     assert.equal(isGenericProactiveLine(text), false, text);
   const result = withProactiveQuality(proposal('我这儿暂时没什么新事儿，就先这样。'), {
