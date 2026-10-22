@@ -73,11 +73,16 @@ export function eligibleEpisodeDispatches(
     const state = episodeRequestWorkState(request.id, attempts);
     // A known invalid response has no committed effect. Only an explicit owner
     // dispatch may buy a fresh evaluation; automatic workers still see it fenced.
+    const retired = prior.filter((a) => a.status === 'invalid_output' && a.paid);
     const freshKnownInvalid =
       options?.allowKnownInvalid === true &&
       !!options.freshCommand &&
-      prior.length > 0 &&
-      prior.every((a) => a.status === 'invalid_output');
+      retired.length > 0 &&
+      prior.every(
+        (a) =>
+          (a.status === 'invalid_output' && a.paid) ||
+          (!a.paid && ['stale_discarded', 'cancelled_before_send'].includes(a.status)),
+      );
     if (state !== 'available' && !freshKnownInvalid) return [];
     if (
       attempts.some(
@@ -107,7 +112,7 @@ export function eligibleEpisodeDispatches(
       {
         request,
         commandId,
-        ...(freshKnownInvalid ? { retiredCommandId: prior[0]!.commandId } : {}),
+        ...(freshKnownInvalid ? { retiredCommandId: retired[0]!.commandId } : {}),
       },
     ];
   });
