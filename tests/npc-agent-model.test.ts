@@ -1460,3 +1460,15 @@ test('the current request points to its own retained opportunity rather than old
     ),
   );
 });
+
+test('stale optional narrative state is dropped instead of failing the whole NPC turn', async () => {
+  const input = snapshot();
+  (input.viewState as unknown as { episodeParticipations: unknown[] }).episodeParticipations = [
+    { id: 'stale', choice: 'not-a-real-choice' },
+  ];
+  const { calls, adapter } = capture();
+  await adapter.decide(input);
+  assert.equal(calls.length, 1);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal('episodeParticipations' in payload.state, false);
+});
