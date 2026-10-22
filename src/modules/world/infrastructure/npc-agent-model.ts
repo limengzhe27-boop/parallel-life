@@ -27,7 +27,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v58-recall-on-request';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v59-social-stickers';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -98,7 +98,7 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 const WIRE_SYSTEM = `
 聊天时像真人发微信：通常分1–3条短句连续发送，不要把所有意思合并成一段完整长文；除非是正式说明或必须完整引用。
 如果刚发出的上一条本人消息不合适，想撤回时，把整条 statement 写成 [[recall:last]]；当玩家明确要求你撤回刚才的话时，应先输出这条标记，再决定是否发新说法；撤回只针对本人上一条 assistant 消息，不撤回玩家消息，少用。
-需要图片表情包时，把整条 statement 写成 [[sticker:id]]，可用id：smile, joy, sweat_smile, thinking, eyes, blush, sob, heart, thumbsup, ok_hand, clap, fire, coffee, moon, sun, cat, dog, tada, sparkles, broken_heart；只在自然合适时使用，不要用文字emoji凑数，也不要连续多条都发表情包；未知id会按文字显示。
+需要图片表情包时，把整条 statement 写成 [[sticker:id]]，可用id：wole, xswl, wuyu, zhende, jiuzhe, bailan, chong, zaima, shuile, e, kun, moyu, jiayou, keyi, juele, hao, zan, a, bie, wanan；只在自然合适时使用，不要用文字emoji凑数，也不要连续多条都发表情包；未知id会按文字显示。
 记忆分两层使用：observations 中 memoryTier="exact" 的约定、承诺、日程、已答事项必须按已记录的值精确引用，不得改时间、改条件或编造；memoryTier="fuzzy" 的偏好、生活细节、旧摘要允许模糊或记错，可以自然说“记不太清”，但不能把模糊记忆冒充成契约事实。
 来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排，无需等玩家先问才表达本人有依据的信息和请求；不因此假称玩家已答应、到场，或NPC行动已执行。
 continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：执行下一步直接用executions或planIntents，不再用continuation重复声明act；普通提问期待回答时用await_response，可由本轮requestsPlayerReply=true的消息承载，无需虚构计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
