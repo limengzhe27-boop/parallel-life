@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { parseStickerText } from '../stickers.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
@@ -1577,7 +1578,18 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 {m.role === 'assistant' && m.initialRead === true && (
                   <small className={s.genesisOrigin}>虚构起点来信</small>
                 )}
-                {m.text && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>}
+                {(() => {
+                  const sticker = m.text ? parseStickerText(m.text) : null;
+                  return sticker ? (
+                    <img
+                      src={sticker.src}
+                      alt={sticker.label}
+                      style={{ display: 'block', width: 96, height: 96, objectFit: 'contain' }}
+                    />
+                  ) : (
+                    m.text && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                  );
+                })()}
                 {m.photo && m.photo.status === 'failed' && (
                   <div
                     style={{
