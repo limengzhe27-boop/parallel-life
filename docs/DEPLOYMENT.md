@@ -1907,3 +1907,24 @@ M正式9623095cc99c036a3a5548e258555fedb18dcfef / dpl_Dy57kUiwb3AGSLqZ111ELLBF2s
 公网health/workbench200、匿名works401；原真实PNG1,883,870字节200/匿名401/跨档404。95为后续O的兼容DDL已核无旧world/作品/decision变更；M交付时94checksum，O迁移后95checksum一致。
 
 真实验收不隐去失败：首份冷启动出现emergent替代作者opening/机会ID冲突（已修），第二份合法quiet未发新消息；原微信聊天7.569秒提交、new_request语义正确但无持续计划。M只按批次可靠性范围结清，整体主动事件体验未算完成。O源码de6d9c18已通过check3500/build/原PG24，v4明确作者逐事件consider/defer及0095校验；候选及真实模型验收进行，尚未正式替换M。不以API成功或测试数量宣称新世界全部自然演绎已通过。后续N2/N3尚未接入生产发送/预算链路。
+
+## 2026-10-23 · 44-189/190/191/192/193 人感、撤回、表情包、记忆与服务端主动
+
+业务代码 `16e2699c` 已部署到新域名 `parallel-world-eosin.vercel.app`，Production
+READY，`/api/health` 200。生产库已应用 `0105`/`0106`/`0107`/`0108` 并写入
+`public.pl_migrations`，避免重复应用；新增 `pg_cron` + `pg_net` 调度、数据库
+哈希定时令牌与主动推进租约/冷却/每日 6 次预算。
+
+真实证据：
+- 撤回：`县城黄毛` v50 事件 `fe30ee36...` 写入 `message.recalled`；world API 目标
+  消息 `text:""`/`recalled:true`，手机显示“对方撤回了一条消息”。
+- 纯表情包：v53 真实 `text:""` + `stickerId:"keyi"` 落库并在手机渲染；20 回合抽样
+  中 3 条纯表情包、14/15 成功回合为多气泡（93%）。
+- fuzzy 记忆：v122 询问“我喜欢吃辣？”得到“你之前没跟我直说…没记着”，随后只用
+  “估摸着”猜测，未冒充契约事实；exact 10 次时间/地点/人物保持。
+- 服务端主动：`pg_cron` 30 分钟触发，`pg_net` 200；`claimed=1/advanced=1/messages=2/failed=0`，
+  6 个世界公平分配，冷却后 `claimed=0`；浏览器 TaskSpace 已关闭时仍由数据库调度推进。
+
+未完成/风险：20 回合中有 1 次上游 `unknown_after_send`（无 response/event），随后
+5 次被保护挡住，已如实记录；主动质量闸门的下一次真实定时样本需等 UTC 日期重置；
+44-185/188 五维人格与 44-187 旧域名兼容仍未完成。
