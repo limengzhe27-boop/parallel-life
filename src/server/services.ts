@@ -491,6 +491,12 @@ function createServices() {
     memoryCandidates: new MemoryCandidateRepository(db),
     profile: new ProfileRepository(db),
     assets: new AssetRepository(db, assetStore),
+    verifyCronToken: async (tokenHash: string) => {
+      const result = await db.pool.query('SELECT parallel_life.verify_cron_token($1) AS valid', [
+        tokenHash,
+      ]);
+      return result.rows[0]?.valid === true;
+    },
     inspectLegacyWorld: (ownerId: string, worldId: string) =>
       db.transaction(ownerId, (sql) => inspectLegacyWorldReadiness(sql, ownerId, worldId)),
     migrateLegacyWorld: (
