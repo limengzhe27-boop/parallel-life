@@ -117,6 +117,25 @@ function systemFor(snapshot: AgentSnapshot): string {
     .join('\n');
 }
 
+function stateContextWithFallback(
+  viewState: Parameters<typeof actorStateContextPayload>[0],
+  options: Parameters<typeof actorStateContextPayload>[1],
+  invalid: () => never,
+) {
+  try {
+    return actorStateContextPayload(viewState, options, invalid);
+  } catch {
+    // Optional narrative continuations can outlive a changed participation row.
+    // They are context, not the player's message; drop only those fields and
+    // retry the strict projection instead of blocking the whole turn.
+    return actorStateContextPayload(
+      { ...viewState, episodeParticipations: undefined, continuation: undefined },
+      options,
+      invalid,
+    );
+  }
+}
+
 function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
   // Never put source text, identities or raw model output in errors/logs.
   throw Object.assign(Error(code), { code });
@@ -295,7 +314,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
           },
         }
       : {}),
-    state: actorStateContextPayload(
+    state: stateContextWithFallback(
       viewState,
       {
         privateStrategySourceIds: new Set(
