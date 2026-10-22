@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { PostgresDatabase } from '../../../../../modules/storage/infrastructure/postgres.ts';
 import { json } from '../../../../server/http.ts';
 export const runtime = 'nodejs';
 export async function GET() {
@@ -21,6 +22,20 @@ export async function GET() {
       await client.end().catch(() => {});
     }
   }
+  let appProbe: { ok: boolean; code?: string } = { ok: false };
+  if (process.env.APP_DATABASE_URL) {
+    const db = new PostgresDatabase(process.env.APP_DATABASE_URL);
+    try {
+      await db.transaction('probe', async (sql) => {
+        await sql.query('select 1');
+      });
+      appProbe = { ok: true };
+    } catch (error) {
+      appProbe = { ok: false, code: String((error as { code?: unknown })?.code ?? 'FAILED') };
+    } finally {
+      await db.pool.end().catch(() => {});
+    }
+  }
   const raw = process.env.APP_DATABASE_URL ?? process.env.DATABASE_URL;
   let dbUser: string | null = null;
   try {
@@ -38,5 +53,6 @@ export async function GET() {
     serviceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     yibuKey: !!process.env.YIBU_API_KEY,
     database,
+    appProbe,
   });
 }
