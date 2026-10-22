@@ -86,8 +86,10 @@ unknown 作为浏览器状态，随后清理）：
   `ATTEMPT_STALE`；尝试把 attempt 状态恢复为 `response_received` 再提交时，被数据库
   `AGENT_RECOVERY_REQUIRED` 触发器拒绝，不能用人工改状态绕过。原始提交失败的具体
   冲突类型仍未被安全观测到，因此不能声称已修复。
-- 该残留说明 actor 当前 projection 与 world version 的 stale 修复仍未闭环；
-  44-181 继续保留进行中。
+- 该残留只属于旧档 actor projection；44-181 的“真实导演派发”已在无旧围栏的隔离
+  guest `渣男体验` 世界 `e1642bb2...` 打通并验收：导演 `bounded_opportunity` →
+  刘胜男 episode request consumed → v8 `origin:director` 消息，公网 API 可读。
+  详见 [44-181 报告](44-181-DIRECTOR-LIVE-DISPATCH.md)；旧档 stale 恢复仍归 44-161。
 - 主动质量的下一次 `pg_cron` 真实 tick 仍需观察；本次只证明新开场与单测路径。
 - 旧域名/其他 Agent 的 `pl_app` 兼容仍按用户要求暂缓。
 

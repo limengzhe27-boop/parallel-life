@@ -1908,6 +1908,19 @@ M正式9623095cc99c036a3a5548e258555fedb18dcfef / dpl_Dy57kUiwb3AGSLqZ111ELLBF2s
 
 真实验收不隐去失败：首份冷启动出现emergent替代作者opening/机会ID冲突（已修），第二份合法quiet未发新消息；原微信聊天7.569秒提交、new_request语义正确但无持续计划。M只按批次可靠性范围结清，整体主动事件体验未算完成。O源码de6d9c18已通过check3500/build/原PG24，v4明确作者逐事件consider/defer及0095校验；候选及真实模型验收进行，尚未正式替换M。不以API成功或测试数量宣称新世界全部自然演绎已通过。后续N2/N3尚未接入生产发送/预算链路。
 
+## 2026-10-23 · 44-181 真实导演派发到 NPC 主动消息
+
+无新增业务代码变更（验证使用已部署 `8f625c5c`）。隔离 guest `渣男体验` 世界
+`e1642bb2-f6b7-4730-8de1-491e310daf04`：玩家消息后显式 review，导演 attempt
+`6dd20c43-6b28-4fbc-b209-77ed9c73944b` committed，决策 `bounded_opportunity`，
+作者事件 `event_289...` 编译 6 个 actor future_task。刘胜男请求被消费，v8
+`origin:director` 真实消息“今晚我安排了出差，你打算跟我一起走还是留在这儿？”，
+公网 world API version 8 可读（message `f3fa2ac4...`）。其余 5 个 episode request
+仍 pending，属于合法部分完成；没有手插消息或伪造成功。旧 `渣男体验副本` 的
+historical unknown/stale 由 44-161 兼容处理，不在本行冒充修复。
+
+详见 [44-181 报告](task-reports/44-181-DIRECTOR-LIVE-DISPATCH.md)。
+
 ## 2026-10-23 · 44-195 未知结果不冻结输入、主动质量与本地主动稳定
 
 业务代码 `8f625c5c` 已部署到 `parallel-world-eosin.vercel.app`，Production READY，
