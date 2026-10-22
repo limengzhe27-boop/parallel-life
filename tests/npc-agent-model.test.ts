@@ -1472,3 +1472,21 @@ test('stale optional narrative state is dropped instead of failing the whole NPC
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal('episodeParticipations' in payload.state, false);
 });
+
+test('progressive state degradation also tolerates malformed questions and focus', async () => {
+  const malformedQuestions = snapshot();
+  (malformedQuestions.viewState as unknown as { questions: unknown[] }).questions = [
+    { id: 42, text: 'not a string' },
+  ];
+  const q = capture();
+  await q.adapter.decide(malformedQuestions);
+  const qPayload = JSON.parse(q.calls[0]!.messages[1]!.content);
+  assert.equal('questions' in qPayload.state, false);
+
+  const malformedFocus = snapshot();
+  (malformedFocus.viewState as unknown as { focus: unknown }).focus = { channel: 42 };
+  const f = capture();
+  await f.adapter.decide(malformedFocus);
+  const fPayload = JSON.parse(f.calls[0]!.messages[1]!.content);
+  assert.equal(fPayload.state.focus, null);
+});
