@@ -1521,7 +1521,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     void respondToInvitation('accept');
                   }}
                 >
-                  {invitationOperation?.errorCode === 'UNKNOWN' ? '确认重试接受' : '接受'}
+                  {invitationOperation?.errorCode === 'UNKNOWN' &&
+                  invitationOperation.signature?.includes(':accept:')
+                    ? '确认重试接受'
+                    : '接受'}
                 </button>
                 <button
                   type="button"

@@ -774,6 +774,9 @@
   font-size: 13px;
 }
 .chatInvitation {
+  position: sticky;
+  top: 0;
+  z-index: 6;
   margin: 4px 2px 12px;
   padding: 13px 14px;
   border: 1px solid #e3e5e8;

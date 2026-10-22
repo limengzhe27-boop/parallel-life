@@ -65,6 +65,28 @@ test('chat cannot fill the lock screen with one actor burst, and old dates are n
   );
 });
 
+test('content-free waiting noise does not take a lock-screen slot', () => {
+  const items = lockScreenNotifications(
+    [
+      {
+        ...message('filler', 'actor-a', at('2026-10-20T17:55:00Z')),
+        summary: '我就继续观察着，等有啥具体情况了再说。',
+      },
+      {
+        ...message('useful', 'actor-b', at('2026-10-20T17:54:00Z')),
+        summary: '七点我到店门口，车钥匙带了吗',
+      },
+    ],
+    [],
+    '2026-10-20T18:00:00Z',
+    (value) => value,
+  );
+  assert.deepEqual(
+    items.map((item) => item.id),
+    ['useful'],
+  );
+});
+
 test('a quiet lock screen stays quiet and the input array is not mutated', () => {
   const input = [message('m1', 'actor-a', at('2026-10-20T17:55:00Z'))];
   const before = JSON.stringify(input);

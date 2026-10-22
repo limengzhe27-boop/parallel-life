@@ -4,6 +4,7 @@ import {
 } from './message-notification-policy.ts';
 import type { PhoneNotification } from './phone-shell.tsx';
 import { STICKER_LABELS, type StickerId } from './stickers.ts';
+import { isGenericProactiveLine } from '../../modules/world/domain/proactive-quality.ts';
 
 type Message = MessageNotificationState & {
   id: string;
@@ -97,6 +98,8 @@ export function lockScreenNotifications(
   for (const card of cards) push(card);
   const chat = notifications
     .filter((item) => !(item.app === 'calendar' && item.target && represented.has(item.target)))
+    // A lock screen is for a reason to return, not a transcript of waiting noises.
+    .filter((item) => !isGenericProactiveLine(item.summary))
     .sort((a, b) => Date.parse(b.at ?? '') - Date.parse(a.at ?? ''));
   for (const item of chat) push(item);
   return result;

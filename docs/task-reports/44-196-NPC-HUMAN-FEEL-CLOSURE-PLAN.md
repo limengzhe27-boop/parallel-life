@@ -53,7 +53,7 @@
 
 ## 5. 实现证据（本地代码）
 
-全部为当前 `main` 工作树，未提交/未部署；真实模型与公网证据待下一步。
+代码已完成并推送到 `main`；首次部署 `3dd7eca9` 后做了公网验收，最新“锁屏过滤 filler / 邀约卡 sticky / 明确重试签名”仍待再次部署。
 
 | 项 | 实际改动 | 聚焦测试 |
 |---|---|---|
@@ -61,12 +61,31 @@
 | T2-2 | 未新增另一套日程；沿用 `world_appointments`、`state.appointments`、日历/地图地点关联 | 现有日历/邀请/地图用例；卡片测试覆盖 `links[app=map]` |
 | T2-3 | `agenda.ts` 新增 `appointment_upcoming`（确认后 2 小时内、窗口内无真实发言才触发）与 `appointment_overdue`（到点 1 小时后、12 小时内、每次只承接一次）；`return-followups` 允许这两个 code-timed 节点；cue 明说不能编造到场/失约 | `appointment-reminder` 5/5；世界时钟/返回消息回归 |
 | T2-4 | 保留 `proposed/confirmed/cancelled/attended/missed` 最小状态；不凭到期自动写 attended/missed；结果由现场证据或玩家明确记录产生，`appointment_result` 承接 | `world-clock` 的 due→result；日历 Actions 原测试 |
-| T2-5 | 新增 `lockScreenNotifications` 纯投影：过期>到点>临近>待回复>普通消息，最多 3 条，同一 actor 不刷屏；`PhoneShell` 新增 `lockNotifications`，世界页传入，低利害仍留在应用列表 | `lock-notifications` 4/4、`lock-screen-ui` 静态渲染 1/1（3 条，不显示“查看其余”） |
+| T2-5 | 新增 `lockScreenNotifications` 纯投影：过期>到点>临近>待回复>普通消息，最多 3 条，同一 actor 不刷屏；锁屏再过滤 `isGenericProactiveLine` 等待噪声；`PhoneShell` 新增 `lockNotifications`，世界页传入，低利害仍留在应用列表 | `lock-notifications` 5/5、`lock-screen-ui` 静态渲染 1/1（3 条，不显示“查看其余”） |
 | T2-6 | `advanceClock` 长离开只回放最近 1–2 个节拍，旧时刻作废；`activeUntil` 之外按 1×；主动性仍由现有虚拟时间候选+30 分钟真实冷却+服务端 cron 驱动，未新增额度表 | `world-clock` 长离开 2 条；`return-messages` 最新窗口；原有 scheduler 测试 |
 | T2-7 | 聊天内嵌日程卡片：接受/改期/拒绝；已确认显示“前往{地点}”（地图 target）、“进入现场”、“查看日程”；改期复用日历详情；拒绝后不伪造对方回复 | `chat-invitation-ui` 2/2（真实静态渲染） |
 
-本地检查：`npm run check` 通过（3940/3940），`npm run build` 通过。格式只对本次改动文件执行 Prettier。
+本地检查：`npm run check` 通过（3941/3941），`npm run build` 通过。格式只对本次改动文件执行 Prettier。
 
-## 6. 当前接续点
+## 6. 公网真实验收（首次部署 `3dd7eca9`）
 
-下一步：提交并部署到新 Vercel `parallel-world`，在干净 guest 世界做真实模型/浏览器验收；重点检查 3× 时钟、锁屏 1–3 条、聊天邀约卡与前往/现场。生产通过后才把 T1/T2 标完成。
+新 Vercel 项目 `parallel-world` 在推送后自动部署，`Vercel – parallel-world` 状态 success。使用既有 guest owner 的验收世界 `县城黄毛` `5f296b6e-805e-4923-b888-9f0d47de6108`，当前生产 `version 168`；没有新建付费世界、没有自动重试 unknown。
+
+- **T2-1**：打开世界后 `/clock` 返回 `speed:3`，`activeUntil` 持续由前台心跳续租；页面时间从 15:28 走到 15:38，实际约 10 分钟，符合 3× 预期。后台/关闭 1× 由单测覆盖，未用假数据冒充。
+- **T2-3/T2-5**：把一条真实日程改期到 `2026-10-20T08:00:00Z` 并接受（服务端 committed，world v163），锁屏出现：
+  - `约定快到了` / `16:00` / `R17车辆交接 · 记得确认出发安排`（日历卡，排第一）
+  - 两条真实未读消息
+  锁屏总共 3 条，未显示“查看其余”。首次截图时仍混入两条旧等待腔；最新代码已加 `isGenericProactiveLine` 投影过滤，待二次部署复验。
+- **T2-7**：聊天里真实渲染 sticky 邀约卡（见截图），`前往老周修车铺` → 地图 `target=repair_shop`，显示 18 分钟/15:25 到达；点击“前往这里”真实到达 `15:28`，地图出现“看看这里（进入现场）”；点击后创建现场 `9964a558-2d05-4c2e-b300-e7ec3c213ded`，URL 进入 `panel=scene`。
+  **未完成点**：现场任务 `9cafe9d3-22c2-4668-88ef-60a1c22f10c6` 仍是 `queued`，因此现场目前只有玩家、没有老周，不能宣称“现场与 NPC 对话”已通过。该队列需要仓库既有的独立 `src/workers/main.ts` worker；本轮没有为了验收去启动生产 worker 或伪造 NPC 到场。
+- **T1-1**：在同一个真实世界向老周发送“我在店里，R17的钥匙带着。你什么时候过来？”，Grok 真实回复两条短气泡：
+  - “我这会儿正盯着店里活儿，等刘航马上过来。”
+  - “你先别走，准备好待会交车的东西。”
+  无逐字重复、无空计划句、不是一整段总结，符合多气泡/短句方向。T1-2/T1-3 本轮未重买新样本，沿用 44-191/44-192 已验收证据，不冒充本轮新调用。
+- 截图：[聊天邀约卡](assets/44-196-chat-invitation-card.png)。
+
+## 7. 当前接续点
+
+1. 提交并二次部署最新的锁屏 filler 过滤、sticky 邀约卡和 unknown 文案修复。
+2. 若要让 T2-7 的“现场 NPC 对话”真正通过，需要启动/恢复既有独立 worker（不是本轮新增的假实现），再重开同一现场观察；未启动前保持 T2-7 部分完成。
+3. 二次部署后重拍锁屏，确认旧等待腔不再占锁屏；再决定 44-196 是完成还是继续保持待验收。
