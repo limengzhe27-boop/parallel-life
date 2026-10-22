@@ -759,7 +759,7 @@
 }
 .banner {
   position: absolute;
-  z-index: 8;
+  z-index: 200;
   top: calc(152px + env(safe-area-inset-top));
   left: 12px;
   right: 12px;

@@ -473,3 +473,34 @@
     gap: 2px;
   }
 }
+.statusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  margin-top: -6px;
+}
+.statusRow .storyTime {
+  margin-top: 0;
+  flex: 0 1 auto;
+}
+.unreadHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.unreadHint span {
+  font-size: 8px;
+}

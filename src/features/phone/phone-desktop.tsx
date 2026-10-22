@@ -131,31 +131,22 @@ export function PhoneDesktop({
         <strong>{title}</strong>
       </button>
 
-      <time className={styles.storyTime} dateTime={reference || undefined}>
-        {dateLabel} {timeLabel}
-      </time>
-      {unread > 0 && (
-        <button
-          type="button"
-          onClick={() => open('messages')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            margin: '10px 0 0',
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '1px solid #fecaca',
-            background: '#fef2f2',
-            color: '#b91c1c',
-            fontWeight: 600,
-            textAlign: 'left',
-          }}
-        >
-          <span aria-hidden="true">●</span>
-          <span>有人给你发了 {unread} 条消息</span>
-        </button>
-      )}
+      <div className={styles.statusRow}>
+        <time className={styles.storyTime} dateTime={reference || undefined}>
+          {dateLabel} {timeLabel}
+        </time>
+        {unread > 0 && (
+          <button
+            type="button"
+            className={styles.unreadHint}
+            onClick={() => open('messages')}
+            aria-label={`${unread} 条未读消息`}
+          >
+            <span aria-hidden="true">●</span>
+            {unread} 条未读
+          </button>
+        )}
+      </div>
 
       <div className={styles.widgets}>
         <button
