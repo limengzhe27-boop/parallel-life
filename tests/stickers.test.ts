@@ -34,3 +34,17 @@ test('world phone contract accepts a real semantic sticker id, not a UUID placeh
   });
   assert.equal(parsed.messages[0]?.stickerId, 'xswl');
 });
+import { CommittedTurnMessageSchema } from '../src/contracts/world-interaction.ts';
+test('committed receipt accepts a sticker-only assistant message', () => {
+  const parsed = CommittedTurnMessageSchema.parse({
+    id: 'm1_seg_0',
+    actorId: '00000000-0000-4000-8000-000000000003',
+    role: 'assistant',
+    text: '',
+    stickerId: 'kun',
+    at: '2026-10-20T00:00:00.000Z',
+    sourceEventId: '00000000-0000-4000-8000-000000000004',
+    sourceVersion: 1,
+  });
+  assert.equal(parsed.stickerId, 'kun');
+});

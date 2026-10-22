@@ -33,15 +33,18 @@ export const WORLD_MESSAGE_PROJECTION_VERSION = '2';
 export const WORLD_MESSAGE_STREAM_HEADER = 'x-message-stream';
 export const WORLD_MESSAGE_STREAM_VERSION = '1';
 
-export const CommittedTurnMessageSchema = z.strictObject({
-  id: z.string().min(1).max(160),
-  actorId: Id,
-  role: z.enum(['user', 'assistant']),
-  text: z.string().min(1).max(4000),
-  at: Timestamp,
-  sourceEventId: Id,
-  sourceVersion: z.number().int().nonnegative(),
-});
+export const CommittedTurnMessageSchema = z
+  .strictObject({
+    id: z.string().min(1).max(160),
+    actorId: Id,
+    role: z.enum(['user', 'assistant']),
+    text: z.string().max(4000),
+    stickerId: z.string().min(1).max(24).optional(),
+    at: Timestamp,
+    sourceEventId: Id,
+    sourceVersion: z.number().int().nonnegative(),
+  })
+  .refine((message) => message.text.trim().length > 0 || !!message.stickerId, 'empty message');
 export type CommittedTurnMessage = z.infer<typeof CommittedTurnMessageSchema>;
 
 export const NpcStreamTurnSummarySchema = z.strictObject({

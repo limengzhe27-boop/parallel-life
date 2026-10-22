@@ -96,6 +96,7 @@ export function projectCommittedTurnReceipt(
       actorId: message.actorId,
       role: message.role,
       text: message.text,
+      ...(message.stickerId ? { stickerId: message.stickerId } : {}),
       at: message.at,
     });
   }

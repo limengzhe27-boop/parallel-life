@@ -355,6 +355,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
         actorId?: unknown;
         role?: unknown;
         text?: unknown;
+        stickerId?: unknown;
         at?: unknown;
         sourceEventId?: unknown;
       };
@@ -364,7 +365,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
         doc.sourceEventId !== row.event_id ||
         (doc.role !== 'user' && doc.role !== 'assistant') ||
         typeof doc.text !== 'string' ||
-        !doc.text.trim() ||
+        (!doc.text.trim() && typeof doc.stickerId !== 'string') ||
         typeof doc.at !== 'string'
       )
         continue;
@@ -373,6 +374,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
         actorId: receipt.actorId,
         role: doc.role,
         text: doc.text,
+        ...(typeof doc.stickerId === 'string' ? { stickerId: doc.stickerId } : {}),
         at: doc.at,
         sourceEventId: String(row.event_id),
         sourceVersion: Number(row.version),

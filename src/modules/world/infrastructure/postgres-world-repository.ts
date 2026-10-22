@@ -72,6 +72,8 @@ export async function storeTurnMemories(
 ): Promise<void> {
   const replies = state.messages.filter((message) => message.sourceEventId === event.id);
   if (!replies.length) return;
+  const memoryText = (message: (typeof replies)[number]) =>
+    message.text.trim() || (message.stickerId ? `[表情包:${message.stickerId}]` : '');
   const effects = (event.data as { effects?: { type: string; actorId?: string; text?: string }[] })
     .effects;
   const beliefs = (effects ?? []).filter(
@@ -96,22 +98,25 @@ export async function storeTurnMemories(
       sourceType: 'agent_inference',
       sourceIds: [reply.id],
       importance: 3,
-      evidence: { [reply.id]: { id: reply.id, role: 'assistant', text: reply.text } },
+      evidence: {
+        [reply.id]: { id: reply.id, role: 'assistant', text: memoryText(reply) },
+      },
     });
   }
-  const latest = replies.at(-1)!;
+  const latest = [...replies].reverse().find((message) => memoryText(message))!;
+  const latestText = memoryText(latest).slice(0, 400);
   items.push({
     ownerId,
     scopeType: 'branch',
     scopeId: state.id,
     /* branch/character scopes must name the world they belong to. */
     branchId: state.id,
-    text: latest.text.slice(0, 400),
+    text: latestText,
     kind: 'episode',
     sourceType: 'world_event',
     sourceIds: [event.id],
     importance: 2,
-    evidence: { [event.id]: { id: event.id, text: latest.text.slice(0, 400) } },
+    evidence: { [event.id]: { id: event.id, text: latestText } },
   });
   await deriveAndStoreMemories(sql, items);
 }
