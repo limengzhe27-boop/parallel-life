@@ -1496,3 +1496,22 @@ test('progressive state degradation also tolerates malformed questions and focus
   const fPayload = JSON.parse(f.calls[0]!.messages[1]!.content);
   assert.equal(fPayload.state.focus, null);
 });
+
+test('the same NPC turn accepts two authored statement bubbles', async () => {
+  const raw = JSON.stringify({
+    statements: [
+      { text: '我先到了。', dependsOnActionIds: [] },
+      { text: '你慢慢来。', dependsOnActionIds: [] },
+    ],
+    goals: [],
+    plans: [],
+    actions: [],
+    responsibilities: [],
+    decisions: [],
+  });
+  const { adapter } = capture(raw);
+  const output = JSON.parse((await adapter.decide(snapshot())) as string) as {
+    statements?: unknown[];
+  };
+  assert.equal(output.statements?.length, 2);
+});
