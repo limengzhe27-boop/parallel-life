@@ -1,7 +1,7 @@
 # 44-196 · NPC 人感清单合并与关账计划
 
 日期：2026-10-23  
-状态：进行中  
+状态：待验收（T2-7 现场 NPC 对话受既有 worker 缺口阻塞）  
 负责人 / 集成：`dsh-human196-20261023`（root 唯一集成）  
 基线：`main` / `2be29501`  
 依据：`NPC-HUMAN-FEEL-DEV-LIST.md`、`NPC-HUMAN-FEEL-BATCH-1.md`、`NPC-HUMAN-FEEL-BATCH-2-PLAN.md`、`44-193`、`44-195`
