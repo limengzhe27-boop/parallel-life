@@ -123,7 +123,19 @@ export async function dispatchPendingAgentEpisode(
         worldId: world.id,
         actorId: request.actorId,
       });
-      if (!actor) throw new DomainError('INVALID_PROPOSAL', 'EPISODE_ACTOR_STATE_MISSING');
+      if (!actor) {
+        // A stale episode can outlive its actor state. It is not a world failure
+        // and must not block unrelated proactive or director work.
+        console.warn(
+          JSON.stringify({
+            scope: 'episode-dispatch-skip',
+            reason: 'actor_state_missing',
+            actorId: request.actorId,
+            requestId: request.id,
+          }),
+        );
+        continue;
+      }
       const intent: EpisodeConsiderationIntent = {
         type: 'npc_episode_consideration',
         requestId: request.id,
