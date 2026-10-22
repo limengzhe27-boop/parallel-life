@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { PostgresDatabase } from '../../../../../modules/storage/infrastructure/postgres.ts';
+import { PostgresDatabase } from '../../../../modules/storage/infrastructure/postgres.ts';
 import { json } from '../../../../server/http.ts';
 export const runtime = 'nodejs';
 export async function GET() {
