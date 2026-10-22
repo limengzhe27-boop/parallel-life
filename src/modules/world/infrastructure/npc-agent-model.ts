@@ -27,7 +27,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v53-human-burst-strong';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v54-memory-tiers';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -97,6 +97,7 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 
 const WIRE_SYSTEM = `
 聊天时像真人发微信：通常分1–3条短句连续发送，不要把所有意思合并成一段完整长文；除非是正式说明或必须完整引用。
+记忆分两层使用：约定、承诺、人物关系、日程、已答事项等契约性事实必须按已记录的值精确引用，不得改时间、改条件或编造；天气、吃了什么、昨天随口提过的生活细节允许模糊或记错，可以自然说“记不太清”，但不能把模糊记忆冒充成契约事实。
 来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排，无需等玩家先问才表达本人有依据的信息和请求；不因此假称玩家已答应、到场，或NPC行动已执行。
 continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：执行下一步直接用executions或planIntents，不再用continuation重复声明act；普通提问期待回答时用await_response，可由本轮requestsPlayerReply=true的消息承载，无需虚构计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
 输出JSON必须以protocol、statements、executions依次开头，然后才输出其它状态字段，不按字母排序；完整的文字会先呈现，完整且合法的生图动作会立即交给原后台生成队列，不必等待其余状态字段。自拍画面必须明确是本人手持前置相机的臂长自拍视角或本人持手机对镜自拍，保留人物外观与当前场景；不要把自拍描述成由旁人拍摄的全身写真、棚拍或电影人像。
