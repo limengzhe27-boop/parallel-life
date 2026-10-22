@@ -19,30 +19,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const automatic = Boolean(
       input && typeof input === 'object' && 'automatic' in input && input.automatic === true,
     );
-    try {
-      const result = await s.advanceWorld(
-        s.ownerId,
-        worldId.data,
-        automatic ? 1 : undefined,
-        automatic,
-      );
-      return json({ status: 'advanced' as const, worldId: worldId.data, ...result });
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          scope: 'advance-endpoint-failure',
-          code: (error as { code?: unknown })?.code ?? null,
-          message:
-            error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 100),
-          stack: error instanceof Error ? error.stack?.split('\n').slice(0, 8) : [],
-        }),
-      );
-      return json({
-        error: {
-          code: (error as { code?: unknown })?.code ?? 'FAILED',
-          message: error instanceof Error ? error.message.slice(0, 500) : String(error),
-        },
-      });
-    }
+    const result = await s.advanceWorld(
+      s.ownerId,
+      worldId.data,
+      automatic ? 1 : undefined,
+      automatic,
+    );
+    return json({ status: 'advanced' as const, worldId: worldId.data, ...result });
   });
 }
