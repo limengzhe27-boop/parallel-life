@@ -8,6 +8,7 @@ import type {
   EventGoalAssessment,
   WorldMediaPurpose,
 } from './types.ts';
+import { isStickerId } from './stickers.ts';
 import type {
   WorldMatter,
   MatterSpan,
@@ -474,8 +475,27 @@ export function parseProposal(value: unknown): TurnProposal {
     const item = record(raw);
     const effectId = id(item.id);
     switch (item.type) {
-      case 'message.received':
-        return { type: item.type, id: effectId, actorId: id(item.actorId), text: text(item.text) };
+      case 'message.received': {
+        if (typeof item.text !== 'string' || item.text.length > 12000) return fail();
+        const stickerId = item.stickerId === undefined ? undefined : item.stickerId;
+        if (stickerId !== undefined && !isStickerId(stickerId)) return fail();
+        if (!item.text.trim() && !stickerId) return fail();
+        return {
+          type: item.type,
+          id: effectId,
+          actorId: id(item.actorId),
+          text: item.text,
+          ...(stickerId ? { stickerId } : {}),
+        };
+      }
+      case 'message.recalled':
+        return {
+          type: item.type,
+          id: effectId,
+          actorId: id(item.actorId),
+          messageId: id(item.messageId),
+          at: isoInstant(item.at),
+        };
       case 'belief.recorded':
         return { type: item.type, id: effectId, actorId: id(item.actorId), text: text(item.text) };
       case 'information.shared':

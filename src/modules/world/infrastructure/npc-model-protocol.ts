@@ -160,6 +160,7 @@ const Wire = z.strictObject({
   responsibilities: z.array(z.unknown()).max(32).default([]),
   decisions: z.array(z.unknown()).max(32).default([]),
   focus: z.unknown().optional(),
+  recallLast: z.boolean().optional(),
   replyAssessments: z.unknown().optional(),
   questionWithdrawals: z.unknown().optional(),
   locationReports: z.unknown().optional(),
@@ -907,6 +908,8 @@ const optionalNullKeys = new Set([
   'deadline',
   'requestsPlayerReply',
   'questionForResponsibilityId',
+  'stickerId',
+  'recallLast',
   'replyAssessments',
   'questionWithdrawals',
   'locationReports',
@@ -1793,6 +1796,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
         : {}),
       questionWithdrawals: change.questionWithdrawals ?? [],
       locationReports: change.locationReports ?? [],
+      ...(change.recallLast === undefined ? {} : { recallLast: change.recallLast }),
     }),
   );
   const agenda = change.agendaReview ?? null;

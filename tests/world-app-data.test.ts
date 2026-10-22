@@ -481,7 +481,45 @@ test('exact repeated NPC bubbles within five minutes are projected once', () => 
   );
 });
 
-test('recall marker replaces the previous assistant bubble with a recall notice', () => {
+test('formal recall redaction renders one notice without the original text', () => {
+  const recalled = {
+    ...world,
+    messages: [
+      {
+        ...world.messages[0]!,
+        id: 'a1',
+        role: 'assistant',
+        text: '',
+        recalled: true,
+      },
+    ],
+  };
+  const data = worldAppData(recalled as Parameters<typeof worldAppData>[0]);
+  assert.equal(data.messages.length, 1);
+  assert.equal(data.messages[0]?.text, '对方撤回了一条消息');
+  assert.equal(data.messages[0]?.recalled, true);
+});
+
+test('structured sticker-only message is projected without text', () => {
+  const sticker = {
+    ...world,
+    messages: [
+      {
+        ...world.messages[0]!,
+        id: 'sticker',
+        role: 'assistant',
+        text: '',
+        stickerId: 'kun',
+      },
+    ],
+  };
+  const data = worldAppData(sticker as Parameters<typeof worldAppData>[0]);
+  assert.equal(data.messages.length, 1);
+  assert.equal(data.messages[0]?.text, '');
+  assert.equal(data.messages[0]?.stickerId, 'kun');
+});
+
+test('legacy recall marker still replaces the previous assistant bubble with a recall notice', () => {
   const recalled = {
     ...world,
     messages: [

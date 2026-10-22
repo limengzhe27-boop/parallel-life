@@ -1579,7 +1579,11 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   <small className={s.genesisOrigin}>虚构起点来信</small>
                 )}
                 {(() => {
-                  const sticker = m.text ? parseStickerText(m.text) : null;
+                  const sticker = m.stickerId
+                    ? parseStickerText(`[[sticker:${m.stickerId}]]`)
+                    : m.text
+                      ? parseStickerText(m.text)
+                      : null;
                   return sticker ? (
                     <img
                       src={sticker.src}

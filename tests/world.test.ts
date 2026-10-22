@@ -812,3 +812,35 @@ test('director cues produce only character replies and cannot be replayed as use
     /IDEMPOTENCY_CONFLICT/,
   );
 });
+test('a formal recall records the target without deleting the audit copy', async () => {
+  const { worlds, deps } = setup();
+  const first = await resolveTurn(deps, session, command);
+  assert.equal(first.state.messages.filter((message) => message.role === 'assistant').length, 1);
+  const target = first.state.messages.find((message) => message.role === 'assistant')!;
+  const at = '2026-09-22T08:01:00.000Z';
+  const recalled = applyEvent(first.state, {
+    schemaVersion: 1,
+    id: 'event_2',
+    worldId: 'world_1',
+    version: 2,
+    commandId: 'command_2',
+    occurredAt: at,
+    storyAt: at,
+    type: 'turn.resolved',
+    data: {
+      actorId: 'friend',
+      userText: '刚才那句撤回',
+      effects: [
+        {
+          type: 'message.recalled',
+          id: 'recall_1',
+          actorId: 'friend',
+          messageId: target.id,
+          at,
+        },
+      ],
+    },
+  }).state;
+  assert.deepEqual(recalled.recalledMessageIds, [target.id]);
+  assert.equal(recalled.messages.find((message) => message.id === target.id)?.text, target.text);
+});

@@ -582,6 +582,14 @@ export function validateAgentProposal(
       'UNSOURCED_LOCATION_REPORT',
     );
   for (const statement of proposal.statements) {
+    requireValid(
+      statement.text.trim().length > 0 || statement.stickerId !== undefined,
+      'EMPTY_STATEMENT',
+    );
+    requireValid(
+      statement.requestsPlayerReply !== true || statement.text.trim().length > 0,
+      'QUESTION_WITHOUT_TEXT',
+    );
     if (statement.questionForResponsibilityId !== undefined)
       requireValid(
         statement.requestsPlayerReply === true &&
@@ -591,8 +599,15 @@ export function validateAgentProposal(
     for (const id of statement.dependsOnActionIds)
       requireValid(actions.has(id), 'UNKNOWN_STATEMENT_DEPENDENCY');
   }
+  if (proposal.recallLast !== undefined)
+    requireValid(
+      proposal.recallLast === true && context.channel.kind === 'private',
+      'RECALL_SCOPE',
+    );
   requireValid(
-    context.input.origin !== 'player' || proposal.statements.length > 0,
+    context.input.origin !== 'player' ||
+      proposal.statements.length > 0 ||
+      proposal.recallLast === true,
     'MISSING_REPLY',
   );
 }
@@ -783,7 +798,7 @@ export function reduceActorAgentState(
     ),
   );
   requireValid(
-    context.input.origin !== 'player' || statements.length > 0,
+    context.input.origin !== 'player' || statements.length > 0 || proposal.recallLast === true,
     'REPLY_DEPENDS_ON_UNEXECUTED_ACTION',
   );
   return {

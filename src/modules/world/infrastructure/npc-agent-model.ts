@@ -27,7 +27,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v61-ambient-stickers';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v62-structured-expression';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -97,8 +97,8 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 
 const WIRE_SYSTEM = `
 聊天时像真人发微信：通常分1–3条短句连续发送，不要把所有意思合并成一段完整长文；除非是正式说明或必须完整引用。
-如果刚发出的上一条本人消息不合适，想撤回时，把整条 statement 写成 [[recall:last]]；当玩家明确要求你撤回刚才的话时，应先输出这条标记，再决定是否发新说法；撤回只针对本人上一条 assistant 消息，不撤回玩家消息，少用。
-表情包是自然聊天的一部分，不依赖玩家索取；当一条短消息用图片更能表达情绪或反应时，可以只输出一条 [[sticker:id]]（不需要配文字），也可以文字后再补一条；按此刻想表达的含义选图，不按人物固定偏好，不要滥用或每条都发。可用id及含义：wole(崩了), xswl(好笑), wuyu(无语), zhende(怀疑), jiuzhe(就这), bailan(摆烂), chong(冲), zaima(在吗), shuile(睡了), e(饿了), kun(困), moyu(摸鱼), jiayou(加油), keyi(可以), juele(绝了), hao(好), zan(赞), a(疑惑), bie(拒绝), wanan(晚安)；只在自然合适时使用，不要用文字emoji凑数，也不要连续多条都发表情包；未知id会按文字显示。
+如果刚发出的上一条本人消息不合适，想撤回时，在changes里输出 recallLast:true；当玩家明确要求你撤回刚才的话时，也直接输出 recallLast:true，再决定是否发新说法。撤回只针对本人上一条 assistant 消息，不撤回玩家消息，少用；不要用台词或标记表达撤回。
+表情包是自然聊天的一部分，不依赖玩家索取；当一条短消息用图片更能表达情绪或反应时，可以只写一条 statement：text:""、stickerId:"对应id"（不需要配文字），也可以文字后再补一条只带 stickerId 的 statement；按此刻想表达的含义选图，不按人物固定偏好，不要滥用或每条都发。可用id及含义：wole(崩了), xswl(好笑), wuyu(无语), zhende(怀疑), jiuzhe(就这), bailan(摆烂), chong(冲), zaima(在吗), shuile(睡了), e(饿了), kun(困), moyu(摸鱼), jiayou(加油), keyi(可以), juele(绝了), hao(好), zan(赞), a(疑惑), bie(拒绝), wanan(晚安)；只有 stickerId 不为空时 text 才允许为空，不要用文字emoji凑数，也不要连续多条都发表情包。
 记忆分两层使用：observations 中 memoryTier="exact" 的约定、承诺、日程、已答事项必须按已记录的值精确引用，不得改时间、改条件或编造；memoryTier="fuzzy" 的偏好、生活细节、旧摘要允许模糊或记错，可以自然说“记不太清”，但不能把模糊记忆冒充成契约事实。
 来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排，无需等玩家先问才表达本人有依据的信息和请求；不因此假称玩家已答应、到场，或NPC行动已执行。
 continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：执行下一步直接用executions或planIntents，不再用continuation重复声明act；普通提问期待回答时用await_response，可由本轮requestsPlayerReply=true的消息承载，无需虚构计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。

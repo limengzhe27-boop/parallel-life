@@ -120,6 +120,8 @@ export function worldAppData(
           (message) =>
             !recalledMessageIds.has(message.id) &&
             (message.text.trim().length > 0 ||
+              !!message.stickerId ||
+              message.recalled === true ||
               !!message.photoId ||
               message.mediaStatus === 'pending' ||
               message.mediaStatus === 'failed' ||
@@ -194,7 +196,12 @@ export function worldAppData(
               : {}),
             id: message.id,
             actorId: message.actorId,
-            text: recallMarkerIds.has(message.id) ? '对方撤回了一条消息' : message.text,
+            text:
+              message.recalled === true || recallMarkerIds.has(message.id)
+                ? '对方撤回了一条消息'
+                : message.text,
+            ...(message.stickerId ? { stickerId: message.stickerId } : {}),
+            ...(message.recalled === true ? { recalled: true } : {}),
             /* The server already staggers opening timestamps; display them as stored. */
             at: message.at,
             role: message.role ?? 'assistant',

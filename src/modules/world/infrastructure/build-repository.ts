@@ -295,6 +295,7 @@ export class BuildRepository {
         .slice(0, 2),
       source: e.source,
     }));
+    const recalledMessageIds = new Set(state.recalledMessageIds ?? []);
     return WorldPhoneSchema.parse({
       id: state.id,
       seedId: metadata.seed_id,
@@ -423,7 +424,9 @@ export class BuildRepository {
           id: m.id,
           actorId: m.actorId,
           role: m.role,
-          text: m.text,
+          text: recalledMessageIds.has(m.id) ? '' : m.text,
+          ...(m.stickerId ? { stickerId: m.stickerId } : {}),
+          ...(recalledMessageIds.has(m.id) ? { recalled: true } : {}),
           at: m.at,
           ...(m.attachment ? { attachment: { ...m.attachment } } : {}),
           ...(m.initialRead !== undefined ? { initialRead: m.initialRead } : {}),

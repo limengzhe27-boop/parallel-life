@@ -1,7 +1,12 @@
 import { z } from 'zod';
+import { STICKER_IDS } from '../domain/stickers.ts';
 
 const Id = z.string().min(1).max(240);
 const Text = z.string().trim().min(1).max(12000);
+const StatementText = z.string().trim().max(12000);
+export { STICKER_IDS } from '../domain/stickers.ts';
+export const StickerIdSchema = z.enum(STICKER_IDS);
+export type StickerId = z.infer<typeof StickerIdSchema>;
 const Basis = { sourceIds: z.array(Id).min(1).max(64) };
 const DecisionKind = z.enum(['accepted', 'declined', 'negotiating', 'deferred', 'undecided']);
 const Condition = z.discriminatedUnion('kind', [
@@ -80,7 +85,8 @@ export const AgentProposalSchema = z.strictObject({
   statements: z
     .array(
       z.strictObject({
-        text: Text,
+        text: StatementText,
+        stickerId: StickerIdSchema.optional(),
         dependsOnActionIds: z.array(Id).max(16).default([]),
         requestsPlayerReply: z.boolean().optional(),
         questionForResponsibilityId: Id.optional(),
@@ -88,6 +94,8 @@ export const AgentProposalSchema = z.strictObject({
     )
     .max(8)
     .default([]),
+  /** Explicit semantic decision; never encoded as dialogue text. */
+  recallLast: z.boolean().optional(),
   goals: z
     .array(
       z.strictObject({

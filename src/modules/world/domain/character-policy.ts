@@ -9,8 +9,13 @@ export function validateCharacterEffects(
   origin?: 'director',
   allowCommittedReply = false,
 ): void {
-  if (!allowCommittedReply && !effects.some((effect) => effect.type === 'message.received')) {
-    throw new DomainError('INVALID_PROPOSAL', 'A character turn requires a reply');
+  if (
+    !allowCommittedReply &&
+    !effects.some(
+      (effect) => effect.type === 'message.received' || effect.type === 'message.recalled',
+    )
+  ) {
+    throw new DomainError('INVALID_PROPOSAL', 'A character turn requires a reply or recall');
   }
   if (effects.filter((effect) => effect.type === 'matter.proposed').length > 1)
     throw new DomainError(
@@ -51,6 +56,8 @@ export function validateCharacterEffects(
       );
     if (effect.type === 'message.received' && effect.actorId !== actorId)
       throw new DomainError('INVALID_PROPOSAL', 'Character cannot speak for another actor');
+    if (effect.type === 'message.recalled' && effect.actorId !== actorId)
+      throw new DomainError('INVALID_PROPOSAL', 'Character cannot recall another actor message');
     if (
       effect.type === 'fact.established' &&
       (effect.visibility.kind !== 'actors' ||

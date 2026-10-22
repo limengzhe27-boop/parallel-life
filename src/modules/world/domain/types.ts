@@ -35,6 +35,8 @@ export type Message = {
   actorId: Id;
   role: 'user' | 'assistant';
   text: string;
+  /** Structured expression; text may be empty for a sticker-only message. */
+  stickerId?: string;
   at: string;
   sourceEventId: Id;
   attachment?: { kind: 'image' | 'video'; assetId: Id; label?: string };
@@ -227,6 +229,8 @@ export type WorldState = {
   mediaRequests: MediaRequest[];
   /** Absent means no persisted notes yet; opening notes come from the build snapshot. */
   notes?: Note[];
+  /** Messages this actor has formally retracted. Text is withheld from player reads. */
+  recalledMessageIds?: Id[];
   /** Bounded active/recent decisions; absent for worlds created before this feature. */
   choices?: StoryChoice[];
   /** Cross-scene near-term matters and life pursuits. */
@@ -252,7 +256,8 @@ export type WorldEffect =
       participantIds: Id[];
       placeId?: string;
     }
-  | { type: 'message.received'; id: Id; actorId: Id; text: string }
+  | { type: 'message.received'; id: Id; actorId: Id; text: string; stickerId?: string }
+  | { type: 'message.recalled'; id: Id; actorId: Id; messageId: Id; at: string }
   | {
       type: 'appointment.fulfilled';
       id: Id;

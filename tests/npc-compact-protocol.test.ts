@@ -125,3 +125,58 @@ test('no available tools uses null without a fabricated execution', () => {
     [],
   );
 });
+test('structured sticker-only statement uses stickerId without marker text', () => {
+  const c = fixture();
+  const p = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '', stickerId: 'kun', dependsOnActionIds: [] }],
+    executions: [],
+    changes: null,
+  });
+  assert.equal(p.statements.length, 1);
+  assert.equal(p.statements[0]!.text, '');
+  assert.equal(p.statements[0]!.stickerId, 'kun');
+});
+
+test('formal recallLast is a private decision, not a fake chat statement', () => {
+  const c = fixture();
+  const p = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [],
+    executions: [],
+    changes: { recallLast: true },
+  });
+  assert.equal(p.recallLast, true);
+  assert.equal(p.statements.length, 0);
+  assert.throws(() =>
+    parseAgentProposal(
+      { ...c, channel: { ...c.channel, kind: 'group' } },
+      {
+        protocol: 'npc-wire-v15',
+        statements: [],
+        executions: [],
+        changes: { recallLast: true },
+      },
+    ),
+  );
+});
+
+test('legacy marker transport normalizes into the structured fields', () => {
+  const c = fixture();
+  const sticker = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '[[sticker:hao]]', dependsOnActionIds: [] }],
+    executions: [],
+    changes: null,
+  });
+  assert.equal(sticker.statements[0]!.text, '');
+  assert.equal(sticker.statements[0]!.stickerId, 'hao');
+  const recall = parseAgentProposal(c, {
+    protocol: 'npc-wire-v15',
+    statements: [{ text: '[[recall:last]]', dependsOnActionIds: [] }],
+    executions: [],
+    changes: null,
+  });
+  assert.equal(recall.recallLast, true);
+  assert.equal(recall.statements.length, 0);
+});

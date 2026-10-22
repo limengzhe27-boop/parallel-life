@@ -161,7 +161,10 @@ export type ActorAgentState = AgentIdentity & {
   focus: AgentConversationFocus | null;
 };
 export type AgentStatement = {
+  /** Empty is valid only when stickerId carries the expression. */
   text: string;
+  /** A semantic image sticker chosen for this moment, never a per-character fixed preference. */
+  stickerId?: string;
   /** A statement implying execution success cannot survive that execution failing. */
   dependsOnActionIds: string[];
   /** This speaker is asking the player to answer; the kernel binds the actual projected question ID. */
@@ -181,6 +184,8 @@ export type AgentProposal = {
   responsibilities: AgentResponsibility[];
   decisions: AgentPlayerDecision[];
   focus?: AgentConversationFocus | null;
+  /** Retract this actor's most recent committed message in this private thread. */
+  recallLast?: boolean;
   replyAssessments?: import('./agent-questions.ts').QuestionReplyAssessment[];
   questionWithdrawals?: import('./agent-questions.ts').QuestionWithdrawal[];
   /** A semantic report from the current player's actual words, never actual world movement. */

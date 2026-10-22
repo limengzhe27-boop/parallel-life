@@ -1562,6 +1562,36 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           });
         }
       }
+      if (proposal.recallLast) {
+        if (snapshot.channel.kind !== 'private')
+          throw new AgentValidationError('RECALL_SCOPE');
+        const excluded = new Set([
+          eventId,
+          ...allSegmentRows.map((row) => String(row.source_event_id)),
+        ]);
+        const already = new Set(frame.world.recalledMessageIds ?? []);
+        const target = (
+          await sql.query(
+            `SELECT id,document FROM parallel_life.world_messages
+             WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3
+             ORDER BY ordinal DESC LIMIT 80`,
+            [attempt.worldId, ownerId, attempt.actorId],
+          )
+        ).rows.find(
+          (row) =>
+            !already.has(String(row.id)) &&
+            !excluded.has(String(row.document?.sourceEventId)) &&
+            row.document?.role === 'assistant',
+        );
+        if (!target) throw new AgentValidationError('RECALL_WITHOUT_MESSAGE');
+        effects.push({
+          type: 'message.recalled',
+          id: `${eventId}_recall`,
+          actorId: attempt.actorId,
+          messageId: String(target.id),
+          at,
+        });
+      }
       const acceptedOriginalIndices = new Set<number>();
       for (const [statementIndex, statement] of accepted.statements.entries()) {
         const originalIndex = proposal.statements.indexOf(statement);
@@ -1579,6 +1609,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           id: messageId,
           actorId: attempt.actorId,
           text,
+          ...(statement.stickerId ? { stickerId: statement.stickerId } : {}),
         });
       }
       // Media requests come from validated NPC actions above. A user's keyword
@@ -1709,7 +1740,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           effects,
           statements: accepted.statements,
         });
-      } else if (accepted.statements.length) {
+      } else if (accepted.statements.length || proposal.recallLast) {
         const event: WorldEvent = {
           schemaVersion: 1,
           id: eventId,

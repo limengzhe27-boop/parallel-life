@@ -126,6 +126,7 @@ export function applyEvent(
           actorId: effect.actorId,
           role: 'assistant',
           text: effect.text,
+          ...(effect.stickerId ? { stickerId: effect.stickerId } : {}),
           at: replyAt,
           sourceEventId,
           sourceVersion: event.version,
@@ -154,6 +155,19 @@ export function applyEvent(
             choice.result.acknowledgedEventId = event.id;
         }
         break;
+      case 'message.recalled': {
+        const target = state.messages.find((message) => message.id === effect.messageId);
+        if (
+          effect.actorId !== event.data.actorId ||
+          !target ||
+          target.role !== 'assistant' ||
+          target.actorId !== effect.actorId ||
+          (state.recalledMessageIds ?? []).includes(target.id)
+        )
+          throw new DomainError('INVALID_PROPOSAL', 'Recall target is not this actor message');
+        state.recalledMessageIds = [...(state.recalledMessageIds ?? []), target.id];
+        break;
+      }
       case 'choice.recorded':
         if (
           event.data.origin === 'director' ||

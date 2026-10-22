@@ -37,7 +37,12 @@ export function withAmbientSticker(
 ): AgentProposal {
   if (input.channelKind !== 'private' || input.origin !== 'player') return proposal;
   if (!proposal.statements.length) return proposal;
-  if (proposal.statements.some((statement) => statement.text.trim().startsWith('[[sticker:'))) {
+  if (
+    proposal.statements.some(
+      (statement) =>
+        statement.stickerId !== undefined || statement.text.trim().startsWith('[[sticker:'),
+    )
+  ) {
     return proposal;
   }
   const text = input.text.trim();
@@ -49,11 +54,14 @@ export function withAmbientSticker(
   if (lastText.length <= 6) {
     return {
       ...proposal,
-      statements: [{ text: `[[sticker:${cue[1]}]]`, dependsOnActionIds: [] }],
+      statements: [{ text: '', stickerId: cue[1], dependsOnActionIds: [] }],
     };
   }
   return {
     ...proposal,
-    statements: [...proposal.statements, { text: `[[sticker:${cue[1]}]]`, dependsOnActionIds: [] }],
+    statements: [
+      ...proposal.statements,
+      { text: '', stickerId: cue[1], dependsOnActionIds: [] },
+    ],
   };
 }

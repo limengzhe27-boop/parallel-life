@@ -5,14 +5,16 @@ import type { AgentProposal } from '../src/modules/world/domain/agent-runtime.ts
 const base = {
   statements: [{ text: '哈哈，今天这事真的有点好笑', dependsOnActionIds: [] }],
 } as unknown as AgentProposal;
-test('ambient sticker is semantic and never replaces the text', () => {
+test('ambient sticker is semantic, structured, and never replaces real text', () => {
   const result = withAmbientSticker(base, {
     channelKind: 'private',
     origin: 'player',
     text: '哈哈，今天这事真的有点好笑',
   });
   assert.equal(result.statements.length, 2);
-  assert.match(result.statements[1]!.text, /^\[\[sticker:xswl\]\]$/);
+  assert.equal(result.statements[1]!.text, '');
+  assert.equal(result.statements[1]!.stickerId, 'xswl');
+  assert.deepEqual(result.statements[0], base.statements[0]);
 });
 test('ambient sticker does not fire in group or without a cue', () => {
   assert.equal(
@@ -28,7 +30,7 @@ test('ambient sticker does not fire in group or without a cue', () => {
 });
 test('explicit sticker is not duplicated', () => {
   const p = {
-    statements: [{ text: '[[sticker:hao]]', dependsOnActionIds: [] }],
+    statements: [{ text: '', stickerId: 'hao', dependsOnActionIds: [] }],
   } as unknown as AgentProposal;
   assert.equal(
     withAmbientSticker(p, { channelKind: 'private', origin: 'player', text: '好' }).statements
@@ -46,5 +48,6 @@ test('a very short acknowledgement can become sticker-only', () => {
     text: '好的',
   });
   assert.equal(result.statements.length, 1);
-  assert.match(result.statements[0]!.text, /^\[\[sticker:/);
+  assert.equal(result.statements[0]!.text, '');
+  assert.equal(result.statements[0]!.stickerId, 'keyi');
 });

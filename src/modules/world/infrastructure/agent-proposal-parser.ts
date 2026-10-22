@@ -1,5 +1,5 @@
 import { attachAgentFailure } from '../application/agent-failure-diagnostic.ts';
-import { AgentProposalSchema } from './agent-proposal-schema.ts';
+import { AgentProposalSchema, STICKER_IDS } from './agent-proposal-schema.ts';
 import { decodeNpcWire } from './npc-model-protocol.ts';
 import type { AgentProposal } from '../domain/agent-runtime.ts';
 import {
@@ -28,6 +28,44 @@ export function describeShapeIssues(
 const reject = (reason: string): never => {
   throw new AgentValidationError(reason);
 };
+
+/** Backward-compatible transport normalization only; saved raw responses stay unchanged. */
+function normalizeExpressionMarkers(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const object = value as Record<string, unknown>;
+  if (!Array.isArray(object.statements)) return value;
+  const statements = object.statements.flatMap((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [raw];
+    const statement = raw as Record<string, unknown>;
+    if (typeof statement.text !== 'string') return [raw];
+    const text = statement.text.trim();
+    const sticker = /^\[\[sticker:([a-z_]+)\]\]$/.exec(text);
+    if (sticker && (STICKER_IDS as readonly string[]).includes(sticker[1]!))
+      return [{ ...statement, text: '', stickerId: sticker[1] }];
+    if (text === '[[recall:last]]') return [];
+    return [raw];
+  });
+  const recall = object.statements.some(
+    (raw) =>
+      raw &&
+      typeof raw === 'object' &&
+      !Array.isArray(raw) &&
+      typeof (raw as { text?: unknown }).text === 'string' &&
+      ((raw as { text: string }).text.trim() === '[[recall:last]]'),
+  );
+  if (recall && object.protocol === 'npc-wire-v15') {
+    const changes =
+      object.changes && typeof object.changes === 'object' && !Array.isArray(object.changes)
+        ? (object.changes as Record<string, unknown>)
+        : {};
+    return { ...object, statements, changes: { ...changes, recallLast: true } };
+  }
+  return {
+    ...object,
+    statements,
+    ...(recall ? { recallLast: true } : {}),
+  };
+}
 /** Strict public model protocol; no regex-based dialogue-to-physical-execution inference. */
 export function parseAgentProposal(context: AgentValidationContext, raw: unknown): AgentProposal {
   let parsed: unknown = raw;
@@ -43,7 +81,7 @@ export function parseAgentProposal(context: AgentValidationContext, raw: unknown
     }
   }
   try {
-    parsed = decodeNpcWire(context, parsed);
+    parsed = decodeNpcWire(context, normalizeExpressionMarkers(parsed));
   } catch (error) {
     throw attachAgentFailure(
       new AgentValidationError('RESPONSE_WIRE_SHAPE'),

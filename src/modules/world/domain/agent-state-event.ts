@@ -51,6 +51,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'moment.published' }>
       | Extract<WorldEffect, { type: 'moment.interacted' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
+      | Extract<WorldEffect, { type: 'message.recalled' }>
     )[];
   };
 };
@@ -93,6 +94,19 @@ export function applyAgentStateEvent(
   const state = { ...structuredClone(current), version: event.version, time: event.storyAt };
   // Capabilities may produce a calendar proposal without a chat. This never confirms attendance.
   for (const effect of event.data.effects ?? []) {
+    if (effect.type === 'message.recalled') {
+      const target = state.messages.find((message) => message.id === effect.messageId);
+      if (
+        effect.actorId !== event.data.actorId ||
+        !target ||
+        target.role !== 'assistant' ||
+        target.actorId !== event.data.actorId ||
+        (state.recalledMessageIds ?? []).includes(target.id)
+      )
+        throw new DomainError('INVALID_PROPOSAL');
+      state.recalledMessageIds = [...(state.recalledMessageIds ?? []), target.id];
+      continue;
+    }
     if (effect.type === 'appointment.fulfilled') {
       const item = state.appointments.find((a) => a.id === effect.appointmentId);
       if (!item) throw new DomainError('INVALID_PROPOSAL');

@@ -27,6 +27,9 @@ export type PhoneMessage = {
   actorId: string;
   role: 'user' | 'assistant';
   text: string;
+  stickerId?: string;
+  /** The server withheld the original text of this retracted message. */
+  recalled?: boolean;
   at: string;
   status: 'pending' | 'sent' | 'failed' | 'unknown';
   /** A durable NPC prefix exists, but this reply did not finish. Not a failed user send. */
