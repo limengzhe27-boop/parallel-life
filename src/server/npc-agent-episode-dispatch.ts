@@ -35,6 +35,7 @@ export async function dispatchPendingAgentEpisode(
   engineEpoch: number,
   requestedStoryAt: string,
   batch?: AgentAdvanceBatchContext,
+  options?: { freshCommand?: string; allowKnownInvalid?: boolean },
 ): Promise<AdvanceResult | null> {
   // Coordination itself can take seconds while the clock continues. Assemble the
   // actor against the current kernel clock, never the pre-Director timestamp.
@@ -84,6 +85,7 @@ export async function dispatchPendingAgentEpisode(
     pending.requests,
     pending.attention,
     pending.attempts,
+    options,
   );
   console.info(
     JSON.stringify({

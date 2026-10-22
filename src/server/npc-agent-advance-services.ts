@@ -1405,6 +1405,10 @@ export function npcAgentAdvanceServices(
         world,
         epoch,
         new Date().toISOString(),
+        undefined,
+        // Known invalid responses have no committed effects. The explicit dispatch
+        // route can request a fresh evaluation; unknown/paid-success remain fenced.
+        { allowKnownInvalid: true, freshCommand: randomUUID() },
       );
     },
     /** Owner-authorized explicit review; bypasses the automatic batch lease only for this deliberate call. */

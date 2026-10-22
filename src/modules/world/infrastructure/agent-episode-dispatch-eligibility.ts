@@ -65,11 +65,20 @@ export function eligibleEpisodeDispatches(
   requests: readonly AgentEpisodeRequest[],
   attention: WorldAttention,
   attempts: readonly EpisodeDispatchAttempt[],
+  options?: { freshCommand?: string; allowKnownInvalid?: boolean },
 ) {
   return requests.flatMap((request) => {
     if (!episodeExecutionAllows(attention)) return [];
     const prior = attempts.filter((a) => a.requestId === request.id);
-    if (episodeRequestWorkState(request.id, attempts) !== 'available') return [];
+    const state = episodeRequestWorkState(request.id, attempts);
+    // A known invalid response has no committed effect. Only an explicit owner
+    // dispatch may buy a fresh evaluation; automatic workers still see it fenced.
+    const freshKnownInvalid =
+      options?.allowKnownInvalid === true &&
+      !!options.freshCommand &&
+      prior.length > 0 &&
+      prior.every((a) => a.status === 'invalid_output');
+    if (state !== 'available' && !freshKnownInvalid) return [];
     if (
       attempts.some(
         (a) =>
@@ -88,6 +97,7 @@ export function eligibleEpisodeDispatches(
           request.id,
           worldVersion,
           prior.filter((a) => a.status === 'cancelled_before_send' && !a.paid).length,
+          ...(freshKnownInvalid ? [options!.freshCommand] : []),
         ]),
       )
       .digest('hex');

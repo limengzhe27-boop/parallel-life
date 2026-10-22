@@ -396,6 +396,40 @@ test('old opening envelopes keep their exact shape without a default continuatio
   assert.equal('continuation' in OpeningStatusSchema.parse(legacy), false);
 });
 
+test('an explicit dispatch may freshly evaluate a known invalid response, never an unknown or paid success', () => {
+  const invalid = [attempt({ status: 'invalid_output', paid: true })];
+  const fresh = eligibleEpisodeDispatches(worldId, version, [request()], browsing, invalid, {
+    allowKnownInvalid: true,
+    freshCommand: 'owner-review-1',
+  });
+  assert.equal(fresh.length, 1);
+  assert.notEqual(fresh[0]!.commandId, zeroCommand);
+  assert.deepEqual(eligible([request()], invalid), []);
+  assert.deepEqual(
+    eligibleEpisodeDispatches(
+      worldId,
+      version,
+      [request()],
+      browsing,
+      [attempt({ status: 'unknown_after_send', paid: true })],
+      { allowKnownInvalid: true, freshCommand: 'owner-review-1' },
+    ),
+    [],
+  );
+  assert.throws(
+    () =>
+      eligibleEpisodeDispatches(
+        worldId,
+        version,
+        [request()],
+        browsing,
+        [attempt({ status: 'committed', paid: true })],
+        { allowKnownInvalid: true, freshCommand: 'owner-review-1' },
+      ),
+    /EPISODE_CONSUMPTION_RECEIPT_MISSING/,
+  );
+});
+
 test('paid terminal does not occupy work, but cannot be dispatched again; unknown still waits', () => {
   for (const status of ['invalid_output', 'stale_discarded']) {
     const attempts = [attempt({ status, paid: true })];
