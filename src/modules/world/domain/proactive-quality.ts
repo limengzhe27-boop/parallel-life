@@ -18,12 +18,15 @@ export function isGenericProactiveLine(text: string): boolean {
  */
 export function withProactiveQuality(
   proposal: AgentProposal,
-  input: { channelKind?: string; origin?: string },
+  input: { channelKind?: string; origin?: string; recentSelfTexts?: readonly string[] },
 ): AgentProposal {
   if (input.channelKind !== 'private' || !['wake', 'coordination'].includes(input.origin ?? ''))
     return proposal;
+  const recent = new Set((input.recentSelfTexts ?? []).map((text) => text.trim()).filter(Boolean));
   const statements = proposal.statements.filter(
-    (statement) => statement.stickerId !== undefined || !isGenericProactiveLine(statement.text),
+    (statement) =>
+      statement.stickerId !== undefined ||
+      (!isGenericProactiveLine(statement.text) && !recent.has(statement.text.trim())),
   );
   return statements.length === proposal.statements.length ? proposal : { ...proposal, statements };
 }

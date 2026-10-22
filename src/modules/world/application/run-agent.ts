@@ -277,6 +277,14 @@ export async function runNpcAgent(
       proposal = withProactiveQuality(proposal, {
         channelKind: clones.snapshot.channel?.kind,
         origin: clones.snapshot.input?.origin,
+        recentSelfTexts: (clones.snapshot.observations ?? [])
+          .filter(
+            (observation) =>
+              observation.speaker?.kind === 'actor' &&
+              observation.speaker.actorId === clones.snapshot.state.actorId,
+          )
+          .map((observation) => observation.text)
+          .slice(-6),
       });
       phaseTimings.decodeCompileMs = performance.now() - tDecode0;
       phaseTimings.persistAndDecodeWallMs =

@@ -32,6 +32,15 @@ test('concrete observations, plans and stickers survive the gate', () => {
   assert.equal(result.statements.length, 0);
 });
 
+test('an exact duplicate of a recent proactive line is hard-blocked', () => {
+  const result = withProactiveQuality(proposal('今晚先把活儿收拾好。'), {
+    channelKind: 'private',
+    origin: 'wake',
+    recentSelfTexts: ['今晚先把活儿收拾好。'],
+  });
+  assert.equal(result.statements.length, 0);
+});
+
 test('the gate never touches a player reply or drops a real sticker', () => {
   const player = withProactiveQuality(proposal('我这儿暂时没什么新事儿，就先这样。'), {
     channelKind: 'private',
