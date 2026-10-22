@@ -24,6 +24,8 @@ export type ScheduleAgentsInput = {
   blockers?: AgentBlocker[];
   /** Caller must reauthorize plan dependencies for this exact current read version. */
   approvedCoordination?: { engineEpoch: number; worldVersion: number; plan: DirectorCoordination };
+  /** Opt-in: keep every independent candidate selected instead of deferring all but the first. */
+  selectAllIndependent?: boolean;
 };
 export type AgentSchedule = {
   status: 'selected' | 'quiet';
@@ -475,10 +477,14 @@ export async function scheduleAgents(
     !competingActors(eligible) &&
     !current.approvedCoordination
   ) {
-    deferred.push(
-      ...eligible.slice(1).map((c) => ({ candidateId: c.id, reason: 'lower_priority' })),
+    if (!current.selectAllIndependent)
+      deferred.push(
+        ...eligible.slice(1).map((c) => ({ candidateId: c.id, reason: 'lower_priority' })),
+      );
+    return result(
+      'selected',
+      current.selectAllIndependent ? eligible.map((c) => c.id) : [eligible[0]!.id],
     );
-    return result('selected', [eligible[0]!.id]);
   }
   let coordination: DirectorCoordination;
   if (current.approvedCoordination) {

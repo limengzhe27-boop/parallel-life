@@ -43,6 +43,8 @@ export type SchedulingView = {
   userInactiveMs?: number;
   /** Per-actor last assistant time; each actor's local initiative is independent. */
   lastAssistantAtByActor?: Readonly<Record<string, string>>;
+  /** Real occurrence time for the same assistant message, used only as a stalled-story fallback. */
+  lastAssistantRealAtByActor?: Readonly<Record<string, string>>;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -854,12 +856,19 @@ async function observations(view: SchedulingView, context: ActorContext) {
 
 /** Local, director-free initiative: elapsed idle is enough to let the actor consider contact. */
 async function localInitiative(view: SchedulingView, context: ActorContext) {
-  if (!view.userInactiveMs || view.userInactiveMs < 90_000) return [];
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
   const lastAssistantAt = view.lastAssistantAtByActor?.[snapshot.state.actorId];
-  if (lastAssistantAt && Date.parse(view.storyAt) - Date.parse(lastAssistantAt) < 30 * 60 * 1000)
-    return [];
+  const storyGap = lastAssistantAt
+    ? Date.parse(view.storyAt) - Date.parse(lastAssistantAt)
+    : Number.POSITIVE_INFINITY;
+  const lastAssistantRealAt = view.lastAssistantRealAtByActor?.[snapshot.state.actorId];
+  const realGap = lastAssistantRealAt
+    ? Date.now() - Date.parse(lastAssistantRealAt)
+    : Number.POSITIVE_INFINITY;
+  // The story cooldown is the normal beat. If the story clock is stalled, a real
+  // fallback still lets an actor choose to contact the player; neither is a global gate.
+  if (storyGap < 30 * 60 * 1000 && realGap < 10 * 60 * 1000) return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(
@@ -871,14 +880,14 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
     );
     return [];
   }
-  const bucket = Math.floor(Date.now() / 3_600_000);
+  const bucket = Math.floor(Date.parse(view.storyAt) / 3_600_000);
   return [
     await candidate(view, context, {
       source: 'actor_local',
       actionId: null,
       sourceIds: [sourceId],
       responsibilities: [],
-      semantic: { bucket, inactiveMs: view.userInactiveMs },
+      semantic: { bucket },
       reason:
         '用户已有一段时间没有操作。你可以自主决定是否主动联系，也可以继续等待或保持安静；不需要导演批准。',
     }),
@@ -928,7 +937,7 @@ export function createAgentScheduleSources(
       (
         [
           'actor_plan',
-          ...((view.userInactiveMs ?? 0) >= 90_000 ? ['actor_local' as const] : []),
+          'actor_local' as const,
           'responsibility',
           ...(view.agendaInitializeGrants?.some((g) => g.actorId === actor.snapshot.state.actorId)
             ? ['agenda_initialize' as const]

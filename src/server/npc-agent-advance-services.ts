@@ -725,6 +725,28 @@ export function npcAgentAdvanceServices(
         );
         if (pendingEpisode) return pendingEpisode;
       }
+      const lastAssistantRealAtByActor = await db
+        .transaction(ownerId, async (sql) => {
+          const rows = (
+            await sql.query(
+              `SELECT m.document->>'actorId' AS actor_id, max(e.occurred_at) AS at
+                 FROM parallel_life.world_messages m
+                 JOIN parallel_life.world_events e
+                   ON e.id=m.document->>'sourceEventId' AND e.world_id=m.world_id
+                WHERE m.world_id=$1 AND m.owner_id=$2 AND m.document->>'role'='assistant'
+                GROUP BY m.document->>'actorId'`,
+              [worldId, ownerId],
+            )
+          ).rows;
+          return Object.fromEntries(
+            rows.flatMap((row) =>
+              row.actor_id && row.at
+                ? [[String(row.actor_id), new Date(row.at).toISOString()]]
+                : [],
+            ),
+          );
+        })
+        .catch(() => ({}) as Record<string, string>);
       const registrations = createAgentScheduleSources({
         worldId,
         engineEpoch,
@@ -735,16 +757,12 @@ export function npcAgentAdvanceServices(
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
         planReviews: planReviewStates,
-        userInactiveMs: (() => {
-          const lastPlayer = [...world.messages].reverse().find((m) => m.role === 'user');
-          const lastActivity = lastPlayer?.at ?? world.messages.at(-1)?.at ?? world.time;
-          return Math.max(0, Date.now() - Date.parse(lastActivity));
-        })(),
         lastAssistantAtByActor: Object.fromEntries(
           world.messages
             .filter((message) => message.role === 'assistant' && message.actorId)
             .map((message) => [message.actorId!, message.at]),
         ),
+        lastAssistantRealAtByActor,
       });
       const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (
@@ -970,6 +988,7 @@ export function npcAgentAdvanceServices(
           storyAt,
           actorRevisions: Object.fromEntries(read.states.map((s) => [s.actorId, s.revision])),
           observations: [],
+          selectAllIndependent: true,
         },
       );
       const directorReview = await directorReviewRepository.read(ownerId, worldId);

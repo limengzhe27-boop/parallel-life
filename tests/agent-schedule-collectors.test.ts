@@ -677,7 +677,7 @@ test('stale one-actor projection is a scoped source failure; other actors contin
     },
   );
   assert.equal(result.selected[0]!.candidate.actorId, 'b');
-  assert.equal(result.sourceFailures.length, 2);
+  assert.equal(result.sourceFailures.length, 3);
   assert.ok(
     result.sourceFailures.every((f) => f.scope.kind === 'actor' && f.scope.actorId === 'a'),
   );
@@ -1004,4 +1004,48 @@ test('persisted plan review cadence suppresses a not-yet-due actionless review',
   dueNow.actors[0]!.snapshot.worldContext!.time.storyAt = dueNow.storyAt;
   dueNow.actors[0]!.snapshot.viewState = structuredClone(dueNow.actors[0]!.snapshot.state);
   assert.equal((await collect(dueNow, 'actor_plan')).candidates.length, 1);
+});
+
+test('actor-local uses story cooldown with a real-time fallback and no global activity gate', async () => {
+  const now = new Date();
+  const recentReal = new Date(now.getTime() - 60_000).toISOString();
+  const olderReal = new Date(now.getTime() - 11 * 60_000).toISOString();
+  const source = (v: SchedulingView) =>
+    createAgentScheduleSources(v).find((s) => s.id === 'actor_local:a')!;
+  const withDefinition = () => {
+    const a = actor('a');
+    a.snapshot.sources.push({
+      id: 'definition:authored:fixture',
+      kind: 'authored',
+      recordId: 'definition',
+      worldVersion: 0,
+      at: before,
+    });
+    return a;
+  };
+
+  const recent = {
+    ...view([withDefinition()]),
+    lastAssistantAtByActor: { a: at },
+    lastAssistantRealAtByActor: { a: recentReal },
+  };
+  assert.equal((await source(recent).source.collect('owner', 'w')).candidates.length, 0);
+
+  const stalledStory = {
+    ...view([withDefinition()]),
+    lastAssistantAtByActor: { a: at },
+    lastAssistantRealAtByActor: { a: olderReal },
+  };
+  assert.equal((await source(stalledStory).source.collect('owner', 'w')).candidates.length, 1);
+
+  const oldActor = withDefinition();
+  oldActor.snapshot.storyAt = '2026-10-15T11:00:00.000Z';
+  oldActor.snapshot.worldContext!.time.storyAt = '2026-10-15T11:00:00.000Z';
+  const oldStory = {
+    ...view([oldActor]),
+    storyAt: '2026-10-15T11:00:00.000Z',
+    lastAssistantAtByActor: { a: at },
+    lastAssistantRealAtByActor: { a: recentReal },
+  };
+  assert.equal((await source(oldStory).source.collect('owner', 'w')).candidates.length, 1);
 });
