@@ -459,9 +459,9 @@ test('budget selects bounded persona and whole older observations without trunca
 test('protected state or current input over budget fails in deterministic preflight with zero calls', async () => {
   for (const oversize of ['input', 'state', 'boundary'] as const) {
     const input = snapshot();
-    if (oversize === 'input') input.input.text = '玩家原文'.repeat(10000);
-    if (oversize === 'state') input.viewState.goals[0]!.summary = '旧目标'.repeat(10000);
-    if (oversize === 'boundary') input.actor.boundaries = '边界'.repeat(15000);
+    if (oversize === 'input') input.input.text = '玩家原文'.repeat(30000);
+    if (oversize === 'state') input.viewState.goals[0]!.summary = '旧目标'.repeat(30000);
+    if (oversize === 'boundary') input.actor.boundaries = '边界'.repeat(40000);
     const { adapter, calls } = capture();
     assert.throws(() => adapter.validateInput(input), /NPC_AGENT_SNAPSHOT_LIMIT/);
     await assert.rejects(adapter.decide(input), /NPC_AGENT_SNAPSHOT_LIMIT/);
@@ -662,7 +662,7 @@ test('supplied context manifest matches the final cached model messages and excl
     input.observations.push({
       sourceId: 'scene:observed',
       kind: 'speech',
-      text: oversized ? 'x'.repeat(60000) : 'A sourced observation.',
+      text: oversized ? 'x'.repeat(120000) : 'A sourced observation.',
     });
     const { adapter, calls } = capture();
     const manifest = adapter.describeSuppliedContext(input);
@@ -743,7 +743,7 @@ test('native group manifest ACK eligibility follows final actual canonical conte
       sourceId: 'group:canonical',
       kind: 'speech',
       evidenceKind: 'player_report',
-      text: oversized ? 'x'.repeat(60000) : 'A real group answer.',
+      text: oversized ? 'x'.repeat(120000) : 'A real group answer.',
     });
     input.groupObservationContext = {
       groupId: input.channel.threadId,
@@ -1143,7 +1143,7 @@ test('internal private recall uses the same bounded pool and final supplied-cont
       sourceId: 'recall',
       kind: 'speech',
       evidenceKind: 'actor_report',
-      text: oversized ? 'x'.repeat(60000) : '过去的群聊，不能证明已执行。',
+      text: oversized ? 'x'.repeat(120000) : '过去的群聊，不能证明已执行。',
     });
     input.actorObservationInbox = {
       sourceIds: ['recall'],
@@ -1212,8 +1212,11 @@ test('ordinary many-source chat retains protected reply evidence without duplica
   await adapter.decide(input);
   const call = calls[0]!,
     payload = JSON.parse(call.messages[1]!.content);
-  assert.equal(NPC_AGENT_REQUEST_LIMIT, 56_000, 'do not raise the total request ceiling');
-  assert(JSON.stringify(call.messages).length + JSON.stringify(call.output).length <= 56_000);
+  assert.equal(NPC_AGENT_REQUEST_LIMIT, 80_000);
+  assert(
+    JSON.stringify(call.messages).length + JSON.stringify(call.output).length <=
+      NPC_AGENT_REQUEST_LIMIT,
+  );
   assert.equal(payload.input.text, input.input.text);
   assert.equal(payload.actor.boundaries, input.actor.boundaries);
   assert.deepEqual(
@@ -1412,8 +1415,11 @@ test('protected opening-information wake fits the unchanged budget with nineteen
   assert.deepEqual(payload.state.questions, wireExpected(input, input.viewState.questions));
   assert.equal(payload.actor.boundaries, input.actor.boundaries);
   assert.equal(payload.wireCatalog.sources.length, 19);
-  assert.equal(NPC_AGENT_REQUEST_LIMIT, 56_000);
-  assert(JSON.stringify(call.messages).length + JSON.stringify(call.output).length <= 56_000);
+  assert.equal(NPC_AGENT_REQUEST_LIMIT, 80_000);
+  assert(
+    JSON.stringify(call.messages).length + JSON.stringify(call.output).length <=
+      NPC_AGENT_REQUEST_LIMIT,
+  );
   assert.deepEqual(input, original);
 });
 
