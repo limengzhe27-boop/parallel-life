@@ -37,7 +37,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           stack: error instanceof Error ? error.stack?.split('\n').slice(0, 8) : [],
         }),
       );
-      throw error;
+      return json({
+        error: {
+          code: (error as { code?: unknown })?.code ?? 'FAILED',
+          message: error instanceof Error ? error.message.slice(0, 500) : String(error),
+        },
+      });
     }
   });
 }
