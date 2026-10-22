@@ -22,7 +22,7 @@ export async function episodePaymentRows(
 ) {
   return (
     await sql.query(
-      `SELECT a.id,a.status,a.sent_at,a.response_hash,i.document,b.request_id AS bound_request_id
+      `SELECT a.id,a.command_id,a.status,a.sent_at,a.response_hash,i.document,b.request_id AS bound_request_id
     FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts i
     ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
     LEFT JOIN parallel_life.agent_episode_attempt_bindings b ON b.world_id=a.world_id AND b.owner_id=a.owner_id AND b.attempt_id=a.id
@@ -52,11 +52,15 @@ export async function requireEpisodePaymentAvailable(
   r: { world_id: string; actor_id: string; engine_epoch: number; id: string },
   allowNewPlayerTurn: boolean,
   exceptAttemptId?: string,
+  allowInvalidCommandId?: string,
 ) {
   const rows = await episodePaymentRows(sql, owner, r.world_id, r.actor_id, r.engine_epoch);
   for (const a of rows) {
     if (
       a.id === exceptAttemptId ||
+      // Only an explicit owner dispatch may retire this exact known-invalid
+      // evaluation; unknown, sent or committed attempts remain fenced.
+      (a.command_id === allowInvalidCommandId && a.status === 'invalid_output') ||
       (a.sent_at == null && a.response_hash == null) ||
       paidEpisodeRequest(a) !== r.id
     )

@@ -33,6 +33,7 @@ const intentSchema = z.strictObject({
   activity: z.enum(['conversation', 'meeting', 'follow_up']),
   placeOptionIds: z.tuple([]),
   basisSourceIds: z.tuple([key]),
+  retiredCommandId: z.uuid().optional(),
 });
 const choiceSchema = z.strictObject({
   requestId: key,
@@ -407,12 +408,14 @@ export async function requireUnpaidEpisodeRequestInTransaction(
     throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
   };
   if (r.status !== 'pending' || r.inputReceiptId !== null || r.receiptId !== null) forbidden();
+  const intent = parseEpisodeConsiderationIntent(body.text);
   await requireEpisodePaymentAvailable(
     sql,
     owner,
     { world_id: r.worldId, actor_id: r.actorId, engine_epoch: r.engineEpoch, id: r.id },
     false,
     attemptId,
+    intent.retiredCommandId,
   );
 }
 /** Final internal step only: receipt and consumed request must commit together (deferred SQL FK). */

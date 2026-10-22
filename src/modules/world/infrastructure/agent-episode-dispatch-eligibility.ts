@@ -102,6 +102,13 @@ export function eligibleEpisodeDispatches(
       )
       .digest('hex');
     const commandId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-    return prior.some((a) => a.commandId === commandId) ? [] : [{ request, commandId }];
+    if (prior.some((a) => a.commandId === commandId)) return [];
+    return [
+      {
+        request,
+        commandId,
+        ...(freshKnownInvalid ? { retiredCommandId: prior[0]!.commandId } : {}),
+      },
+    ];
   });
 }

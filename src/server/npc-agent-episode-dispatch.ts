@@ -96,7 +96,7 @@ export async function dispatchPendingAgentEpisode(
       attempts: pending.attempts.map((a) => ({ actorId: a.actorId, status: a.status })),
     }),
   );
-  for (const { request, commandId } of dispatches) {
+  for (const { request, commandId, retiredCommandId } of dispatches) {
     if (batch?.handledActorIds.has(request.actorId)) continue;
     if (batch && !batch.canStartModel()) return null;
     try {
@@ -145,6 +145,7 @@ export async function dispatchPendingAgentEpisode(
         activity: request.activity,
         placeOptionIds: [],
         basisSourceIds: [`definition:${actor.definitionRef}`],
+        ...(retiredCommandId ? { retiredCommandId } : {}),
       };
       const text = JSON.stringify(intent);
       await batch?.trackWork?.({ kind: 'npc', commandId });

@@ -35,6 +35,8 @@ export type EpisodeConsiderationIntent = {
   activity: 'conversation' | 'meeting' | 'follow_up';
   placeOptionIds: string[];
   basisSourceIds: string[];
+  /** Explicit owner dispatch may retire one known-invalid paid evaluation. */
+  retiredCommandId?: string;
 };
 export type EpisodeParticipationDecision = {
   requestId: string;
