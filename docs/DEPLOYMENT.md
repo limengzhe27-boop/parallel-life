@@ -1908,6 +1908,24 @@ M正式9623095cc99c036a3a5548e258555fedb18dcfef / dpl_Dy57kUiwb3AGSLqZ111ELLBF2s
 
 真实验收不隐去失败：首份冷启动出现emergent替代作者opening/机会ID冲突（已修），第二份合法quiet未发新消息；原微信聊天7.569秒提交、new_request语义正确但无持续计划。M只按批次可靠性范围结清，整体主动事件体验未算完成。O源码de6d9c18已通过check3500/build/原PG24，v4明确作者逐事件consider/defer及0095校验；候选及真实模型验收进行，尚未正式替换M。不以API成功或测试数量宣称新世界全部自然演绎已通过。后续N2/N3尚未接入生产发送/预算链路。
 
+## 2026-10-23 · 44-195 未知结果不冻结输入、主动质量与本地主动稳定
+
+业务代码 `8f625c5c` 已部署到 `parallel-world-eosin.vercel.app`，Production READY，
+`/api/health` 200；full check `3927/3927`、build 31/31 通过；无新 SQL 迁移。
+
+- unknown 消息仍保留原命令和“核对”按钮，但不再禁用输入框；核对只在服务端有
+  `response_received` 时调用 `/messages/recover`。真实生产 UI 已用临时本地
+  unknown 测试：输入框 `disabled=false`，测试后清理，无服务端测试写入。
+- 主动质量：新 guest 世界真实开场无“先这样/继续观察”类空计划句；一条具体
+  “想起妈妈的事”消息正常保存。
+- 本地主动：一批只允许一个 `actor_local`；冷却统一为真实 30 分钟，12x 故事时钟
+  不能绕过。真实 guest 世界 `played:1` 后立即 `played:0`。
+- 导演显式复查会真正调用导演；known-invalid episode 可由显式 dispatch 的 fresh
+  command 退休。但真实 `渣男体验副本` 的 actor 响应提交仍 VERSION_CONFLICT /
+  stale_discarded，没有消息，44-181 继续保持进行中，不计成功。
+
+详见 [44-195 报告](task-reports/44-195-UNKNOWN-COMPOSER-AND-PROACTIVE-STABILITY.md)。
+
 ## 2026-10-23 · 44-189/190/191/192/193 人感、撤回、表情包、记忆与服务端主动
 
 业务代码 `24466288` 已部署到新域名 `parallel-world-eosin.vercel.app`，Production
