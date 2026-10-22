@@ -82,6 +82,10 @@ unknown 作为浏览器状态，随后清理）：
   产生响应，但提交仍返回 `VERSION_CONFLICT`，attempt 被保留为
   `stale_discarded`（有 response、无 event/message）。没有把这次调用算成导演派发
   成功，也没有自动重试或重买。
+- 进一步在本地用该 saved response 重放：lease 已过期时首先得到
+  `ATTEMPT_STALE`；尝试把 attempt 状态恢复为 `response_received` 再提交时，被数据库
+  `AGENT_RECOVERY_REQUIRED` 触发器拒绝，不能用人工改状态绕过。原始提交失败的具体
+  冲突类型仍未被安全观测到，因此不能声称已修复。
 - 该残留说明 actor 当前 projection 与 world version 的 stale 修复仍未闭环；
   44-181 继续保留进行中。
 - 主动质量的下一次 `pg_cron` 真实 tick 仍需观察；本次只证明新开场与单测路径。
