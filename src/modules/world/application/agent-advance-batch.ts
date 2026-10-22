@@ -40,6 +40,9 @@ export type AgentAdvanceBatchContext = {
   reserveModel(): { release(): void } | null;
   modelStarted(): void;
   actorStarted(actorId: string): void;
+  /** One local, Director-free initiative per advance batch. */
+  markLocalInitiative(): void;
+  localInitiativeStarted(): boolean;
 };
 /** A shared provider 5xx is not an individual character decision; stop buying this batch. */
 export function actorAdvanceFailureScope(error: unknown): 'actor' | 'model' {
@@ -84,7 +87,8 @@ export async function runAgentAdvanceBatch(
   const startedAt = now(),
     handledActorIds = new Set<string>();
   let directorConsidered = false,
-    yielded = false;
+    yielded = false,
+    localInitiative = false;
   let modelCalls = 0,
     aggregate: AdvanceResult | null = null;
   const reservations = new Set<object>();
@@ -131,6 +135,10 @@ export async function runAgentAdvanceBatch(
     actorStarted(actorId) {
       handledActorIds.add(actorId);
     },
+    markLocalInitiative() {
+      localInitiative = true;
+    },
+    localInitiativeStarted: () => localInitiative,
   };
   for (let index = 0; index < policy.maxSteps; index++) {
     const beforeActors = handledActorIds.size,

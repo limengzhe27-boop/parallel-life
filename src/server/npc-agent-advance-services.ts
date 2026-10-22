@@ -802,7 +802,12 @@ export function npcAgentAdvanceServices(
           },
         },
       });
-      const sources = registrations.map(wrap);
+      const sources = registrations
+        .filter(
+          (source) =>
+            !batch?.localInitiativeStarted() || !source.id.startsWith('actor_local:'),
+        )
+        .map(wrap);
       const existingCollections = await Promise.all(
         sources.map((s) => s.source.collect(ownerId, worldId)),
       );
@@ -1216,6 +1221,7 @@ export function npcAgentAdvanceServices(
         const reservation = recovering ? undefined : batch?.reserveModel();
         if (batch && !recovering && !reservation) return quiet(storyAt);
         try {
+          if (candidate.source === 'actor_local') batch?.markLocalInitiative();
           batch?.actorStarted(candidate.actorId);
           const commandIdentity = candidateCommand(candidate);
           const commandId = commandIdentity.commandId;
