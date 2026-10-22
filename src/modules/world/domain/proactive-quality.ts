@@ -9,10 +9,13 @@ const GENERIC_WAITING = [
 const CONCRETE_DETAIL =
   /(明天|今天|今晚|点|咖啡|车|店|活|钱|家|刘航|老周|林悦|阿杰|陈国强|见面|过来|回去|修|买|吃|工|地址|时间|资料|天气)/u;
 const EMPTY_PLAN = /(没什么新?(打算|想法|计划)|没别的想法|先这样吧|就这样吧)/u;
+const CONTENT_FREE_FILLER =
+  /(没什么要补充|没什么要说的|整理好了.{0,8}心情|确保没(有)?遗漏|确保没漏掉|准备继续关注|还是先观察|先观察观察)/u;
 
 export function isGenericProactiveLine(text: string): boolean {
   const value = text.trim();
   if (!value) return false;
+  if (CONTENT_FREE_FILLER.test(value)) return true;
   if (value.length <= 60 && EMPTY_PLAN.test(value) && !CONCRETE_DETAIL.test(value)) return true;
   return GENERIC_WAITING.some((pattern) => pattern.test(value));
 }
