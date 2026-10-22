@@ -1460,8 +1460,12 @@ export class PostgresWorldRepository implements WorldRepository {
         JSON.stringify({
           scope: 'fork-build-binding-skip',
           code: (error as { code?: unknown })?.code ?? 'FAILED',
+          message: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
         }),
       );
+      (forked as typeof forked & { buildError?: string }).buildError = String(
+        (error as { message?: unknown })?.message ?? error,
+      ).slice(0, 300);
     }
     return forked;
   }
