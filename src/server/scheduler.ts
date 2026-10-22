@@ -9,7 +9,7 @@ export async function runProactiveWorlds() {
   const services = getServices();
   return runProactiveScheduler(
     { claimProactive: () => services.claimProactiveWorlds() },
-    (ownerId, worldId) => services.advanceWorld(ownerId, worldId, 1, true),
+    (ownerId, worldId) => services.advanceProactiveWorld(ownerId, worldId),
   );
 }
 

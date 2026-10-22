@@ -93,6 +93,7 @@ function createServices() {
   const assetStore = createPrivateAssetStore();
   const db = new PostgresDatabase(url);
   const identity = new IdentityRepository(db);
+  const agendaConfig = npcAgendaRuntimeConfig(process.env);
   const agentAdvance = npcAgentAdvanceServices(
     db,
     createTextModel,
@@ -105,7 +106,14 @@ function createServices() {
         ['maxElapsedMs', process.env.NPC_ADVANCE_BATCH_MAX_ELAPSED_MS],
       ].flatMap(([key, value]) => (value === undefined ? [] : [[key!, Number(value)]])),
     ),
-    npcAgendaRuntimeConfig(process.env),
+    agendaConfig,
+  );
+  const proactiveAdvance = npcAgentAdvanceServices(
+    db,
+    createTextModel,
+    new PostgresDirectorSnapshotRepository(db),
+    { maxActors: 1, maxModelCalls: 2, maxSteps: 2, maxElapsedMs: 30_000 },
+    agendaConfig,
   );
   return {
     db,
@@ -491,6 +499,14 @@ function createServices() {
     memoryCandidates: new MemoryCandidateRepository(db),
     profile: new ProfileRepository(db),
     assets: new AssetRepository(db, assetStore),
+    advanceProactiveWorld: async (ownerId: string, worldId: string) =>
+      (await proactiveAdvance.advanceIfEnabled(ownerId, worldId)) ?? {
+        played: 0,
+        folded: 0,
+        storyNow: new Date().toISOString(),
+        summary: null,
+        actors: [],
+      },
     claimProactiveWorlds: async () => {
       const result = await db.pool.query(
         "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds(1, interval '4 hours', interval '10 minutes')",
