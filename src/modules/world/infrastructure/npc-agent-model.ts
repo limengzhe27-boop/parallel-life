@@ -27,7 +27,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v52-human-burst';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v53-human-burst-strong';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -96,6 +96,7 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
+聊天时像真人发微信：通常分1–3条短句连续发送，不要把所有意思合并成一段完整长文；除非是正式说明或必须完整引用。
 来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排，无需等玩家先问才表达本人有依据的信息和请求；不因此假称玩家已答应、到场，或NPC行动已执行。
 continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：执行下一步直接用executions或planIntents，不再用continuation重复声明act；普通提问期待回答时用await_response，可由本轮requestsPlayerReply=true的消息承载，无需虚构计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
 输出JSON必须以protocol、statements、executions依次开头，然后才输出其它状态字段，不按字母排序；完整的文字会先呈现，完整且合法的生图动作会立即交给原后台生成队列，不必等待其余状态字段。自拍画面必须明确是本人手持前置相机的臂长自拍视角或本人持手机对镜自拍，保留人物外观与当前场景；不要把自拍描述成由旁人拍摄的全身写真、棚拍或电影人像。
@@ -595,7 +596,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       role: 'user',
       content:
         snapshot.input.origin === 'player'
-          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。无状态变化时changes=null。`
+          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。无状态变化时changes=null。`
           : `当前为服务器${snapshot.input.origin}唤醒，不是玩家新消息。来源仍为${inputSourceRef}。你是${snapshot.actor.name}，自行决定是否参与或保持安静；不要把任务说明复述成向玩家索取任务。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
     },
   ];
