@@ -223,7 +223,7 @@ export const WorldPhoneSchema = z.strictObject({
       id: z.string(),
       actorId: Id,
       text: z.string(),
-      stickerId: Id.optional(),
+      stickerId: z.string().min(1).max(24).optional(),
       recalled: z.boolean().optional(),
       at: Timestamp,
       role: z.enum(['user', 'assistant']).optional(),
