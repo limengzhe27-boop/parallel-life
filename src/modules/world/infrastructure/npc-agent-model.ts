@@ -122,18 +122,35 @@ function stateContextWithFallback(
   options: Parameters<typeof actorStateContextPayload>[1],
   invalid: () => never,
 ) {
-  try {
-    return actorStateContextPayload(viewState, options, invalid);
-  } catch {
-    // Optional narrative continuations can outlive a changed participation row.
-    // They are context, not the player's message; drop only those fields and
-    // retry the strict projection instead of blocking the whole turn.
-    return actorStateContextPayload(
-      { ...viewState, episodeParticipations: undefined, continuation: undefined },
-      options,
-      invalid,
-    );
+  // Optional narrative/state projections can outlive a changed row. They are
+  // context, not the player's message; degrade them in order instead of
+  // blocking the whole conversation on a stale optional field.
+  const attempts = [
+    viewState,
+    { ...viewState, episodeParticipations: undefined, continuation: undefined },
+    {
+      ...viewState,
+      episodeParticipations: undefined,
+      continuation: undefined,
+      questions: undefined,
+    },
+    {
+      ...viewState,
+      episodeParticipations: undefined,
+      continuation: undefined,
+      questions: undefined,
+      focus: null,
+    },
+  ];
+  let last: unknown;
+  for (const state of attempts) {
+    try {
+      return actorStateContextPayload(state, options, invalid);
+    } catch (error) {
+      last = error;
+    }
   }
+  throw last;
 }
 
 function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
