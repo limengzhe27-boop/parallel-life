@@ -4,8 +4,10 @@ export const runtime = 'nodejs';
 export async function GET() {
   let database: { ok: boolean; code?: string } = { ok: false };
   if (process.env.APP_DATABASE_URL) {
+    const parsed = new URL(process.env.APP_DATABASE_URL);
+    parsed.searchParams.delete('sslmode');
     const client = new pg.Client({
-      connectionString: process.env.APP_DATABASE_URL,
+      connectionString: parsed.toString(),
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 8000,
     });
