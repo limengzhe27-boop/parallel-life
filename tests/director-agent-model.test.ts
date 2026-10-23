@@ -9,6 +9,7 @@ import {
   WorldDirectorAgentModel,
   parseDirectorDecision,
   DIRECTOR_RUNTIME_PROMPT_VERSION,
+  fitWithinBudget,
 } from '../src/modules/world/infrastructure/director-agent-model.ts';
 import type {
   DirectorAttempt,
@@ -1097,4 +1098,38 @@ test('director receives each authenticated actor dimension outside the truncatab
     payload.taskParticipants.assignments[0].performer.persona,
     snapshot.cast!.find((a) => a.id === 'a')!.persona,
   );
+});
+
+test('director budget retains actor-scoped confirmed opening reports while trimming ambient observations', () => {
+  const reports = ['a', 'b'].map((actor, i) => ({
+    sourceId: `fact:opening-${i}`,
+    kind: 'fact',
+    knownByActorIds: [actor],
+    text: JSON.stringify({
+      type: 'received_opening_information',
+      assertion: 'report',
+      content: `${actor} owns this request`,
+      executionEvidence: false,
+    }),
+  }));
+  const payload = {
+    evaluationCause: { kind: 'authored_eligibility' },
+    observations: [
+      ...reports,
+      ...Array.from({ length: 40 }, (_, i) => ({
+        sourceId: `fact:ambient-${i}`,
+        kind: 'fact',
+        knownByActorIds: [],
+        text: 'x'.repeat(3000),
+      })),
+    ],
+  };
+  const result = fitWithinBudget(payload);
+  const observations = result.observations as typeof reports;
+  assert.ok(observations.length < payload.observations.length);
+  assert.deepEqual(
+    observations.filter((o) => o.sourceId.startsWith('fact:opening-')),
+    reports,
+  );
+  assert.deepEqual(payload.observations.slice(0, 2), reports);
 });

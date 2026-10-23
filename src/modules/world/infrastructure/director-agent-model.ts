@@ -398,17 +398,30 @@ const trimStart = (value: unknown, keep: number) =>
 /** Bounded assembly: keep what the director cannot decide without, trim the rest oldest-first. */
 export function fitWithinBudget(payload: Payload): Payload {
   const next: Payload = { ...payload };
-  // An authored opening assessment must retain actual speech evidence. Trimming it
+  // An authored opening assessment must retain speech and confirmed opening reports. Trimming them
   // away recreates an empty-world assessment even when the snapshot was complete.
-  const requiredSpeech =
+  const requiredEvidence =
     (payload.evaluationCause as { kind?: string } | undefined)?.kind === 'authored_eligibility' &&
     Array.isArray(payload.observations)
-      ? payload.observations.filter((o: { kind?: string }) => o.kind === 'speech')
+      ? payload.observations.filter((o: { kind?: string; text?: string }) => {
+          if (o.kind === 'speech') return true;
+          if (o.kind !== 'fact' || typeof o.text !== 'string') return false;
+          try {
+            const report = JSON.parse(o.text);
+            return (
+              report?.type === 'received_opening_information' &&
+              report.assertion === 'report' &&
+              report.executionEvidence === false
+            );
+          } catch {
+            return false;
+          }
+        })
       : [];
   const trimObservations = (keep: number) => {
     const tail = trimEnd(next.observations, keep);
-    if (!Array.isArray(tail) || !requiredSpeech.length) return tail;
-    return [...new Map([...requiredSpeech, ...tail].map((o) => [o.sourceId, o])).values()];
+    if (!Array.isArray(tail) || !requiredEvidence.length) return tail;
+    return [...new Map([...requiredEvidence, ...tail].map((o) => [o.sourceId, o])).values()];
   };
 
   const steps: Array<() => void> = [
