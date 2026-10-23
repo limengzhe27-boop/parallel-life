@@ -101,7 +101,14 @@ test('IMG-CHAT-01: pending media displays non-blocking generating status without
     notes: [],
   };
 
-  const appData = worldAppData(world);
+  const appData = worldAppData(
+    world,
+    new Set(),
+    [],
+    undefined,
+    undefined,
+    Date.parse('2026-10-16T12:00:06.000Z'),
+  );
   const msg = appData.messages[0];
 
   assert.ok(msg);
@@ -422,7 +429,14 @@ test('IMG-CHAT-01: Postgres integration - buildRepo.phone projects ready/pending
     assert.equal(generatedPhoto.height, 1024);
 
     // 3. Verify worldAppData mapping
-    const appData = worldAppData(phone);
+    const appData = worldAppData(
+      phone,
+      new Set(),
+      [],
+      undefined,
+      undefined,
+      Date.parse('2026-10-16T12:10:01.000Z'),
+    );
     const appMsg1 = appData.messages.find((m) => m.id === `media_${mediaReq1}`);
     assert.ok(appMsg1?.photo);
     assert.equal(appMsg1.photo?.id, asset1);

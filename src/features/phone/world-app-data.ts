@@ -24,6 +24,7 @@ export function worldAppData(
     revision,
   ) =>
     `/api/v1/assets/${encodeURIComponent(assetId)}?worldId=${encodeURIComponent(worldId)}&revision=${revision}`,
+  now: number = Date.now(),
 ): PhoneAppsData {
   const history = world.historyLinks ?? [];
   const historyLinks = (entry: (typeof history)[number]) => [
@@ -153,7 +154,7 @@ export function worldAppData(
               };
             }
           } else if (message.mediaStatus === 'pending') {
-            const stale = Date.now() - Date.parse(message.at) > STALE_PENDING_MEDIA_MS;
+            const stale = now - Date.parse(message.at) > STALE_PENDING_MEDIA_MS;
             photo = {
               id: `pending_${message.id}`,
               date: message.at,
