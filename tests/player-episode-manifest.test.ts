@@ -120,7 +120,6 @@ test('a known committed ordinary player turn leaves pending opportunity quiet in
           receiptId: null,
         },
       ],
-      { focus: [], conversationWithoutTarget: false },
       [a],
     ),
     [],

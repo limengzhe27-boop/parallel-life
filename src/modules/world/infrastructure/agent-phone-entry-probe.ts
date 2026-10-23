@@ -10,8 +10,6 @@ import {
   readDirectorBootstrapCauseInTransaction,
   readPendingEpisodeRequestsInTransaction,
 } from './agent-narrative-repository.ts';
-import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
-import { episodeExecutionAllows } from './agent-episode-attention.ts';
 import {
   eligibleEpisodeDispatches,
   episodeDispatchAttempt,
@@ -49,14 +47,6 @@ export async function readAgentPhoneEntryProbe(
     new Date(row.active_until).getTime() <= now
   )
     return { status: 'deferred' };
-  const attention = await readWorldAttentionInTransaction(sql, ownerId, {
-    worldId: frame.worldId,
-    worldVersion: frame.worldVersion,
-    realNow: new Date(now).toISOString(),
-  });
-  // Unresolved/revoked focus remains deferred. Verified focus only controls interruption;
-  // actor work and global coordination retain their original scope and execution checks.
-  if (attention.conversationWithoutTarget) return { status: 'deferred' };
   const actors = (
     await sql.query(
       `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,a.response,a.event_id,
@@ -73,7 +63,6 @@ export async function readAgentPhoneEntryProbe(
     (a) =>
       a.status === 'response_received' &&
       a.document.channel === 'private' &&
-      episodeExecutionAllows(attention) &&
       a.expected_world_version === frame.worldVersion &&
       a.expected_actor_revision === a.revision &&
       new Date(a.lease_until).getTime() > now,
@@ -154,7 +143,6 @@ export async function readAgentPhoneEntryProbe(
     frame.worldId,
     frame.worldVersion,
     requests,
-    attention,
     actors.map(episodeDispatchAttempt),
   )[0];
   if (next) return ready('episode', next.commandId);

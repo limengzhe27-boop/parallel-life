@@ -7,7 +7,6 @@ import {
   type EpisodeDispatchAttempt,
 } from '../src/modules/world/infrastructure/agent-episode-dispatch-eligibility.ts';
 import type { AgentEpisodeRequest } from '../src/modules/world/domain/agent-narrative.ts';
-import type { WorldAttention } from '../src/modules/world/infrastructure/world-attention-repository.ts';
 import { DomainError } from '../src/modules/world/domain/errors.ts';
 import { OpeningStatusSchema } from '../src/contracts/publication-opening.ts';
 
@@ -15,7 +14,6 @@ const worldId = 'world-a';
 const version = 7;
 const actorA = 'actor-a';
 const actorB = 'actor-b';
-const browsing: WorldAttention = { focus: [], conversationWithoutTarget: false };
 const zeroCommand = 'fdf14f58-70ea-88c0-a73f-7df97323ce8c';
 const oneCancelCommand = '03281bd8-3696-842a-a575-41db6a98d50f';
 const twoCancelCommand = '13e56bbe-df5e-89a0-ac86-257d9cf8af51';
@@ -56,17 +54,9 @@ function attempt(patch: Partial<EpisodeDispatchAttempt> = {}): EpisodeDispatchAt
 function eligible(
   requests: readonly AgentEpisodeRequest[] = [request()],
   attempts: readonly EpisodeDispatchAttempt[] = [],
-  attention: WorldAttention = browsing,
 ) {
-  return eligibleEpisodeDispatches(worldId, version, requests, attention, attempts);
+  return eligibleEpisodeDispatches(worldId, version, requests, attempts);
 }
-function privateFocus(actorId: string): WorldAttention {
-  return {
-    focus: [{ channel: 'private', threadId: actorId, actorIds: [actorId] }],
-    conversationWithoutTarget: false,
-  };
-}
-
 // Literal fixtures captured from the pre-extraction v2 algorithm; do not derive expected IDs
 // using the new helper (or a second implementation of its hash) inside these tests.
 test('first dispatch retains the exact pre-extraction v2 business command', () => {
@@ -88,11 +78,11 @@ test('eligible request order is preserved without sorting actors or episode IDs'
 
 test('v2 command varies only with the world, request, version and proven zero-send count', () => {
   assert.equal(
-    eligibleEpisodeDispatches('world-b', version, [request()], browsing, [])[0]!.commandId,
+    eligibleEpisodeDispatches('world-b', version, [request()], [])[0]!.commandId,
     'e7124dc4-9925-84b8-a824-29ff4e7a8089',
   );
   assert.equal(
-    eligibleEpisodeDispatches(worldId, 8, [request()], browsing, [])[0]!.commandId,
+    eligibleEpisodeDispatches(worldId, 8, [request()], [])[0]!.commandId,
     '2a9c5eda-44f4-80d7-a6b7-a1e488c8125d',
   );
   const changed = {
@@ -104,39 +94,9 @@ test('v2 command varies only with the world, request, version and proven zero-se
   assert.equal(eligible([changed])[0]!.commandId, zeroCommand);
 });
 
-test('verified private focus does not freeze other actors or change their request identity', () => {
-  const requests = [request(), request('request-b', actorB)];
-  for (const actor of [actorA, actorB, 'unrelated']) {
-    const focus = privateFocus(actor);
-    focus.focus[0]!.actorIds = [actorA, actorB];
-    assert.deepEqual(eligible(requests, [], focus), eligible(requests));
-  }
-});
-
-for (const channel of ['group', 'scene'] as const)
-  test(`${channel} focus preserves independent private dispatch without changing its audience`, () => {
-    const focus: WorldAttention = {
-      focus: [{ channel, threadId: actorA, actorIds: [actorA] }],
-      conversationWithoutTarget: false,
-    };
-    assert.deepEqual(eligible([request()], [], focus), eligible([request()]));
-  });
-
-test('conversation without an authorized target defers even when another focus matches', () => {
+test('dispatch uses actor work identity without a presentation-focus parameter', () => {
   assert.deepEqual(
-    eligible([request()], [], { ...privateFocus(actorA), conversationWithoutTarget: true }),
-    [],
-  );
-  assert.deepEqual(eligible([request()], [], { focus: [], conversationWithoutTarget: true }), []);
-});
-
-test('combined private foci permit their explicitly targeted actors and preserve input order', () => {
-  const focus: WorldAttention = {
-    focus: [...privateFocus(actorB).focus, ...privateFocus(actorA).focus],
-    conversationWithoutTarget: false,
-  };
-  assert.deepEqual(
-    eligible([request(), request('request-b', actorB)], [], focus).map((x) => x.request.actorId),
+    eligible([request(), request('request-b', actorB)]).map((x) => x.request.actorId),
     [actorA, actorB],
   );
 });
@@ -310,13 +270,13 @@ test('frozen input arrays and rows are not mutated by classification or filterin
   assert.deepEqual(episodeDispatchAttempt(inputRow), attempt());
   const requests = [request(), request('request-b', actorB)];
   const attempts = [attempt({ actorId: actorB, requestId: 'another', status: 'reserved' })];
-  const before = structuredClone({ requests, attempts, browsing });
+  const before = structuredClone({ requests, attempts });
   for (const item of requests) Object.freeze(item);
   for (const item of attempts) Object.freeze(item);
   Object.freeze(requests);
   Object.freeze(attempts);
   assert.equal(eligible(requests, attempts).length, 1);
-  assert.deepEqual({ requests, attempts, browsing }, before);
+  assert.deepEqual({ requests, attempts }, before);
 });
 
 const opening = {
@@ -398,7 +358,7 @@ test('old opening envelopes keep their exact shape without a default continuatio
 
 test('an explicit dispatch may freshly evaluate a known invalid response, never an unknown or paid success', () => {
   const invalid = [attempt({ status: 'invalid_output', paid: true })];
-  const fresh = eligibleEpisodeDispatches(worldId, version, [request()], browsing, invalid, {
+  const fresh = eligibleEpisodeDispatches(worldId, version, [request()], invalid, {
     allowKnownInvalid: true,
     freshCommand: 'owner-review-1',
   });
@@ -410,7 +370,6 @@ test('an explicit dispatch may freshly evaluate a known invalid response, never 
       worldId,
       version,
       [request()],
-      browsing,
       [attempt({ status: 'unknown_after_send', paid: true })],
       { allowKnownInvalid: true, freshCommand: 'owner-review-1' },
     ),
@@ -422,7 +381,6 @@ test('an explicit dispatch may freshly evaluate a known invalid response, never 
         worldId,
         version,
         [request()],
-        browsing,
         [attempt({ status: 'committed', paid: true })],
         { allowKnownInvalid: true, freshCommand: 'owner-review-1' },
       ),

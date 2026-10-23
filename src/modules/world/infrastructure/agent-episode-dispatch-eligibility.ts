@@ -1,7 +1,5 @@
 import { createHash } from 'node:crypto';
 import type { AgentEpisodeRequest } from '../domain/agent-narrative.ts';
-import type { WorldAttention } from './world-attention-repository.ts';
-import { episodeExecutionAllows } from './agent-episode-attention.ts';
 import { DomainError } from '../domain/errors.ts';
 
 export type EpisodeDispatchAttempt = {
@@ -63,12 +61,10 @@ export function eligibleEpisodeDispatches(
   worldId: string,
   worldVersion: number,
   requests: readonly AgentEpisodeRequest[],
-  attention: WorldAttention,
   attempts: readonly EpisodeDispatchAttempt[],
   options?: { freshCommand?: string; allowKnownInvalid?: boolean },
 ) {
   return requests.flatMap((request) => {
-    if (!episodeExecutionAllows(attention)) return [];
     const prior = attempts.filter((a) => a.requestId === request.id);
     const state = episodeRequestWorkState(request.id, attempts);
     // A known invalid response has no committed effect. Only an explicit owner

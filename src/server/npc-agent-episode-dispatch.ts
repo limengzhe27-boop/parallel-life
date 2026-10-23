@@ -19,7 +19,6 @@ import { PostgresAgentRuntimeRepository } from '../modules/world/infrastructure/
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
-import { readWorldAttentionInTransaction } from '../modules/world/infrastructure/world-attention-repository.ts';
 import { requireEpisodeDeliveryInTransaction } from '../modules/world/infrastructure/agent-episode-attention.ts';
 import {
   eligibleEpisodeDispatches,
@@ -61,10 +60,6 @@ export async function dispatchPendingAgentEpisode(
       ])
     ).rows[0];
     if (current?.version !== world.version) throw new DomainError('VERSION_CONFLICT');
-    const attention = await readWorldAttentionInTransaction(sql, ownerId, {
-      worldId: world.id,
-      worldVersion: world.version,
-    });
     const attempts = (
       await sql.query(
         `SELECT a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,b.request_id AS bound_request_id,r.document
@@ -75,7 +70,7 @@ export async function dispatchPendingAgentEpisode(
         [world.id, ownerId, engineEpoch],
       )
     ).rows.map(episodeDispatchAttempt);
-    return { requests, attention, attempts };
+    return { requests, attempts };
   });
   if (!pending) return null;
   const store = new PostgresAgentRuntimeRepository(db);
@@ -83,7 +78,6 @@ export async function dispatchPendingAgentEpisode(
     world.id,
     world.version,
     pending.requests,
-    pending.attention,
     pending.attempts,
     options,
   );

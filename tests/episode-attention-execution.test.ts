@@ -1,45 +1,52 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  episodeAttentionAllows,
-  episodeExecutionAllows,
-} from '../src/modules/world/infrastructure/agent-episode-attention.ts';
-import type { WorldAttention } from '../src/modules/world/infrastructure/world-attention-repository.ts';
+import { requireEpisodeDeliveryInTransaction } from '../src/modules/world/infrastructure/agent-episode-attention.ts';
+import { requireActiveAgentDeliveryInTransaction } from '../src/modules/world/infrastructure/agent-delivery-activity.ts';
+import type { SqlClient } from '../src/modules/storage/infrastructure/postgres.ts';
 
-const privateFocus: WorldAttention = {
-  focus: [{ channel: 'private', threadId: 'actor-a', actorIds: ['actor-a'] }],
-  conversationWithoutTarget: false,
-};
+function storage(clock: Record<string, unknown>, version = 3) {
+  const calls: string[] = [];
+  const sql = {
+    query: async (query: string, params: unknown[]) => {
+      calls.push(query);
+      assert.deepEqual(params, ['world', 'owner']);
+      if (query.includes('parallel_life.worlds')) return { rows: [{ version }] };
+      if (query.includes('parallel_life.world_clock ')) return { rows: [clock] };
+      throw Error('Delivery must not load presentation focus or other actors private content');
+    },
+  } as unknown as SqlClient;
+  return { sql, calls };
+}
+const frame = { worldId: 'world', worldVersion: 3, actorId: 'B' };
 
-test('reading actor A permits actor B work but not an immediate interruption', () => {
-  assert.equal(episodeExecutionAllows(privateFocus), true);
-  assert.equal(episodeAttentionAllows(privateFocus, 'actor-a'), true);
-  assert.equal(episodeAttentionAllows(privateFocus, 'actor-b'), false);
+test('independent B delivery only checks world and clock; A focus is not execution authority', async () => {
+  const { sql, calls } = storage({ paused: false, continuity_mode: 'continuous' });
+  await requireEpisodeDeliveryInTransaction(sql, 'owner', frame);
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every((q) => q.includes('FOR UPDATE')));
+  await requireActiveAgentDeliveryInTransaction(sql, 'owner', 'world', 'NPC_DELIVERY_DEFERRED');
+  assert.equal(calls.length, 4);
 });
 
-for (const channel of ['group', 'scene'] as const)
-  test(`authenticated ${channel} focus preserves work without treating it as a private recipient`, () => {
-    const attention: WorldAttention = {
-      focus: [{ channel, threadId: 'thread', actorIds: ['actor-a', 'actor-b'] }],
-      conversationWithoutTarget: false,
-    };
-    assert.equal(episodeExecutionAllows(attention), true);
-    assert.equal(episodeAttentionAllows(attention, 'actor-a'), false);
-    assert.equal(episodeAttentionAllows(attention, 'actor-b'), false);
+for (const clock of [
+  { paused: true, continuity_mode: 'continuous' },
+  { paused: false, managed: true, active_until: '2000-01-01T00:00:00Z' },
+])
+  test('real pause or expired noncontinuous activity still defers delivery', async () => {
+    const { sql } = storage(clock);
+    await assert.rejects(requireEpisodeDeliveryInTransaction(sql, 'owner', frame), {
+      code: 'EPISODE_DELIVERY_DEFERRED',
+    });
+    await assert.rejects(
+      requireActiveAgentDeliveryInTransaction(sql, 'owner', 'world', 'NPC_DELIVERY_DEFERRED'),
+      { code: 'NPC_DELIVERY_DEFERRED' },
+    );
   });
 
-test('unresolved or revoked focus remains deferred even with another valid focus', () => {
-  for (const focus of [[], privateFocus.focus]) {
-    const attention = { focus, conversationWithoutTarget: true };
-    assert.equal(episodeExecutionAllows(attention), false);
-    assert.equal(episodeAttentionAllows(attention, 'actor-a'), false);
-  }
-});
-
-test('browsing allows execution and ordinary presentation without changing attention', () => {
-  const attention: WorldAttention = { focus: [], conversationWithoutTarget: false };
-  const before = structuredClone(attention);
-  assert.equal(episodeExecutionAllows(attention), true);
-  assert.equal(episodeAttentionAllows(attention, 'actor-b'), true);
-  assert.deepEqual(attention, before);
+test('unrelated attention removal does not remove the exact commit-frame version check', async () => {
+  const { sql, calls } = storage({ paused: false }, 4);
+  await assert.rejects(requireEpisodeDeliveryInTransaction(sql, 'owner', frame), {
+    code: 'VERSION_CONFLICT',
+  });
+  assert.equal(calls.length, 1);
 });

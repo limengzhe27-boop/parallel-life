@@ -65,7 +65,7 @@ test('chat cannot fill the lock screen with one actor burst, and old dates are n
   );
 });
 
-test('content-free waiting noise does not take a lock-screen slot', () => {
+test('persisted ordinary emotional or brief dialogue is not filtered by subjective text rules', () => {
   const items = lockScreenNotifications(
     [
       {
@@ -83,7 +83,7 @@ test('content-free waiting noise does not take a lock-screen slot', () => {
   );
   assert.deepEqual(
     items.map((item) => item.id),
-    ['useful'],
+    ['filler', 'useful'],
   );
 });
 
