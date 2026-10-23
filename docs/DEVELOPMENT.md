@@ -3097,6 +3097,6 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-204-PG|[x] 已集成验证|root集成|main；tests/integration/episode-active-withdrawal204.test.ts、报告44-204-PG.md|原入口engage后明确goal/plan退出，单人/多人终止及quiet/只关plan负向；真实PG1/1通过；0生产写/真实模型。|
 
 |44-205-P0-ACCEPT|[ ] 原发送已验，长档新发送失败|root唯一集成|线上渣男体验4953…；无源码|舒雅婷command928cd6ce→committed、v265、原话+3条NPC落库；同command复放200、modelCallCount=0、同event；旧unknown d522…仍unknown。随后李之之command ac6b82fb→cancelled_before_send/NPC_AGENT_SNAPSHOT_LIMIT，world未前进；P0长档保存未通过，见44-205-CONTEXT-LIMIT。|
-|44-205-CONTEXT-LIMIT|[ ] 修复待部署|root唯一集成|npc-agent-model.ts、run-agent.ts、tests/npc-agent-model.test.ts|长档重复问题台账挤爆32k preflight；新增按conversationProgress裁剪state.questions及超限时清空，保留当前输入/责任；preflight仅记录字段大小；NPC模型47/47通过；待部署后原档重试。|
+|44-205-CONTEXT-LIMIT|[ ] 第二版修复待部署|root唯一集成|npc-agent-model.ts、model-request-policy.ts、run-agent.ts、tests|长档重复问题台账先撞32k snapshot，裁剪state.questions后重试转32,153 OUTPUT_SCHEMA_LIMIT；schema上限24k→32k→40k并保留preflight尺寸日志；NPC模型47/47、check3988/build通过；待部署后原档重试。|
 |44-205-REPEAT-WAIT|[ ] 本地验证，待部署/真实体验|root唯一集成|agent-schedule-collectors.ts、npc-conversation-progress.ts、npc-agent-model.ts及聚焦测试|blocked+missingConditions或同会话open question不再每小时重开计划复查；prompt v65禁止对未回答open问题重复近似追问；projection只保留最新open问题/责任；47/47调度、5/5进度、101聚焦通过；check3987/build通过；真实模型待部署后验。|
 |44-205-PUBLISH|[ ] 部署重试中|root唯一集成|vercel.json、docs/DEPLOYMENT.md|Git为唯一发布入口；ignoreCommand在Vercel不可用（.git被.vercelignore移除，5bb579ab部署ERROR），已撤回；改为docs与代码同批推、不单独推文档；历史16:13–16:41同sha 1 Git+2 CLI已记录；本批不再手动`vercel --prod`，重推后补READY/公网证据。|
