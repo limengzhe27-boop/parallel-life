@@ -248,3 +248,22 @@ test('capability absence and model-supplied IDs, execution state or extra parame
   ])
     assert.throws(() => compileNpcMediaIntent(fixture(), raw), { code: 'NPC_MEDIA_INTENT_SHAPE' });
 });
+
+test('an executing media action suppresses duplicate media intent without consuming the turn', () => {
+  const context = fixture();
+  context.state.actions.push({
+    id: 'media-action:pending',
+    goalId: null,
+    capability: 'media.generate_image',
+    targetIds: ['actor'],
+    parameters: {},
+    preconditions: [],
+    dependsOnActionIds: [],
+    handlesResponsibilityIds: [],
+    sourceIds: ['accepted-input'],
+    status: 'executing',
+  });
+  const before = structuredClone(context);
+  assert.equal(compileNpcMediaIntent(context, image()), null);
+  assert.deepEqual(context, before);
+});

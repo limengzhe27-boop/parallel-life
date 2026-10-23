@@ -115,6 +115,17 @@ export function compileNpcMediaIntent(
     )
   )
     invalid('NPC_MEDIA_INTENT_SOURCE');
+  // One actor/world may only have one executing media action. Repeated model photo/video
+  // intents must not create endless pending placeholders; the current turn's speech still commits.
+  const mediaActionExecuting = [context.state, context.viewState].some((state) =>
+    state?.actions.some(
+      (action) =>
+        action.status === 'executing' &&
+        (action.capability === 'media.generate_image' ||
+          action.capability === 'media.generate_video'),
+    ),
+  );
+  if (mediaActionExecuting) return null;
   const ids = nativeMediaIntentIds(context, intent.kind);
   const reserved = new Set(Object.values(ids));
   // Consult authoritative state too: hidden/redacted prior entries cannot be overwritten by a new slot.
