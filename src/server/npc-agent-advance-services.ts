@@ -995,6 +995,25 @@ export function npcAgentAdvanceServices(
           selectAllIndependent: true,
         },
       );
+      if (!scheduled.selected.length)
+        console.info(
+          JSON.stringify({
+            scope: 'advance-schedule-quiet',
+            worldId,
+            reason: scheduled.reason,
+            candidates: scheduled.snapshot.candidates.map((candidate) => ({
+              id: candidate.id,
+              actorId: candidate.actorId,
+              source: candidate.source,
+            })),
+            blocked: scheduled.blocked.map((item) => ({
+              id: item.candidate.id,
+              actorId: item.candidate.actorId,
+              blockers: item.blockers.map((blocker) => blocker.reason),
+            })),
+            failures: scheduled.sourceFailures,
+          }),
+        );
       const directorReview = await directorReviewRepository.read(ownerId, worldId);
       // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
       const directorNow = new Date().toISOString();
