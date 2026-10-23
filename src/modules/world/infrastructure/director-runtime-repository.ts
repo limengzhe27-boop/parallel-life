@@ -120,6 +120,7 @@ const Candidate = z
       'actor_plan',
       'actor_local',
       'responsibility',
+      'appointment',
       'conversation',
       'observation',
       'action_result',
@@ -134,6 +135,54 @@ const Candidate = z
     expectedActorRevision: Int,
     priority: z.number().finite(),
     reason: z.string().min(1).max(10000),
+    wakeCue: z.string().trim().min(1).max(800).optional(),
+    planReview: z
+      .object({
+        planId: Key,
+        goalId: Key,
+        result: z
+          .object({
+            worldId: Key,
+            actorId: Key,
+            id: Key,
+            actionId: Key,
+            eventId: Key,
+            worldVersion: Int,
+            at: Time,
+            outcome: z.enum(['succeeded', 'failed']),
+            failureCode: Key.optional(),
+            handledResponsibilityIds: keys,
+            evidenceSourceIds: keys,
+            completedGoalIds: keys.optional(),
+            outputRefs: z
+              .array(
+                z
+                  .object({
+                    kind: z.enum([
+                      'appointment',
+                      'plan',
+                      'matter',
+                      'place',
+                      'journey',
+                      'media',
+                      'asset',
+                      'item',
+                      'activity',
+                      'relationship',
+                      'moment',
+                      'moment_interaction',
+                    ]),
+                    id: Key,
+                  })
+                  .strict(),
+              )
+              .optional(),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
     requiresCoordination: z.boolean(),
   })
   .strict();

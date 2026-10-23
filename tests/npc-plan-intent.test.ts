@@ -286,3 +286,38 @@ test('foreign visible identity and undocumented nullable semantics are rejected'
   rejects(fixture(), [{ ...a, sourceIds: null }]);
   rejects(fixture(), [{ ...a, nextStep: null }]);
 });
+
+test('server plan review reuses its target for an omitted goal, but explicit new goals stay independent', () => {
+  const c = existing();
+  c.input.origin = 'wake';
+  c.input.text = JSON.stringify({
+    type: 'npc_own_condition_ready',
+    source: 'actor_plan',
+    planReview: { planId: 'p', goalId: 'g' },
+  });
+  const { goal: _goal, ...implicit } = create();
+  const result = compileNpcPlanIntents(c, [implicit]);
+  assert.equal(result.goals.length, 0);
+  assert.equal(result.plans[0]?.id, 'p');
+  assert.equal(result.plans[0]?.goalId, 'g');
+  assert.equal(compileNpcPlanIntents(c, [create()]).goals.length, 1);
+  rejects(c, [implicit, { ...implicit, ref: 'other' }], 'NPC_PLAN_INTENT_DUPLICATE_TARGET');
+  c.input.origin = 'player';
+  assert.equal(compileNpcPlanIntents(c, [implicit]).goals.length, 1);
+});
+
+test('review defaults retain visible-state and unfinished-action protections', () => {
+  const c = existing();
+  c.input.origin = 'wake';
+  c.input.text = JSON.stringify({
+    type: 'npc_own_condition_ready',
+    source: 'actor_plan',
+    planReview: { planId: 'p', goalId: 'g' },
+  });
+  const { goal: _goal, ...implicit } = create();
+  c.viewState!.plans[0]!.actionIds = ['unseen'];
+  rejects(c, [implicit], 'NPC_PLAN_INTENT_CHILD_ACTION');
+  c.viewState!.plans[0]!.actionIds = [];
+  c.viewState!.plans[0]!.status = 'withdrawn';
+  rejects(c, [implicit], 'NPC_PLAN_INTENT_PLAN');
+});
