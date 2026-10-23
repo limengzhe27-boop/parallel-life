@@ -1150,6 +1150,7 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       catalog.actors.map((a) => [
         a.ref,
         {
+          description: `仅为 ${a.name ?? a.actorId}（${a.ref}）安排本人愿意考虑的互动；按 taskParticipants 中同一 actorRef 的人物设定和已有信息，不按事件叙述顺序分配。`,
           anyOf: [
             object({
               topic: {

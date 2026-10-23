@@ -1,3 +1,4 @@
+import { stickerMessageMeaning } from '../domain/sticker-expression.ts';
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import {
   readVerifiedPublicationGenesisEvidence,
@@ -279,7 +280,7 @@ export async function readPrivateAgentSnapshot(
         message.id,
         message.sourceEventId,
         message.at,
-        `${message.role === 'user' ? '主角' : context.actor.name}：${message.text}`,
+        `${message.role === 'user' ? '主角' : context.actor.name}：${stickerMessageMeaning(message.text, message.stickerId)}`,
         'speech',
         verifiedPublicationGenesisRecord(publicationGenesis, 'message', message),
       );

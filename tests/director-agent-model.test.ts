@@ -9,6 +9,7 @@ import {
   WorldDirectorAgentModel,
   parseDirectorDecision,
   DIRECTOR_RUNTIME_PROMPT_VERSION,
+  fitWithinBudget,
 } from '../src/modules/world/infrastructure/director-agent-model.ts';
 import type {
   DirectorAttempt,
@@ -378,6 +379,8 @@ test('model adapter performs input preflight without spending, uses JSON output 
   assert.equal(calls.length, 1);
   assert.equal(calls[0]!.tokens, 4096);
   assert.equal(calls[0]!.output?.format, 'json_schema');
+  assert.match(JSON.stringify(calls[0]!.output), /仅为 A（actor:1）/);
+  assert.match(JSON.stringify(calls[0]!.output), /仅为 B（actor:2）/);
   assert.equal(calls[0]!.signal, controller.signal);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal(payload.promptVersion, DIRECTOR_RUNTIME_PROMPT_VERSION);
@@ -386,13 +389,13 @@ test('model adapter performs input preflight without spending, uses JSON output 
     assignments: [
       {
         actorRef: 'actor:1',
-        performer: { kind: 'npc', actorId: 'a', name: 'A' },
+        performer: { kind: 'npc', actorId: 'a', name: 'A', persona: f.snapshot.cast![0]!.persona },
         intendedInterlocutor: { kind: 'player', role: 'protagonist' },
         authority: 'future_suggestion_not_fact',
       },
       {
         actorRef: 'actor:2',
-        performer: { kind: 'npc', actorId: 'b', name: 'B' },
+        performer: { kind: 'npc', actorId: 'b', name: 'B', persona: f.snapshot.cast![1]!.persona },
         intendedInterlocutor: { kind: 'player', role: 'protagonist' },
         authority: 'future_suggestion_not_fact',
       },
@@ -449,7 +452,11 @@ test('director request whitelists fictional fields at the root and inside persis
     /REAL_PROFILE_SENTINEL|REAL_PRIVATE_INTERVIEW_SENTINEL|NESTED_PRIVATE_INTERVIEW_SENTINEL/,
   );
   const payload = JSON.parse(sent[0]![1]!.content);
-  assert.deepEqual(payload.cast, f.snapshot.cast);
+  assert.equal(payload.cast, undefined);
+  assert.equal(
+    payload.taskParticipants.assignments[0].performer.persona,
+    f.snapshot.cast![0]!.persona,
+  );
   assert.equal(payload.worldSetting, f.snapshot.worldSetting);
   assert.equal(payload.actorStates[0].responsibilities[0].revision, 0);
   assert.equal(payload.actorStates[0].decisions[0].responsibilityRevision, 0);
@@ -1087,4 +1094,42 @@ test('director receives each authenticated actor dimension outside the truncatab
   assert.equal(payload.taskParticipants.assignments[0].performer.actorId, 'a');
   assert.equal(payload.taskParticipants.assignments[0].performer.name, 'A');
   assert.equal(payload.taskParticipants.assignments[1].performer.actorId, 'b');
+  assert.equal(
+    payload.taskParticipants.assignments[0].performer.persona,
+    snapshot.cast!.find((a) => a.id === 'a')!.persona,
+  );
+});
+
+test('director budget retains actor-scoped confirmed opening reports while trimming ambient observations', () => {
+  const reports = ['a', 'b'].map((actor, i) => ({
+    sourceId: `fact:opening-${i}`,
+    kind: 'fact',
+    knownByActorIds: [actor],
+    text: JSON.stringify({
+      type: 'received_opening_information',
+      assertion: 'report',
+      content: `${actor} owns this request`,
+      executionEvidence: false,
+    }),
+  }));
+  const payload = {
+    evaluationCause: { kind: 'authored_eligibility' },
+    observations: [
+      ...reports,
+      ...Array.from({ length: 40 }, (_, i) => ({
+        sourceId: `fact:ambient-${i}`,
+        kind: 'fact',
+        knownByActorIds: [],
+        text: 'x'.repeat(3000),
+      })),
+    ],
+  };
+  const result = fitWithinBudget(payload);
+  const observations = result.observations as typeof reports;
+  assert.ok(observations.length < payload.observations.length);
+  assert.deepEqual(
+    observations.filter((o) => o.sourceId.startsWith('fact:opening-')),
+    reports,
+  );
+  assert.deepEqual(payload.observations.slice(0, 2), reports);
 });

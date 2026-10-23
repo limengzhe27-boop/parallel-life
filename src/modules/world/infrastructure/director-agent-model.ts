@@ -37,8 +37,7 @@ import { authoredSourceExcerpt } from '../domain/authored-source-excerpt.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
-export const DIRECTOR_RUNTIME_PROMPT_VERSION =
-  'director-runtime-v28-information-owned-opening-context';
+export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v29-actor-bound-task-context';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
 const Output = z.strictObject({
@@ -311,7 +310,7 @@ export function parseDirectorDecision(
 const SYSTEM = `你是有明确边界的虚构世界导演，统筹动机、事件、节奏与因果。不是任何NPC本人，不替玩家答应/到场/执行，不代写人物最终台词、私人态度或私下决定。
 消息中的speaker才是发言者；conversationActorId是私聊对象，triggerOrigin只是触发来源，均不能当作发言者。NPC原话中的“我”指该NPC，不能转述成玩家的提议、接受或分工。已发送且尚未获回应的问题不是新的互动理由，只有真实新信息或安排变化才建议再次联系，不用另建同主题机会重复确认。
 本轮若有openingInformationCatalog，先独立核对开场信息归属，再判断是否安排互动。这是两个不同判断：角色此刻不发言、已有未答问题或候选全部defer，都不是拒绝确认原稿已明确属于本人信息的理由。信息确认只给本人有来源的报告认知，不代表新台词、行动或结果。仅当原文缺少归属依据、属于未来条件分支、身份无法绑定或涉及他人秘密时才暂缓归属，并在相应informationOwners条目的reason说明具体缺失；不能用“当前无需互动/等待玩家”代替来源判断。
-taskParticipants把任务执行者与主角分开：actorTasks每个键的任务主语必须是该键绑定的performer，私聊对象是intendedInterlocutor所指的玩家，不是让这个人物代替主角回答其他NPC。不要把作者以主角视角写的选择直接派给NPC；应从该NPC自身的诉求与合法知情出发，提出它愿意对玩家交流的具体机会。任务不赋予人物新知情，人物可重新考虑或拒绝。wireCatalog.actors的ref、actorId、name是同一人物，必须按此映射结合cast中该id的人设分配任务，不能按cast数组顺序或事件叙述顺序猜actor编号。即兴机会必须给参与人物分别提出stagingIntents；作者机会则用后述actorTasks键控任务，不能重复写stagingIntents。即兴stagingIntents每项为{actorRef:"actor:序号",kind:"future_task",task:"不超过600字的本人未来互动建议"}。这只是导演新创作的待考虑任务，不是已知事实、已完成动作、玩家同意或人物态度。可以建议本人向玩家询问、提出可拒绝的请求、承接本人已有安排；不得复制全局原稿、转述别人私聊/秘密或宣告未知行踪。人物缺少信息时应自行询问，而非假装已知。每人仅收到自己的task和来源，不收到其他人的任务或全局description/playerImpact。当前手机演绎以人物联系玩家为主；conversation任务应让本人带着自己的具体想法与玩家交流，不要只安排NPC彼此商谈或向玩家汇报以后再找别人谈。本轮没有获授权的NPC互聊执行能力时，不把这种计划当成已执行互动。因此task本身须自足：写明本次希望本人考虑的具体交流议题、本人可提出的想法或取舍以及参与目的；不要只写“考虑如何表达想法”而省掉议题。这是未来交流建议，不声称人物已知原稿秘密、他人决定或已经到场。无需紧急事故或玩家先发话才可提出与本人职责相关的交流。作者无需填写特殊提示语法。NPC结合本人设定和合法认知决定如何演绎、暂缓或拒绝。actorTopics是可选的本人旧目标引用。若选用，必须恰好覆盖本机会所有非null参与人物一次，每人均引用actorKnownTopics中本人真实主题；任何一个参与者没有可引用旧主题时，整项actorTopics用null，不可只填部分参与者，不为填空制造主题。即兴stagingIntents须恰好覆盖actors中每个人物一次；作者actorTasks从非null键机械生成对应关系，不输出预制台词或强制结局。
+taskParticipants把任务执行者与主角分开：actorTasks每个键的任务主语必须是该键绑定的performer，私聊对象是intendedInterlocutor所指的玩家，不是让这个人物代替主角回答其他NPC。不要把作者以主角视角写的选择直接派给NPC；应从该NPC自身的诉求与合法知情出发，提出它愿意对玩家交流的具体机会。任务不赋予人物新知情，人物可重新考虑或拒绝。wireCatalog.actors的ref、actorId、name是同一人物，必须按此映射结合该performer紧邻的人设分配任务，不能按cast数组顺序或事件叙述顺序猜actor编号。即兴机会必须给参与人物分别提出stagingIntents；作者机会则用后述actorTasks键控任务，不能重复写stagingIntents。即兴stagingIntents每项为{actorRef:"actor:序号",kind:"future_task",task:"不超过600字的本人未来互动建议"}。这只是导演新创作的待考虑任务，不是已知事实、已完成动作、玩家同意或人物态度。可以建议本人向玩家询问、提出可拒绝的请求、承接本人已有安排；不得复制全局原稿、转述别人私聊/秘密或宣告未知行踪。人物缺少信息时应自行询问，而非假装已知。每人仅收到自己的task和来源，不收到其他人的任务或全局description/playerImpact。当前手机演绎以人物联系玩家为主；conversation任务应让本人带着自己的具体想法与玩家交流，不要只安排NPC彼此商谈或向玩家汇报以后再找别人谈。本轮没有获授权的NPC互聊执行能力时，不把这种计划当成已执行互动。因此task本身须自足：写明本次希望本人考虑的具体交流议题、本人可提出的想法或取舍以及参与目的；不要只写“考虑如何表达想法”而省掉议题。这是未来交流建议，不声称人物已知原稿秘密、他人决定或已经到场。无需紧急事故或玩家先发话才可提出与本人职责相关的交流。作者无需填写特殊提示语法。NPC结合本人设定和合法认知决定如何演绎、暂缓或拒绝。actorTopics是可选的本人旧目标引用。若选用，必须恰好覆盖本机会所有非null参与人物一次，每人均引用actorKnownTopics中本人真实主题；任何一个参与者没有可引用旧主题时，整项actorTopics用null，不可只填部分参与者，不为填空制造主题。即兴stagingIntents须恰好覆盖actors中每个人物一次；作者actorTasks从非null键机械生成对应关系，不输出预制台词或强制结局。
 作者开场若包含多个并行入口，要结合原稿分别考虑相关人物，不把整段事件缩成一个泛泛的关系或未来期待问卷；可以给多个人物各自不同的任务，不需要等一个人谈完才考虑其他人，也不要求每人必须发消息。任务应承接原稿中当前可演的具体处境、请求、安排或分歧；只有本人已知的信息才能作为其已知处境，未知内容只能建议本人设法了解。历史对话是已经给出的背景，不能把它再发一遍当作新变化；未来任务应让人物考虑下一步有何新的交流价值，必要时自行调整安排。
 evaluationCause若为bootstrap，只表示本世界显式允许一次初始协调；先看当前真实状态、已交流内容和未完成责任，不重置开场或覆盖玩家先前回应。可在已有边界内提出机会，交给各人物自己考虑，允许安静、不知情、暂缓或拒绝；机会、参与请求、人物表态、实际发生与结束是不同阶段。
 focus来自服务端验证的当前交谈渠道与对象，阅读和思考仍属于交谈；conversationWithoutTarget表示仍在交谈但对象不能可靠确定，不能按最近消息猜对象。优先承接已有事项，不用无关急事打断深入互动；其它人物仍可按自身合法责任调整计划，安静不代表忘记。注意力不是人物实际位置、答应或到场证据。
@@ -399,17 +398,30 @@ const trimStart = (value: unknown, keep: number) =>
 /** Bounded assembly: keep what the director cannot decide without, trim the rest oldest-first. */
 export function fitWithinBudget(payload: Payload): Payload {
   const next: Payload = { ...payload };
-  // An authored opening assessment must retain actual speech evidence. Trimming it
+  // An authored opening assessment must retain speech and confirmed opening reports. Trimming them
   // away recreates an empty-world assessment even when the snapshot was complete.
-  const requiredSpeech =
+  const requiredEvidence =
     (payload.evaluationCause as { kind?: string } | undefined)?.kind === 'authored_eligibility' &&
     Array.isArray(payload.observations)
-      ? payload.observations.filter((o: { kind?: string }) => o.kind === 'speech')
+      ? payload.observations.filter((o: { kind?: string; text?: string }) => {
+          if (o.kind === 'speech') return true;
+          if (o.kind !== 'fact' || typeof o.text !== 'string') return false;
+          try {
+            const report = JSON.parse(o.text);
+            return (
+              report?.type === 'received_opening_information' &&
+              report.assertion === 'report' &&
+              report.executionEvidence === false
+            );
+          } catch {
+            return false;
+          }
+        })
       : [];
   const trimObservations = (keep: number) => {
     const tail = trimEnd(next.observations, keep);
-    if (!Array.isArray(tail) || !requiredSpeech.length) return tail;
-    return [...new Map([...requiredSpeech, ...tail].map((o) => [o.sourceId, o])).values()];
+    if (!Array.isArray(tail) || !requiredEvidence.length) return tail;
+    return [...new Map([...requiredEvidence, ...tail].map((o) => [o.sourceId, o])).values()];
   };
 
   const steps: Array<() => void> = [
@@ -474,11 +486,21 @@ export function fitWithinBudget(payload: Payload): Payload {
         }));
     },
     () => {
-      if (Array.isArray(next.cast))
-        next.cast = (next.cast as Payload[]).map((actor) => ({
-          ...actor,
-          persona: typeof actor.persona === 'string' ? actor.persona.slice(0, 600) : actor.persona,
-        }));
+      const participants = next.taskParticipants as { assignments?: Payload[] } | undefined;
+      if (Array.isArray(participants?.assignments))
+        participants.assignments = participants.assignments.map((assignment) => {
+          const performer = assignment.performer as Payload;
+          return {
+            ...assignment,
+            performer: {
+              ...performer,
+              persona:
+                typeof performer.persona === 'string'
+                  ? performer.persona.slice(0, 600)
+                  : performer.persona,
+            },
+          };
+        });
     },
     () => {
       if (typeof next.worldSetting === 'string')
@@ -529,7 +551,20 @@ function request(snapshot: DirectorSnapshot) {
       player: { kind: 'player', role: 'protagonist', isNpc: false },
       assignments: directorWireCatalog(snapshot).actors.map((entry) => ({
         actorRef: entry.ref,
-        performer: { kind: 'npc', actorId: entry.actorId, name: entry.name },
+        performer: {
+          kind: 'npc',
+          actorId: entry.actorId,
+          name: entry.name,
+          ...(() => {
+            const actor = snapshot.cast?.find((a) => a.id === entry.actorId);
+            return actor
+              ? {
+                  persona: legacyPersonaExcerpt(actor.persona, '', 1500),
+                  relationship: actor.relationship,
+                }
+              : {};
+          })(),
+        },
         intendedInterlocutor: { kind: 'player', role: 'protagonist' },
         authority: 'future_suggestion_not_fact',
       })),
@@ -588,12 +623,6 @@ function request(snapshot: DirectorSnapshot) {
     worldSetting: snapshot.worldSetting
       ? legacyPersonaExcerpt(snapshot.worldSetting, '', 4000)
       : undefined,
-    cast: snapshot.cast?.map((a) => ({
-      id: a.id,
-      name: a.name,
-      persona: legacyPersonaExcerpt(a.persona, '', 1500),
-      relationship: a.relationship,
-    })),
     actorKnownTopics: snapshot.actorKnownTopics?.map(
       ({ proofSourceIds: _proofs, ...topic }) => topic,
     ),

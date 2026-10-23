@@ -1,3 +1,4 @@
+import { normalizeStickerStatement } from '../domain/sticker-expression.ts';
 import { z } from 'zod';
 import { NPC_WIRE_PROTOCOL, CURRENT_NPC_WIRE_PROTOCOL } from './npc-model-protocol.ts';
 import {
@@ -354,7 +355,7 @@ export class NpcStreamParser {
       };
     }
 
-    const validated = StatementWireElementSchema.safeParse(parsedJson);
+    const validated = StatementWireElementSchema.safeParse(normalizeStickerStatement(parsedJson));
     if (!validated.success) {
       return {
         kind: 'statement_error',
