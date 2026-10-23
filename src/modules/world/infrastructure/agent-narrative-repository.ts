@@ -1,3 +1,4 @@
+import { shouldWithdrawDeclinedEpisode } from '../domain/episode-participation-lifecycle.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import {
   requireEpisodePaymentAvailable,
@@ -654,7 +655,7 @@ export async function projectEpisodeRequestInTransaction(
     ],
   );
   await consumeEpisodeRequestInTransaction(sql, owner, r, value);
-  if (value.choice === 'engage' && messageIds.length > 0) {
+  if ((value.choice === 'engage' && messageIds.length > 0) || value.choice === 'decline') {
     const ep = (
       await sql.query(
         `SELECT document FROM parallel_life.shared_episodes
@@ -670,10 +671,24 @@ export async function projectEpisodeRequestInTransaction(
       invalid();
     // A different actor's later independent consideration cannot reopen a resolved shared goal.
     if (ep.status === 'resolved' || ep.status === 'withdrawn') return value;
+    let withdraw = false;
+    if (value.choice === 'decline') {
+      const choices = (
+        await sql.query(
+          `SELECT q.actor_id AS "actorId", er.choice FROM parallel_life.agent_episode_requests q
+         JOIN parallel_life.agent_episode_receipts er ON er.world_id=q.world_id AND er.owner_id=q.owner_id AND er.id=q.receipt_id AND er.request_id=q.id
+         WHERE q.world_id=$1 AND q.owner_id=$2 AND q.episode_id=$3 AND q.engine_epoch=$4 AND q.status='consumed'`,
+          [a.worldId, owner, ep.id, a.engineEpoch],
+        )
+      ).rows as { actorId: string; choice: string }[];
+      withdraw = shouldWithdrawDeclinedEpisode(ep, choices);
+      if (!withdraw) return value;
+    }
     const next: SharedEpisode = {
       ...ep,
       revision: ep.revision + 1,
-      status: 'active',
+      status: withdraw ? 'withdrawn' : 'active',
+      ...(withdraw ? { endReason: 'all_participants_declined' } : {}),
       sourceEventIds: [...ep.sourceEventIds, input.eventId],
     };
     const updated = await sql.query(

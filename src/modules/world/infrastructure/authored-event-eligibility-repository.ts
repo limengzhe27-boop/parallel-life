@@ -139,7 +139,7 @@ export async function readAuthoredEligibilityInTransaction(
        JOIN parallel_life.director_decisions d ON d.world_id=ep.world_id AND d.owner_id=ep.owner_id
         AND d.id=ep.origin_decision_id, LATERAL jsonb_array_elements(d.document->'opportunities') o
        WHERE ep.world_id=$1 AND ep.owner_id=$2 AND o->>'id'=ep.id
-        AND ep.document->>'status' IN ('proposed','active') AND o ? 'authoredEventKey' ORDER BY key`,
+        AND ep.document->>'status' IN ('proposed','active','withdrawn') AND o ? 'authoredEventKey' ORDER BY key`,
       [world.id, ownerId],
     )
   ).rows;
