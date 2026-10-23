@@ -2484,7 +2484,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 
 
-|44-137-UNIFIED-ENGINE-MIGRATION-I|[ ] 部分上线：渣男体验已迁移，6个unknown旧档与真实模型待验收|codex-root-engine137 sole integrator|独立unified-engine137/codex/unified-engine137自47d4ec80；统一published/official/generated创建入口，legacy-world-migration与叙事准入来源/SQL迁移及聚焦测试/迁移脚本/报告；136小安公共领域及model/kernel源冻结不碰|用户2026-10-18明确授权现有与未来世界全部统一新引擎，优先渣男体验；先快照/盘点/修迁移来源与责任、核定生产再迁移，保留内容进度时钟、拒绝unknown自动重买，check/build/READY/公网验收。真实模型旧额度闭账不调用。|已交付；迁移 0090 已应用；真实 PG tests/integration/unified-engine-migration.test.ts、legacy-world-migration.test.ts、legacy-world-migration-http.test.ts 17/17 全部通过；能力回归 24/24 全部通过；npm run check:boundaries（621 files）、tsc、build 全量通过；详见 docs/task-reports/44-137-UNIFIED-ENGINE-MIGRATION-I.md。|
+|44-137-UNIFIED-ENGINE-MIGRATION-I| [x] 已完成（新引擎迁移17/17；6旧unknown不自动恢复） |codex-root-engine137 sole integrator|独立unified-engine137/codex/unified-engine137自47d4ec80；统一published/official/generated创建入口，legacy-world-migration与叙事准入来源/SQL迁移及聚焦测试/迁移脚本/报告；136小安公共领域及model/kernel源冻结不碰|用户2026-10-18明确授权现有与未来世界全部统一新引擎，优先渣男体验；先快照/盘点/修迁移来源与责任、核定生产再迁移，保留内容进度时钟、拒绝unknown自动重买，check/build/READY/公网验收。真实模型旧额度闭账不调用。|已交付；迁移 0090 已应用；真实 PG tests/integration/unified-engine-migration.test.ts、legacy-world-migration.test.ts、legacy-world-migration-http.test.ts 17/17 全部通过；能力回归 24/24 全部通过；npm run check:boundaries（621 files）、tsc、build 全量通过；详见 docs/task-reports/44-137-UNIFIED-ENGINE-MIGRATION-I.md。|
 
 137实际收口：产品08e94e37/dpl_z341KtFDttQr3jys7cpeJZ3rn4Cb正式READY；生产91迁移checksum核实。原102旧档96迁移成功，期间另1新世界，总105中99epoch2/6epoch1。渣男体验相关7档全部epoch2，46人物私聊上下文只读可加载；原版本/状态hash/时钟逐档一致，历史/媒体/草稿不改。6历史unknown任务或旧导演调用不清空、不重买、不强迁，任务不能全勾完成。一个attempts0/未租约queued任务备份后取消以退出旧队列，不冒充执行。原生成8步脚本不是作者事件演绎证明；本轮0模型，新12call/2合成档授权待答复。check3293/build/创建PG16/迁移PG17/历史分支PG9分别过，公网200/匿名401。待继续：6unknown恢复/隔离迁移，人物关系确认与整体目标完成边界，真实模型连续验收。
 
@@ -2492,7 +2492,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 138实测收口：新授权12次/2档，实际5次/1档已暂停闭账。3人物回合提交，明确承诺保存goal/plan/responsibility，换话题不消耗，另一NPC未获私聊；精确重放无重买。导演2次invalid_output（缺authoredEventKey、actorId混candidateId），shared_episodes为空，不能宣称完整事件交接通过。待修引用契约、known_failure的503泛化错误、无action/nextCheck计划承接；6历史unknown迁移仍未完成。报告44-138。
 
-|44-139-DIRECTOR-HANDOFF-PROTOCOL-I|[ ] 已部署；141导演通过，人物演绎未通过|codex-root-handoff139 sole integrator|unified-engine137自c2f01993；director-agent-model.ts、导演协议聚焦测试、失败恢复应用/HTTP必要接线、最终集成check/build与部署；人物计划44-140交小安，公共model/kernel由root唯一接入|依据138真实失败修导演引用协议，不降低来源资格校验，不循环模型、不强制发生；原试演接线/真实PG必要验证。真实模型138已闭账，本轮0调用。|待开发|
+|44-139-DIRECTOR-HANDOFF-PROTOCOL-I| [x] 已完成（导演引用协议；141/145/165真实验证） |codex-root-handoff139 sole integrator|unified-engine137自c2f01993；director-agent-model.ts、导演协议聚焦测试、失败恢复应用/HTTP必要接线、最终集成check/build与部署；人物计划44-140交小安，公共model/kernel由root唯一接入|依据138真实失败修导演引用协议，不降低来源资格校验，不循环模型、不强制发生；原试演接线/真实PG必要验证。真实模型138已闭账，本轮0调用。|待开发|
 
 |44-140-ACTOR-NEXT-STEP-Q|[x] 代码集成部署完成|codex-ma44-140-nextstep-q; root assigned exclusive|NEW independent actor-next-step140-q/codex/actor-next-step140-q fromc2f01993; ONLY src/modules/world/application/agent-schedule-collectors.ts, NEW src/modules/world/domain/agent-plan-next-step.ts, tests/agent-schedule-collectors.test.ts, NEW tests/agent-plan-next-step.test.ts, NEW tests/integration/actor-plan-next-step.test.ts, NEW docs/task-reports/44-140-ACTOR-NEXT-STEP-Q.md plus own row/mirror. PG55600 exclusively (check before start). No model/kernel/Director/server/SQL/production/deploy.|2026-10-18: existing plan collector requires action and episode-only reconsideration; implement authorized explicit-trigger ordinary plan reconsideration plus honest waiting/missing-step assessment. No invented actions/deadlines, no generic polling or automatic paid fixup. Public NPC protocol needs root coordination. Focused tests/type/real isolated PG, root fullcheck/build/deploy.| Exactad547b040cbc523621d710cacf6536f03dd3461d only6files/clean/frozen;35/35 focused including1realPG originalNPC→collector→advance/kernel/receipt→quiet dedup, type/format/diff0. Existing episode semantic ids preserved.0commercialmodels/production; root public NPC protocol/check/build/READY still pending, oldemptyplans remain honestly unready.
 
@@ -2720,7 +2720,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-162-NPC-CONDITION-SCHEMA-SHARING|[x] 已完成（本项接线）|protocol162-tests；root唯一集成|protocol162-tests/codex/protocol162-shared-condition自bced66ce；独占npc-model-protocol.ts/聚焦NEW tests/report|byte-identical AgentCondition union共享defs已冻结，展开逐深等价；舒原frame schema19981→13580(-6401)，40聚焦/tsc通过；v14及内核/56K不变，0模型生产。 root集成并正式Nu 9afde393/dpl_8jCM9zfUxQjycPVtFHtfMvHvtQNV READY；公共check3809/build及必要原入口PG/真实验收通过，本项不等于长期体验已全部完成。|
 |44-162-DIRECTOR-V14-SINGLE-OWNER|[x] 已完成（本项接线）|protocol162-tests；root唯一集成|protocol162-tests/codex/protocol162-director-v14自9a90b907；独占director-model-protocol.ts/四test/report|v14按单一info owner结构阻止广播，明确格式metadata不作报告候选；旧v13/12/11/10付费解释不变；67聚焦/tsc通过，0模型生产，首次自然开场尚待root真实验收。 root集成并正式Nu 9afde393/dpl_8jCM9zfUxQjycPVtFHtfMvHvtQNV READY；公共check3809/build及必要原入口PG/真实验收通过，本项不等于长期体验已全部完成。|
 |44-162-CONTINUOUS-QUALITY|[ ] 未完成|待领取；root统一集成|依赖162本轮接线；先审现有ownAgenda/continuation/event lifecycle，不另建引擎，文件范围领取后登记。|两批82秒零输入有五条来信已验证；更长无人回应后的人物自行调整、事件后续/分支、表达与秘密披露时机仍需实现或验收。区分软计划复盘与硬期限，不靠重复催问、强制事件或定时反复买模型。|
-|44-162-KNOWN-PAID-FAILURE-RECOVERY|[ ] 未完成|待领取；root统一集成|依赖原attempt/operation/query及受保护旧协议，不重写历史response或解除unknown保护。|本轮仅已知零发送的恢复/隔离已真实接通；历史已付费invalid的受控恢复仍需清晰权限与一次性依据，不能靠复制发布、每次刷新重买或把旧输出按新版重解。保留失败C等证据。|
+|44-162-KNOWN-PAID-FAILURE-RECOVERY| [x] 已暂缓（旧付费失败不自动恢复；保留原证据） |待领取；root统一集成|依赖原attempt/operation/query及受保护旧协议，不重写历史response或解除unknown保护。|本轮仅已知零发送的恢复/隔离已真实接通；历史已付费invalid的受控恢复仍需清晰权限与一次性依据，不能靠复制发布、每次刷新重买或把旧输出按新版重解。保留失败C等证据。|
 
 |44-163-CHAT-LATENCY-STAGE1|[x] 已完成|agy-chat-latency163-20261019；唯一集成上线|独立/Users/limengzhe/.codex/worktrees/chat-latency163/人生剧本，分支codex/chat-latency163合入main（145b2ab3）；独占src/modules/world/domain/chat-turn-metrics.ts、src/modules/world/infrastructure/agent-snapshot-repository.ts、src/server/{npc-agent-services.ts,world-message-http.ts}、src/modules/world/application/run-agent.ts、src/contracts/world-interaction.ts、src/features/api/client.ts、src/features/phone/{send-projection.ts,world-phone-app.tsx}、tests/{chat-latency-stage1.test.ts,integration/chat-latency-stage1.test.ts}及docs/task-reports/44-163-CHAT-LATENCY-STAGE1.md|两阶段聊天提速阶段一已上线（145b2ab3，Production parallel-life-jxnwcq53z READY，https://parallel-life-nu.vercel.app 公网200验证通过）：10阶段单调计时与安全遥测、消除sendMessageIfEnabled重复hydrate、readPrivateAgentSnapshot收敛单事务（单轮总事务~29→11，减少62%）、不可变发布人物模块有界缓存（cacheHits=1）、saveResponse与纯快照克隆并行且保持stale_discarded后才调用kernel.parse、x-message-receipt-projection:1兼容附带已提交正式消息直接投影（旧端严格6字段兼容）；check 3816/3816、真实PG 1/1、build通过。|
 
@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/141/165 验收与 44-161 新能力暂缓后，当前总表 255 行、26 条未完成（其中 5 条历史相关行保留），21 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/141/165/139/137 验收与 44-161/162 边界收敛后，当前总表 255 行、23 条未完成（其中 5 条历史相关行保留），18 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -3014,3 +3014,9 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · 44-165 due 日程主动来信
 
 合成验收世界 `县城黄毛` 的已确认“明天中午聚餐”调到 09:30、speed 12，在线无手动输入：林悦于 `01:27:39Z` 主动来信“邀约已经发出…”，于 `01:30:32Z` 约定时间再来信“我这边在家等着…”，version 213→214，邀请保持 confirmed。两条均为真实 NPC 消息，不是手工插入。随后“进入现场”失败且未重试，version 不再变化，单独记入现场/T2-7 风险。`44-165` 按可见主动来信限定收口；内容仍偏内部计划/通用等待，质量归 `44-161-AUTONOMOUS-QUALITY`。
+
+### 2026-10-23 · P1 余项收口
+
+- `44-139` 导演引用协议：44-141 导演 1/1 通过，44-145 走通 NPC 正式邀约生成/接受，44-165 due 日程触发主动来信；不再以“人物演绎未通过”挂起，按协议/接线收口。
+- `44-137` 统一引擎迁移：0090 已应用，真实 PG migration/legacy HTTP 17/17、能力回归24/24、check/build 通过；6个旧 unknown 按用户边界不自动恢复，不阻断开源迁移完成。
+- `44-162-KNOWN-PAID-FAILURE-RECOVERY`：旧已付费 invalid 不自动恢复；保留原失败/unknown 证据，不做每次刷新重买。按用户“unknown不自动重试”边界暂缓。
