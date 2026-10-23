@@ -57,3 +57,9 @@
 生产只读锁采样：publication_story_offer_context并发19–33秒，world SHARE/UPDATE等待21–23秒；实际该正式world旧publication_story_nodes=0。0110仅保留授权后空候选短路、约束旧查询到当前world，不增字段/表，不改变有旧邀约的权威校验。group read/list也需只读一致性快照，写路径锁保留。未发现模型调用期间持数据库事务。
 
 媒体Agent额外定位非stream聊天未传onMediaCommitted，8cc83f46已集成6bd14800；原任务pending未派发，经原outbox接续后真实图ready、聊天/相册已有资产。公网最终验证仍由媒体Agent完成，不用重发索图修数据。
+
+## 后续集成与容量边界
+
+6eaacb96玩家原话、b6c26d97唤醒原因、6bd14800非stream媒体回调、3f00f7e8群只读快照、904dac32发送前阻断、e1e80804空旧邀约SQL已集成。0110生产已应用（110迁移）。新增PG旧/新offer5/5等价且权限拒绝；旧followups两子失败在0049也复现，非新增。最终check3961/3961、build通过。
+
+后台每分钟触发与单tick最多240秒领取窗口可重叠，生产出现资源争用，故既有cron收敛为每5分钟（job3，仍新域）；每世界30分钟与在线/返回即时检查独立。单tick2世界并发/50上限保持，不新增全局计数/字段。受控100世界两个tick可覆盖，但真实模型耗时与生产容量仍需监测，不宣称全负载SLA。
