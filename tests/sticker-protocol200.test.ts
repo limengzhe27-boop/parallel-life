@@ -83,7 +83,12 @@ test('a mismatched comfort sticker is removed while the comfort text survives', 
   const c = fixture(),
     p = parseAgentProposal(
       c,
-      wire([s('抱抱，别难过了。', 'bailan'), s('看看这个表情，多调皮。', 'xswl')]),
+      wire([
+        s('抱抱，别难过了。', 'bailan'),
+        s('', 'bailan'),
+        s('看看这个表情，多调皮。'),
+        s('', 'xswl'),
+      ]),
     );
   assert.equal(p.statements.length, 3);
   assert.deepEqual(

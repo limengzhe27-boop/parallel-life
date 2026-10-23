@@ -71,6 +71,24 @@ function normalizeExpressionMarkers(value: unknown): unknown {
     }
     return [statement];
   });
+  // v67 emits text and sticker as separate statements. A pure sticker that
+  // follows comfort/apology/serious complaint must be judged against that
+  // preceding sentence too, not only against a combined statement.
+  let precedingText = '';
+  const expressionStatements = statements.filter((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return true;
+    const statement = raw as Record<string, unknown>;
+    const text = typeof statement.text === 'string' ? statement.text.trim() : '';
+    if (text) {
+      precedingText = text;
+      return true;
+    }
+    return !(
+      typeof statement.stickerId === 'string' &&
+      precedingText.length > 0 &&
+      !stickerFitsStatement(precedingText, statement.stickerId)
+    );
+  });
   const recall = object.statements.some(
     (raw) =>
       raw &&
@@ -84,11 +102,11 @@ function normalizeExpressionMarkers(value: unknown): unknown {
       object.changes && typeof object.changes === 'object' && !Array.isArray(object.changes)
         ? (object.changes as Record<string, unknown>)
         : {};
-    return { ...object, statements, changes: { ...changes, recallLast: true } };
+    return { ...object, statements: expressionStatements, changes: { ...changes, recallLast: true } };
   }
   return {
     ...object,
-    statements,
+    statements: expressionStatements,
     ...(recall ? { recallLast: true } : {}),
   };
 }

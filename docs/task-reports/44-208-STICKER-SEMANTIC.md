@@ -58,3 +58,17 @@
 `api-deployments-free-per-day`（more than 100）。生产仍停在 `8bbef1a3`，只有 prompt v69，
 没有 `stickerFitsStatement` 解析闸门。因此“委屈安慰不再配摆烂”只在本地测试通过，
 **不能记公网通过**。额度恢复后需部署 `d40e7840` 并用同一场景复验，预期为文字保留、表情被删除。
+
+## 发现并修正：v67 已经把文字和表情拆成两条 statement
+
+第一次解析闸门只检查“同一条 statement 同时有 text 和 stickerId”，但 v67 的真实输出通常是：
+
+1. `{text:"抱抱，别难过了。"}`
+2. `{text:"", stickerId:"bailan"}`
+
+因此仅检查合并 statement 不够，纯表情 statement 仍会绕过。已在 `normalizeExpressionMarkers` 增加同轮后处理：
+记录最近一条非空文字；遇到纯 sticker statement 时，如果该文字与 sticker 不适配，删除这条纯表情，文字保留。调皮语境下 `xswl` 仍保留。
+
+测试改为真实 v67 形状：合并 `bailan`、纯 `bailan`、调皮文字、纯 `xswl`，结果只剩
+“抱抱，别难过了。”“看看这个表情，多调皮。”和纯 `xswl` 三条。`sticker-protocol200` 4/4、
+`check` 3995/3995、`build` 通过。
