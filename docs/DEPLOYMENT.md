@@ -2145,3 +2145,29 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
 - 合成世界 `县城黄毛`，微信林悦真实输入“发一张你现在的照片给我。”：NPC 回复“你等着，我给你拍张照片。”，媒体消息 `media_f564ee76...`，`photoId=a6e9d682-8ff5-4dd7-a68e-55440823521e`，`mediaStatus=ready`，标题“【留影】林悦的生活随拍”。
 - 授权资产 URL `/api/v1/assets/{photoId}?worldId=5f296...&revision=1` 返回 200 / image/jpeg / 327366 bytes；手机聊天真实显示。截图 `task-reports/assets/44-155-real-grok-image.png`。
 - world version 229→232，0 unknown，未手工插消息；测试世界已暂停。该次是生产 Grok 首次真实图片，不等同 44-158-LIVE 的长延迟、多轮人物一致性、失败/取消与相册投递全部通过。
+
+## 2026-10-24 · 44-205/206/208 P0 收口与真实模型矩阵
+
+本批按“少次数部署”分三次 Git 推送：
+
+1. `58590b8f`（defer 边界 + stale advance read）：`dpl_6oCRnfnYK6iVRbabq2zTiqiHTyER` READY，正式别名 health 200。
+2. `46025a13`（长档终态历史压缩）：`dpl_DxWcqu9ZhAdhfzX6HW5MZcz6PtKs` READY，正式别名 health 200。
+3. `8bbef1a3`（prompt v69 表情情绪适配）：`dpl_9SxNLj1NbgqiHESdhe9Z9YML9U61` READY，正式别名 health 200。
+4. `d40e7840`（表情语义删除闸门）已推送 GitHub；Vercel Git 未生成部署，手动 `vercel --prod` 被
+   `api-deployments-free-per-day` 拒绝（more than 100）。**该提交未上线**，生产仍是
+   `8bbef1a3`，不能宣称解析闸门已在公网生效。
+
+真实模型验收（测试世界，非真实用户档）：
+
+- `县城黄毛` 林悦 5 轮：难受无表情、笑两条短句、拒绝不施压、心情表情 `xswl` 与调皮语境一致；
+  投诉轮文字承认但配 `wuyu`（无语）有辩解风险。
+- 委屈安慰两轮都输出“抱抱，别难过了。”+`bailan`（摆烂），明确不匹配；prompt v69 单独未修好，
+  已加本地 `stickerFitsStatement` 删除闸门，`sticker-protocol200` 3/3，待额度恢复后部署复验。
+- `渣男体验副本` 李之之收到“我在忙，晚点再说。”后只回“忙完了告诉我哦，我一直在这儿等着。”
+  （`command b005e9ed-2363-4e5d-8546-f6db35029065`，world 309→311），没有同轮旧邀约追问。
+- 长档林悦首次 422 `NPC_AGENT_SNAPSHOT_LIMIT`（约 33.7k）；第二次部署后新命令
+  `9aa6a13c-adcb-46f0-b5bb-aeb63fea1538` 成功，world 544→547，文字 + `xswl` 独立两条。
+
+风险：生产 `渣男体验` 4953 持续出现 `advance/operation` 503 `COMMAND_CONFLICT`（world 280
+不变，约每 20 秒一次，持续 8–14 秒），与本批修复的 stale read `VERSION_CONFLICT` 不是同一码；
+不能用本批部署宣称该循环已解决。未见新的 speaker 交换证据。

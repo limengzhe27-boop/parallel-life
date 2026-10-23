@@ -28,3 +28,11 @@
 
 - 部署后需确认原档 advance 不再出现 `VERSION_CONFLICT`，并观察一次真实连续推进。
 - 若真实提交阶段仍冲突，应保留 409 给客户端重读，不做无限重试或静默重买。
+
+## 部署后观察（2026-10-24）
+
+`58590b8f` / `46025a13` 已 READY。生产 `渣男体验` 4953 仍持续出现
+`POST /advance/operation` 503，`failureCode:"COMMAND_CONFLICT"`，world 280 不变，约每 20 秒一次。
+这与本报告修复的“事务外 world.version 过期”不同；本批只证明 stale read 不再直接抛
+`VERSION_CONFLICT`，不能宣称生产推进循环已恢复。需要单独定位 operation/attempt 冲突，
+不能靠清 lease、强制重试或手工写世界冒充通过。

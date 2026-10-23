@@ -51,3 +51,10 @@
 - `tests/sticker-protocol200.test.ts` 3/3、`tests/npc-agent-model.test.ts` 49/49、`typecheck` 通过。
 
 仍需第四次部署后重试同一场景；如果文字正常、图片被删除，即视为通过（宁可只发文字，不发不合时宜的图）。
+
+## 第四次部署阻断
+
+`d40e7840` 已推送 GitHub，但 Vercel Git 没有生成对应部署；手动 `vercel --prod` 返回
+`api-deployments-free-per-day`（more than 100）。生产仍停在 `8bbef1a3`，只有 prompt v69，
+没有 `stickerFitsStatement` 解析闸门。因此“委屈安慰不再配摆烂”只在本地测试通过，
+**不能记公网通过**。额度恢复后需部署 `d40e7840` 并用同一场景复验，预期为文字保留、表情被删除。
