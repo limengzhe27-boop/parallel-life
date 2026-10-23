@@ -506,6 +506,33 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
       assert.equal(frame.state.revision, 0);
     },
   );
+  await t.test('a player commit can append after another actor quiet state commit', async () => {
+    const f = await fixture();
+    let player = (await claim(f)).attempt;
+    player = await store.mark(f.owner, player, 'request_sent');
+    player = await store.saveResponse(f.owner, player, { statements: [] });
+    await seedChannelEvent(f, 1, 'agent.state_committed', {
+      actorId: f.b,
+      effects: [],
+      agentRuntime: {
+        results: [],
+        proposal: {
+          statements: [],
+          goals: [],
+          plans: [],
+          actions: [],
+          responsibilities: [],
+          decisions: [],
+        },
+      },
+    });
+    const frame = await app.transaction(f.owner, (sql) =>
+      beginAgentCommitFrameInTransaction(sql, f.owner, player),
+    );
+    assert.equal(frame.world.version, 1);
+    assert.equal(frame.commitVersion, 2);
+    assert.equal(frame.state.revision, 0);
+  });
   await t.test(
     'an explicit player send retires a slow automatic attempt for the same actor',
     async () => {

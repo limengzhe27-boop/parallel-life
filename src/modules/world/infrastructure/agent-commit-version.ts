@@ -5,6 +5,51 @@ import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
 import { isDeepStrictEqual } from 'node:util';
 
 export type AgentCommitVersion = { appendBaseVersion: number; commitVersion: number };
+/**
+ * A quiet state-only commit from another actor changes the world version but
+ * shares nothing with this player's private reply: no message, effect, action
+ * or result. A player's paid reply may append after it instead of being
+ * discarded merely because proactive actors kept running.
+ */
+function isQuietOtherActorStateCommit(event: unknown, actorId: string): boolean {
+  const e = event as {
+    type?: unknown;
+    data?: {
+      actorId?: unknown;
+      effects?: unknown;
+      worldResults?: unknown;
+      agentRuntime?: {
+        proposal?: Record<string, unknown>;
+        results?: unknown;
+        departures?: unknown;
+        positionKnowledge?: unknown;
+        sceneDepartures?: unknown;
+        episodeDecision?: unknown;
+      };
+    };
+  } | null;
+  if (e?.type !== 'agent.state_committed') return false;
+  const d = e.data;
+  if (!d || typeof d.actorId !== 'string' || d.actorId === actorId) return false;
+  if (Array.isArray(d.effects) && d.effects.length > 0) return false;
+  if (d.worldResults) return false;
+  const rt = d.agentRuntime;
+  if (!rt || !rt.proposal || typeof rt.proposal !== 'object') return false;
+  if (rt.episodeDecision) return false;
+  for (const value of [rt.results, rt.departures, rt.positionKnowledge, rt.sceneDepartures])
+    if (Array.isArray(value) && value.length > 0) return false;
+  for (const key of [
+    // Private agenda deltas belong to the other actor and do not change the
+    // player's reply basis. Spoken output and shared actions still conflict.
+    'statements',
+    'actions',
+    'locationReports',
+    'replyAssessments',
+    'questionWithdrawals',
+  ])
+    if (Array.isArray(rt.proposal[key]) && (rt.proposal[key] as unknown[]).length > 0) return false;
+  return true;
+}
 
 /** Input/model versions stay immutable. This is the position of the actual append. */
 export async function resolveAgentCommitVersion(
@@ -74,6 +119,7 @@ export async function resolveAgentCommitVersion(
       execution_command === streamUnitCommandId(attempt.id, unit.unit)
     )
       continue;
+    if (isQuietOtherActorStateCommit(e, attempt.actorId)) continue;
     if (
       e?.type !== 'turn.resolved' ||
       !d?.actorId ||

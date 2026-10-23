@@ -33,6 +33,79 @@ const otherSpeech = {
     agentRuntime: { results: [], proposal: {} },
   },
 };
+const quietState = {
+  type: 'agent.state_committed',
+  data: {
+    actorId: 'b',
+    effects: [],
+    agentRuntime: {
+      results: [],
+      proposal: {
+        statements: [],
+        goals: [],
+        plans: [],
+        actions: [],
+        responsibilities: [],
+        decisions: [],
+        locationReports: [],
+        replyAssessments: [],
+        questionWithdrawals: [],
+      },
+    },
+  },
+};
+test('a quiet state-only commit from another actor does not discard the player reply', async () => {
+  assert.deepEqual(await resolveAgentCommitVersion(db(quietState), 'o', attempt, 4), {
+    appendBaseVersion: 4,
+    commitVersion: 5,
+  });
+  assert.deepEqual(
+    await resolveAgentCommitVersion(
+      db({
+        ...quietState,
+        data: {
+          ...quietState.data,
+          agentRuntime: {
+            ...quietState.data.agentRuntime,
+            proposal: {
+              ...quietState.data.agentRuntime.proposal,
+              goals: [{ text: 'private goal' }],
+              plans: [{ text: 'private plan' }],
+              responsibilities: [{ text: 'private responsibility' }],
+              decisions: [{ text: 'private decision' }],
+            },
+          },
+        },
+      }),
+      'o',
+      attempt,
+      4,
+    ),
+    { appendBaseVersion: 4, commitVersion: 5 },
+  );
+  for (const event of [
+    { ...quietState, data: { ...quietState.data, actorId: 'a' } },
+    { ...quietState, data: { ...quietState.data, effects: [{ type: 'fact.recorded' }] } },
+    {
+      ...quietState,
+      data: {
+        ...quietState.data,
+        agentRuntime: {
+          ...quietState.data.agentRuntime,
+          proposal: { ...quietState.data.agentRuntime.proposal, statements: [{ text: 'x' }] },
+        },
+      },
+    },
+    {
+      ...quietState,
+      data: {
+        ...quietState.data,
+        agentRuntime: { ...quietState.data.agentRuntime, results: [{}] },
+      },
+    },
+  ])
+    assert.equal(await resolveAgentCommitVersion(db(event), 'o', attempt, 4), null);
+});
 test('commit position changes without changing the paid model basis', async () => {
   assert.deepEqual(await resolveAgentCommitVersion(db(otherSpeech), 'o', attempt, 4), {
     appendBaseVersion: 4,
