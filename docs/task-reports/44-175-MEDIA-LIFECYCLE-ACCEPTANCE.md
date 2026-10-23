@@ -115,3 +115,16 @@ opening-context-repository.ts:208
 4. 全量门禁、真实生图/用户存档验收、部署。
 
 受控适配器通过不等于真实生图体验验收；0 真实模型、0 生产写、0 部署。
+
+## 2026-10-23 主分支集成复核（限定单人物 worker 链路）
+
+把工作树的 `tests/integration/media-pipeline175.test.ts` 原样接入主分支，使用本地 PostgreSQL 18.4 运行 **1/1 通过**。该测试真实覆盖：
+
+- 原 `npcAgentServices`/kernel 创建 goal/plan + `media.generate_image` action；
+- action 成功入队，媒体请求 1 条 pending；
+- pending 时 advance 不重复复盘/生图，actorCalls 仍 1，goal active；
+- 真实 `PostgresOutbox` + `dispatchOutbox` + `PostgresTaskQueue` + `createMediaPipelineHandler` 完成，request ready、assetId 真实、outbox/task succeeded；
+- advance 后 actorCalls=2，只有一次后续机会；再 advance 不增加，request 仍 1 条；
+- 模型收到 `own_media_completion`，goal 仍 active，不把图片/子步骤当整体完成。
+
+这是**测试集成**，未改生产源码、未调用商业模型、未写生产库。仍保留的阻断：action 入队前失败、多人媒体完成重复 refresh、旧 opening/director 夹具、真实生图/用户存档。故本行按“限定单人物真实 worker 链路”收口，不宣称完整媒体体验通过。

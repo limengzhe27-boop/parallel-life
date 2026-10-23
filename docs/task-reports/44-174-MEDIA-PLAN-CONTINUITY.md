@@ -132,3 +132,11 @@ opening-context-repository.ts:208
 - committed main：media-pending 0/1、continuation 1/2；
 - media-plan completed：root WIP 0/1（pending 部分已通过）；
 - 未跑全量；0 真实模型、0 生产写、0 部署。
+
+## 2026-10-23 主分支复核与收口
+
+在当前主分支、本地 PostgreSQL 18.4 上重跑 `media-pending174.test.ts` 与 `continuation-conditions174.test.ts`，二者均通过（并入 21/21 批次）：pending 旧 media plan 不重复 review/重生图、goal active；`await_response`/`no_current_intent` 带地点条件、伪造 place/无来源 deadline、外源 observation 均被拒绝。
+
+原 `media-plan174.test.ts` 的 completed 分支通过**直接改 `world_media_requests.document`** 制造 ready；这不会写真实媒体完成 observation/result，因此 actorCalls 仍为 1 是夹具问题，不是“媒体完成不触发后续”的产品证据。真实完成路径已由 `44-154-K` 的 `actor-media-result-wake`（3/3）和 `44-175` 的 `media-pipeline175`（1/1，真实 outbox/task/handler）覆盖：完成资产产生一次后续机会，重复 advance 不重复，goal 保持 active。
+
+因此本行按“pending/续接条件 + completed 由 154-K/175 覆盖”收口；action 入队前失败、多人重复 refresh、旧 opening/director 夹具仍归 `44-175` 报告的未完成边界，不用直接改 document 冒充真实完成。
