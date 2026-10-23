@@ -47,3 +47,16 @@
 
 原8项+新增4项聚焦测试12/12通过，覆盖20条NPC连续来信、他人私聊/遗忘来源隔离、转义长文预算与去重、超预算旧话不覆盖最新消息。实际生产自然表达改善仍由root真实体验验收；本文不复制用户虚构存档整包。
 续接最终检查：typecheck 0 errors、boundaries 719通过；初次findLast因项目目标lib不支持，改用现有语言目标可用的reverse/find后重跑通过，没有改tsconfig。未跑全量check/build，交root统一集成门禁，未上线。
+
+## 紧急续接：0110 legacy offer 空读取真实 PG 验证
+
+只新增 `tests/integration/publication-offer-empty199.test.ts`；0110 SQL由root独占，本树仅复制其当前文件供本地migrate读取，不包含在本提交。独立本地PostgreSQL 18.4/55549，未访问生产。
+
+测试借用旧 publication-story-followups 的真实发布/实例化/邀约事件夹具创建新合成世界，将0049原函数体以测试专用函数名冻结，再与0110当前函数逐字段比较，结束删除测试函数。不是仅检查SQL文本或伪造返回值。
+
+- 5/5通过（父项+4旅程）：无nodes；claimed但无offer；failed且无邀约；合法原始offer；真实later invitation触发followup。
+- 原始offer/followup完整JSON与0049相等；sceneEligible、editorialIntent、actorIds、真实invitationId/sourceEventId均保持。
+- 空集仍首先执行授权：app跨owner参数/身份、worker无合法lease、非运行角色均42501，与0049一致。未放松授权、来源或scene条件。
+- 本地一次对照空读取旧34.3/28.6/25.1ms，新3.35/3.29/2.42ms；有offer旧23.45/26.68ms，新23.78/25.29ms。只报告本地样本，不外推线上并发SLA。
+- 原有publication-story-followups全文件19项中16pass、2个子项fail及父项fail：`full transaction rollback...`、`multiple qualifying actual invitations...`。把本地当前函数临时恢复0049原体后重跑，完全相同两项失败及16pass；之后恢复0110。故不是本迁移新增回归，未修改旧测试或削弱断言。
+- typecheck通过。无真实模型、生产写入、部署；root负责迁移集成及上线。
