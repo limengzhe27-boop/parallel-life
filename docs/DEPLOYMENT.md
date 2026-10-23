@@ -2102,3 +2102,7 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
   `played:0`，没有真实 NPC 到点/过期消息。当轮 44-196 保持待验收，不把日历卡或单测冒充
   真实模型样本。该缺口已在 2026-10-23「T2-3 epoch-2 日程定时消息」一节关闭，详见
   [44-196 报告](task-reports/44-196-NPC-HUMAN-FEEL-CLOSURE-PLAN.md)。
+
+## 2026-10-23 · 44-198 新账号接管
+
+`54be25c0` → 新账号 `lmz3/parallel-world`，部署 `dpl_4f6qRfnVnbQPTHASKddXUd5LZv6x` READY；正式别名 `parallel-world-eosin.vercel.app`。补齐发布后台三项和scheduler数据库配置，原角色权限保持。公网会话200、发布登录/作品读取200、合成图上传201/读取200/清理204。108迁移一致（0104已存在表，仅补账本），旧数据不删。build通过；check因本地测试库42P06阻断，未记通过。旧项目cron/Git因无旧账号权限未停，按用户最新要求单独保留，不宣称已全量切断旧运行。详见44-198报告。
