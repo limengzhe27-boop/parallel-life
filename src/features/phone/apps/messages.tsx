@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { parseStickerText, STICKER_LABELS, type StickerId } from '../stickers.ts';
+import { STICKER_LABELS, type StickerId } from '../stickers.ts';
+import { StickerImage, StickerPicker } from './sticker-ui.tsx';
+import { stickerMessageContent } from './sticker-content.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
@@ -1627,21 +1629,29 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               <div
                 style={{
                   maxWidth: '74%',
-                  padding: m.photo?.url && !m.text ? 0 : '9px 12px',
+                  padding:
+                    (m.photo?.url && !m.text) ||
+                    stickerMessageContent(m.text, m.stickerId).imageOnly
+                      ? 0
+                      : '9px 12px',
                   borderRadius: '4px',
                   fontSize: '14px',
                   lineHeight: '1.5',
                   wordBreak: 'break-word',
                   background:
-                    m.photo?.url && !m.text
+                    (m.photo?.url && !m.text) ||
+                    stickerMessageContent(m.text, m.stickerId).imageOnly
                       ? 'transparent'
                       : m.role === 'user'
                         ? '#95ec69'
                         : '#ffffff',
                   color: '#0f172a',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  boxShadow: stickerMessageContent(m.text, m.stickerId).imageOnly
+                    ? 'none'
+                    : '0 1px 2px rgba(0,0,0,0.05)',
                   border:
-                    m.photo?.url && !m.text
+                    (m.photo?.url && !m.text) ||
+                    stickerMessageContent(m.text, m.stickerId).imageOnly
                       ? 'none'
                       : m.role === 'user'
                         ? '1px solid #82d857'
@@ -1653,19 +1663,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   <small className={s.genesisOrigin}>虚构起点来信</small>
                 )}
                 {(() => {
-                  const sticker = m.stickerId
-                    ? parseStickerText(`[[sticker:${m.stickerId}]]`)
-                    : m.text
-                      ? parseStickerText(m.text)
-                      : null;
-                  return sticker ? (
-                    <img
-                      src={sticker.src}
-                      alt={sticker.label}
-                      style={{ display: 'block', width: 96, height: 96, objectFit: 'contain' }}
-                    />
-                  ) : (
-                    m.text && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                  const content = stickerMessageContent(m.text, m.stickerId);
+                  return (
+                    <>
+                      {content.text && (
+                        <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{content.text}</p>
+                      )}
+                      {content.sticker && <StickerImage sticker={content.sticker} />}
+                    </>
                   );
                 })()}
                 {m.photo && m.photo.status === 'failed' && (
@@ -1815,7 +1820,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             </div>
             {m.replyInterrupted && (
               <small
-                style={{ alignSelf: 'flex-start', marginLeft: 48, color: '#64748b', fontSize: 12 }}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginLeft: 48,
+                  color: '#64748b',
+                  fontSize: 12,
+                }}
               >
                 这次回复中途结束，已收到的消息已保存。
               </small>
@@ -2053,43 +2063,24 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           )}
         </div>
 
-        {/* 表情键盘面板 */}
         {showEmojiKeyboard && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(8, 1fr)',
-              gap: '6px',
-              padding: '12px 6px 6px',
-              borderTop: '1px solid #e5e7eb',
-              marginTop: '8px',
-              maxHeight: '130px',
-              overflowY: 'auto',
+          <StickerPicker
+            emojis={EMOJI_LIST}
+            disabled={!actions.sendMessage || disabled}
+            onEmoji={(emoji) => {
+              playTapSound();
+              setDraft(key, text + emoji);
             }}
-          >
-            {EMOJI_LIST.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '22px',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                onClick={() => {
-                  playTapSound();
-                  setDraft(key, text + emoji);
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+            onSticker={async (id) => {
+              if (!actions.sendMessage || disabled) return;
+              playSendSound();
+              setShowEmojiKeyboard(false);
+              const marker = `[[sticker:${id}]]`;
+              await run(key, marker, (commandId, updateOp) =>
+                actions.sendMessage!(actor.id, marker, commandId, undefined, updateOp),
+              );
+            }}
+          />
         )}
 
         {/* 原生微信 8 宫格加号扩展面板 */}
