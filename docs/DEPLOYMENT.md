@@ -1,3 +1,9 @@
+## 2026-10-23 · 44-171/172/173 真实路由/结果接续验收
+
+在本地真实 PostgreSQL 上跑 `append-receipt-route171`、`append-effect-dependencies171`、`episode-choice172`、`result-reconsideration173`、`media-pending174`、`continuation-conditions174` 共 **21/21** 通过。`44-171` 覆盖 completed/partial_interrupted/superseded/unknown、消息 provenance、并发追加/用户打断、媒体前缀与原 request 关联、并发 receipt/stream 只读；`44-172` 覆盖 episodeManifest 同轮显式选择；`44-173` 覆盖成功/失败 action result 只唤醒一次 plan review，不把结果当 episode 完成。`44-174` 只过 pending/条件子测，committed `media-plan` 分支仍缺；`44-175` 真实 worker 生命周期仍在独立工作树。均使用受控适配器，未调用商业模型、未写生产世界。
+
+文档提交 `984cf195`，`parallel-life` 部署 `dpl_9Tm9hiMovh9DqyKcBvP66ofD8STt` READY，正式别名 `/api/health` 200。该批只改账本/文档，不宣称真实发图/视频已通过。
+
 ## 2026-10-23 · P2 媒体/协议子任务收口（17 条）
 
 把 17 条已合入主分支的 P2 媒体/协议/上下文子项从“待验收”收口为“已完成（集成验证）”：UI receipt latency、Director staging、NPC media、reply source、media intent、media purpose、trial runtime asset、conversation progress、owned item context、execution intent、plan supersession、safe diagnostics、media cancellation、current input interpretation，以及 `44-154-G/J/K` 媒体结果上下文/接线/唤醒。
