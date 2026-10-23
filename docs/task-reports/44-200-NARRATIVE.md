@@ -7,7 +7,7 @@
 - 导演 attempt 23f20844-849a-4a59-b812-d4d512a045a9 的原始 `actorTasks` 已错配，非解码索引交换：actor:2 正确绑定李之之，却输出见父亲任务；actor:5 正确绑定青青，却输出孩子交接照护任务。actor:3 林白语收到出差任务，actor:1 刘胜男收到母亲住院任务。
 - v95 青青的 NPC snapshot 同时收到错误导演照护机会与正确作者初始“医院看母亲”信息；v97 李之之同时收到错误见父亲机会与正确照片邀约信息。NPC遂按错误任务建立blocked计划。
 - 后续导演又将错误李之之消息作为依据生成独立见父亲episode（origin 125779c7-2584-46bd-8bb4-2276de1e9673:decision），形成错误历史强化。
-- 导演来源读取未纳入 `actor_narrative_knowledge`；`actorKnownTopics`只读取目标/计划/责任，不是初始事实视图。当次该列表为空，正确初始归属没有就近作为任务绑定材料。
+- 纠正初次诊断：原导演snapshot通过world_facts已有6条正确opening report及knownByActorIds，无需新增查询。真正断点是预算裁剪仅保护speech，删掉了全部6条结构化opening report。原snapshot捕获请求（0模型）：45原观察→34请求观察、opening=0、57748字符；修复后40请求观察、opening=6、59335字符。
 - 重复等待不是问题全丢：实际李之之v153 snapshot有10个open questions，viewState同样10个，continuation=no_current_intent；现有计划blocked等待玩家。多个回合创建相似问题与同目标计划。不能把“收到新消息”算作进展。
 
 ## 最小实现
@@ -18,14 +18,14 @@
 
 ## 验证
 
-- director-agent-model + director-actor-task-wire：55/55通过。
+- director-agent-model + director-actor-task-wire：56/56通过。
 - typecheck：0错误。
 - 既有虚构材料白名单测试保留；身份数组反序仍按ID绑定；schema各actor键绑定对应姓名。
 - 未运行全量check/build，交root合并后一次运行；未真实模型验收，不宣称串线质量已经解决。
 
 ## 必须保留的后续
 
-1. 将已有初始知情通过原导演observations/source机制纳入，不把作者未发生情节当世界事实。
+1. 已修复作者资格评估中结构化opening report的裁剪保护，保留sourceId/knownByActorIds；未增加查询/字段，不保留所有fact。真实模型归属效果仍须验收。
 2. 对旧错误机会提供基于合法来源的重新判断；不能直接手工改归属或伪造已修复历史。
 3. 重复问题需要业务身份承接与NPC自主调整，不能新增统一冷却/强制撤回或靠文本相似度替NPC决策。
 4. 用现有存档验证真实效果；本批只改善身份/人设与任务键的上下文局部性。
