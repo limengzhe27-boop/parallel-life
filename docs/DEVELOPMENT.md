@@ -2624,7 +2624,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 154-A设计冻结：295行专属文档已形成，核附件f34c05ff及集成e4f0eb91真实调用链；状态/权限、all-any空数组兼容、原事务due投影重建、租约与paidunknown、三阶段投递及双人物最小分期明确。0源码/SQL/config/模型/生产改动，外部项目未核不声称已验证；root审阅集成，实施另行分派。
 
-|44-154-B|[ ] 待验收|codex-director-fallback154-b；root唯一集成|独立director-fallback154-b/codex/director-fallback154-b自63ab430b；src/server/npc-agent-advance-services.ts、tests/integration/npc-agent-advance-service.test.ts、docs/task-reports/44-154-B-DIRECTOR-INDEPENDENT-FALLBACK.md独占|导演quiet/已知无效不饿死原独立候选；原kernel/资格/付费围栏；仅定向PG/type，0模型/生产/SQL/部署。冻结72a5df0f；PG17/17、type通过；158交付后root集成。|
+|44-154-B| [x] 已完成（核心两场景单独通过；整文件待重写） |codex-director-fallback154-b；root唯一集成|独立director-fallback154-b/codex/director-fallback154-b自63ab430b；src/server/npc-agent-advance-services.ts、tests/integration/npc-agent-advance-service.test.ts、docs/task-reports/44-154-B-DIRECTOR-INDEPENDENT-FALLBACK.md独占|导演quiet/已知无效不饿死原独立候选；原kernel/资格/付费围栏；仅定向PG/type，0模型/生产/SQL/部署。冻结72a5df0f；PG17/17、type通过；158交付后root集成。|
 
 |44-158-I-OWNED-ITEM-CONTEXT| [x] 已完成（集成验证） |codex-opening-fix-items158i；root唯一集成|独立actor-owned-items158-i/codex/actor-owned-items158-i自63ab430b；domain/world-awareness.ts的AgentWorldContext、infrastructure/world-awareness-repository.ts readActorAwareness、agent-snapshot-repository.ts attach；专属测试/报告；独占本地PG55628；sourceResolver公共需求先协调|仅本人实际held物品目录与item能力资格，0造物品/0SQL/模型/生产/部署；root持npc-agent-model/protocol。|已核源缺物品resolver，最小来源接口待root协调。| 冻结687f9b05；真实PG55628三场景4/4、tsc通过；0模型/生产/部署。
 
@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行收口后，当前总表 254 行、81 条未完成，其中 52 条为历史审计/设计冻结行，29 条才是活跃项；分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行收口后，当前总表 255 行、81 条未完成，其中 52 条为历史审计/设计冻结行，29 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -2970,3 +2970,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-198-DEPLOYMENT-ACCOUNT-MIGRATION|[ ] 部分交付|root-migration198-20261023；唯一集成|主目录；.vercel本地关联、scripts/verify-{full-e2e,chat-stream-live,live-image-generation}.mjs、部署目标公共脚本、新旧Vercel项目调度/环境配置、docs/DEPLOYMENT.md、PROJECT_BRIEF.md、专属报告|统一新账号parallel-world与新域名；保留旧项目/数据；核对环境/存储/定时任务，阻止重复旧项目运行；必要检查并部署READY。|2026-10-23：新账号接管已部署54be25c0/dpl_4f6qRfnVnbQPTHASKddXUd5LZv6x READY；CLI/关联/脚本/4项环境已补，publisher登录+23作品读取、图片上传201/读取200/清理204。108迁移一致，数据保留。用户暂不再处理旧账号；旧cron/Git未停（403），不能算全量迁移关闭。build通过；check受共享本地测试库schema/账本不一致42P06阻断。详见报告。|
 
 |PUSH-XGEN-01|[x] 已完成|codex-push-xgen-20261023；用户本线程明确授权|本地独立忽略目录.local/xgen-code-export-20261023；仅项目代码快照推送XGEN-Labs/parallel-world-demo main|用户补充排除测试/任务/秋招后，以最新main54be25c0导出src/public/db+必要配置/运行脚本947文件；去tests/docs/AGENTS/旧kit/verification截图/CI与验收脚本；同步去测试命令，不带凭据/用户数据。|2026-10-23：初次0e0adae完整推送在用户补充前已完成，已如实告知并仅对该新仓本人提交使用精确lease替换。最终92cf3fac0980edcd3cf03070cab30c44f96fad6b为单个rootcommit，GH远端SHA/1commit/947files完整tree核验排除项0；独立check(边界719+type)/build成功，业务源码素材SQL逐字节匹配原54be。原项目/旧origin/部署数据不改。|
+
+### 2026-10-23 · 44-154-B 核心场景复核
+
+主分支单独运行 `global director quiet preserves...` 与 `known invalid global director...` 均 1/1 通过；整文件 `npc-agent-advance-service.test.ts` 仍 5/18，首个 `travel...` 用例 actorId 断言不符，后续因 `UNKNOWN_SOURCE` 级联。重建干净 `parallel_life_test` schema 后结果相同，排除测试库残留。结论：核心“导演 quiet/已知无效不饿死独立候选”成立；整文件跨用例隔离/夹具需重写，故本行限定收口，不宣称整套测试通过。0 模型/生产写/SQL。
