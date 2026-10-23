@@ -1,3 +1,4 @@
+import { isStickerId } from '../domain/stickers.ts';
 import { resultAckPrefix } from '../domain/matter-progression.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { witnessedMatterResult } from '../domain/scene-matter-policy.ts';
@@ -76,7 +77,7 @@ export function actorContext(
   const messages = state.messages.filter(
     (message) =>
       message.actorId === actorId &&
-      message.text.trim().length > 0 &&
+      (message.text.trim().length > 0 || isStickerId(message.stickerId)) &&
       !blockedSources.has(message.id) &&
       !blockedSources.has(message.sourceEventId),
   );

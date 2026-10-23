@@ -581,9 +581,14 @@ export function validateAgentProposal(
         context.input.text.includes(report.quote),
       'UNSOURCED_LOCATION_REPORT',
     );
+  // Keep discarded decoration slots stable for stream segment identity; never persist empty slots.
   for (const statement of proposal.statements) {
     requireValid(
-      statement.text.trim().length > 0 || statement.stickerId !== undefined,
+      statement.text.trim().length > 0 ||
+        statement.stickerId !== undefined ||
+        proposal.statements.some(
+          (other) => other.text.trim().length > 0 || other.stickerId !== undefined,
+        ),
       'EMPTY_STATEMENT',
     );
     requireValid(
@@ -792,10 +797,12 @@ export function reduceActorAgentState(
         'UNCONFIRMED_RESPONSIBILITY_RESULT',
       );
     }
-  const statements = proposal.statements.filter((statement) =>
-    statement.dependsOnActionIds.every(
-      (id) => actions.find((action) => action.id === id)?.status === 'succeeded',
-    ),
+  const statements = proposal.statements.filter(
+    (statement) =>
+      (statement.text.trim().length > 0 || statement.stickerId !== undefined) &&
+      statement.dependsOnActionIds.every(
+        (id) => actions.find((action) => action.id === id)?.status === 'succeeded',
+      ),
   );
   requireValid(
     context.input.origin !== 'player' || statements.length > 0 || proposal.recallLast === true,

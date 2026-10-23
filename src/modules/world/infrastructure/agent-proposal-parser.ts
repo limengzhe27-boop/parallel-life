@@ -1,3 +1,4 @@
+import { normalizeStickerStatement } from '../domain/sticker-expression.ts';
 import { attachAgentFailure } from '../application/agent-failure-diagnostic.ts';
 import { AgentProposalSchema, STICKER_IDS } from './agent-proposal-schema.ts';
 import { decodeNpcWire } from './npc-model-protocol.ts';
@@ -36,14 +37,14 @@ function normalizeExpressionMarkers(value: unknown): unknown {
   if (!Array.isArray(object.statements)) return value;
   const statements = object.statements.flatMap((raw) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [raw];
-    const statement = raw as Record<string, unknown>;
+    const statement = normalizeStickerStatement(raw) as Record<string, unknown>;
     if (typeof statement.text !== 'string') return [raw];
     const text = statement.text.trim();
     const sticker = /^\[\[sticker:([a-z_]+)\]\]$/.exec(text);
     if (sticker && (STICKER_IDS as readonly string[]).includes(sticker[1]!))
       return [{ ...statement, text: '', stickerId: sticker[1] }];
     if (text === '[[recall:last]]') return [];
-    return [raw];
+    return [statement];
   });
   const recall = object.statements.some(
     (raw) =>
@@ -51,7 +52,7 @@ function normalizeExpressionMarkers(value: unknown): unknown {
       typeof raw === 'object' &&
       !Array.isArray(raw) &&
       typeof (raw as { text?: unknown }).text === 'string' &&
-      ((raw as { text: string }).text.trim() === '[[recall:last]]'),
+      (raw as { text: string }).text.trim() === '[[recall:last]]',
   );
   if (recall && object.protocol === 'npc-wire-v15') {
     const changes =
