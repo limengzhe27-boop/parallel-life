@@ -1,5 +1,5 @@
 import { SELECTABLE_STICKERS } from '../domain/stickers.ts';
-import { stickerMessageMeaning } from '../domain/sticker-expression.ts';
+import { isStickerOnlyMessage, stickerMessageMeaning } from '../domain/sticker-expression.ts';
 import { actorSelfAgendaContext } from '../domain/actor-self-agenda-context.ts';
 import { projectNpcConversationProgress } from './npc-conversation-progress.ts';
 import { npcPresentationContext } from './npc-presentation-context.ts';
@@ -203,6 +203,7 @@ function responseFormatFor(snapshot: AgentSnapshot) {
       channel: snapshot.channel,
       sources: snapshot.sources,
     },
+    isStickerOnlyMessage(snapshot.input.text),
   );
 }
 
@@ -314,6 +315,18 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       ))
   )
     invalid('NPC_AGENT_INVALID_SNAPSHOT', 'world_context');
+  const stickerOnly = isStickerOnlyMessage(snapshot.input.text);
+  const contextState = stickerOnly
+    ? {
+        ...viewState,
+        goals: [],
+        plans: [],
+        responsibilities: [],
+        questions: [],
+        focus: null,
+        continuation: undefined,
+      }
+    : viewState;
   const responseFormat = responseFormatFor(snapshot);
   const considerationRequired =
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest !== undefined;
@@ -366,7 +379,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
         }
       : {}),
     state: stateContextWithFallback(
-      viewState,
+      contextState,
       {
         privateStrategySourceIds: new Set(
           snapshot.sources.filter((s) => s.usage === 'private_strategy').map((s) => s.id),
@@ -375,6 +388,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       () => invalid('NPC_AGENT_INVALID_SNAPSHOT', 'state_context'),
     ),
     ...(snapshot.channel.kind === 'private' &&
+    !stickerOnly &&
     viewState.continuation &&
     viewState.continuation.sourceIds.every((id) => snapshot.sources.some((s) => s.id === id)) &&
     viewState.continuation.planIds.every((id) => viewState.plans.some((p) => p.id === id)) &&
@@ -391,7 +405,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
           },
         }
       : {}),
-    planNextSteps: viewState.plans.map((plan) => ({
+    planNextSteps: contextState.plans.map((plan) => ({
       planId: plan.id,
       readiness: agentPlanNextStep(plan, viewState.actions, snapshot.channel.allowedCapabilities),
     })),
@@ -553,7 +567,9 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     ...(snapshot.channel.kind === 'private' && snapshot.episodeResults?.length
       ? { episodeResults: snapshot.episodeResults }
       : {}),
-    conversationProgress: projectNpcConversationProgress(snapshot),
+    conversationProgress: stickerOnly
+      ? { questions: [], waitingOnPlayer: [] }
+      : projectNpcConversationProgress(snapshot),
     input: {
       speaker: snapshot.input.origin === 'player' ? 'player' : 'system',
       sourceId: snapshot.input.sourceId,

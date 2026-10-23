@@ -883,6 +883,27 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
 
+test('a sticker-only turn receives no plan ledger, no pending questions and no change schema', async () => {
+  const input = snapshot();
+  input.input.text = '[[sticker:zan]]';
+  const { adapter, calls } = capture();
+  adapter.validateInput(input);
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.state.goals, []);
+  assert.deepEqual(payload.state.plans, []);
+  assert.deepEqual(payload.state.questions, []);
+  assert.deepEqual(payload.conversationProgress, { questions: [], waitingOnPlayer: [] });
+  const output = calls[0]!.output;
+  assert.equal(output?.format, 'json_schema');
+  if (output?.format !== 'json_schema') return;
+  const schema = output.schema as {
+    properties?: Record<string, { type?: string }>;
+  };
+  assert.equal(schema.properties?.changes?.type, 'null');
+  assert.equal(schema.properties?.executions?.type, 'null');
+});
+
 test('prompt instructions specify player decision tracking on responsibilities with exact verbatim quotes', async () => {
   const input = snapshot();
   const { adapter, calls } = capture();

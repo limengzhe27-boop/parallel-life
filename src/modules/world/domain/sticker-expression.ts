@@ -1,4 +1,9 @@
 import { getSticker, isStickerId } from './stickers.ts';
+/** A player turn that carries only a shared sticker, with no typed caption. */
+export function isStickerOnlyMessage(text: string): boolean {
+  const match = /^\[\[sticker:([a-z_]+)\]\]$/.exec(text.trim());
+  return !!match?.[1] && isStickerId(match[1]);
+}
 /** Unknown decoration cannot erase independent text. Keep statement positions stable. */
 export function normalizeStickerStatement(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;

@@ -457,6 +457,7 @@ export function npcResponseFormat(
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
   current?: Pick<AgentValidationContext, 'input' | 'channel'> &
     Partial<Pick<AgentValidationContext, 'sources'>>,
+  expressionOnly = false,
 ): ModelOutputOptions {
   if (NPC_RESPONSE_FORMAT.format !== 'json_schema') throw Error('NPC_RESPONSE_SCHEMA');
   type SchemaNode = {
@@ -894,6 +895,14 @@ export function npcResponseFormat(
     if (node.$defs && typeof node.$defs === 'object')
       Object.values(node.$defs as Record<string, unknown>).forEach(requireAll);
   };
+  if (expressionOnly) {
+    const properties = (finalized as { properties?: Record<string, unknown> }).properties;
+    if (properties) {
+      properties.executions = { type: 'null' };
+      // A sticker is expression, not a plot or plan mutation.
+      properties.changes = { type: 'null' };
+    }
+  }
   requireAll(finalized);
   return { ...NPC_RESPONSE_FORMAT, schema: finalized };
 }
