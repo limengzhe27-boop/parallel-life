@@ -57,3 +57,9 @@ Remaining task 154: timely durable background wakes, fair claims/leases, determi
 在 `县城黄毛` 测试世界上：暂停后进入为 `speed:3/activeUntil有值`；离开 20 秒为 `speed:1/activeUntil:null`；返回后再次 `speed:3`。离线期间只读 `storyNow` 仍是存储锚点，返回时一次补到 +约23秒（含20秒 away）；在线6秒读到 +9.3秒，受 lease/投影刷新节拍影响，不能据此反推精确倍率。
 
 世界 version 保持 204、最后消息不变；页面只有 1 次 `/advance/operation` lookup，没有 `/advance`、没有新消息/事件，未观察到商业模型写入。该证据支持“离线1x/在线3x、返回不造假历史”的时钟层，但不等于持续叙事；`44-153` 仍保持待验收，后台及时性与真实剧情推进归 `44-154/165`。
+
+## 2026-10-23 收口结论（限定连续运行）
+
+`44-153` 的连续运行底座已具备：统一 clock/activity、离线 1x/在线 3x、返回从锚点继续、manual pause/trial 隔离、旧档不补历史、双协议兼容；生产 0092 迁移、PG11/14/20/9/1、check/build 与本次手机/PC UI 探测均通过。未完成的是**后台及时频率**（154）和**真实人物叙事质量**（148/150/165），不由本行代称通过。
+
+因此本行按“连续时钟/离线在线速率/不造假历史”收口；后台分钟级调度仍归 `44-154-DUE-WORLD-JOB-SCHEDULER-I`，真实主动来信仍归 `44-165`。
