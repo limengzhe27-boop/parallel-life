@@ -1,3 +1,9 @@
+## 2026-10-23 · 44-197 消息横幅贴近状态栏与微信顶栏去搜索图标
+
+用户反馈消息横幅出现在屏幕中上部，应在手机状态栏时间下方、占用微信顶栏 / 搜索区域。`PhoneShell` 新增 `statusLayer` 包裹状态栏与横幅，横幅改为相对状态栏层 `top: calc(100% + 8px)`；状态栏 58px、短屏 50px 及 notice 高度均自动跟随。微信顶栏删除重复的 🔍 按钮和无用的 `wechat-search-input` 聚焦代码，保留 ⊕ 和列表内真实搜索框。
+
+业务提交 `05584764`，`parallel-world` 部署 `dpl_8QNknTWHcujKv2zxBGFKvYBFtZu9` READY，正式别名 `/api/health` 200。公网 CSS 已确认 `top:calc(100% + 8px)`、旧 `152px/176px` 偏移消失；公网 JS 顶栏只剩“更多功能”/⊕。本地 390×844 带说明条 `90→98`、无说明条 `58→66`、390×500 短屏 `82→90`，间距均 8px；1440×1000 桌面手机宽 460 同样间距 8px。`npm run check` **3950/3950**、typecheck、build 通过；未调用真实模型、未写生产世界、无新 SQL。截图见 [390×844](task-reports/assets/44-197-banner-390.png)、[无说明条](task-reports/assets/44-197-banner-no-notice-390.png)、[短屏](task-reports/assets/44-197-banner-390x500.png)、[桌面](task-reports/assets/44-197-banner-pc-1440.png)。
+
 ## 2026-10-23 · 44-196 T2-3 epoch-2 日程定时消息
 
 T2-3 补齐：epoch-2 新增 `appointment` 候选源，确认日程在到期前 2 小时、到点 0–1 小时、过期 1–12 小时各生成一次稳定身份候选；候选带阶段 `wakeCue`，模型提示词前置为必须按该阶段回应；confirmed 日程不再由通用 responsibility 重复唤醒；窗口内有真实消息则静默。业务 `4b0c187d` / `dpl_GL3ySYHezhHyxwodsVd6MCAhaWBk` READY；诊断日志 `8937fc38` / `dpl_9aGwvfCXSu7DNERLLwNRXRdcnnXK` READY；正式 Nu health 200。`npm run check` **3948/3948**、`npm run build` 通过；无新增 SQL 迁移。
