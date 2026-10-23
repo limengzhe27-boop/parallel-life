@@ -2534,7 +2534,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 148文件范围：world-phone-app.tsx发送命令不可变；agent-phone-entry-probe.ts复用narrative-wake；NPC模型/解析统一输出契约；对应原模型/协议/semantic-wake测试。149报告3b18已取8824cfbe；渣男7档只读核实epoch2且无导演attempt。生产91checksum/107世界保留。check3310/build/原服务PG20通过，初次并行check/build的.next类型重建冲突已在build结束后复验。待部署与手机/PC实测。
 
-|44-150-PHONE-CHAT-LIVE-ACCEPTANCE-I|[ ] 进行中|codex-root-live150 sole integrator|unified-engine137；ONLY.local/ma150-*与报告，沿用已暂停合成档145，0新作品/新档/发布/图片|用户新授权最多6文字调用检查手机消息/人物回复/交接，未知不自动重试，结束暂停；145已关闭不复用额度。|仅READY后调用，先独立baseline。| 当前5/6，0unknown，合成档已暂停，剩1未用、scope open；原手机真实回复/锁屏通知通过，邀约仍失败，详见150报告；不反复重买。
+|44-150-PHONE-CHAT-LIVE-ACCEPTANCE-I|[ ] 阻塞|codex-root-live150 sole integrator|unified-engine137；ONLY.local/ma150-*与报告，沿用已暂停合成档145，0新作品/新档/发布/图片|用户新授权最多6文字调用检查手机消息/人物回复/交接，未知不自动重试，结束暂停；145已关闭不复用额度。|仅READY后调用，先独立baseline。| 当前5/6，0unknown，剩1未用、scope open；原手机真实回复/锁屏通知通过，邀约仍失败。2026-10-23 新域名会话 `/api/v1/worlds` 不含合成档 `cacb55e2...`，直接 GET 404；未发送、未调用模型、未消耗最后1次，也未用真实档替代。解除需旧测试 owner 会话/链接，或授权新合成档（超出原0新档范围）。详见150报告。
 
 148扩展唯一公共范围：AI application/ports.ts、infrastructure/yibu-text-model.ts、tests/gateway.test.ts与原NPC模型/协议。150新范围已用2/6，首实际手机发送committed且真实锁屏通知手机/PC可见；第二正式邀约已知invalid，漏goal/plan关联，未补造。改为同一TextModel端口提供json_schema，NPC响应schema从原Wire生成，新可执行动作只允许完整executions，旧动作修改保留；非严格provider模式不宣称形式保证，内核继续独立核验。未静默fallback或多次调用。schema开销纳入38k总输入预算（消息原32k+约5.5k格式）。待必要检查/READY后用剩4次有界复验。
 
