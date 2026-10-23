@@ -44,6 +44,19 @@ function normalizeExpressionMarkers(value: unknown): unknown {
     if (sticker && (STICKER_IDS as readonly string[]).includes(sticker[1]!))
       return [{ ...statement, text: '', stickerId: sticker[1] }];
     if (text === '[[recall:last]]') return [];
+    // A sticker is its own message. Split legacy/model combined bubbles without
+    // dropping the text, its reply intent or its dependency binding.
+    if (typeof statement.stickerId === 'string' && text.length > 0) {
+      const textOnly = { ...statement };
+      delete textOnly.stickerId;
+      const stickerOnly = {
+        ...statement,
+        text: '',
+        requestsPlayerReply: undefined,
+        questionForResponsibilityId: undefined,
+      };
+      return [textOnly, stickerOnly];
+    }
     return [statement];
   });
   const recall = object.statements.some(

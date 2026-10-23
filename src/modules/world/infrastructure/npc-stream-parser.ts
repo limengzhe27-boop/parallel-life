@@ -244,11 +244,10 @@ export class NpcStreamParser {
         this.currentStatementStart = -1;
         this.currentStatementBraceDepth = 0;
         const segmentIndex = this.nextSegmentIndex;
-        this.nextSegmentIndex += 1;
-
-        const parsedEvent = this.parseAndClassifyStatement(rawStatement, segmentIndex);
-        events.push(parsedEvent);
-        if (parsedEvent.kind === 'statement_error') {
+        const parsedEvents = this.parseAndClassifyStatements(rawStatement, segmentIndex);
+        this.nextSegmentIndex += parsedEvents.length;
+        events.push(...parsedEvents);
+        if (parsedEvents.some((event) => event.kind === 'statement_error')) {
           this.haltedByError = true;
           this.cursor += 1;
           break;
@@ -340,62 +339,90 @@ export class NpcStreamParser {
     });
   }
 
-  private parseAndClassifyStatement(
+  private parseAndClassifyStatements(
     rawStatement: string,
     segmentIndex: number,
-  ): NpcParsedStreamEvent {
+  ): NpcParsedStreamEvent[] {
     let parsedJson: unknown;
     try {
       parsedJson = JSON.parse(rawStatement);
     } catch {
-      return {
-        kind: 'statement_error',
-        segmentIndex,
-        code: 'STREAM_STATEMENT_INVALID_JSON',
-      };
+      return [
+        {
+          kind: 'statement_error',
+          segmentIndex,
+          code: 'STREAM_STATEMENT_INVALID_JSON',
+        },
+      ];
     }
 
     const validated = StatementWireElementSchema.safeParse(normalizeStickerStatement(parsedJson));
     if (!validated.success) {
-      return {
-        kind: 'statement_error',
-        segmentIndex,
-        code: 'STREAM_STATEMENT_SCHEMA_INVALID',
-      };
+      return [
+        {
+          kind: 'statement_error',
+          segmentIndex,
+          code: 'STREAM_STATEMENT_SCHEMA_INVALID',
+        },
+      ];
     }
 
     const data = validated.data;
-    const draft: NpcStreamStatementDraft = {
-      segmentIndex,
-      text: data.text,
-      ...(typeof data.stickerId === 'string' ? { stickerId: data.stickerId } : {}),
-      dependsOnActionIds: data.dependsOnActionIds,
-      ...(typeof data.requestsPlayerReply === 'boolean'
-        ? { requestsPlayerReply: data.requestsPlayerReply }
-        : {}),
-      ...(typeof data.questionForResponsibilityId === 'string'
-        ? { questionForResponsibilityId: data.questionForResponsibilityId }
-        : {}),
-    };
-
-    const classification = classifyNpcStreamStatement({
-      statement: draft,
-      channelKind: this.channelKind,
-      inputOrigin: this.inputOrigin,
-      priorDependentSeen: this.priorDependentSeen,
-      existingResponsibilityIds: this.existingResponsibilityIds,
-      executionCapabilities: this.executionCapabilities,
-    });
-
-    if (classification.unitKind === 'dependent_statement') {
-      this.priorDependentSeen = true;
+    const drafts: NpcStreamStatementDraft[] = [];
+    if (data.text.trim().length > 0 && typeof data.stickerId === 'string') {
+      // A sticker is a separate message; keep the text and its reply binding intact.
+      drafts.push({
+        segmentIndex,
+        text: data.text,
+        dependsOnActionIds: data.dependsOnActionIds,
+        ...(typeof data.requestsPlayerReply === 'boolean'
+          ? { requestsPlayerReply: data.requestsPlayerReply }
+          : {}),
+        ...(typeof data.questionForResponsibilityId === 'string'
+          ? { questionForResponsibilityId: data.questionForResponsibilityId }
+          : {}),
+      });
+      drafts.push({
+        segmentIndex: segmentIndex + 1,
+        text: '',
+        stickerId: data.stickerId,
+        dependsOnActionIds: data.dependsOnActionIds,
+      });
+    } else {
+      drafts.push({
+        segmentIndex,
+        text: data.text,
+        ...(typeof data.stickerId === 'string' ? { stickerId: data.stickerId } : {}),
+        dependsOnActionIds: data.dependsOnActionIds,
+        ...(typeof data.requestsPlayerReply === 'boolean'
+          ? { requestsPlayerReply: data.requestsPlayerReply }
+          : {}),
+        ...(typeof data.questionForResponsibilityId === 'string'
+          ? { questionForResponsibilityId: data.questionForResponsibilityId }
+          : {}),
+      });
     }
 
-    return {
-      kind: 'statement',
-      statement: draft,
-      unitKind: classification.unitKind,
-      ...(classification.reason ? { withheldReason: classification.reason } : {}),
-    };
+    return drafts.map((draft) => {
+      const classification = classifyNpcStreamStatement({
+        statement: draft,
+        channelKind: this.channelKind,
+        inputOrigin: this.inputOrigin,
+        priorDependentSeen: this.priorDependentSeen,
+        existingResponsibilityIds: this.existingResponsibilityIds,
+        executionCapabilities: this.executionCapabilities,
+      });
+
+      if (classification.unitKind === 'dependent_statement') {
+        this.priorDependentSeen = true;
+      }
+
+      return {
+        kind: 'statement' as const,
+        statement: draft,
+        unitKind: classification.unitKind,
+        ...(classification.reason ? { withheldReason: classification.reason } : {}),
+      };
+    });
   }
 }

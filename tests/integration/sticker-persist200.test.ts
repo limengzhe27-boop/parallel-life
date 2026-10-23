@@ -123,13 +123,19 @@ test('44-200 real PG: sticker marker, mixed/pure/invalid decoration persist and 
   assert.equal(w.messages.filter((m) => m.role === 'user').length, 1);
   assert.equal(w.messages.find((m) => m.role === 'user')?.text, '[[sticker:zan]]');
   const replies = w.messages.filter((m) => m.role === 'assistant');
-  assert.equal(replies.length, 4);
+  assert.equal(replies.length, 5);
   assert.equal(replies[0]?.text, statements[0]!.text);
-  assert.equal(replies[1]?.stickerId, 'zan');
   assert.equal(replies[1]?.text, '一起努力');
-  assert.equal(replies[2]?.stickerId, 'jiayou');
-  assert.equal(replies[3]?.stickerId, undefined);
-  assert.equal(replies[3]?.text, '好的');
+  assert.equal(replies[1]?.stickerId, undefined);
+  assert.equal(replies[2]?.stickerId, 'zan');
+  assert.equal(replies[2]?.text, '');
+  assert.equal(replies[3]?.stickerId, 'jiayou');
+  assert.equal(replies[4]?.stickerId, undefined);
+  assert.equal(replies[4]?.text, '好的');
+  assert.equal(
+    replies.some((m) => m.text.trim().length > 0 && m.stickerId !== undefined),
+    false,
+  );
   assert.match(JSON.stringify(payload), /欣赏|称赞/);
   await api.sendMessageIfEnabled(f.owner, cmd);
   assert.equal(calls, 1);
@@ -168,10 +174,16 @@ test('44-200 real PG: stream and final do not duplicate sticker units', async (t
   assert.equal(receipt?.status, 'committed', JSON.stringify(receipt));
   const w = await f.worlds.get({ userId: f.owner }, f.worldId);
   const replies = w.messages.filter((m) => m.role === 'assistant');
-  assert.equal(replies.length, 4);
-  assert.equal(new Set(replies.map((m) => m.id)).size, 4);
+  assert.equal(replies.length, 5);
+  assert.equal(new Set(replies.map((m) => m.id)).size, 5);
   assert.equal(w.messages.filter((m) => m.role === 'user').length, 1);
   assert.equal(replies.filter((m) => m.stickerId === 'jiayou').length, 1);
+  assert.equal(replies.filter((m) => m.stickerId === 'zan').length, 1);
+  assert.equal(replies.filter((m) => m.text === '一起努力').length, 1);
+  assert.equal(
+    replies.some((m) => m.text.trim().length > 0 && m.stickerId !== undefined),
+    false,
+  );
   assert.equal(replies.filter((m) => m.text === '好的').length, 1);
   await api.sendMessageIfEnabled(f.owner, cmd, {
     onSegment: (s) => {

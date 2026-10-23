@@ -51,16 +51,25 @@ test('invalid sticker decoration preserves text and statement positions', () => 
   );
   assert.throws(() => parseAgentProposal(c, wire([s('', 'bad_id')])));
 });
-test('valid pure sticker, mixed caption and legacy marker survive without replacing dialogue', () => {
+test('valid pure sticker, combined caption and legacy marker split into separate messages', () => {
   const c = fixture(),
     p = parseAgentProposal(
       c,
       wire([s('事情还没有完成。'), s('', 'jiayou'), s('一起努力', 'zan'), s('[[sticker:hao]]')]),
     );
-  assert.equal(p.statements.length, 4);
-  assert.equal(p.statements[3]?.stickerId, 'hao');
+  assert.equal(p.statements.length, 5);
+  assert.equal(p.statements[3]?.stickerId, 'zan');
+  assert.equal(p.statements[4]?.stickerId, 'hao');
   const out = reduceActorAgentState(c, p, [], 1);
-  assert.equal(out.statements.length, 4);
+  assert.equal(out.statements.length, 5);
+  assert.deepEqual(
+    out.statements.map((x) => x.text),
+    ['事情还没有完成。', '', '一起努力', '', ''],
+  );
+  assert.equal(
+    out.statements.some((x) => x.text.trim().length > 0 && x.stickerId !== undefined),
+    false,
+  );
 });
 test('player sticker is meaningful without claiming physical action', () => {
   assert.match(stickerMessageMeaning('[[sticker:chong]]'), /不等于已行动/);
