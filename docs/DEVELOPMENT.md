@@ -2966,3 +2966,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-88`、`44-88C`：只读架构验证/独立审计报告已交付，按审计范围收口；报告中的执行崩溃/时序缺陷继续由后续 P0/P1/P2 行处理，不宣称已全部修复。
 - `44-88A`：`tests/episode-evidence.test.ts` 8/8，证明真实结果投影、邀请/到达不等于整体成功、失败/他人/旧 epoch 证据拒绝；标“证据契约纯测”。
 - 剩余早期行：`44-84`（手机入口，已有本地合成 UI/部署限定证据）、`44-94`（NPC 事件后续）、`44-99`（archived，生产路径由 100 取代）、`44-103`（群聊 ACK）。未逐条审计前不批量改完成。
+
+|44-198-DEPLOYMENT-ACCOUNT-MIGRATION|[ ] 进行中|root-migration198-20261023；唯一集成|主目录；.vercel本地关联、scripts/verify-{full-e2e,chat-stream-live,live-image-generation}.mjs、部署目标公共脚本、新旧Vercel项目调度/环境配置、docs/DEPLOYMENT.md、PROJECT_BRIEF.md、专属报告|统一新账号parallel-world与新域名；保留旧项目/数据；核对环境/存储/定时任务，阻止重复旧项目运行；必要检查并部署READY。|2026-10-23：开始核对，未修改生产；其他功能源码不在范围。|
