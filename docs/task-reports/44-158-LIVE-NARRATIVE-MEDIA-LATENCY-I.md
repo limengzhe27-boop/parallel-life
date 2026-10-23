@@ -160,3 +160,13 @@ Candidate14 07c0e083 / dpl_5d9NPwZkf3CJVtiS7L6faHkJjuvk READY, mini + configured
 但用干净 worktree `9e2f7edc` 执行 `vercel --prod` 返回：
 `Resource is limited - try again in 24 hours (more than 100, code: "api-deployments-free-per-day")`。
 因此最新生产 `jkilp1gm3` **不含**该修复，线上 pending 占位仍在，不能宣称已修复。需等 Vercel 免费日部署额度恢复或升级后再部署/公网复验；不可绕过配额或把本地 build 当线上。
+
+### 2026-10-23 `9e2f7edc` 上线验证：旧 pending 变 failed，但新 pending 洪泛仍在
+
+新部署 `dpl_B1b5rZVQ8QEZGHiAdTkfxx2a6Y27` READY 后，在 `县城黄毛` 聊天中验证：
+
+- 超过 5 分钟的 4 条旧 pending 已显示“⚠️【留影】林悦的生活随拍 / 生成超时或未完成，可稍后重新发起”，不再永久“生成中”；截图 [44-158-stale-pending-ui.png](assets/44-158-stale-pending-ui.png)。
+- 但同一聊天在 12:08–12:42 又出现多条**新的** pending 媒体占位，仍由 NPC 主动回合反复发起“拍张照片/发张自拍”；12 秒内 `/api/v1/worlds/` 读取仍增加 **11 次**（近期 pending 触发 3 秒轮询）。
+- 世界已立即暂停，停止继续生成；未自动重试/补图。
+
+因此 pending 的**过期展示/无限轮询**已修，但根因是 NPC 反复生成媒体意图、缺少“同一人物同窗口只允许一个未完成媒体请求”的限流/幂等。44-158 继续 in progress，不能因旧 pending 变灰就当媒体生命周期通过。
