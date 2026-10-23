@@ -14,7 +14,7 @@
 
 ## 当前状态：可运行的开发预览，尚非成品
 
-独立线上地址：https://parallel-life-nu.vercel.app；代码/部署证据见 [DEPLOYMENT.md](DEPLOYMENT.md) 最新条目。不要沿用探索原型的部署或用户数据。当前持久库和私有素材为 Supabase，前端与服务端为 Vercel/Next.js。
+独立线上地址：https://parallel-world-eosin.vercel.app（2026-10-23 切换至新 Vercel 账号 lim622270-5590 / lmz3 / parallel-world；旧项目保留，不作为部署或验收入口）；代码/部署证据见 [DEPLOYMENT.md](DEPLOYMENT.md) 最新条目。不要沿用探索原型的部署或用户数据。当前持久库和私有素材为 Supabase，前端与服务端为 Vercel/Next.js。
 
 已有可复用基础：真实文字访谈、资料与来源、方向与世界创建、世界角色回合、消息/日历/相册/便签投影、私有图片上传、回执与版本、RLS与角色上下文隔离。支持的世界操作有真实数据库验证；局部测试通过不代表整条产品体验就绪。
 

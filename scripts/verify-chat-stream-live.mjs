@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import fs from 'node:fs';
 
-const baseUrl = 'https://parallel-life-nu.vercel.app';
+const baseUrl = process.env.PL_VERIFY_BASE_URL || 'https://parallel-world-eosin.vercel.app';
 
 async function main() {
   console.log('🚀 [Stage 2 Live Test] 开始生产环境端到端增量流式消息真实实测 (基于官方人生)...');

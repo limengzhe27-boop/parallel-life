@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-const baseUrl = 'https://parallel-life-nu.vercel.app';
+const baseUrl = process.env.PL_VERIFY_BASE_URL || 'https://parallel-world-eosin.vercel.app';
 
 async function main() {
   console.log('🚀 [E2E] 开始全链路端到端验证 (生产环境)...');

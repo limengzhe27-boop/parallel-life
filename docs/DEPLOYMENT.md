@@ -1,5 +1,15 @@
 ## 2026-10-23 · 早期投影/审计行收口（44-3/88/88A/88C）
 
+## 当前唯一生产目标（2026-10-23 账号迁移）
+
+- Vercel 账号：`lim622270-5590`；团队：`lmz3`；项目：`parallel-world`。
+- 正式域名：`https://parallel-world-eosin.vercel.app`；仓库保持 `limengzhe27-boop/parallel-life`。
+- `.vercel/project.json` 必须指向新项目；CLI 登录后先核对账号和 `--scope lmz3`，不能沿用旧账号直接部署。
+- 三份 `scripts/verify-*.mjs` 实测脚本默认使用新域名，可通过 `PL_VERIFY_BASE_URL` 显式指定其他验收环境；运行前确认目标，不将旧站结果作为新站证据。
+- 旧 `parallel-life` 项目保留，仅作为迁移回退资源；历史记录中的 Nu 地址不是当前部署入口。
+- 迁移状态、环境与调度停用证据见 [44-198](task-reports/44-198-DEPLOYMENT-ACCOUNT-MIGRATION.md)，未完成项不能视为已迁移。
+
+
 `44-3` 按 `agent-channel-projector` 纯测收口，`44-88A` 按 episode evidence 纯测收口，合计 **8/8**：稳定 UUID、提案/邀请/到达/失败证据边界、失败/他人/旧 epoch 证据拒绝。`44-88`/`44-88C` 只读架构验证/独立审计报告已交付；报告中的缺陷仍由后续 P0/P1/P2 行处理，不宣称已全部修复。剩余早期行 `44-84`/`44-94`/`44-99`/`44-103` 未批量改完成。
 
 文档提交 `1d8741ac`，`parallel-life` 部署 `dpl_CorLZCTMi685sivA8sYqRJ2voXna` READY，正式别名 `/api/health` 200。该批只改账本/文档，**未改生产源码、未调用模型、未写生产世界、未新增 SQL**。

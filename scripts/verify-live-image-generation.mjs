@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-const baseUrl = 'https://parallel-life-nu.vercel.app';
+const baseUrl = process.env.PL_VERIFY_BASE_URL || 'https://parallel-world-eosin.vercel.app';
 
 function isValidImageMagicBytes(buffer) {
   if (!buffer || buffer.length < 12) return false;
