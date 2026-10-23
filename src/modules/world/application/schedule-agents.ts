@@ -231,25 +231,15 @@ function frozen<T>(value: T): T {
   return copy;
 }
 function canonical(candidate: AgentCandidate): AgentCandidate {
+  // Shape validation already restricts candidate keys. Preserve optional execution
+  // context instead of maintaining a second, lossy field whitelist here.
   return frozen({
-    id: candidate.id,
-    worldId: candidate.worldId,
-    actorId: candidate.actorId,
-    source: candidate.source,
-    episodeId: candidate.episodeId,
-    actionId: candidate.actionId,
+    ...candidate,
     resourceIds: [...new Set(candidate.resourceIds)].sort(),
-    channel: candidate.channel,
-    threadId: candidate.threadId,
     sourceIds: [...new Set(candidate.sourceIds)].sort(),
-    expectedWorldVersion: candidate.expectedWorldVersion,
-    expectedActorRevision: candidate.expectedActorRevision,
-    priority: candidate.priority,
-    reason: candidate.reason,
-    ...(candidate.wakeCue ? { wakeCue: candidate.wakeCue } : {}),
-    requiresCoordination: candidate.requiresCoordination,
   });
 }
+
 const compare = (a: AgentCandidate, b: AgentCandidate) =>
   b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 function competingActors(candidates: AgentCandidate[]): boolean {

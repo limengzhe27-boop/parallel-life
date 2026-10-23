@@ -667,3 +667,24 @@ test('director cannot launder private/global prose or foreign evidence into an a
     assert.equal(d.calls(), 0);
   }
 });
+
+test('canonical scheduling preserves the immutable plan review target through selection', async () => {
+  const planReview = { planId: 'plan', goalId: 'goal' };
+  const c = candidate('review', 'a', { source: 'actor_plan', actionId: null, planReview });
+  const d = director(async () => ({
+    candidateIds: [],
+    deferred: [],
+    guidance: [],
+    reason: 'unused',
+  }));
+  const result = await scheduleAgents(
+    { sources: [source('plan', [c])], director: d.port },
+    input(),
+  );
+  assert.equal(result.selected.length, 1);
+  assert.deepEqual(result.selected[0]!.candidate.planReview, planReview);
+  assert.notEqual(result.selected[0]!.candidate.planReview, planReview);
+  assert.equal(Object.isFrozen(result.selected[0]!.candidate.planReview), true);
+  planReview.planId = 'mutated';
+  assert.equal(result.selected[0]!.candidate.planReview?.planId, 'plan');
+});

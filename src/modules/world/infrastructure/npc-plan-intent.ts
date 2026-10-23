@@ -141,7 +141,34 @@ export function compileNpcPlanIntents(
     }
     return plan;
   };
-  for (const intent of parsed.data) {
+  // A server-origin plan review already supplies the target. An omitted goal
+  // means continue that plan; a genuinely new intention must name its new goal.
+  let reviewedPlanId: string | undefined;
+  if (context.input.origin === 'wake') {
+    try {
+      const wake = JSON.parse(context.input.text);
+      if (wake.type === 'npc_own_condition_ready' && wake.source === 'actor_plan') {
+        const review = wake.planReview;
+        const matches =
+          visible?.plans.filter((p) => p.id === review?.planId && p.goalId === review?.goalId) ??
+          [];
+        if (matches.length === 1) reviewedPlanId = matches[0]!.id;
+      }
+    } catch {
+      // Other wake inputs do not carry a plan-review target.
+    }
+  }
+  for (const original of parsed.data) {
+    const intent: NativePlanIntent =
+      original.kind === 'create' && !original.goal && reviewedPlanId
+        ? {
+            kind: 'update',
+            planId: reviewedPlanId,
+            summary: original.summary,
+            sourceIds: original.sourceIds,
+            ...(original.nextStep ? { nextStep: original.nextStep } : {}),
+          }
+        : original;
     basis(intent.sourceIds);
     let previous: AgentPlan | undefined;
     if (intent.kind !== 'create') previous = knownPlan(intent.planId, intent.kind === 'replace');
