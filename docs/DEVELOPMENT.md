@@ -3052,7 +3052,11 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 `县城黄毛` 在 `e1e80804`/`904dac32` 后 5.3s 内打开锁屏，显示 3 条真实通知；解锁→微信→林悦，真实发送“在吗？现在方便说两句吗？”成功，world v264→270，NPC 分段回复。截图 `task-reports/assets/44-148-existing-world-chat.png`；测试世界已暂停。本行收口仅限合成现有世界 UI 主链，用户真实 `渣男体验` 档与 44-160/161 质量未复验。
 
-|44-199-COMMIT|[ ] 待验收|phone199，root集成|独立.local/worktrees/commit-scope199，codex/commit-scope199；仅agent-commit-version.ts、新聚焦测试/报告；借用本人独立PG55660|允许独立人物私人状态变化，不相交episode依赖证明；不改SQL/调用方，签名交root接线。|root集成。|
+|44-199-COMMIT|[ ] 待上线|phone199，root集成|独立.local/worktrees/commit-scope199，codex/commit-scope199；仅agent-commit-version.ts、新聚焦测试/报告；借用本人独立PG55660|允许独立人物私人状态变化，不相交episode依赖证明；不改SQL/调用方，签名交root接线。|91afdb6c/86ec58a9已集成push；PG并发6/6、恢复9/9、check3961/build通过。Vercel每日100部署限额，最后修复未上线。|
+
+### 44-199 本轮接续与部署阻断
+
+主动调度、通知、上下文、发送前阻断和0109/0110已部署。正式渣男体验4953…约48秒两人物新来信、超过五分钟持续来信；重复等待与角色分工混淆仍未通过。最后并发保存修复91afdb6c/86ec58a9被Vercel每日100部署限额阻断，完整SHA自动部署查询为空。当前正式域READY为dpl_HHzfeARbBtubfi35pjMkr813yC8K，不能宣称包含最后修复。配额恢复后先部署并在原档复测，再收口；不重买旧unknown。纯情绪主动、长期情节质量和真实生产容量继续保留。详见44-199-PROACTIVE-SIMPLIFY报告。
 
 ### 2026-10-23 · 44-156 旧档锁屏真实通知
 
