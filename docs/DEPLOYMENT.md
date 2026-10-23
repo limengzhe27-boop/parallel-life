@@ -2183,3 +2183,10 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
 - 投诉 `74b7c971` world 564→567 无 `wuyu/bailan`；文字仍有轻微反责，单独保留质量边界。
 
 同一测试世界第二轮 `clock/wait` 567→568、`advance` 568→571 played3，无冲突。
+
+## 2026-10-24 · 冲突诊断提交未能上线
+
+`37ff5687` 只增加安全诊断日志（命令 ID、来源、版本、冲突字段；不含正文），已推送 GitHub；
+Vercel Git 未生成部署，手动 `vercel --prod` 再次被 `api-deployments-free-per-day` 拒绝。
+生产仍为 `dc10447c`，因此诊断代码未运行，4953 的 `COMMAND_CONFLICT` 仍未定位。
+不通过清 lease、强写世界或伪造新事件绕过。
