@@ -125,20 +125,14 @@ export function WorldPhoneApp({
   const [openingWorking, setOpeningWorking] = useState(false);
   const directorAttemptedKeys = useRef(new Set<string>());
   const experienceBusy = useRef(false);
-  const setExperienceBusy = useCallback(
-    (busy: boolean) => {
-      experienceBusy.current = busy;
-      phoneReady.current.sending = busy || localMessages.some((m) => m.status === 'pending');
-    },
-    [localMessages],
-  );
-  const phoneReady = useRef({ hasData: false, refreshing: true, sending: false, version: 0 });
+  const setExperienceBusy = useCallback((busy: boolean) => {
+    experienceBusy.current = busy;
+  }, []);
+  const phoneReady = useRef({ hasData: false, refreshing: true, version: 0 });
   phoneReady.current = {
     hasData: data?.id === worldId,
     version: data?.id === worldId ? (data.version ?? 0) : 0,
     refreshing,
-    sending:
-      experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
   };
 
   const [screenLock, setScreenLock] = useState({ worldId, locked: !wechatActorKey });
@@ -736,7 +730,8 @@ export function WorldPhoneApp({
     };
   }, [load]);
   // Other workers/tabs can commit messages even when this page's advance is quiet.
-  // Read projections independently from narrative/model scheduling, without blocking chat.
+  // Read projections even during a send/advance batch. Actor leases remain server-owned;
+  // committed messages merge by version without touching route, drafts or stream state.
   const hasPendingMedia = data?.messages.some((message) => message.mediaStatus === 'pending');
   const liveWorldReady = data?.id === worldId;
   useEffect(() => {
@@ -745,13 +740,7 @@ export function WorldPhoneApp({
     let reading = false;
     const timer = window.setInterval(
       async () => {
-        if (
-          !active ||
-          reading ||
-          document.visibilityState !== 'visible' ||
-          phoneReady.current.sending
-        )
-          return;
+        if (!active || reading || document.visibilityState !== 'visible') return;
         reading = true;
         try {
           const next = await client.world(worldId);
@@ -808,8 +797,7 @@ export function WorldPhoneApp({
       isCurrent() &&
       document.visibilityState === 'visible' &&
       phoneReady.current.hasData &&
-      !phoneReady.current.refreshing &&
-      !phoneReady.current.sending;
+      !phoneReady.current.refreshing;
     setOpening(null);
     setOpeningWorking(false);
     const claimCheck = (key: string) => {
@@ -850,7 +838,6 @@ export function WorldPhoneApp({
         document.visibilityState !== 'visible' ||
         !phoneReady.current.hasData ||
         phoneReady.current.refreshing ||
-        phoneReady.current.sending ||
         directorInFlight.current
       )
         return;
@@ -865,12 +852,7 @@ export function WorldPhoneApp({
       try {
         await advanceRecoveryRef.current.reconcile();
         const clock = await client.readWorldClock(worldId);
-        if (
-          !active ||
-          document.visibilityState !== 'visible' ||
-          phoneReady.current.refreshing ||
-          phoneReady.current.sending
-        )
+        if (!active || document.visibilityState !== 'visible' || phoneReady.current.refreshing)
           return;
         if (openingFinished.current !== worldId || nativeOpening.current === worldId) {
           const current = await client.readWorldOpening(worldId);
@@ -947,7 +929,6 @@ export function WorldPhoneApp({
         if (
           !active ||
           document.visibilityState !== 'visible' ||
-          phoneReady.current.sending ||
           liveTimeRef.current.blocked ||
           !claimCheck(attemptKey)
         )
@@ -1032,7 +1013,6 @@ export function WorldPhoneApp({
                 onClick={async () => {
                   if (
                     directorInFlight.current ||
-                    phoneReady.current.sending ||
                     phoneReady.current.refreshing ||
                     !phoneReady.current.hasData
                   )

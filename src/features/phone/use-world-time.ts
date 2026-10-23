@@ -216,8 +216,7 @@ export function useWorldTime(
   }, [enabled, busy, locked, sync, worldId]);
   const startConversation = useCallback(async () => {
     if (waiting.current || pendingWaitRef.current) throw Error('请先核对这次等待，再继续交谈。');
-    checkHistory.current.lastActivityAt = Date.now();
-    saveCheckHistory();
+    // Conversation activity controls world speed, not other actors' execution opportunities.
     const s = session.current;
     const clock = await sync('conversation', s?.resumeRequired);
     if (!s?.active || session.current !== s || !clock || clock.paused || session.current?.returning)

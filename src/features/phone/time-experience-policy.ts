@@ -77,7 +77,7 @@ export function phoneConversationFocus(
   if (groupId) return { channel: 'group', threadId: groupId };
   return Id.safeParse(route.target).success ? { channel: 'private', threadId: route.target } : null;
 }
-/** This grants a cheap evaluation opportunity, not permission to call a model or create drama. */
+/** Online evaluation is bounded even during a conversation; this never authorizes a model call. */
 export function idleCheckDue(
   now: number,
   lastMeaningfulActivity: number,
@@ -85,7 +85,8 @@ export function idleCheckDue(
   policy: Readonly<PhoneRuntimePolicy> = PHONE_RUNTIME_POLICY,
 ) {
   return (
-    now - lastMeaningfulActivity >= policy.deliveryTargetMs - policy.preparationReserveMs &&
+    (now - lastMeaningfulActivity >= policy.deliveryTargetMs - policy.preparationReserveMs ||
+      now - lastCheck >= policy.deliveryTargetMs - policy.preparationReserveMs) &&
     now - lastCheck >= policy.recheckAfterMs
   );
 }

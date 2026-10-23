@@ -37,11 +37,11 @@ test('long absence is already due when resumed; no extra fixed window starts', (
   assert.equal(idleCheckDue(600_000, history.lastActivityAt, history.lastCheckAt), true);
 });
 
-test('observing a real new incoming ID anchors the next window to delivery observation', () => {
+test('incoming messages preserve observation time without blocking an overdue world check', () => {
   let history = observePhoneIncoming(phoneCheckHistory(0), ['old'], 0);
   history = observePhoneIncoming(history, ['old', 'new'], 40_000);
   assert.equal(history.lastActivityAt, 40_000);
-  assert.equal(idleCheckDue(60_000, history.lastActivityAt, history.lastCheckAt), false);
+  assert.equal(idleCheckDue(60_000, history.lastActivityAt, history.lastCheckAt), true);
   assert.equal(idleCheckDue(75_000, history.lastActivityAt, history.lastCheckAt), true);
 });
 
@@ -100,4 +100,21 @@ test('a bounded message cursor does not change conversation focus or speed', () 
     threadId: actor,
   });
   assert.equal(phoneTimeMode(false, { app: 'calendar' }), 'browsing');
+});
+
+test('continuous conversation cannot starve independent actors while checks remain bounded', () => {
+  let history = observePhoneIncoming(phoneCheckHistory(1_000), ['initial'], 1_000);
+  history.lastCheckAt = 1_000;
+  for (const at of [6_000, 11_000, 16_000, 21_000, 26_000, 31_000]) {
+    history = observePhoneIncoming(history, [...history.incomingIds!, `reply-${at}`], at);
+    assert.equal(idleCheckDue(at, history.lastActivityAt, history.lastCheckAt), false);
+  }
+  history = observePhoneIncoming(history, [...history.incomingIds!, 'reply-36000'], 36_000);
+  assert.equal(idleCheckDue(36_000, history.lastActivityAt, history.lastCheckAt), true);
+  history.lastCheckAt = 36_000;
+  // Another tab's original check timestamp survives navigation and new incoming messages.
+  history = phoneCheckHistory(41_000, JSON.parse(JSON.stringify(history)));
+  assert.equal(idleCheckDue(41_000, history.lastActivityAt, history.lastCheckAt), false);
+  history = observePhoneIncoming(history, [...history.incomingIds!, 'reply-71000'], 71_000);
+  assert.equal(idleCheckDue(71_000, history.lastActivityAt, history.lastCheckAt), true);
 });
