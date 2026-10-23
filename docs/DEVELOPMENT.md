@@ -2534,7 +2534,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 148文件范围：world-phone-app.tsx发送命令不可变；agent-phone-entry-probe.ts复用narrative-wake；NPC模型/解析统一输出契约；对应原模型/协议/semantic-wake测试。149报告3b18已取8824cfbe；渣男7档只读核实epoch2且无导演attempt。生产91checksum/107世界保留。check3310/build/原服务PG20通过，初次并行check/build的.next类型重建冲突已在build结束后复验。待部署与手机/PC实测。
 
-|44-150-PHONE-CHAT-LIVE-ACCEPTANCE-I|[ ] 阻塞|codex-root-live150 sole integrator|unified-engine137；ONLY.local/ma150-*与报告，沿用已暂停合成档145，0新作品/新档/发布/图片|用户新授权最多6文字调用检查手机消息/人物回复/交接，未知不自动重试，结束暂停；145已关闭不复用额度。|仅READY后调用，先独立baseline。| 当前5/6，0unknown，剩1未用、scope open；原手机真实回复/锁屏通知通过，邀约仍失败。2026-10-23 新域名会话 `/api/v1/worlds` 不含合成档 `cacb55e2...`，直接 GET 404；未发送、未调用模型、未消耗最后1次，也未用真实档替代。解除需旧测试 owner 会话/链接，或授权新合成档（超出原0新档范围）。详见150报告。
+|44-150-PHONE-CHAT-LIVE-ACCEPTANCE-I|[x] 已完成（限定手机发送/回复；邀约归145）|codex-root-live150 sole integrator|unified-engine137；ONLY.local/ma150-*与报告，沿用已暂停合成档145，0新作品/新档/发布/图片|用户新授权最多6文字调用检查手机消息/人物回复/交接，未知不自动重试，结束暂停；145已关闭不复用额度。|仅READY后调用，先独立baseline。| 2026-10-23 用户授权改用真实 `渣男体验` 完成最后1次：v17→v21，真实UI发送“今晚19点先见一面…”；1次 `/messages`，刘胜男两条分段回复直接接受19点并追问地点/议题，未沿用旧18点、无不存在责任、无 invalid/unknown，UI“消息已发送”。累计6/6、0 unknown；正式邀约/日历对象未形成，归145。截图 `assets/44-150-20261023-real-19.png`，详见150报告。|
 
 148扩展唯一公共范围：AI application/ports.ts、infrastructure/yibu-text-model.ts、tests/gateway.test.ts与原NPC模型/协议。150新范围已用2/6，首实际手机发送committed且真实锁屏通知手机/PC可见；第二正式邀约已知invalid，漏goal/plan关联，未补造。改为同一TextModel端口提供json_schema，NPC响应schema从原Wire生成，新可执行动作只允许完整executions，旧动作修改保留；非严格provider模式不宣称形式保证，内核继续独立核验。未静默fallback或多次调用。schema开销纳入38k总输入预算（消息原32k+约5.5k格式）。待必要检查/READY后用剩4次有界复验。
 
@@ -2920,11 +2920,12 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 ### 2026-10-23 · P0 运行链账本核验（root 集成）
 
-本轮只做已合入主分支的 P0 接线核验与账本收敛：基线 `aa4098b0`，未调用商业模型、未写生产世界、未新增 SQL。首次全量 check 因本地 PostgreSQL 未启动出现 10 个 `ECONNREFUSED 55432`；启动本地 PostgreSQL 18.4 后重跑 `npm run check` **3950/3950 通过**，不是代码失败。
+本轮先做已合入主分支的 P0 接线核验与账本收敛：基线 `aa4098b0`，该部分未调用商业模型、未写生产世界、未新增 SQL。首次全量 check 因本地 PostgreSQL 未启动出现 10 个 `ECONNREFUSED 55432`；启动本地 PostgreSQL 18.4 后重跑 `npm run check` **3950/3950 通过**，不是代码失败。
 
 核验入口包括：`messages/recover/route.ts`、`protectedMessageReplayStore`、`message-receipt-client`、`http-failure-diagnostics`、`model-request-policy`、`director-preflight-evidence`、`npc-presentation-context`、`continuation-review-admission`、`agent-input-version`、`actor-agenda-initialization`、`phone-continuity-policy`。聚焦测试两组共 **68/68 + 126/126** 通过，覆盖消息已知结果恢复、unknown 不重试、诊断白名单、96k preflight、导演零发送证据、有界思考窗口、人物展示分层、注意力不冻结其他人物、连续性策略等。
 
 - 已把 `44-161` 的恢复/诊断/展示/导演窗口/零发送/议程初始化/人物机会/typed handoff 子项，以及 `44-154` 的 A/C/D/E/F/H/I 子项从“待验收”改为“已完成（审计交付/集成验证/限定代码接线）”。限定代码接线不等于整条产品体验或真实模型质量通过。
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
-- 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（150 真实模型 4/6，协议修复待真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成：当前总表 254 行、108 条未完成，其中 52 条为历史审计/设计冻结行，56 条才是活跃项；分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
+- 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
+- P3 历史账 triage 已完成：当前总表 254 行、107 条未完成，其中 52 条为历史审计/设计冻结行，55 条才是活跃项；分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
