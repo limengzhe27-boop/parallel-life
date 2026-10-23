@@ -20,8 +20,8 @@ export class PostgresSchedulerRepository implements DueWorldSource {
   }
   async claimProactive() {
     const result = await this.db.pool.query(
-      "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds($1, interval '4 hours', interval '10 minutes')",
-      [1],
+      "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds($1, interval '30 minutes', interval '10 minutes')",
+      [2],
     );
     return result.rows.map((row) => ({
       ownerId: String(row.claimed_owner_id),

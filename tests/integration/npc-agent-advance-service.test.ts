@@ -789,6 +789,21 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
         /EXPLICIT_MOCK_TRANSPORT_UNCERTAINTY/,
       );
       const unknown = h.npcCalls()[0]!.payload.state.actorId;
+      // Background SQL must not exclude a whole world because one actor is unknown.
+      // Restrict other fixtures by a future lease, without changing their actor attempts.
+      await admin.query(
+        `INSERT INTO parallel_life.world_proactive_leases(world_id,owner_id,lease_until,last_started_at)
+        SELECT world_id,owner_id,now()+interval '10 minutes',now() FROM parallel_life.world_clock WHERE world_id<>$1
+        ON CONFLICT(world_id) DO UPDATE SET lease_until=EXCLUDED.lease_until,last_started_at=EXCLUDED.last_started_at`,
+        [f.id],
+      );
+      const claim = await db.pool.query(
+        "SELECT * FROM parallel_life.claim_proactive_worlds(2, interval '30 minutes', interval '10 minutes')",
+      );
+      assert.deepEqual(
+        claim.rows.map((r) => r.claimed_world_id),
+        [f.id],
+      );
       await h.service.advanceIfEnabled(f.owner, f.id);
       assert.equal(h.npcCalls().length, 2);
       assert.notEqual(h.npcCalls()[1]!.payload.state.actorId, unknown);

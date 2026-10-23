@@ -108,13 +108,6 @@ function createServices() {
     ),
     agendaConfig,
   );
-  const proactiveAdvance = npcAgentAdvanceServices(
-    db,
-    createTextModel,
-    new PostgresDirectorSnapshotRepository(db),
-    { maxActors: 1, maxModelCalls: 2, maxSteps: 2, maxElapsedMs: 30_000 },
-    agendaConfig,
-  );
   return {
     db,
     directorStatus: (ownerId: string, worldId: string) =>
@@ -500,7 +493,7 @@ function createServices() {
     profile: new ProfileRepository(db),
     assets: new AssetRepository(db, assetStore),
     advanceProactiveWorld: async (ownerId: string, worldId: string) =>
-      (await proactiveAdvance.advanceIfEnabled(ownerId, worldId)) ?? {
+      (await agentAdvance.advanceIfEnabled(ownerId, worldId)) ?? {
         played: 0,
         folded: 0,
         storyNow: new Date().toISOString(),
@@ -509,7 +502,7 @@ function createServices() {
       },
     claimProactiveWorlds: async () => {
       const result = await db.pool.query(
-        "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds(1, interval '4 hours', interval '10 minutes')",
+        "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds(2, interval '30 minutes', interval '10 minutes')",
       );
       return result.rows.map((row) => ({
         ownerId: String(row.claimed_owner_id),

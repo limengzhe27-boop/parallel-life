@@ -22,12 +22,17 @@ test('only this repository workflow on main with the proactive audience is accep
 });
 
 test('proactive tick keeps failures isolated and reports bounded counts', async () => {
+  let claimed = false;
   const result = await runProactiveScheduler(
     {
-      claimProactive: async () => [
-        { ownerId: 'o1', worldId: 'w1' },
-        { ownerId: 'o2', worldId: 'w2' },
-      ],
+      claimProactive: async () => {
+        if (claimed) return [];
+        claimed = true;
+        return [
+          { ownerId: 'o1', worldId: 'w1' },
+          { ownerId: 'o2', worldId: 'w2' },
+        ];
+      },
     },
     async (ownerId) => {
       if (ownerId === 'o1') return { played: 2 };
@@ -35,4 +40,29 @@ test('proactive tick keeps failures isolated and reports bounded counts', async 
     },
   );
   assert.deepEqual(result, { claimed: 2, advanced: 1, messages: 2, failed: 1 });
+});
+
+test('tick stops claiming at its time boundary without aborting already-started worlds', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 0 });
+  let claims = 0;
+  const completed: string[] = [];
+  const result = await runProactiveScheduler(
+    {
+      async claimProactive() {
+        claims++;
+        return [
+          { ownerId: 'o', worldId: 'a' },
+          { ownerId: 'o', worldId: 'b' },
+        ];
+      },
+    },
+    async (_owner, world) => {
+      t.mock.timers.tick(240_000);
+      completed.push(world);
+      return { played: 1 };
+    },
+  );
+  assert.equal(claims, 1);
+  assert.deepEqual(completed, ['a', 'b']);
+  assert.deepEqual(result, { claimed: 2, advanced: 2, messages: 2, failed: 0 });
 });
