@@ -69,6 +69,16 @@ export type MediaPipelineResult = {
 };
 
 export type MediaPipelineOptions = {
+  /** Resolve only an existing authenticated scene input, never prompt keywords. */
+  sceneReferenceReader?: (
+    worldId: string,
+    ownerId: string,
+    sourceEventId: string,
+  ) => Promise<{
+    assetId: string;
+    bytes: Buffer;
+    mimeType: string;
+  } | null>;
   providerAdapter: MediaProviderAdapter;
   assetStore: AssetStore;
   visualAnchorRepo: CharacterVisualAnchorRepository;
@@ -80,10 +90,12 @@ export type MediaPipelineOptions = {
   referenceAssetReader?: (
     assetId: string,
     ownerId?: string,
+    context?: { worldId: string; actorId?: string; revision?: number },
   ) => Promise<{ bytes: Buffer; mimeType: string } | null>;
 };
 
 export class MediaPipelineService {
+  private readonly sceneReferenceReader: MediaPipelineOptions['sceneReferenceReader'];
   private readonly providerAdapter: MediaProviderAdapter;
   private readonly assetStore: AssetStore;
   private readonly visualAnchorRepo: CharacterVisualAnchorRepository;
@@ -95,9 +107,11 @@ export class MediaPipelineService {
   private readonly referenceAssetReader?: (
     assetId: string,
     ownerId?: string,
+    context?: { worldId: string; actorId?: string; revision?: number },
   ) => Promise<{ bytes: Buffer; mimeType: string } | null>;
 
   constructor(options: MediaPipelineOptions) {
+    this.sceneReferenceReader = options.sceneReferenceReader;
     this.providerAdapter = options.providerAdapter;
     this.assetStore = options.assetStore;
     this.visualAnchorRepo = options.visualAnchorRepo;
@@ -113,6 +127,7 @@ export class MediaPipelineService {
     ownerId: string;
     worldId: string;
     intent: ImageGenerationIntent;
+    referenceAssetId?: string;
     currentAssetCount: number;
     callerActorId: string;
     isCallerPlayer: boolean;
@@ -172,12 +187,17 @@ export class MediaPipelineService {
     // 3. Load reference image bytes if reference_guided
     let refBytes: Buffer | undefined;
     let refMime: string | undefined;
+    let selectedReferenceAssetId = refResolution.referenceAssetId;
     if (
       refResolution.mode === 'reference_guided' &&
       refResolution.referenceAssetId &&
       this.referenceAssetReader
     ) {
-      const readResult = await this.referenceAssetReader(refResolution.referenceAssetId, ownerId);
+      const readResult = await this.referenceAssetReader(refResolution.referenceAssetId, ownerId, {
+        worldId,
+        actorId: intent.targetActorId,
+        revision: refResolution.referenceAssetRevision,
+      });
       if (readResult) {
         refBytes = readResult.bytes;
         refMime = readResult.mimeType;
@@ -185,11 +205,51 @@ export class MediaPipelineService {
     }
 
     // 4. Construct prompt via PromptBuilder
+    if (refResolution.mode === 'reference_guided' && !refBytes?.length) {
+      // Do not charge for a text-only substitute while recording an unused
+      // reference as though image-to-image had actually happened.
+      throw Object.assign(new Error('Authorized reference image is unavailable'), {
+        code: 'REFERENCE_IMAGE_UNAVAILABLE',
+        responseOutcome: 'not_sent' as const,
+      });
+    }
+    if (!refBytes && params.referenceAssetId) {
+      const reference = await this.referenceAssetReader?.(params.referenceAssetId, ownerId, {
+        worldId,
+        actorId: intent.targetActorId,
+      });
+      if (!reference?.bytes.length)
+        throw Object.assign(new Error('Declared reference image is unavailable'), {
+          code: 'REFERENCE_IMAGE_UNAVAILABLE',
+          responseOutcome: 'not_sent' as const,
+        });
+      selectedReferenceAssetId = params.referenceAssetId;
+      refBytes = reference.bytes;
+      refMime = reference.mimeType;
+    }
+    if (
+      !refBytes &&
+      intent.purpose === 'scene' &&
+      intent.sourceEventId &&
+      this.sceneReferenceReader
+    ) {
+      const reference = await this.sceneReferenceReader(worldId, ownerId, intent.sourceEventId);
+      if (reference) {
+        if (!reference.bytes.length)
+          throw Object.assign(new Error('Scene reference image is unavailable'), {
+            code: 'REFERENCE_IMAGE_UNAVAILABLE',
+            responseOutcome: 'not_sent' as const,
+          });
+        selectedReferenceAssetId = reference.assetId;
+        refBytes = reference.bytes;
+        refMime = reference.mimeType;
+      }
+    }
     const builtPrompt = this.promptBuilder.buildImagePrompt({
       intent,
       characterSnippet: refResolution.characterPromptSnippet,
-      hasReferenceImage: refResolution.mode === 'reference_guided',
-      referenceAssetId: refResolution.referenceAssetId,
+      hasReferenceImage: Boolean(refBytes),
+      referenceAssetId: selectedReferenceAssetId,
       targetModel: 'flux-schnell',
     });
 
@@ -333,8 +393,8 @@ export class MediaPipelineService {
     }
 
     const referenceAssetIds: string[] = [];
-    if (refResolution.referenceAssetId) {
-      referenceAssetIds.push(refResolution.referenceAssetId);
+    if (selectedReferenceAssetId) {
+      referenceAssetIds.push(selectedReferenceAssetId);
     }
 
     return {

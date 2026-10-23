@@ -175,7 +175,9 @@ export class MediaPromptBuilder {
     // 6. Use references for identity, not their original camera angle or pose.
     if (hasReferenceImage) {
       sentenceComponents.push(
-        'Carefully preserving facial likeness, proportions and distinct features from the reference image.',
+        intent.purpose === 'scene'
+          ? 'Preserve the reference location: its architectural features, spatial layout, furniture positions and distinctive landmarks. Change only the requested lighting, weather or activity; do not replace it with a different place.'
+          : 'Carefully preserving facial likeness, proportions and distinct features from the reference image.',
       );
       if (isSelfie)
         sentenceComponents.push(

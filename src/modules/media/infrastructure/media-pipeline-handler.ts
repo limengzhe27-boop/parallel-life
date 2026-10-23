@@ -197,6 +197,7 @@ export function createMediaPipelineHandler(
           ownerId: lease.ownerId,
           worldId,
           intent: imageIntent,
+          referenceAssetId: doc.referenceAssetId,
           currentAssetCount,
           callerActorId: doc.targetActorId || 'player',
           isCallerPlayer: doc.isPlayer ?? doc.targetActorId === 'player',
@@ -275,9 +276,15 @@ export function createMediaPipelineHandler(
               ),
               '{deliveryDecision}',
               to_jsonb($3::jsonb)
-            )
+            ) || CASE WHEN $4::text IS NULL THEN '{}'::jsonb
+                      ELSE jsonb_build_object('referenceAssetId',$4::text) END
           WHERE id = $1`,
-        [lease.scopeId, pipelineResult.assetId, JSON.stringify(pipelineResult.deliveryDecision)],
+        [
+          lease.scopeId,
+          pipelineResult.assetId,
+          JSON.stringify(pipelineResult.deliveryDecision),
+          pipelineResult.referenceAssetIds[0] ?? null,
+        ],
       );
 
       // 4. Finish outbox job

@@ -54,6 +54,65 @@ function createInMemoryAssetStore(): { store: AssetStore; assets: Record<string,
   return { store, assets };
 }
 
+test('an authorized but unreadable reference never degrades to paid text-only generation', async () => {
+  for (const mode of ['no_reader', 'missing', 'empty'] as const) {
+    let calls = 0;
+    const anchor: CharacterVisualAnchor = {
+      actorId: 'npc',
+      name: '本人',
+      isPlayer: false,
+      authorizedForWorld: true,
+      referenceAssetId: 'npc-reference',
+      referenceAssetRevision: 1,
+    };
+    const service = new MediaPipelineService({
+      providerAdapter: {
+        providerName: 'test',
+        async submitImage() {
+          calls++;
+          throw Error('must not submit');
+        },
+        async submitVideo() {
+          throw Error('must not submit');
+        },
+        async queryStatus() {
+          throw Error('must not poll');
+        },
+        async cancel() {
+          return false;
+        },
+      },
+      assetStore: createInMemoryAssetStore().store,
+      visualAnchorRepo: {
+        async findActorVisualAnchor() {
+          return anchor;
+        },
+        async findPlayerVisualAnchor() {
+          return null;
+        },
+      },
+      ...(mode === 'no_reader'
+        ? {}
+        : {
+            referenceAssetReader: async () =>
+              mode === 'missing' ? null : { bytes: Buffer.alloc(0), mimeType: 'image/png' },
+          }),
+    });
+    await assert.rejects(
+      service.executeImagePipeline({
+        ownerId: 'owner',
+        worldId: 'world',
+        currentAssetCount: 0,
+        callerActorId: 'npc',
+        isCallerPlayer: false,
+        intent: { purpose: 'portrait', targetActorId: 'npc', sceneDescription: '拍一张近照' },
+      }),
+      { code: 'REFERENCE_IMAGE_UNAVAILABLE', responseOutcome: 'not_sent' },
+    );
+    assert.equal(calls, 0);
+  }
+});
+
 test('pipeline passes cancellation through submission and poll; accepted work becomes unknown', async () => {
   const controller = new AbortController();
   let submits = 0;
@@ -378,6 +437,10 @@ test('MediaPipelineService - Image pipeline executes end-to-end with character a
     providerAdapter: mockProvider,
     assetStore: store,
     visualAnchorRepo: mockRepo,
+    referenceAssetReader: async (assetId) => {
+      assert.equal(assetId, 'asset_player_portrait');
+      return { bytes: pngBuffer, mimeType: 'image/png' };
+    },
     fetchFn: mockFetch as any,
     pollIntervalMs: 5,
   });
@@ -628,4 +691,73 @@ test('MediaPipelineService - Pre-delivery check disallows delivery if world is c
   // Generation succeeded and saved, but delivery rejected
   assert.equal(result.deliveryDecision.approved, false);
   assert.equal(result.deliveryDecision.reason, 'WORLD_CANCELLED_LATE_DELIVERY_PREVENTED');
+});
+
+test('existing media reference and authenticated scene source reach the provider without new intent fields', async () => {
+  for (const mode of ['declared', 'scene', 'missing'] as const) {
+    const bytes = Buffer.from('authorized-reference');
+    let calls = 0;
+    let sceneReads = 0;
+    const service = new MediaPipelineService({
+      providerAdapter: {
+        providerName: 'test',
+        async submitImage(params) {
+          calls++;
+          assert.deepEqual(params.referenceImageBytes, bytes);
+          throw Error('STOP_AFTER_VERIFIED_SUBMISSION');
+        },
+        async submitVideo() {
+          throw Error('unused');
+        },
+        async queryStatus() {
+          throw Error('unused');
+        },
+        async cancel() {
+          return false;
+        },
+      },
+      assetStore: createInMemoryAssetStore().store,
+      visualAnchorRepo: {
+        async findActorVisualAnchor() {
+          return null;
+        },
+        async findPlayerVisualAnchor() {
+          return null;
+        },
+      },
+      referenceAssetReader: async (id, owner, context) => {
+        assert.equal(id, 'existing-asset');
+        assert.equal(owner, 'owner');
+        assert.equal(context?.worldId, 'world');
+        return mode === 'missing' ? null : { bytes, mimeType: 'image/png' };
+      },
+      sceneReferenceReader: async (world, owner, source) => {
+        sceneReads++;
+        assert.equal(world, 'world');
+        assert.equal(owner, 'owner');
+        assert.equal(source, 'committed-source-event');
+        return { assetId: 'scene-image', bytes, mimeType: 'image/png' };
+      },
+    });
+    await assert.rejects(
+      service.executeImagePipeline({
+        ownerId: 'owner',
+        worldId: 'world',
+        currentAssetCount: 0,
+        callerActorId: 'npc',
+        isCallerPlayer: false,
+        ...(mode !== 'scene' ? { referenceAssetId: 'existing-asset' } : {}),
+        intent: {
+          purpose: 'scene',
+          sceneDescription: '当前现场',
+          sourceEventId: 'committed-source-event',
+        },
+      }),
+      mode === 'missing'
+        ? { code: 'REFERENCE_IMAGE_UNAVAILABLE', responseOutcome: 'not_sent' }
+        : /STOP_AFTER_VERIFIED_SUBMISSION/,
+    );
+    assert.equal(calls, mode === 'missing' ? 0 : 1);
+    assert.equal(sceneReads, mode === 'scene' ? 1 : 0);
+  }
 });

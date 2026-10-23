@@ -4,6 +4,7 @@ import type {
   SubmitVideoProviderParams,
 } from '../application/provider-ports.ts';
 import type { ProviderTaskReceipt, ProviderTaskStatus } from '../domain/types.ts';
+import sharp from 'sharp';
 
 export type FetchFunction = (
   input: string | URL | Request,
@@ -19,7 +20,8 @@ export type YibuAdapterOptions = {
 };
 
 const DEFAULT_BASE_URL = 'https://yibuapi.com';
-const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image';
+export const GROK_IMAGE_MODEL = 'grok-imagine-image-2.0';
+const DEFAULT_IMAGE_MODEL = GROK_IMAGE_MODEL;
 
 function promptText(builtPrompt: unknown): string {
   const source = builtPrompt as { prompt?: unknown; text?: unknown };
@@ -79,14 +81,69 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
       });
     }
     const headers = this.headers();
+    const nativeImage = this.model === GROK_IMAGE_MODEL;
+    let endpoint = '/v1/chat/completions';
+    let requestBody: BodyInit = JSON.stringify({
+      model: this.model,
+      messages: [{ role: 'user', content: parts }],
+    });
+    if (nativeImage) {
+      const aspectRatio = (params.builtPrompt as { aspectRatio?: string }).aspectRatio;
+      const size =
+        ({ '9:16': '720x1280', '16:9': '1280x720', '3:4': '864x1152' } as Record<string, string>)[
+          aspectRatio ?? ''
+        ] ?? '1024x1024';
+      if (params.referenceImageBytes) {
+        let referenceBytes = params.referenceImageBytes;
+        if (params.referenceImageMimeType !== 'image/png') {
+          try {
+            referenceBytes = await sharp(referenceBytes).rotate().png().toBuffer();
+          } catch {
+            throw Object.assign(new Error('Reference image cannot be decoded'), {
+              code: 'REFERENCE_IMAGE_UNAVAILABLE',
+              responseOutcome: 'not_sent' as const,
+            });
+          }
+        }
+        endpoint = '/v1/images/edits';
+        const form = new FormData();
+        form.append('model', this.model);
+        form.append('prompt', promptText(params.builtPrompt));
+        form.append('n', '1');
+        // Yibu rejects Grok edits without an explicit supported size.
+        form.append('size', size);
+        form.append('response_format', 'b64_json');
+        form.append(
+          'image',
+          new Blob([new Uint8Array(referenceBytes)], { type: 'image/png' }),
+          'reference.png',
+        );
+        delete headers['Content-Type']; // fetch supplies the multipart boundary.
+        requestBody = form;
+      } else {
+        if (params.referenceImageUrl)
+          throw Object.assign(new Error('Reference image bytes are required'), {
+            code: 'UNAVAILABLE',
+            responseOutcome: 'not_sent' as const,
+          });
+        endpoint = '/v1/images/generations';
+        requestBody = JSON.stringify({
+          model: this.model,
+          prompt: promptText(params.builtPrompt),
+          n: 1,
+          size,
+          response_format: 'b64_json',
+        });
+      }
+    }
     const timeout = AbortSignal.timeout(this.timeoutMs);
     const signal = params.signal ? AbortSignal.any([params.signal, timeout]) : timeout;
     let response: Response;
     try {
-      response = await this.fetchFn(`${this.baseUrl}/v1/chat/completions`, {
+      response = await this.fetchFn(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: parts }] }),
+        body: requestBody,
         signal,
       });
     } catch (error) {
@@ -103,7 +160,11 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
         responseOutcome: 'rejected' as const,
       });
     }
-    let body: { choices?: { message?: { content?: unknown } }[] };
+    let body: {
+      choices?: { message?: { content?: unknown } }[];
+      data?: { b64_json?: unknown }[];
+      error?: unknown;
+    };
     try {
       body = (await response.json()) as typeof body;
     } catch (error) {
@@ -119,9 +180,15 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
     }
     const content = body.choices?.[0]?.message?.content;
     const text = typeof content === 'string' ? content : '';
-    const base64 = firstImageBase64(text);
+    const base64 = nativeImage
+      ? typeof body.data?.[0]?.b64_json === 'string'
+        ? body.data[0].b64_json
+        : null
+      : firstImageBase64(text);
     if (!base64) {
-      throw Object.assign(new Error('gateway returned no image bytes'), { code: 'UNAVAILABLE' });
+      throw Object.assign(new Error('gateway returned no image bytes'), {
+        code: nativeImage && !body.error ? 'STATUS_UNKNOWN' : 'UNAVAILABLE',
+      });
     }
     const providerTaskId = `yibu_${globalThis.crypto.randomUUID()}`;
     const dataUri = `data:image/jpeg;base64,${base64}`;

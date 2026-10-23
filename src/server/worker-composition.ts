@@ -31,6 +31,11 @@ import { YibuMediaProviderAdapter } from '../modules/media/infrastructure/yibu-m
 import { PostgresCharacterVisualAnchorRepository } from '../modules/media/infrastructure/character-reference-resolver.ts';
 import { ReplicateMediaProviderAdapter } from '../modules/media/infrastructure/replicate-provider-adapter.ts';
 import { MediaPipelineService } from '../modules/media/infrastructure/media-pipeline-service.ts';
+import {
+  publicationActorReference,
+  sourceSceneReference,
+} from '../modules/media/infrastructure/world-media-reference.ts';
+import { createHash } from 'node:crypto';
 
 export function createWorker() {
   const url = process.env.WORKER_DATABASE_URL;
@@ -58,15 +63,57 @@ export function createWorker() {
         : new ReplicateMediaProviderAdapter({
             apiToken: process.env.REPLICATE_API_TOKEN,
           });
-      const referenceAssetReader = async (assetId: string, ownerId?: string) => {
+      const referenceAssetReader = async (
+        assetId: string,
+        ownerId?: string,
+        context?: { worldId: string; actorId?: string; revision?: number },
+      ) => {
+        if (assetId.startsWith('publication-')) {
+          if (!ownerId || !context?.actorId) return null;
+          const reference = await db.transaction(ownerId, (sql) =>
+            publicationActorReference(sql, context.worldId, ownerId, context.actorId!),
+          );
+          if (
+            !reference ||
+            reference.assetId !== assetId ||
+            reference.revision !== context.revision
+          )
+            return null;
+          if (reference.art) {
+            const url = new URL(reference.art.url, process.env.APP_ORIGIN!);
+            const response = await fetch(url, {
+              signal: AbortSignal.timeout(20000),
+              redirect: 'error',
+            });
+            if (!response.ok) return null;
+            const bytes = Buffer.from(await response.arrayBuffer());
+            if (createHash('sha256').update(bytes).digest('hex') !== reference.art.sha256)
+              return null;
+            return { bytes, mimeType: 'image/webp' };
+          }
+          const row = await db.transaction(
+            ownerId,
+            async (sql) =>
+              (
+                await sql.query('SELECT * FROM parallel_life.publication_media_for_world($1,$2)', [
+                  context.worldId,
+                  assetId.slice('publication-image:'.length),
+                ])
+              ).rows[0],
+          );
+          return row
+            ? { bytes: await store.get(row.storage_key), mimeType: String(row.mime_type) }
+            : null;
+        }
         let storageKey: string | undefined;
         let mimeType: string | undefined;
         if (ownerId) {
           const row = (
             await db.transaction(ownerId, async (sql) =>
               sql.query(
-                `SELECT storage_key, mime_type FROM parallel_life.assets WHERE id = $1 AND owner_id = $2`,
-                [assetId, ownerId],
+                `SELECT storage_key, mime_type FROM parallel_life.assets WHERE id = $1 AND owner_id = $2
+                 AND status='ready' AND ($3::int IS NULL OR revision=$3)`,
+                [assetId, ownerId, context?.revision ?? null],
               ),
             )
           ).rows[0];
@@ -82,6 +129,18 @@ export function createWorker() {
         assetStore: store,
         visualAnchorRepo,
         referenceAssetReader,
+        sceneReferenceReader: async (worldId, ownerId, sourceEventId) => {
+          const reference = await db.transaction(ownerId, (sql) =>
+            sourceSceneReference(sql, worldId, ownerId, sourceEventId),
+          );
+          return reference
+            ? {
+                assetId: reference.assetId,
+                bytes: await store.get(reference.storageKey),
+                mimeType: reference.mimeType,
+              }
+            : null;
+        },
       });
     }
     return mediaService;

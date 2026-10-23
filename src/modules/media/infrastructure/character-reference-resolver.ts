@@ -1,5 +1,9 @@
 import type { CharacterVisualAnchor } from '../domain/types.ts';
 import type { CharacterVisualAnchorRepository } from '../application/provider-ports.ts';
+import {
+  publicationActorReference,
+  ownGeneratedPortraitReference,
+} from './world-media-reference.ts';
 
 export type SqlExecutor = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
@@ -26,8 +30,15 @@ export class PostgresCharacterVisualAnchorRepository implements CharacterVisualA
     ownerId: string,
     run: (executor: SqlExecutor) => Promise<T>,
   ): Promise<T> {
-    if ('transaction' in this.dbOrExecutor && typeof (this.dbOrExecutor as any).transaction === 'function') {
-      return (this.dbOrExecutor as { transaction: <R>(owner: string, fn: (sql: SqlExecutor) => Promise<R>) => Promise<R> }).transaction(ownerId, (client) => run(client));
+    if (
+      'transaction' in this.dbOrExecutor &&
+      typeof (this.dbOrExecutor as any).transaction === 'function'
+    ) {
+      return (
+        this.dbOrExecutor as {
+          transaction: <R>(owner: string, fn: (sql: SqlExecutor) => Promise<R>) => Promise<R>;
+        }
+      ).transaction(ownerId, (client) => run(client));
     }
     return run(this.dbOrExecutor as SqlExecutor);
   }
@@ -68,13 +79,22 @@ export class PostgresCharacterVisualAnchorRepository implements CharacterVisualA
         if (!actor) {
           return null;
         }
+        const publicationReference = await publicationActorReference(
+          executor,
+          worldId,
+          ownerId,
+          actorId,
+        );
+        const generatedReference = publicationReference
+          ? null
+          : await ownGeneratedPortraitReference(executor, worldId, ownerId, actorId);
         return {
           actorId,
           name: String(actor.name || '未知人物'),
           gender: typeof actor.gender === 'string' ? actor.gender : undefined,
           age: typeof actor.age === 'number' ? actor.age : undefined,
-          referenceAssetId: undefined,
-          referenceAssetRevision: undefined,
+          referenceAssetId: publicationReference?.assetId ?? generatedReference?.assetId,
+          referenceAssetRevision: publicationReference?.revision ?? generatedReference?.revision,
           isPlayer: false,
           authorizedForWorld: true,
         };
@@ -89,7 +109,8 @@ export class PostgresCharacterVisualAnchorRepository implements CharacterVisualA
       const distinctiveFeatures = Array.isArray(snapshot.distinctiveFeatures)
         ? snapshot.distinctiveFeatures.map(String)
         : undefined;
-      const clothingStyle = typeof snapshot.clothingStyle === 'string' ? snapshot.clothingStyle : undefined;
+      const clothingStyle =
+        typeof snapshot.clothingStyle === 'string' ? snapshot.clothingStyle : undefined;
 
       // Asset must be confirmed 'ready' in the assets table to be usable as a reference
       const hasReadyAsset = Boolean(row.asset_id && row.asset_status === 'ready');

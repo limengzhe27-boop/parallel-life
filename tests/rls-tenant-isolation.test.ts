@@ -33,20 +33,41 @@ test('AUD-11: database roles and tables enforce NOBYPASSRLS and FORCE ROW LEVEL 
       'Tables must exist in parallel_life schema',
     );
     for (const row of tablesRes.rows) {
-      if (row.relname === 'world_scheduler_claims') {
-        // This cross-owner claim table is reachable only inside a SECURITY
-        // DEFINER function; none of the runtime roles may access it directly.
-        for (const role of ['pl_app', 'pl_worker', 'pl_scheduler']) {
+      if (
+        ['world_scheduler_claims', 'world_proactive_leases', 'cron_tokens'].includes(row.relname)
+      ) {
+        // Exact operational tables: cross-owner scheduler bookkeeping and a
+        // token hash used only by restricted SECURITY DEFINER functions.
+        // Check effective privileges, including PUBLIC and inherited grants;
+        // an operational table is not permission to skip tenant-table RLS.
+        for (const role of [
+          'pl_app',
+          'pl_worker',
+          'pl_scheduler',
+          'pl_publisher',
+          'pl_publisher_login',
+        ]) {
           for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
             const access = await admin.query('SELECT has_table_privilege($1,$2,$3) AS allowed', [
               role,
-              'parallel_life.world_scheduler_claims',
+              'parallel_life.' + row.relname,
               privilege,
             ]);
             assert.equal(
               access.rows[0].allowed,
               false,
-              `${role} must not ${privilege} scheduler claims`,
+              `${role} must not ${privilege} ${row.relname}`,
+            );
+          }
+          for (const privilege of ['SELECT', 'INSERT', 'UPDATE']) {
+            const access = await admin.query(
+              'SELECT has_any_column_privilege($1,$2,$3) AS allowed',
+              [role, 'parallel_life.' + row.relname, privilege],
+            );
+            assert.equal(
+              access.rows[0].allowed,
+              false,
+              `${role} must not ${privilege} columns of ${row.relname}`,
             );
           }
         }
