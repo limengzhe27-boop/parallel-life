@@ -1241,7 +1241,9 @@ export function npcAgentAdvanceServices(
                   source: candidate.source,
                   actionId: candidate.actionId,
                   basisSourceIds: candidate.sourceIds,
-                  ...(candidate.wakeCue ? { wakeCue: candidate.wakeCue } : {}),
+                  ...(candidate.wakeCue || candidate.source === 'actor_local'
+                    ? { wakeCue: candidate.wakeCue || candidate.reason }
+                    : {}),
                   ...(candidate.planReview ? { planReview: candidate.planReview } : {}),
                   nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
                 });

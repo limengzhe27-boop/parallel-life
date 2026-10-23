@@ -1515,3 +1515,20 @@ test('the same NPC turn accepts two authored statement bubbles', async () => {
   };
   assert.equal(output.statements?.length, 2);
 });
+
+test('autonomous wake cue remains a consideration basis, not a mandatory event or player request', async () => {
+  const input = snapshot();
+  input.input.origin = 'wake';
+  input.input.text = JSON.stringify({
+    type: 'npc_own_condition_ready',
+    source: 'actor_local',
+    wakeCue: '结合最近交流考虑自己的联系意图。',
+  });
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const instruction = calls[0]!.messages.at(-1)!.content;
+  assert.match(instruction, /结合最近交流考虑自己的联系意图/);
+  assert.match(instruction, /不是玩家要求，也不是已经发生的事实/);
+  assert.match(instruction, /自行决定是否参与或保持安静/);
+  assert.doesNotMatch(instruction, /必须按这个阶段回应/);
+});
