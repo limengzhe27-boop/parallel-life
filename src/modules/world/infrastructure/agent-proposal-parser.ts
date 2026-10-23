@@ -1,4 +1,7 @@
-import { normalizeStickerStatement } from '../domain/sticker-expression.ts';
+import {
+  normalizeStickerStatement,
+  stickerFitsStatement,
+} from '../domain/sticker-expression.ts';
 import { attachAgentFailure } from '../application/agent-failure-diagnostic.ts';
 import { AgentProposalSchema, STICKER_IDS } from './agent-proposal-schema.ts';
 import { decodeNpcWire } from './npc-model-protocol.ts';
@@ -46,6 +49,15 @@ function normalizeExpressionMarkers(value: unknown): unknown {
     if (text === '[[recall:last]]') return [];
     // A sticker is its own message. Split legacy/model combined bubbles without
     // dropping the text, its reply intent or its dependency binding.
+    if (
+      typeof statement.stickerId === 'string' &&
+      text.length > 0 &&
+      !stickerFitsStatement(text, statement.stickerId)
+    ) {
+      const textOnly = { ...statement };
+      delete textOnly.stickerId;
+      return [textOnly];
+    }
     if (typeof statement.stickerId === 'string' && text.length > 0) {
       const textOnly = { ...statement };
       delete textOnly.stickerId;

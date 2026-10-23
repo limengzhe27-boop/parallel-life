@@ -6,7 +6,10 @@ import {
   type AgentValidationContext,
 } from '../src/modules/world/domain/agent-kernel.ts';
 import { parseAgentProposal } from '../src/modules/world/infrastructure/agent-proposal-parser.ts';
-import { stickerMessageMeaning } from '../src/modules/world/domain/sticker-expression.ts';
+import {
+  stickerFitsStatement,
+  stickerMessageMeaning,
+} from '../src/modules/world/domain/sticker-expression.ts';
 function fixture(): AgentValidationContext {
   const state = emptyActorAgentState({ worldId: 'w', actorId: 'a' }, 'def', 0);
   return {
@@ -71,6 +74,28 @@ test('valid pure sticker, combined caption and legacy marker split into separate
     false,
   );
 });
+test('a mismatched comfort sticker is removed while the comfort text survives', () => {
+  assert.equal(stickerFitsStatement('抱抱，别难过了。', 'bailan'), false);
+  assert.equal(stickerFitsStatement('抱抱，别难过了。', 'wuyu'), false);
+  assert.equal(stickerFitsStatement('抱抱，别难过了。', 'xswl'), false);
+  assert.equal(stickerFitsStatement('抱抱，别难过了。', 'selected_ad'), true);
+  assert.equal(stickerFitsStatement('看看这个表情，多调皮。', 'xswl'), true);
+  const c = fixture(),
+    p = parseAgentProposal(
+      c,
+      wire([s('抱抱，别难过了。', 'bailan'), s('看看这个表情，多调皮。', 'xswl')]),
+    );
+  assert.equal(p.statements.length, 3);
+  assert.deepEqual(
+    p.statements.map((item) => [item.text, item.stickerId]),
+    [
+      ['抱抱，别难过了。', undefined],
+      ['看看这个表情，多调皮。', undefined],
+      ['', 'xswl'],
+    ],
+  );
+});
+
 test('player sticker is meaningful without claiming physical action', () => {
   assert.match(stickerMessageMeaning('[[sticker:chong]]'), /不等于已行动/);
   assert.match(stickerMessageMeaning('说句话', 'zan'), /说句话.*欣赏/);
