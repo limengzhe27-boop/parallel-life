@@ -1,6 +1,8 @@
 import { streamUnitCommandId, streamUnitEventId } from '../domain/npc-stream-segment.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
+import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
+import { isDeepStrictEqual } from 'node:util';
 
 export type AgentCommitVersion = { appendBaseVersion: number; commitVersion: number };
 
@@ -11,6 +13,7 @@ export async function resolveAgentCommitVersion(
   attempt: AgentAttempt,
   actualVersion: number,
   hasCommittedPrefix = false,
+  suppliedSnapshot?: AgentSnapshot,
 ): Promise<AgentCommitVersion | null> {
   if (actualVersion === attempt.expectedWorldVersion && !hasCommittedPrefix)
     return { appendBaseVersion: actualVersion, commitVersion: actualVersion + 1 };
@@ -76,14 +79,10 @@ export async function resolveAgentCommitVersion(
       !d?.actorId ||
       d.actorId === attempt.actorId ||
       !d.agentRuntime?.proposal ||
-      d.agentRuntime.episodeDecision ||
-      d.agentRuntime.proposal.episodeDecision ||
       ['positionKnowledge', 'sceneDepartures'].some(
         (key) => (d.agentRuntime[key]?.length ?? 0) > 0,
       ) ||
-      ['goals', 'plans', 'actions', 'responsibilities', 'decisions'].some(
-        (key) => (d.agentRuntime.proposal[key]?.length ?? 0) > 0,
-      ) ||
+      ['actions'].some((key) => (d.agentRuntime.proposal[key]?.length ?? 0) > 0) ||
       !Array.isArray(d.effects) ||
       d.effects.some(
         (x: { type?: string; actorId?: string }) =>
@@ -94,8 +93,130 @@ export async function resolveAgentCommitVersion(
       (d.agentRuntime.departures?.length ?? 0) > 0
     )
       return null;
+    const decision = d.agentRuntime.episodeDecision ?? d.agentRuntime.proposal.episodeDecision;
+    const privateDelta =
+      decision ||
+      ['goals', 'plans', 'responsibilities', 'decisions'].some(
+        (key) => (d.agentRuntime.proposal[key]?.length ?? 0) > 0,
+      );
+    const intervening_input = privateDelta
+      ? (
+          await sql.query(
+            `SELECT document FROM parallel_life.agent_input_receipts
+       WHERE id=$1 AND world_id=$2 AND owner_id=$3`,
+            [d.agentRuntime.inputReceiptId, attempt.worldId, ownerId],
+          )
+        ).rows[0]?.document
+      : null;
+    if (
+      privateDelta &&
+      (r.document.channel !== 'private' ||
+        intervening_input?.channel !== 'private' ||
+        intervening_input.recipientActorId !== d.actorId)
+    )
+      return null;
+    if (decision) {
+      if (
+        !isDeepStrictEqual(d.agentRuntime.episodeDecision, d.agentRuntime.proposal.episodeDecision)
+      )
+        return null;
+      const snapshot =
+        suppliedSnapshot ??
+        (
+          await sql.query(
+            `SELECT response->'snapshot' AS snapshot FROM parallel_life.agent_attempts
+         WHERE id=$1 AND world_id=$2 AND owner_id=$3`,
+            [attempt.id, attempt.worldId, ownerId],
+          )
+        ).rows[0]?.snapshot;
+      if (
+        !(await independentEpisodeDecision(
+          sql,
+          ownerId,
+          attempt,
+          snapshot,
+          decision.requestId,
+          d.actorId,
+          d.agentRuntime.inputReceiptId,
+        ))
+      )
+        return null;
+    }
   }
   return { appendBaseVersion: actualVersion, commitVersion: actualVersion + 1 };
+}
+
+/** Use the already authenticated model basis; missing evidence never means disjoint. */
+async function independentEpisodeDecision(
+  sql: SqlClient,
+  ownerId: string,
+  attempt: AgentAttempt,
+  snapshot: AgentSnapshot | undefined,
+  otherRequestId: unknown,
+  otherActorId: string,
+  otherInputId: string,
+): Promise<boolean> {
+  if (
+    !snapshot ||
+    snapshot.state?.worldId !== attempt.worldId ||
+    snapshot.state.actorId !== attempt.actorId ||
+    snapshot.worldVersion !== attempt.expectedWorldVersion ||
+    snapshot.state.revision !== attempt.expectedActorRevision ||
+    snapshot.input?.sourceId !== attempt.inputReceiptId ||
+    snapshot.channel?.kind !== 'private' ||
+    typeof otherRequestId !== 'string' ||
+    !otherRequestId
+  )
+    return false;
+  const episodes = new Set<string>();
+  const requests = new Set<string>();
+  if (snapshot.episodeManifest) {
+    episodes.add(snapshot.episodeManifest.episodeId);
+    requests.add(snapshot.episodeManifest.requestId);
+  }
+  for (const item of snapshot.episodeFollowUps ?? []) {
+    episodes.add(item.episodeId);
+    requests.add(item.requestId);
+  }
+  for (const item of snapshot.episodeResults ?? []) episodes.add(item.episodeId);
+  for (const state of [snapshot.state, snapshot.viewState]) {
+    if (!state || !Array.isArray(state.responsibilities)) return false;
+    for (const item of state.episodeParticipations ?? []) requests.add(item.id);
+    for (const item of state.responsibilities)
+      if (item.subject.kind === 'episode') episodes.add(item.subject.id);
+  }
+  if (!Array.isArray(snapshot.sources)) return false;
+  for (const source of snapshot.sources) {
+    if (source.id.startsWith('episode-intent:'))
+      requests.add(source.id.slice('episode-intent:'.length));
+    // Older sources can directly name an episode rather than a consideration request.
+    if (source.id.startsWith('episode:')) episodes.add(source.id.slice('episode:'.length));
+  }
+  if (requests.has(otherRequestId)) return false;
+  const rows = (
+    await sql.query(
+      `SELECT id,actor_id,episode_id,engine_epoch,input_receipt_id,status
+     FROM parallel_life.agent_episode_requests
+     WHERE world_id=$1 AND owner_id=$2 AND id=ANY($3::text[])`,
+      [attempt.worldId, ownerId, [...requests, otherRequestId]],
+    )
+  ).rows;
+  if (rows.length !== requests.size + 1) return false;
+  const other = rows.find((row) => row.id === otherRequestId);
+  if (
+    !other ||
+    other.actor_id !== otherActorId ||
+    other.engine_epoch !== attempt.engineEpoch ||
+    other.input_receipt_id !== otherInputId ||
+    other.status !== 'consumed'
+  )
+    return false;
+  for (const row of rows) {
+    if (row.id === otherRequestId) continue;
+    if (row.actor_id !== attempt.actorId || row.engine_epoch !== attempt.engineEpoch) return false;
+    episodes.add(row.episode_id);
+  }
+  return !episodes.has(other.episode_id);
 }
 
 /** Compatibility for callers that need only admission; all commits resolve one position. */
