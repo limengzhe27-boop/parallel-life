@@ -15,16 +15,19 @@ const messages = readFileSync(
   'utf8',
 );
 
-test('incoming message banners sit directly below the phone status bar', () => {
+test('incoming message banners sit below the status bar and push page content down', () => {
   const banner = css.match(/^\.banner \{[^}]*\}/m)?.[0] ?? '';
-  assert.match(banner, /top:\s*calc\(100% \+ 8px\)/);
-  assert.doesNotMatch(banner, /152px|env\(safe-area-inset-top\)/);
+  assert.match(banner, /position:\s*relative/);
+  assert.match(banner, /flex-shrink:\s*0/);
+  assert.match(banner, /margin:\s*0 12px 8px/);
+  assert.doesNotMatch(banner, /position:\s*absolute|top:\s*calc\(100% \+ 8px\)/);
   assert.match(css, /\.statusLayer \{[^}]*position: relative;[^}]*flex-shrink: 0;/s);
   assert.doesNotMatch(css, /:has\(> \.notice\) \.banner/);
   assert.match(
     shell,
-    /<div className=\{styles\.statusLayer\}>\s*<StatusBar[\s\S]*?data-notification-banner[\s\S]*?<\/div>\s*<div className=\{styles\.unlockedContent\}/,
+    /<div className=\{styles\.statusLayer\}>\s*<StatusBar[\s\S]*?<\/div>\s*\{banner && !locked && \(\s*<div className=\{styles\.banner\}/,
   );
+  assert.match(shell, /<\/div>\s*\)\}\s*<div className=\{styles\.unlockedContent\}/);
 });
 
 test('WeChat top bar keeps the plus action but drops the redundant search icon', () => {
