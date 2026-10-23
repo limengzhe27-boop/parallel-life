@@ -75,6 +75,9 @@ export async function runNpcAgent(
       } catch (error) {
         attachAgentFailure(error, 'preflight', claim);
         const code = (error as { code?: unknown } | null)?.code;
+        const contextSizes = (error as { contextSizes?: unknown } | null)?.contextSizes;
+        if (contextSizes)
+          console.warn(JSON.stringify({ scope: 'npc-agent-preflight', code, contextSizes }));
         if (code === 'NPC_AGENT_SNAPSHOT_LIMIT' || code === 'NPC_AGENT_INVALID_SNAPSHOT') {
           // Accepted input needs a durable terminal receipt even when no request was sent.
           // Never replace an existing/in-flight attempt with a local preflight verdict.

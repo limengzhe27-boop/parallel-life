@@ -456,6 +456,27 @@ test('budget selects bounded persona and whole older observations without trunca
   assert.deepEqual(input, original);
 });
 
+test('a long duplicate question ledger is degraded before preflight fails the send', async () => {
+  const input = snapshot();
+  const questions = Array.from({ length: 100 }, (_, index) => ({
+    id: `q-${index}`,
+    channel: 'private' as const,
+    threadId: 'private-thread',
+    sourceId: 'source-1',
+    text: '同一件已经问过很多次的事情'.repeat(20),
+    askedAt: input.storyAt,
+    status: 'open' as const,
+  }));
+  input.state.questions = questions;
+  input.viewState.questions = structuredClone(questions);
+  const { adapter, calls } = capture();
+  adapter.validateInput(input);
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert(calls[0]!.messages[1]!.content.length <= NPC_AGENT_PAYLOAD_LIMIT);
+  assert((payload.state.questions ?? []).length <= 8);
+});
+
 test('protected state or current input over budget fails in deterministic preflight with zero calls', async () => {
   for (const oversize of ['input', 'state', 'boundary'] as const) {
     const input = snapshot();

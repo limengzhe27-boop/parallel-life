@@ -698,6 +698,18 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   const optional = payload as unknown as Record<string, unknown>;
   if (!fits()) optional.episodeFollowUps = [];
   if (!fits()) optional.recentSelfMessages = [];
+  // A long-lived private thread can accumulate hundreds of duplicate asks. Keep
+  // only the questions already selected for conversationProgress, then drop the
+  // full ledger if even that does not fit; the current input still has priority.
+  if (!fits()) {
+    const state = optional.state as { questions?: { id?: string }[] } | null;
+    const keep = new Set(payload.conversationProgress.questions.map((question) => question.id));
+    if (state?.questions) state.questions = state.questions.filter((q) => q.id && keep.has(q.id));
+  }
+  if (!fits()) {
+    const state = optional.state as { questions?: unknown[] } | null;
+    if (state) state.questions = [];
+  }
   if (!fits()) optional.conversationProgress = null;
   if (!fits()) optional.stickerCatalog = (optional.stickerCatalog as unknown[]).slice(0, 12);
   if (!fits())
