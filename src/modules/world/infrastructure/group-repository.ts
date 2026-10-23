@@ -292,9 +292,25 @@ export class PostgresGroupRepository {
     this.db = db;
     this.now = now;
   }
+  private async readSnapshot<T>(ownerId: string, run: (sql: SqlClient) => Promise<T>): Promise<T> {
+    const sql = await this.db.pool.connect();
+    try {
+      // A stable read frame must not queue behind (or block) ordinary world writes.
+      await sql.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      await sql.query("SELECT set_config('app.user_id',$1,true)", [ownerId]);
+      const result = await run(sql);
+      await sql.query('COMMIT');
+      return result;
+    } catch (error) {
+      await sql.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      sql.release();
+    }
+  }
   async read(ownerId: string, worldId: string, groupId: string) {
-    return this.db.transaction(ownerId, async (sql) => {
-      const read = await loadGroupRead(sql, worldId, groupId, this.now());
+    return this.readSnapshot(ownerId, async (sql) => {
+      const read = await loadGroupRead(sql, worldId, groupId, this.now(), false, true);
       const messages = groupHistory(read.context, read.group, read.messages, { kind: 'player' });
       const lastRead =
         (
@@ -337,8 +353,8 @@ export class PostgresGroupRepository {
     });
   }
   async list(ownerId: string, worldId: string) {
-    return this.db.transaction(ownerId, async (sql) => {
-      const world = await loadWorld(sql, worldId, this.now());
+    return this.readSnapshot(ownerId, async (sql) => {
+      const world = await loadWorld(sql, worldId, this.now(), false, true);
       const rows = (
         await sql.query(
           'SELECT id FROM parallel_life.world_groups WHERE world_id=$1 ORDER BY source_version,id',
