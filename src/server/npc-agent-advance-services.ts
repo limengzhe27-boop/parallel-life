@@ -1305,12 +1305,6 @@ export function npcAgentAdvanceServices(
               return quiet(storyAt);
             if ((error as { code?: unknown })?.code === 'NPC_DELIVERY_DEFERRED')
               return quiet(storyAt);
-            // A player private reply took ownership while this automatic turn was in
-            // flight. Stop this batch cleanly; the player turn will commit its reply.
-            if ((error as { code?: unknown })?.code === 'SUPERSEDED_BY_USER_INTERRUPT') {
-              batch?.yieldAfterStep();
-              return quiet(storyAt);
-            }
             if (batch) {
               const failed = await attempts.lookup(ownerId, worldId, commandId);
               if (
