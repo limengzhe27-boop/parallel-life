@@ -113,3 +113,16 @@ Candidate13 f62005dd / dpl_CCkpEv4DwsenRW3TivvUrHCeAyvb READY, fullcheck3446/bui
 Other project chat `检查 NPC 回复与剧情推动` replied it only performed read-only code review/architecture, no claimed commercial image success or alternate verified configuration. Production read-only aggregate has one earlier actual ready PNG (1.73MB) task35s; no model saved. Read-only current /v1/models confirms available names including gemini-3.1-flash-image and gemini-2.5-flash-image, not a performance guarantee. Root exposes existing adapter model option as server-only YIBU_IMAGE_MODEL (no fallback/retry). Next isolated candidate uses configured2.5-flash-image and mini for a distinct new image request in existing synthetic world2; does not rerun unknown world1 image. Standing authorized supplemental bounded2 text/2 image attempts, no new save, totalceilings32 text/3 images/4 saves. All prior unknown evidence preserved. Formal still3195af41.
 
 Candidate14 07c0e083 / dpl_5d9NPwZkf3CJVtiS7L6faHkJjuvk READY, mini + configured2.5-flash-image. Check3446/build passed. Overall31 in independent existing world2 again selected an explicit valid image action; no image call occurred because native scope correctly offered decisions:null when no responsibility exists, but static v4 decoder still required an array. This was an adapter mismatch (not model unwillingness or image provider failure). Normalize that schema-offered empty collection to[] before native validation, as historical native handling already did; no decision invented, no original response mutation. Added player/wake null-collection checks; offline decode and original domain validation of saved31 now pass. No production revalidation or invalid-attempt overwrite; next test must remain an explicit new request.31/32 text ceiling;1/3 images (old unknown);4/4 saves; two unknown texts and unknown image retained. Formal unchanged.
+
+## 2026-10-23 生产 Grok 真实图片与相册投递（部分通过）
+
+在 `44-155` 的生产切换后（`YIBU_IMAGE_MODEL=grok-imagine-image-2.0`，`dpl_DMbYz9sv2HTZjAt7N1VBEYK3chPk` READY），合成世界 `县城黄毛` 真实索图：
+
+- 微信林悦“发一张你现在的照片给我”→ NPC “你等着，我给你拍张照片”→ `media_f564...`，`photoId=a6e9d682-...`，`mediaStatus=ready`。
+- 资产 URL 200 / image/jpeg / 327366 bytes；聊天内显示，相册显示 **2 张照片**（新图 + 既有带入图）。
+- 截图：[聊天](assets/44-155-real-grok-image.png)、[相册](assets/44-158-real-album.png)。
+- 0 unknown；测试世界已暂停。
+
+同时发现**真实长延迟/开场风险**：同一合成世界首次打开页面时 `/api/v1/worlds/{id}` 客户端 15s 超时（服务端读 9.3s，期间一次 15.001s/0 bytes），页面显示“连接暂时中断”；点“重新打开”约 20s 后进入锁屏，显示“约定时间已过…还没有结果记录”和 3 条通知。对照 `渣男体验` 同一时刻 world GET 407ms。该差异说明 44-158 的长延迟/开场不是纯模型时长，还包含世界读取/投影成本；后续必须单独定位，不能用一次图片成功抵消。
+
+因此 `44-158-LIVE` 仍保持进行中：真实图片/相册已通过，但多轮人物一致性、长延迟、失败/取消和“承诺照片自动到达”仍未验收。

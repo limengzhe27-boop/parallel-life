@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/165/139/137/155 验收、44-161/162 边界收敛与外部 44-199 子任务登记后，当前总表 260 行、28 条未完成（其中 5 条历史相关行保留），23 条才是活跃项（含外部 `44-198` 与 44-199 五条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/165/139/137/155/199-MULTI 验收、44-161/162 边界收敛与外部 44-199 子任务登记后，当前总表 260 行、27 条未完成（其中 5 条历史相关行保留），22 条才是活跃项（含外部 `44-198` 与 44-199 五条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -2975,7 +2975,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 主分支单独运行 `global director quiet preserves...` 与 `known invalid global director...` 均 1/1 通过；整文件 `npc-agent-advance-service.test.ts` 仍 5/18，首个 `travel...` 的 actorId 实际正确，真正差异是输入 source 为后来加入的 `actor_local`（44-182）而非旧测试预期的 `observation`，后续因 `UNKNOWN_SOURCE` 级联。重建干净 `parallel_life_test` schema 后结果相同，排除测试库残留。结论：核心“导演 quiet/已知无效不饿死独立候选”成立；整文件需按 `actor_local` 与跨用例隔离重写，本行限定收口，不宣称整套测试通过。0 模型/生产写/SQL。
 
-|MEDIA-GROK-01| [x] 已完成（Grok native edits/references；本地真实5/11；生产模型未切） |codex-grok-image-20261023负责媒体实现/真实复验；root本轮199接回统一集成发布|独立grok-image-20261023自5aebd9b1；仅media adapter/管线/参考读取、worker组装、.env.example、聚焦测试与专属报告；world/NPC协议已完全退出|用户授权Grok生图、先验证密钥与人物/地点参考后上线；最新要求优先复用字段|已按用户纠偏实际撤回referencePlaceId、v16、modelProtocol及所有world/NPC扩展，不新增业务字段/表/迁移；复用原referenceAssetId和认证scene receipt/thread/place关系。保留Grok native generations/edits、缺参考零付费、人物精确授权及首张本人肖像复用、原ready事务复用原referenceAssetId记录实际引用（不新增复数字段）。真实本地11次=5成功6明确失败0unknown；旧地点样本仅保留像素证据，不冒充收窄后新版本端到端验证。独立PG55651；冻结7727bd14、独立树clean；最终收窄版check3956/3956、build通过，补充pipeline11/11、handler6/6、真实PG1/1通过；root待cherry-pick与统一验收发布。新项目正式54be25c0，尚未改生产模型/部署；合成guest world1bc99319已暂停，原用户存档不动。root可修改npc-agent-model.ts，发布前协调。| 生产配置接续：已按root发布窗口成功更新新项目Production YIBU_IMAGE_MODEL为grok-imagine-image-2.0，保留原Secret类型；未改密钥/未独立部署。root统一READY后执行暂停QA档公网验收。
+|MEDIA-GROK-01| [x] 已完成（Grok native edits/references；本地真实5/11；生产模型未切） |codex-grok-image-20261023负责媒体实现/真实复验；root本轮199接回统一集成发布|独立grok-image-20261023自5aebd9b1；仅media adapter/管线/参考读取、worker组装、.env.example、聚焦测试与专属报告；world/NPC协议已完全退出|用户授权Grok生图、先验证密钥与人物/地点参考后上线；最新要求优先复用字段|已按用户纠偏实际撤回referencePlaceId、v16、modelProtocol及所有world/NPC扩展，不新增业务字段/表/迁移；复用原referenceAssetId和认证scene receipt/thread/place关系。保留Grok native generations/edits、缺参考零付费、人物精确授权及首张本人肖像复用、原ready事务复用原referenceAssetId记录实际引用（不新增复数字段）。真实本地11次=5成功6明确失败0unknown；旧地点样本仅保留像素证据，不冒充收窄后新版本端到端验证。独立PG55651；冻结7727bd14、独立树clean；最终收窄版check3956/3956、build通过，补充pipeline11/11、handler6/6、真实PG1/1通过；root待cherry-pick与统一验收发布。新项目正式54be25c0，尚未改生产模型/部署；合成guest world1bc99319已暂停，原用户存档不动。root可修改npc-agent-model.ts，发布前协调。| 生产配置接续：已按root发布窗口成功更新新项目Production YIBU_IMAGE_MODEL为grok-imagine-image-2.0，保留原Secret类型；未改密钥/未独立部署。root统一READY后执行暂停QA档公网验收。 公网dpl_37GYsTCy9U2cJpNdRHed9MSGunp8已READY；QA真实文本1回合200并创建pending图片，但非stream HTTP入口遗漏onMediaCommitted，只唤醒最终event，媒体前缀任务未执行；尚未通过生图/相册复验，未重买。已报告root申请单文件修复范围并请求只读task状态；QA已再次暂停（clock200）。 root追加独占授权：codex-grok-image-20261023在原独立树修src/server/world-message-http.ts仅非stream onMediaCommitted及NEW tests/world-message-media-wakeup.test.ts；复用回调去重，无新字段；进行中，提交后root统一集成部署。
 
 ### 2026-10-23 · 44-99 归档
 
@@ -3024,13 +3024,13 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-199-PROACTIVE-SIMPLIFY|[ ] 进行中|root-proactive199 唯一集成|主目录；agent-schedule-collectors.ts、agent-advance-batch.ts、npc-agent-advance-services.ts、proactive-quality.ts、run-agent.ts、npc-agent-model.ts及聚焦测试/报告|基线0e42a2e4；按附件精简主动链路；禁止新增字段/表；现有渣男体验真实验收后部署。|保留他人文档WIP；媒体已释放NPC模型文件。|
 |44-199-PHONE|[ ] 待验收|root子Agent phone199|独立.local/worktrees/phone199，codex/phone199，基线51be078f；world-phone-app.tsx、use-world-time.ts、time-experience-policy.ts及聚焦测试/报告|解除sending/全局空闲阻断，复用通知/计时器；不改倍速/协议。|冻结2524b74e；26聚焦/type/boundaries/build通过；check3940/3951，11本地DB账号认证失败。无真实模型/页面/部署，root集成验收。|
 |44-199-SCHEDULER|[ ] 待验收|root子Agent scheduler199|独立.local/worktrees/scheduler199；services.ts、scheduler-repository.ts、application/run-proactive-scheduler.ts、新0109迁移、proactive-scheduler及199PG测试、npc-agent-advance-service仅unknown用例/报告|后台30分钟，移除错误全局六行/整世界unknown否决；真实PG100世界容量/隔离。|0109、复用多人物批次、2并发/50世界/240秒开始边界。PG100世界2tick(受控executor非真实模型容量)通过；Aunknown可claim/B执行/A不重买通过。旧整文件5/18，其余fixture失败未改；root集成/生产迁移部署。|
-|44-199-ATTENTION|[ ] 待验收|root子Agent attention199|独立worktree；agent-episode-attention.ts、agent-delivery-activity.ts、agent-phone-entry-probe.ts、agent-episode-dispatch-eligibility.ts、notification-projection.ts、server/npc-agent-episode-dispatch.ts、player-episode-manifest.test.ts、lock-notifications.test.ts及专属测试/报告；工作树.local/worktrees/attention199|焦点A不阻止B，审计模型上下文/内核只读；保留真实权限/暂停保护。|冻结1ef41fd1；85聚焦+45模型payload通过，typecheck/boundaries通过；删attention执行门槛与锁屏主观过滤，保留暂停/版本/unknown。待root集成真实旅程与部署。|
+|44-199-ATTENTION|[ ] 待验收|root子Agent attention199|独立worktree；agent-episode-attention.ts、agent-delivery-activity.ts、agent-phone-entry-probe.ts、agent-episode-dispatch-eligibility.ts、notification-projection.ts、server/npc-agent-episode-dispatch.ts、player-episode-manifest.test.ts、lock-notifications.test.ts及专属测试/报告；工作树.local/worktrees/attention199|焦点A不阻止B，审计模型上下文/内核只读；保留真实权限/暂停保护。|冻结1ef41fd1；85聚焦+45模型payload通过，typecheck/boundaries通过；删attention执行门槛与锁屏主观过滤，保留暂停/版本/unknown。待root集成真实旅程与部署。| 续接root分配：只改application/actor-context.ts、tests/actor-context.test.ts及本报告，保留近期玩家原话，其他文件停写。 续接已冻结：最近玩家原话保留，12聚焦/typecheck/boundaries通过；等待root集成上线。
 
 ### 2026-10-23 · 44-141 coordination 复跑失败，重新打开
 
 玩家要求林悦“现在就发消息问刘航”，林悦口头答应“我马上给刘航发消息…”，但世界 v217→221 后没有给刘航的邀约/消息/责任/结果。跨人物行动未执行，属于原“人物计划可执行下一步”缺口。`44-141` 从已完成改回部分通过；`44-147` 的真实模型验收仍未过，`44-138` 维持部分通过。
 
-|44-199-MULTI|[ ] 待验收|phone199，root集成|独立.local/worktrees/proactive-multi199，codex/proactive-multi199自3d7046cf；仅新tests/integration/proactive-multi199.test.ts、新报告44-199-MULTI.md；独立PG55660|原advance无任务双NPC/窗口幂等/unknown隔离；0付费/生产。|冻结79c9d13a；真实PG3/3+type通过，2人物/窗口续接/unknown隔离；仅受控模型，0付费/生产/部署。自有PG55660已停。|
+|44-199-MULTI| [x] 已完成（真实PG3/3；受控模型多人物/窗口/unknown） |phone199，root集成|独立.local/worktrees/proactive-multi199，codex/proactive-multi199自3d7046cf；仅新tests/integration/proactive-multi199.test.ts、新报告44-199-MULTI.md；独立PG55660|原advance无任务双NPC/窗口幂等/unknown隔离；0付费/生产。|冻结79c9d13a；真实PG3/3+type通过，2人物/窗口续接/unknown隔离；仅受控模型，0付费/生产/部署。自有PG55660已停。|
 
 ### 2026-10-23 · MEDIA-GROK-01 集成收口
 
@@ -3039,3 +3039,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · 44-155 生产 Grok 真实索图
 
 生产 `YIBU_IMAGE_MODEL=grok-imagine-image-2.0`，`dpl_DMbYz9sv2HTZjAt7N1VBEYK3chPk` READY。合成世界 `县城黄毛` 微信林悦真实输入“发一张你现在的照片给我”，产生 `media_f564...`，`photoId=a6e9d682-8ff5-4dd7-a68e-55440823521e`、`mediaStatus=ready`，资产 URL 200/image/jpeg/327366 bytes，手机聊天真实显示。world v229→232，0 unknown，测试世界已暂停。截图 `task-reports/assets/44-155-real-grok-image.png`。该链路通过不等于 44-158 长期延迟/多轮/一致性全通过。
+
+### 2026-10-23 · 44-199-MULTI 收口
+
+独立 PG55660 真实旅程 3/3：无任务双人物各自获机会并落两条消息、同真实分钟不重买、测试 Date 推进后各再获一次；A unknown 仅挡本人，B 仍提交；重复 advance 不增加调用。受控模型、0付费/生产/部署。作为测试子包收口，不代替 44-199 真实主动体验/手机 PC。
