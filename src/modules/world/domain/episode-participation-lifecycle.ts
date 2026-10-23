@@ -204,3 +204,22 @@ export function validateEpisodeParticipationLifecycle(
 ): void {
   projectEpisodeParticipationLifecycle(input);
 }
+
+/** All authenticated first considerations declined: no participant accepted this proposal.
+ * Receipts are authenticated by the original committing repository. Silence, missing receipts
+ * and later withdrawal of an active plan are not interchangeable with an initial decline.
+ */
+export function shouldWithdrawDeclinedEpisode(
+  episode: import('./director-runtime.ts').SharedEpisode,
+  considerations: readonly { actorId: string; choice: string }[],
+): boolean {
+  if (episode.status !== 'proposed' || !episode.participantActorIds.length) return false;
+  const participants = new Set(episode.participantActorIds);
+  if (
+    participants.size !== episode.participantActorIds.length ||
+    considerations.length !== participants.size ||
+    new Set(considerations.map((c) => c.actorId)).size !== considerations.length
+  )
+    return false;
+  return considerations.every((c) => participants.has(c.actorId) && c.choice === 'decline');
+}
