@@ -2208,10 +2208,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             ))}
           </div>
         )}
-
-        {!localFailure && (
-          <Feedback operation={operation} pending="发送并等待对方回复…" success="消息已发送" />
-        )}
       </form>
 
       {callingContact && (
