@@ -1,3 +1,11 @@
+## 2026-10-23 · 44-174/175 媒体生命周期收口
+
+`44-175` 的 `media-pipeline175` 已接入主分支，本地 PostgreSQL **1/1 通过**：原 `npcAgentServices`/kernel 创建 goal/plan + `media.generate_image` action → 成功入队（request 1 条 pending）→ pending 时 advance 不重复复盘/生图（actorCalls 1、goal active）→ 真实 `PostgresOutbox`/`dispatchOutbox`/`PostgresTaskQueue`/`createMediaPipelineHandler` 完成 → ready asset/outbox/task succeeded → advance 一次后续（actorCalls 2）→ 再 advance 不增加、request 仍 1 条、goal 仍 active，模型收到 `own_media_completion`。
+
+`44-174` 的 `media-pending174` 与 `continuation-conditions174` 已在主分支通过；原 `media-plan174` completed 分支直接改 media request document、不写真实完成 observation，因此其 actorCalls=1 是夹具缺陷，不是产品失败。真实 completed 路径由 `44-154-K`（3/3）与 `44-175`（1/1）覆盖。
+
+测试/文档提交 `290f1d11`，`parallel-life` 部署 `dpl_DfxLJzcJJkb9L7jZan84dnu3dnzY` READY，正式别名 `/api/health` 200。`npm run check` **3950/3950**、`npm run build` 通过。该批只加测试与账本，未改生产业务代码、未调用商业模型、未写生产世界、未新增 SQL。仍不宣称真实生图/视频或完整多人媒体体验通过。
+
 ## 2026-10-23 · 44-171/172/173 真实路由/结果接续验收
 
 在本地真实 PostgreSQL 上跑 `append-receipt-route171`、`append-effect-dependencies171`、`episode-choice172`、`result-reconsideration173`、`media-pending174`、`continuation-conditions174` 共 **21/21** 通过。`44-171` 覆盖 completed/partial_interrupted/superseded/unknown、消息 provenance、并发追加/用户打断、媒体前缀与原 request 关联、并发 receipt/stream 只读；`44-172` 覆盖 episodeManifest 同轮显式选择；`44-173` 覆盖成功/失败 action result 只唤醒一次 plan review，不把结果当 episode 完成。`44-174` 只过 pending/条件子测，committed `media-plan` 分支仍缺；`44-175` 真实 worker 生命周期仍在独立工作树。均使用受控适配器，未调用商业模型、未写生产世界。
