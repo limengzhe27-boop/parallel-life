@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
 import type { AgentGoal, AgentPlan } from '../domain/agent-runtime.ts';
@@ -204,8 +205,8 @@ export function compileNpcPlanIntents(
     const sourceIds = previous
       ? [...new Set([...previous.sourceIds, ...intent.sourceIds])]
       : [...intent.sourceIds];
-    basis(sourceIds);
     if (intent.kind === 'close') {
+      basis(sourceIds);
       plans.push({
         ...structuredClone(previous!),
         sourceIds,
@@ -235,27 +236,52 @@ export function compileNpcPlanIntents(
         )
           invalid('NPC_PLAN_INTENT_CONDITION_RESPONSIBILITY');
       }
-    plans.push({
+    const preserveStep = intent.kind === 'update' && !next;
+    const plan: AgentPlan = {
       id,
       goalId: resolvedGoalId!,
       summary: intent.summary,
       sourceIds,
-      status:
-        !next || next.kind === 'reconsider'
+      status: preserveStep
+        ? previous!.status
+        : !next || next.kind === 'reconsider'
           ? 'active'
           : next.kind === 'wait'
             ? 'waiting'
             : 'blocked',
       actionIds: intent.kind === 'update' ? [...previous!.actionIds] : [],
-      nextActionId: null,
-      triggers: !next || next.kind === 'blocked' ? [] : structuredClone(next.conditions),
-      missingConditions: next ? [...next.missing] : [],
+      nextActionId: preserveStep ? previous!.nextActionId : null,
+      triggers: preserveStep
+        ? structuredClone(previous!.triggers)
+        : !next || next.kind === 'blocked'
+          ? []
+          : structuredClone(next.conditions),
+      missingConditions: preserveStep
+        ? [...previous!.missingConditions]
+        : next
+          ? [...next.missing]
+          : [],
       ...(intent.kind === 'replace'
         ? { supersedesPlanId: previous!.id }
         : previous?.supersedesPlanId
           ? { supersedesPlanId: previous.supersedesPlanId }
           : {}),
-    });
+    };
+    if (intent.kind === 'update' && previous) {
+      const { sourceIds: oldSources, ...oldMeaning } = previous;
+      const { sourceIds: _newSources, ...newMeaning } = plan;
+      // The current wake is bookkeeping, not new evidence of a changed plan.
+      // Keep genuinely new cited evidence, but do not grow provenance for an echo.
+      if (
+        isDeepStrictEqual(oldMeaning, newMeaning) &&
+        intent.sourceIds.every(
+          (source) => source === context.input.sourceId || oldSources.includes(source),
+        )
+      )
+        continue;
+    }
+    basis(sourceIds);
+    plans.push(plan);
   }
   return { goals, plans };
 }

@@ -321,3 +321,32 @@ test('review defaults retain visible-state and unfinished-action protections', (
   c.viewState!.plans[0]!.status = 'withdrawn';
   rejects(c, [implicit], 'NPC_PLAN_INTENT_PLAN');
 });
+
+test('sparse plan update retains waiting conditions instead of silently activating another review', () => {
+  const c = existing();
+  c.viewState!.plans[0]!.triggers = [{ kind: 'observation', sourceId: 'input' }];
+  const change = {
+    kind: 'update',
+    planId: 'p',
+    summary: 'A clearer description',
+    sourceIds: ['input'],
+  };
+  const plan = compileNpcPlanIntents(c, [change]).plans[0]!;
+  assert.equal(plan.status, 'waiting');
+  assert.deepEqual(plan.triggers, c.viewState!.plans[0]!.triggers);
+  assert.deepEqual(plan.missingConditions, ['Await reply']);
+});
+
+test('unchanged plan echo does not append a wake source, while new evidence is retained', () => {
+  const c = existing();
+  c.input.sourceId = 'wake';
+  c.sources.push({ ...c.sources[0]!, id: 'wake', recordId: 'wake' });
+  const same = { kind: 'update', planId: 'p', summary: 'Existing wait', sourceIds: ['wake'] };
+  assert.deepEqual(compileNpcPlanIntents(c, [same]), { goals: [], plans: [] });
+  c.sources.push({ ...c.sources[0]!, id: 'evidence', recordId: 'evidence' });
+  assert.deepEqual(
+    compileNpcPlanIntents(c, [{ ...same, sourceIds: ['wake', 'evidence'] }]).plans[0]!.sourceIds,
+    ['input', 'wake', 'evidence'],
+  );
+  assert.equal(c.viewState!.plans[0]!.sourceIds.length, 1);
+});

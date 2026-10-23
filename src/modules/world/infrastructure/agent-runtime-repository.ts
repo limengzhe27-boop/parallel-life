@@ -55,9 +55,9 @@ function fail(code: string): never {
   throw new AgentRuntimePersistenceError(code);
 }
 /**
- * A live player private turn owns the world until its reply commits. Automatic
- * wake turns may still be in flight from an earlier batch; reject their commit
- * instead of letting them invalidate the player's paid reply.
+ * A live player private turn owns this actor until its reply commits.
+ * Independent actors retain their execution opportunity; world dependency
+ * admission remains responsible for genuinely shared-state conflicts.
  */
 async function assertNoLivePlayerTurn(
   sql: SqlClient,
@@ -76,12 +76,12 @@ async function assertNoLivePlayerTurn(
       `SELECT 1 FROM parallel_life.agent_attempts p
        JOIN parallel_life.agent_input_receipts r
          ON r.world_id=p.world_id AND r.owner_id=p.owner_id AND r.id=p.input_receipt_id
-       WHERE p.world_id=$1 AND p.owner_id=$2 AND p.id<>$3
+       WHERE p.world_id=$1 AND p.owner_id=$2 AND p.id<>$3 AND p.actor_id=$4
          AND p.status IN ('reserved','request_sent','response_received')
          AND p.lease_until>clock_timestamp()
          AND r.document->>'origin'='player' AND r.document->>'channel'='private'
        LIMIT 1`,
-      [expected.worldId, ownerId, expected.id],
+      [expected.worldId, ownerId, expected.id, expected.actorId],
     )
   ).rowCount;
   if (live) fail('SUPERSEDED_BY_USER_INTERRUPT');
