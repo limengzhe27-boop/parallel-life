@@ -410,19 +410,21 @@ function LifePhone({
       )}
       <div className={styles.shade} />
       {notice && <div className={styles.notice}>{notice}</div>}
-      <StatusBar timeLabel={timeLabel} locked={locked} onLock={lock} />
-      {banner && !locked && (
-        <div className={styles.banner} data-notification-banner role="status" key={banner.id}>
-          {notificationCard(banner)}
-          <button
-            className={styles.dismissBanner}
-            aria-label="收起消息横幅"
-            onClick={() => setBannerId(undefined)}
-          >
-            ×
-          </button>
-        </div>
-      )}
+      <div className={styles.statusLayer}>
+        <StatusBar timeLabel={timeLabel} locked={locked} onLock={lock} />
+        {banner && !locked && (
+          <div className={styles.banner} data-notification-banner role="status" key={banner.id}>
+            {notificationCard(banner)}
+            <button
+              className={styles.dismissBanner}
+              aria-label="收起消息横幅"
+              onClick={() => setBannerId(undefined)}
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </div>
       <div className={styles.unlockedContent} hidden={locked} inert={locked}>
         {route.panel && (
           <header className={styles.header}>

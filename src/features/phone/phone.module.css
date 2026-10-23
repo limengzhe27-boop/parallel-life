@@ -559,6 +559,10 @@
     scroll-behavior: auto !important;
   }
 }
+.statusLayer {
+  position: relative;
+  flex-shrink: 0;
+}
 .statusBar {
   height: 58px;
   padding: max(5px, env(safe-area-inset-top)) 24px 0;
@@ -760,14 +764,11 @@
 .banner {
   position: absolute;
   z-index: 200;
-  top: calc(152px + env(safe-area-inset-top));
+  top: calc(100% + 8px);
   left: 12px;
   right: 12px;
   animation: bannerEnter 0.3s ease-out;
   color: var(--phone-ink);
-}
-.phone:has(> .notice) .banner {
-  top: calc(176px + env(safe-area-inset-top));
 }
 .banner .notification {
   padding-right: 36px;

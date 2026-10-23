@@ -410,25 +410,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <button
               type="button"
-              title="搜索"
-              aria-label="搜索"
-              onClick={() => {
-                const el = document.getElementById('wechat-search-input');
-                el?.focus();
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '16px',
-                color: '#1f2937',
-                cursor: 'pointer',
-                padding: '4px',
-              }}
-            >
-              🔍
-            </button>
-            <button
-              type="button"
               title="更多功能"
               aria-label="更多功能"
               onClick={() => {
