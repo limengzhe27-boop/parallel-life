@@ -384,7 +384,7 @@ function evaluationCauseView(snapshot: DirectorSnapshot) {
 /** Character budgets (not token counts). Reserve room for the system instructions.
  * Multi-actor role material and persistent execution state must fit together;
  * omitting either silently changes narrative identity or execution semantics. */
-export const CONTEXT_BUDGET = 80000;
+export const CONTEXT_BUDGET = 70000;
 const CONTEXT_LIMIT = MODEL_TEXT_CHARACTER_LIMIT;
 
 type Payload = Record<string, unknown>;
@@ -509,6 +509,18 @@ export function fitWithinBudget(payload: Payload): Payload {
     () => {
       next.changes = trimEnd(next.changes, 2);
       next.candidates = trimStart(next.candidates, 3);
+    },
+    () => {
+      if (Array.isArray(next.actorStates))
+        next.actorStates = (next.actorStates as Payload[]).map((state) => ({
+          ...state,
+          questions: [],
+          focus: null,
+        }));
+    },
+    () => {
+      next.episodes = [];
+      next.actorKnownTopics = [];
     },
   ];
   for (const step of steps) {
@@ -640,13 +652,23 @@ function request(snapshot: DirectorSnapshot) {
   };
   const fitted = fitWithinBudget(payload);
   const text = JSON.stringify(fitted);
-  if (text.length + SYSTEM.length > CONTEXT_LIMIT)
+  if (text.length + SYSTEM.length > CONTEXT_LIMIT) {
+    const contextSizes = Object.fromEntries(
+      Object.entries(fitted).map(([k, v]) => [k, JSON.stringify(v)?.length ?? 0]),
+    );
+    console.warn(
+      JSON.stringify({
+        scope: 'director-context',
+        textLength: text.length,
+        systemLength: SYSTEM.length,
+        contextSizes,
+      }),
+    );
     throw Object.assign(Error('DIRECTOR_CONTEXT_LIMIT'), {
       code: 'DIRECTOR_CONTEXT_LIMIT',
-      contextSizes: Object.fromEntries(
-        Object.entries(fitted).map(([k, v]) => [k, JSON.stringify(v)?.length ?? 0]),
-      ),
+      contextSizes,
     });
+  }
   return [
     { role: 'system' as const, content: SYSTEM },
     { role: 'user' as const, content: text },
