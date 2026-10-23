@@ -3098,4 +3098,4 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 |44-205-P0-ACCEPT|[ ] 已线上验证，待本批部署复验|root唯一集成|线上渣男体验4953…；无源码|舒雅婷真实发送command928cd6ce→committed、world v265、用户原话+3条NPC消息落库；同command以原expectedVersion复放200且metrics.modelCallCount=0、同一event；旧unknown d522…仍unknown_after_send、无event/消息。|
 |44-205-REPEAT-WAIT|[ ] 本地验证，待部署/真实体验|root唯一集成|agent-schedule-collectors.ts、npc-conversation-progress.ts、npc-agent-model.ts及聚焦测试|blocked+missingConditions或同会话open question不再每小时重开计划复查；prompt v65禁止对未回答open问题重复近似追问；projection只保留最新open问题/责任；47/47调度、5/5进度、101聚焦通过；check3987/build通过；真实模型待部署后验。|
-|44-205-PUBLISH|[ ] 待部署验证|root唯一集成|vercel.json、docs/DEPLOYMENT.md|Git为唯一发布入口；ignoreCommand跳过纯docs/tests/reports；历史16:13–16:41同sha 1 Git+2 CLI已记录，本批不再手动`vercel --prod`；部署READY后补公网证据。|
+|44-205-PUBLISH|[ ] 部署重试中|root唯一集成|vercel.json、docs/DEPLOYMENT.md|Git为唯一发布入口；ignoreCommand在Vercel不可用（.git被.vercelignore移除，5bb579ab部署ERROR），已撤回；改为docs与代码同批推、不单独推文档；历史16:13–16:41同sha 1 Git+2 CLI已记录；本批不再手动`vercel --prod`，重推后补READY/公网证据。|
