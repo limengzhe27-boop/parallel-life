@@ -87,6 +87,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
   const [appointmentNotice, setAppointmentNotice] = useState('');
   const [appointmentConfirm, setAppointmentConfirm] = useState(false);
+  const [dismissedInvitationId, setDismissedInvitationId] = useState<string>();
   const [previewModalPhoto, setPreviewModalPhoto] = useState<PhonePhoto | null>(null);
   const [socialPreview, setSocialPreview] = useState<{
     worldId: string;
@@ -95,6 +96,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     moments: AuthoredSocial['moments'];
   } | null>(null);
   const [previewRetry, setPreviewRetry] = useState(0);
+
+  useEffect(() => {
+    if (!appointmentNotice) return;
+    const timer = window.setTimeout(() => setAppointmentNotice(''), 4500);
+    return () => window.clearTimeout(timer);
+  }, [appointmentNotice]);
 
   const messageScroll = useRef<HTMLDivElement>(null);
   const wasNearBottom = useRef(true);
@@ -1172,17 +1179,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     ? operations[`chat-invite:${relatedInvitation.id}`]
     : undefined;
   const invitationBlocked = !actions.changeInvitation || Boolean(invitationOperation?.busy);
-  const invitationDue = relatedInvitation
-    ? Date.parse(relatedInvitation.at) <= Date.parse(data.referenceTime ?? '')
-    : false;
   const invitationMap = relatedInvitation?.links?.find((link) => link.app === 'map');
-  const invitationStatusLabel: Record<string, string> = {
-    proposed: '待回复',
-    confirmed: '已约好',
-    attended: '已赴约',
-    cancelled: '已取消',
-    missed: '未赴约',
-  };
   async function respondToInvitation(kind: 'accept' | 'cancel') {
     if (!relatedInvitation || !actions.changeInvitation || invitationBlocked) return;
     const invitation = relatedInvitation;
@@ -1199,11 +1196,96 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     );
     if (receipt?.status === 'committed') {
       setAppointmentConfirm(false);
+      setDismissedInvitationId(invitation.id);
       setAppointmentNotice(
         kind === 'accept' ? '已接受，日程里现在能看到这次约定。' : '已拒绝这次邀约，日程已取消。',
       );
     }
   }
+
+  const pendingInvitation =
+    relatedInvitation?.status === 'proposed' && relatedInvitation.id !== dismissedInvitationId
+      ? relatedInvitation
+      : undefined;
+  const invitationBanner = pendingInvitation ? (
+    <section className={s.chatInvitation} aria-label="聊天里的日程邀约">
+      <header>
+        <small>日程邀约 · {timeText(pendingInvitation.at)}</small>
+        <span className={s.chatInvitationStatus}>待回复</span>
+      </header>
+      <h3>{pendingInvitation.title}</h3>
+      <p>
+        {invitationMap
+          ? `地点：${invitationMap.label || '约定地点'}`
+          : '还没有替你答应。接受、改期或拒绝都由你决定。'}
+      </p>
+      <Feedback operation={invitationOperation} success="日程已更新" />
+      <div className={s.chatInvitationActions}>
+        <button
+          type="button"
+          className={s.chatInvitationPrimary}
+          disabled={invitationBlocked}
+          onClick={() => {
+            playTapSound();
+            void respondToInvitation('accept');
+          }}
+        >
+          {invitationOperation?.errorCode === 'UNKNOWN' &&
+          invitationOperation.signature?.includes(':accept:')
+            ? '确认重试接受'
+            : '接受'}
+        </button>
+        <button
+          type="button"
+          disabled={invitationBlocked}
+          onClick={() => {
+            playTapSound();
+            setDismissedInvitationId(pendingInvitation.id);
+            setAppointmentConfirm(false);
+            open('calendar', pendingInvitation.id);
+          }}
+        >
+          改期
+        </button>
+        {appointmentConfirm ? (
+          <button
+            type="button"
+            className={s.chatInvitationDanger}
+            disabled={invitationBlocked}
+            onClick={() => {
+              playTapSound();
+              void respondToInvitation('cancel');
+            }}
+          >
+            确认拒绝
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={invitationBlocked}
+            onClick={() => {
+              playTapSound();
+              setAppointmentConfirm(true);
+            }}
+          >
+            拒绝
+          </button>
+        )}
+      </div>
+      <button
+        type="button"
+        className={s.chatInvitationDismiss}
+        aria-label="收起日程提醒"
+        onClick={() => {
+          playTapSound();
+          setAppointmentConfirm(false);
+          setDismissedInvitationId(pendingInvitation.id);
+        }}
+      >
+        ×
+      </button>
+    </section>
+  ) : null;
 
   return (
     <div
@@ -1217,6 +1299,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         position: 'relative',
       }}
     >
+      {invitationBanner}
+      {appointmentNotice && (
+        <div className={s.appointmentTopNotice} role="status">
+          {appointmentNotice}
+        </div>
+      )}
       {/* 顶部单栏原生微信导航 */}
       <div
         style={{
@@ -1469,121 +1557,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         aria-live="polite"
         aria-relevant="additions"
       >
-        {relatedInvitation && (
-          <section className={s.chatInvitation} aria-label="聊天里的日程邀约">
-            <header>
-              <small>日程邀约 · {timeText(relatedInvitation.at)}</small>
-              <span className={s.chatInvitationStatus}>
-                {invitationStatusLabel[relatedInvitation.status] ?? '日程'}
-              </span>
-            </header>
-            <h3>{relatedInvitation.title}</h3>
-            <p>
-              {invitationMap
-                ? `地点：${invitationMap.label || '约定地点'}`
-                : relatedInvitation.status === 'proposed'
-                  ? '还没有替你答应。接受、改期或拒绝都由你决定。'
-                  : '时间以这段人生的日程为准。'}
-            </p>
-            <Feedback operation={invitationOperation} success="日程已更新" />
-            {appointmentNotice && (
-              <p role="status" style={{ color: '#15803d' }}>
-                {appointmentNotice}
-              </p>
-            )}
-            {relatedInvitation.status === 'proposed' ? (
-              <div className={s.chatInvitationActions}>
-                <button
-                  type="button"
-                  className={s.chatInvitationPrimary}
-                  disabled={invitationBlocked}
-                  onClick={() => {
-                    playTapSound();
-                    void respondToInvitation('accept');
-                  }}
-                >
-                  {invitationOperation?.errorCode === 'UNKNOWN' &&
-                  invitationOperation.signature?.includes(':accept:')
-                    ? '确认重试接受'
-                    : '接受'}
-                </button>
-                <button
-                  type="button"
-                  disabled={invitationBlocked}
-                  onClick={() => {
-                    playTapSound();
-                    setAppointmentConfirm(false);
-                    open('calendar', relatedInvitation.id);
-                  }}
-                >
-                  改期
-                </button>
-                {appointmentConfirm ? (
-                  <button
-                    type="button"
-                    className={s.chatInvitationDanger}
-                    disabled={invitationBlocked}
-                    onClick={() => {
-                      playTapSound();
-                      void respondToInvitation('cancel');
-                    }}
-                  >
-                    确认拒绝
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={invitationBlocked}
-                    onClick={() => {
-                      playTapSound();
-                      setAppointmentConfirm(true);
-                    }}
-                  >
-                    拒绝
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className={s.chatInvitationActions}>
-                {invitationMap && (
-                  <button
-                    type="button"
-                    className={s.chatInvitationPrimary}
-                    onClick={() => {
-                      playTapSound();
-                      open('map', invitationMap.target);
-                    }}
-                  >
-                    前往{invitationMap.label || '约定地点'}
-                  </button>
-                )}
-                {invitationDue && actions.enterScene && (
-                  <button
-                    type="button"
-                    disabled={invitationBlocked}
-                    onClick={() => {
-                      playTapSound();
-                      void run(`chat-scene:${relatedInvitation.id}`, relatedInvitation.id, () =>
-                        actions.enterScene!(relatedInvitation.id),
-                      );
-                    }}
-                  >
-                    进入现场
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    playTapSound();
-                    open('calendar', relatedInvitation.id);
-                  }}
-                >
-                  查看日程
-                </button>
-              </div>
-            )}
-          </section>
-        )}
         {!messages.length && <Empty title="还没有聊天记录" text={`和${actor.name}说句话吧。`} />}
         {messages.map((m) => (
           <article
