@@ -1,3 +1,11 @@
+## 2026-10-23 · P0 运行链账本核验与总表分层
+
+本轮只做已有主分支的 P0 接线核验、账本收敛与剩余工作分层，**未改业务源码、未调用商业模型、未写生产世界、未新增 SQL**。核验覆盖消息已知结果恢复、unknown 隔离、安全诊断、96k preflight、导演零发送证据、有界思考窗口、人物展示分层、注意力不阻塞其他人物、连续性策略等；聚焦测试 **68/68 + 126/126** 通过。首次全量 check 因本地 PostgreSQL 未启动出现 10 个 `ECONNREFUSED 55432`，启动本地 PostgreSQL 18.4 后 `npm run check` **3950/3950**、`npm run build` 通过。
+
+主表 23 条已合入主分支的 `44-161` / `44-154` / `44-165` 子项由“待验收”收敛为“已完成（审计交付/集成验证/限定代码接线）”；`44-165-PLAYER-ADMISSION-REVIEW` 的最小安全准入已在 `agent-input-version.ts` 实现，完整“玩家已见问题/责任 revision 范围”仍未完成。当前总表 254 行：146 完成/限定完成、108 未完成；其中 52 条为历史审计/设计冻结行，56 条才是活跃项。分层见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。
+
+文档提交 `0c6bd3e3`，`parallel-life` 部署 `dpl_E7s58pPfdW61GwGDDZdjbzGWFxEh` READY（`https://parallel-life-nilpbg4tt-limengzhe27-boops-projects.vercel.app`），正式别名 `https://parallel-world-eosin.vercel.app/api/health` 200。该批是文档/账本交付，不表示真实模型对话、邀约或媒体链已通过。
+
 ## 2026-10-23 · 44-197 消息横幅贴近状态栏与微信顶栏去搜索图标
 
 用户反馈消息横幅出现在屏幕中上部，应在手机状态栏时间下方、占用微信顶栏 / 搜索区域。`PhoneShell` 新增 `statusLayer` 包裹状态栏与横幅，横幅改为相对状态栏层 `top: calc(100% + 8px)`；状态栏 58px、短屏 50px 及 notice 高度均自动跟随。微信顶栏删除重复的 🔍 按钮和无用的 `wechat-search-input` 聚焦代码，保留 ⊕ 和列表内真实搜索框。
