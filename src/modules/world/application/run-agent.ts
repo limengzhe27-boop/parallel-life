@@ -3,7 +3,6 @@ import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { withAmbientSticker } from '../domain/ambient-sticker.ts';
 import { withRecallRequest } from '../domain/recall-request.ts';
-import { withProactiveQuality } from '../domain/proactive-quality.ts';
 import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
 import {
@@ -273,18 +272,6 @@ export async function runNpcAgent(
         channelKind: clones.snapshot.channel?.kind,
         origin: clones.snapshot.input?.origin,
         text: clones.snapshot.input?.text ?? '',
-      });
-      proposal = withProactiveQuality(proposal, {
-        channelKind: clones.snapshot.channel?.kind,
-        origin: clones.snapshot.input?.origin,
-        recentSelfTexts: (clones.snapshot.observations ?? [])
-          .filter(
-            (observation) =>
-              observation.speaker?.kind === 'actor' &&
-              observation.speaker.actorId === clones.snapshot.state.actorId,
-          )
-          .map((observation) => observation.text)
-          .slice(-6),
       });
       phaseTimings.decodeCompileMs = performance.now() - tDecode0;
       phaseTimings.persistAndDecodeWallMs =

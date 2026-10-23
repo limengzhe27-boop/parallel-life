@@ -725,28 +725,6 @@ export function npcAgentAdvanceServices(
         );
         if (pendingEpisode) return pendingEpisode;
       }
-      const lastAssistantRealAtByActor = await db
-        .transaction(ownerId, async (sql) => {
-          const rows = (
-            await sql.query(
-              `SELECT m.document->>'actorId' AS actor_id, max(e.occurred_at) AS at
-                 FROM parallel_life.world_messages m
-                 JOIN parallel_life.world_events e
-                   ON e.id=m.document->>'sourceEventId' AND e.world_id=m.world_id
-                WHERE m.world_id=$1 AND m.owner_id=$2 AND m.document->>'role'='assistant'
-                GROUP BY m.document->>'actorId'`,
-              [worldId, ownerId],
-            )
-          ).rows;
-          return Object.fromEntries(
-            rows.flatMap((row) =>
-              row.actor_id && row.at
-                ? [[String(row.actor_id), new Date(row.at).toISOString()]]
-                : [],
-            ),
-          );
-        })
-        .catch(() => ({}) as Record<string, string>);
       const registrations = createAgentScheduleSources({
         worldId,
         engineEpoch,
@@ -762,7 +740,6 @@ export function npcAgentAdvanceServices(
             .filter((message) => message.role === 'assistant' && message.actorId)
             .map((message) => [message.actorId!, message.at]),
         ),
-        lastAssistantRealAtByActor,
       });
       const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (
@@ -802,11 +779,7 @@ export function npcAgentAdvanceServices(
           },
         },
       });
-      const sources = registrations
-        .filter(
-          (source) => !batch?.localInitiativeStarted() || !source.id.startsWith('actor_local:'),
-        )
-        .map(wrap);
+      const sources = registrations.map(wrap);
       const existingCollections = await Promise.all(
         sources.map((s) => s.source.collect(ownerId, worldId)),
       );
@@ -1239,7 +1212,6 @@ export function npcAgentAdvanceServices(
         const reservation = recovering ? undefined : batch?.reserveModel();
         if (batch && !recovering && !reservation) return quiet(storyAt);
         try {
-          if (candidate.source === 'actor_local') batch?.markLocalInitiative();
           batch?.actorStarted(candidate.actorId);
           const commandIdentity = candidateCommand(candidate);
           const commandId = commandIdentity.commandId;

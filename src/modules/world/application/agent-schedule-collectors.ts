@@ -40,12 +40,8 @@ export type SchedulingView = {
   agendaInitializeGrants?: readonly ActorAgendaInitializeGrant[];
   /** Durable actionless-plan review cadence, scoped to this actor. */
   planReviews?: ReadonlyMap<string, PlanReviewState>;
-  /** Real elapsed time since the owner's last message; no Director decision is required. */
-  userInactiveMs?: number;
   /** Per-actor last assistant time; each actor's local initiative is independent. */
   lastAssistantAtByActor?: Readonly<Record<string, string>>;
-  /** Real occurrence time for the same assistant message, used only as a stalled-story fallback. */
-  lastAssistantRealAtByActor?: Readonly<Record<string, string>>;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -947,32 +943,10 @@ async function observations(view: SchedulingView, context: ActorContext) {
   return out;
 }
 
-/** Local, director-free initiative: elapsed idle is enough to let the actor consider contact. */
-async function localInitiative(view: SchedulingView, context: ActorContext) {
+/** A bounded contact opportunity, not a task or a requirement to send a message. */
+async function localInitiative(view: SchedulingView, context: ActorContext, realNow: number) {
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
-  const cooldown = 30 * 60 * 1000;
-  const realGap = (actorId: string) => {
-    const realAt = view.lastAssistantRealAtByActor?.[actorId];
-    return realAt ? Date.now() - Date.parse(realAt) : Number.POSITIVE_INFINITY;
-  };
-  // This is a real-time idle behavior; story-clock speed must not turn a 3x world
-  // into unprompted messages every few minutes. One clock, thirty minutes.
-  if (realGap(snapshot.state.actorId) < cooldown) return [];
-  // One local initiative per scheduling read keeps a multi-actor world from emitting
-  // several unprompted private messages at once; choose the least recently heard actor.
-  const eligible = view.actors
-    .filter((actor) => actor.snapshot.channel.kind === 'private')
-    .filter((actor) => realGap(actor.snapshot.state.actorId) >= cooldown)
-    .sort((a, b) => {
-      const aAt = view.lastAssistantAtByActor?.[a.snapshot.state.actorId];
-      const bAt = view.lastAssistantAtByActor?.[b.snapshot.state.actorId];
-      return (
-        (aAt ? Date.parse(aAt) : 0) - (bAt ? Date.parse(bAt) : 0) ||
-        a.snapshot.state.actorId.localeCompare(b.snapshot.state.actorId)
-      );
-    });
-  if (eligible[0]?.snapshot.state.actorId !== snapshot.state.actorId) return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(
@@ -984,21 +958,24 @@ async function localInitiative(view: SchedulingView, context: ActorContext) {
     );
     return [];
   }
-  const bucket = Math.floor(Date.parse(view.storyAt) / 3_600_000);
+  // Stable across refresh, other actors' commits and accelerated story time.
+  // The original actor attempt/lease blocks unknown work even across later windows.
+  const bucket = Math.floor(realNow / 60_000);
   return [
     await candidate(view, context, {
       source: 'actor_local',
       actionId: null,
       sourceIds: [sourceId],
       responsibilities: [],
-      semantic: { bucket },
+      semantic: { contactWindow: bucket },
       reason:
-        '用户已有一段时间没有操作。你可以自主决定是否主动联系，也可以继续等待或保持安静；不需要导演批准。',
+        '这是本人一次自主考虑机会。结合人格、关系、记忆、最近对话和当前安排，可以推进计划，也可以关心、分享、表达情绪或延续话题；没有正式任务也可以联系。不要假定玩家空闲，不复述同一请求；可以保持安静，不需要导演批准。',
     }),
   ];
 }
 export function createAgentScheduleSources(
   input: SchedulingView,
+  realNow: number = Date.now(),
 ): readonly RegisteredAgentCandidateSource[] {
   if (
     !input ||
@@ -1134,7 +1111,7 @@ export function createAgentScheduleSources(
                     : source === 'appointment'
                       ? appointmentWindows(view, actor, context)
                       : source === 'actor_local'
-                        ? localInitiative(view, context)
+                        ? localInitiative(view, context, realNow)
                         : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };

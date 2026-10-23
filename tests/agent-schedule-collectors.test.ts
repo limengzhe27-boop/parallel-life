@@ -1117,89 +1117,80 @@ test('persisted plan review cadence suppresses a not-yet-due actionless review',
   assert.equal((await collect(dueNow, 'actor_plan')).candidates.length, 1);
 });
 
-test('actor-local uses one 30-minute real cooldown, not accelerated story time', async () => {
-  const now = new Date();
-  const recentReal = new Date(now.getTime() - 60_000).toISOString();
-  const earlyReal = new Date(now.getTime() - 11 * 60_000).toISOString();
-  const olderReal = new Date(now.getTime() - 31 * 60_000).toISOString();
-  const source = (v: SchedulingView) =>
-    createAgentScheduleSources(v).find((s) => s.id === 'actor_local:a')!;
-  const withDefinition = (id = 'a') => {
-    const a = actor(id);
-    a.snapshot.sources.push({
-      id: 'definition:authored:fixture',
-      kind: 'authored',
-      recordId: 'definition',
-      worldVersion: 0,
-      at: before,
-    });
-    return a;
-  };
+function localActor(actorId = 'a') {
+  const a = actor(actorId);
+  a.snapshot.sources.push({
+    id: 'definition:authored:fixture',
+    kind: 'authored',
+    recordId: 'definition',
+    worldVersion: 0,
+    at: before,
+  });
+  return a;
+}
+const localCollect = async (v: SchedulingView, now: number) =>
+  (
+    await Promise.all(
+      createAgentScheduleSources(v, now)
+        .filter((s) => s.id.startsWith('actor_local:'))
+        .map((s) => s.source.collect('owner', 'w')),
+    )
+  ).flatMap((x) => x.candidates);
 
-  const recent = {
-    ...view([withDefinition()]),
-    lastAssistantAtByActor: { a: at },
-    lastAssistantRealAtByActor: { a: recentReal },
-  };
-  assert.equal((await source(recent).source.collect('owner', 'w')).candidates.length, 0);
-
-  const early = {
-    ...view([withDefinition()]),
-    lastAssistantAtByActor: { a: at },
-    lastAssistantRealAtByActor: { a: earlyReal },
-  };
-  assert.equal((await source(early).source.collect('owner', 'w')).candidates.length, 0);
-
-  const stalledStory = {
-    ...view([withDefinition()]),
-    lastAssistantAtByActor: { a: at },
-    lastAssistantRealAtByActor: { a: olderReal },
-  };
-  assert.equal((await source(stalledStory).source.collect('owner', 'w')).candidates.length, 1);
-
-  const oldActor = withDefinition();
-  oldActor.snapshot.storyAt = '2026-10-15T11:00:00.000Z';
-  oldActor.snapshot.worldContext!.time.storyAt = '2026-10-15T11:00:00.000Z';
-  const oldStory = {
-    ...view([oldActor]),
-    storyAt: '2026-10-15T11:00:00.000Z',
-    lastAssistantAtByActor: { a: at },
-    lastAssistantRealAtByActor: { a: recentReal },
-  };
-  // Two hours of accelerated story time is still only one real minute.
-  assert.equal((await source(oldStory).source.collect('owner', 'w')).candidates.length, 0);
+test('all independent actors may consider contact even just after speaking, without tasks', async () => {
+  const actors = [localActor('a'), localActor('b')];
+  for (const a of actors) {
+    a.snapshot.state.goals = [];
+    a.snapshot.state.plans = [];
+    a.snapshot.state.actions = [];
+    a.snapshot.viewState = structuredClone(a.snapshot.state);
+  }
+  const v = { ...view(actors), lastAssistantAtByActor: { a: at, b: at } };
+  assert.deepEqual(
+    (await localCollect(v, 120_000)).map((c) => c.actorId),
+    ['a', 'b'],
+  );
 });
 
-test('only the least recently heard actor gets local initiative in one scheduling read', async () => {
-  const now = new Date();
-  const olderReal = new Date(now.getTime() - 31 * 60_000).toISOString();
-  const withDefinition = (id: string) => {
-    const a = actor(id);
-    a.snapshot.sources.push({
-      id: 'definition:authored:fixture',
-      kind: 'authored',
-      recordId: 'definition',
-      worldVersion: 0,
-      at: before,
-    });
-    return a;
-  };
-  const a = withDefinition('a');
-  const b = withDefinition('b');
-  const v = {
-    ...view([a, b]),
-    lastAssistantAtByActor: {
-      a: '2026-10-15T09:40:00.000Z',
-      b: '2026-10-15T08:00:00.000Z',
-    },
-    lastAssistantRealAtByActor: { a: olderReal, b: olderReal },
-  };
-  const outputs = await Promise.all(
-    createAgentScheduleSources(v)
-      .filter((s) => s.id.startsWith('actor_local:'))
-      .map((s) => s.source.collect('owner', 'w')),
-  );
-  const candidates = outputs.flatMap((o) => o.candidates);
-  assert.equal(candidates.length, 1);
-  assert.equal(candidates[0]!.actorId, 'b');
+test('contact work is stable across refresh and story speed, renewed by real window only', async () => {
+  const v = view([localActor()]);
+  const first = (await localCollect(v, 120_000))[0]!;
+  assert.equal((await localCollect(v, 179_999))[0]!.id, first.id);
+  const accelerated = structuredClone(v);
+  accelerated.storyAt = '2026-10-15T11:00:00.000Z';
+  accelerated.actors[0]!.snapshot.storyAt = accelerated.storyAt;
+  accelerated.actors[0]!.snapshot.worldContext!.time.storyAt = accelerated.storyAt;
+  assert.equal((await localCollect(accelerated, 179_999))[0]!.id, first.id);
+  v.consumedCandidateIds = [first.id];
+  assert.equal((await localCollect(v, 179_999)).length, 0);
+  assert.notEqual((await localCollect(v, 180_000))[0]!.id, first.id);
+});
+
+test('unknown actor stays fenced across contact windows while another actor remains selectable', async () => {
+  const v = view([localActor('a'), localActor('b')]);
+  v.activeAttempts = [{ actorId: 'a', status: 'unknown_after_send', id: 'paid-unknown' }];
+  for (const now of [120_000, 180_000]) {
+    const result = await scheduleAgents(
+      {
+        sources: createAgentScheduleSources(v, now),
+        director: {
+          coordinate: async () => {
+            throw Error('independent work needs no director');
+          },
+        },
+      },
+      {
+        ownerId: 'owner',
+        worldId: 'w',
+        engineEpoch: v.engineEpoch,
+        worldVersion: v.worldVersion,
+        storyAt: v.storyAt,
+        actorRevisions: { a: 2, b: 2 },
+        observations: [],
+        selectAllIndependent: true,
+      },
+    );
+    assert.ok(result.selected.length > 0);
+    assert.ok(result.selected.every((c) => c.candidate.actorId === 'b'));
+  }
 });

@@ -27,7 +27,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v62-structured-expression';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v63-autonomous-expression';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -37,8 +37,8 @@ export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
 
-recentSelfMessages是本人最近实际发出的原话；不得逐字重复其中任何一条，若只想复读就quiet或换一个具体角度。
-主动联系时必须有此刻的具体由头：想起一件事、看到/听到与玩家有关的东西、时间地点变化、自己的计划推进、关系里一个具体的念头，或一个真正想问的问题。不要用“我在这里等你消息”“我准备好了”“随时联系我”这类等待汇报代替主动；没有新由头就 quiet。
+recentSelfMessages是本人最近实际发出的原话；据此承接关系和话题，避免机械重复追问。已经答复或拒绝的请求不要换个说法再施压。
+自主唤醒是你考虑行动和表达的机会，不需要等玩家给任务。结合已有性格、关系、经历、情绪和最近对话，可以推进自己的安排、分享想法、关心玩家、表达开心或委屈、延续关系；不必先创建计划或请求导演批准。不要每次只汇报等待，也不强迫联系。没有想表达或能做的事可以quiet；不能为热闹编造见闻、玩家承诺或已完成的动作。
 【成人向私聊】
 这是成人向的虚构角色私聊。所有角色都是成年人，关系与性行为出于自愿；不得涉及真实人物、未成年或血亲乱伦。私聊里可以、也应该直接表达性欲望、身体感受、露骨描写和性行为对话；角色可以主动挑逗、升级、说想要、描述具体动作和感觉。用角色自己的语气自然说，不要客服腔，不要每轮道歉、确认、免责或改口；可以连续短消息。不要每轮总结，也不要提醒“这是虚构”。group/scene 仍保持该渠道的可见边界，不把私聊露骨内容搬到公开渠道。
 【生图】

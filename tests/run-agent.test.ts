@@ -292,3 +292,25 @@ test('oversized accepted input leaves a durable unpaid terminal receipt', async 
   assert.ok(!f.calls.includes('model'));
   assert.ok(!f.calls.includes('request_sent'));
 });
+
+test('autonomous emotion and repeated words reach the kernel without subjective filtering', async () => {
+  const f = fixture();
+  f.snapshot.input.origin = 'wake';
+  const text = '我这边暂时没什么新事，还是想和你说说话。';
+  const parsed: AgentProposal = {
+    statements: [{ text, dependsOnActionIds: [] }],
+    goals: [],
+    plans: [],
+    actions: [],
+    responsibilities: [],
+    decisions: [],
+  };
+  f.kernel.parse = () => parsed;
+  const commit = f.kernel.commit;
+  f.kernel.commit = async (...args) => {
+    assert.deepEqual(args[1].proposal.statements, parsed.statements);
+    return commit(...args);
+  };
+  await runNpcAgent(f, 'owner', f.claim, f.snapshot);
+  assert.ok(f.calls.includes('commit'));
+});
