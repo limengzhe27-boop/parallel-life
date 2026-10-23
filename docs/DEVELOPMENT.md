@@ -2579,7 +2579,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 155上线：04db62dd/dpl_4Lyn4ohNHdwXM74JZWJiNxfbjxnK正式Nu精确READY；最终check3354/build通过，92生产checksum保持、121世界读取期间hash保留，原试演双clock协议200且paused、health/workbench200/匿名publications与publisher works401。手机390/PC1365合成布局已看（非真实生图验收），0新商业调用。未完：旧渣男档完整开场自然演绎/正常聊天真实生图发图复验，历史已造+2h邀约逐条来源核销，154后台公平调度。原paidquiet不清零，不强制事件或替NPC发言。
 
-|44-156-OLD-WORLD-OPENING-NOTIFICATIONS-I|[ ] Deployed; natural performance pending|codex-root-opening156 sole integrator|unified-engine137; phone-shell/world-phone-app notification refresh, Director wake/protocol investigation plus focused tests/report; no other agent writes.|User reports existing 渣男 still no proactive interaction/entry banner. Read exact old-save causes, preserve history/paid identities, fix real message visibility and substantive opening coordination without forced messages/repeated paid calls.|0 new model/production writes, target81bab has quiet Director/0 opportunities/0 episode requests; latest user chats committed. |
+|44-156-OLD-WORLD-OPENING-NOTIFICATIONS-I| [x] 已完成（旧档锁屏真实主动通知；完整自然演绎归161） |codex-root-opening156 sole integrator|unified-engine137; phone-shell/world-phone-app notification refresh, Director wake/protocol investigation plus focused tests/report; no other agent writes.|User reports existing 渣男 still no proactive interaction/entry banner. Read exact old-save causes, preserve history/paid identities, fix real message visibility and substantive opening coordination without forced messages/repeated paid calls.|0 new model/production writes, target81bab has quiet Director/0 opportunities/0 episode requests; latest user chats committed. |
 
 156接续：真实81bab v27 quiet观察缺全部speech，legacy opening与2事件已呈现不得重播。修初次真实未读横幅、消息投影独立只读刷新、导演限量认证交流与预算保留；通过已有quiet之后真实玩家联系证据补齐相关未演事件上下文，首条/人物稳定去重不靠时钟/普通闲聊重买，不清paidctx/不重试unknown。小安冻结，opening_fix仅snapshot/test。PG snapshot15/semantic21、check3355；旧档只读核2新证据/8相关资格且身份稳定，0模型/生产档写。待本批部署与界面；真实自然演绎仍需实测。
 
@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/165/139/137/155/148/199-MULTI 验收、44-161/162 边界收敛与外部 44-199 子任务登记后，当前总表 262 行、28 条未完成（其中 5 条历史相关行保留），23 条才是活跃项（含外部 `44-198` 与 44-199 七条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/165/139/137/155/148/156/199-MULTI 验收、44-161/162 边界收敛与外部 44-199 子任务登记后，当前总表 262 行、27 条未完成（其中 5 条历史相关行保留），22 条才是活跃项（含外部 `44-198` 与 44-199 七条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -3021,7 +3021,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-137` 统一引擎迁移：0090 已应用，真实 PG migration/legacy HTTP 17/17、能力回归24/24、check/build 通过；6个旧 unknown 按用户边界不自动恢复，不阻断开源迁移完成。
 - `44-162-KNOWN-PAID-FAILURE-RECOVERY`：旧已付费 invalid 不自动恢复；保留原失败/unknown 证据，不做每次刷新重买。按用户“unknown不自动重试”边界暂缓。
 
-|44-199-PROACTIVE-SIMPLIFY|[ ] 进行中|root-proactive199 唯一集成|主目录；agent-schedule-collectors.ts、agent-advance-batch.ts、npc-agent-advance-services.ts、proactive-quality.ts、run-agent.ts、npc-agent-model.ts及聚焦测试/报告|基线0e42a2e4；按附件精简主动链路；禁止新增字段/表；现有渣男体验真实验收后部署。续接独占0110 publication offer只读空集短路迁移及专属PG测试，不改结果/权限。|保留他人文档WIP；媒体已释放NPC模型文件。|
+|44-199-PROACTIVE-SIMPLIFY|[ ] 进行中|root-proactive199 唯一集成|主目录；agent-schedule-collectors.ts、agent-advance-batch.ts、npc-agent-advance-services.ts、proactive-quality.ts、run-agent.ts、npc-agent-model.ts及聚焦测试/报告|基线0e42a2e4；按附件精简主动链路；禁止新增字段/表；现有渣男体验真实验收后部署。续接独占0110 publication offer只读空集短路迁移及专属PG测试，不改结果/权限。再续接npc-agent-services.ts与npc-stream-segment-repository.ts版本冲突不主动中断付费响应；phone199独占agent-commit-version.ts依赖准入。|保留他人文档WIP；媒体已释放NPC模型文件。|
 |44-199-PHONE|[ ] 待验收|root子Agent phone199|独立.local/worktrees/phone199，codex/phone199，基线51be078f；world-phone-app.tsx、use-world-time.ts、time-experience-policy.ts及聚焦测试/报告|解除sending/全局空闲阻断，复用通知/计时器；不改倍速/协议。|冻结2524b74e；26聚焦/type/boundaries/build通过；check3940/3951，11本地DB账号认证失败。无真实模型/页面/部署，root集成验收。|
 |44-199-SCHEDULER|[ ] 待验收|root子Agent scheduler199|独立.local/worktrees/scheduler199；services.ts、scheduler-repository.ts、application/run-proactive-scheduler.ts、新0109迁移、proactive-scheduler及199PG测试、npc-agent-advance-service仅unknown用例/报告|后台30分钟，移除错误全局六行/整世界unknown否决；真实PG100世界容量/隔离。|0109、复用多人物批次、2并发/50世界/240秒开始边界。PG100世界2tick(受控executor非真实模型容量)通过；Aunknown可claim/B执行/A不重买通过。旧整文件5/18，其余fixture失败未改；root集成/生产迁移部署。|
 |44-199-ATTENTION|[ ] 待验收|root子Agent attention199|独立worktree；agent-episode-attention.ts、agent-delivery-activity.ts、agent-phone-entry-probe.ts、agent-episode-dispatch-eligibility.ts、notification-projection.ts、server/npc-agent-episode-dispatch.ts、player-episode-manifest.test.ts、lock-notifications.test.ts及专属测试/报告；工作树.local/worktrees/attention199|焦点A不阻止B，审计模型上下文/内核只读；保留真实权限/暂停保护。|冻结1ef41fd1；85聚焦+45模型payload通过，typecheck/boundaries通过；删attention执行门槛与锁屏主观过滤，保留暂停/版本/unknown。待root集成真实旅程与部署。| 续接root分配：只改application/actor-context.ts、tests/actor-context.test.ts及本报告，保留近期玩家原话，其他文件停写。 续接已冻结：最近玩家原话保留，12聚焦/typecheck/boundaries通过；等待root集成上线。 紧急续接：NEW tests/integration/publication-offer-empty199.test.ts与报告；只读0110迁移，本地独立PG55549，原actor-context停写。 0110紧急验证冻结2fbbcd5c：真实PG旧新函数对照5/5、typecheck通过；原followups两子失败在0049原体同样复现，非新增。
@@ -3051,3 +3051,9 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · 44-148 现有合成世界 UI 复验
 
 `县城黄毛` 在 `e1e80804`/`904dac32` 后 5.3s 内打开锁屏，显示 3 条真实通知；解锁→微信→林悦，真实发送“在吗？现在方便说两句吗？”成功，world v264→270，NPC 分段回复。截图 `task-reports/assets/44-148-existing-world-chat.png`；测试世界已暂停。本行收口仅限合成现有世界 UI 主链，用户真实 `渣男体验` 档与 44-160/161 质量未复验。
+
+|44-199-COMMIT|[ ] 进行中|phone199，root集成|独立.local/worktrees/commit-scope199，codex/commit-scope199；仅agent-commit-version.ts、新聚焦测试/报告；借用本人独立PG55660|允许独立人物私人状态变化，不相交episode依赖证明；不改SQL/调用方，签名交root接线。|root集成。|
+
+### 2026-10-23 · 44-156 旧档锁屏真实通知
+
+正式域名只读打开 `渣男体验`，5000ms 内锁屏显示欣欣 08:26、林白语 08:22 两条真实 assistant 消息，未手工插入、未触发新模型。截图 `task-reports/assets/44-156-old-world-lock.png`。本行关闭“旧世界锁屏无主动通知”；完整 Director→NPC 自然开场/剧情质量仍归 44-161。

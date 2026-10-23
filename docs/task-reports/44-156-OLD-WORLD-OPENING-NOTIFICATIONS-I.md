@@ -26,3 +26,14 @@ Mobile/PC entry-banner layout to be inspected before closeout. Full commercial D
 Concurrent main46bc086e arrived before push, merged normally (no overwrite/force). Removed its universal canned NPC excuses in native/legacy response processing; kept valid media capability guidance and scoped its added drain execution to max2 queued media tasks, excluding unrelated owner task scopes/running/unknown. Final business ad16bdd3929afcb5c6f764ecc4360021cb72ff84 / dpl_C3FZCxEZ6TJPmLBVvWUiRzShrbsE exact READY on formal Nu. Merged check3355/build pass; semantic real PG21 and snapshot15 pass. No new SQL migration/production world writes/paid text or images.
 
 Ego211 same taskspace mobile390x844 and PC1365x900: one real synthetic unread card, unlock banner=true, no horizontal overflow; screenshots inspected. This is explicitly fixture UI evidence, not live NPC story acceptance. Public health/workbench200, anonymous works401; existing paused synthetic trial both clock representations200 and stillpaused. Original-save new-evidence eligibility verified read-only; full natural Director/NPC performance remains pending actual observation.
+
+## 2026-10-23 旧档锁屏真实主动通知（通过）
+
+在正式域名只读打开用户旧档 `渣男体验`（`4953ca0f...`），5000ms 内进入锁屏，显示：
+
+- 微信 / 08:26 / 欣欣：“我知道你还没有回应我问的那些话，但我会继续在这里等你，什么时候准备好了，随时可以告诉我。”
+- 微信 / 08:22 / 林白语：“最近工作压力大吗？我们这边的出差任务你打算怎么安排？顺便确认一下，今晚方便见面吗？”
+
+两条都是旧档真实 assistant 消息，未手工插入、未补写、未触发新模型；锁屏可见，不再是“无横幅/无主动消息”。截图 [44-156-old-world-lock.png](assets/44-156-old-world-lock.png)。
+
+这关闭本行的“旧世界锁屏无主动通知”缺口；完整 Director→NPC 自然开场/剧情质量仍归 `44-161`，不能拿通知可见代替全部演绎。
