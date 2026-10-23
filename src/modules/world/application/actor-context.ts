@@ -94,6 +94,22 @@ export function actorContext(
       break;
     }
   }
+  // Autonomous input is a machine trigger, so keyword retrieval cannot recover the
+  // player's last actual words once a run of NPC messages fills the recent window.
+  // Keep that authorized source before lower-priority material, without truncating
+  // either it or the newest message or expanding the existing history budget.
+  const lastPlayerMessage = [...messages].reverse().find((message) => message.role === 'user');
+  if (lastPlayerMessage && !context.messages.some((m) => m.id === lastPlayerMessage.id)) {
+    const previous = context.messages;
+    context.messages = [structuredClone(lastPlayerMessage), ...previous];
+    while (
+      (!fits() || JSON.stringify(context.messages).length > 11500) &&
+      context.messages.length > 2
+    ) {
+      context.messages.splice(1, 1);
+    }
+    if (!fits() || JSON.stringify(context.messages).length > 11500) context.messages = previous;
+  }
   const append = <T>(items: T[], candidate: T, limit: number) => {
     items.push(structuredClone(candidate));
     if (!fits() || JSON.stringify(items).length > limit) items.pop();
@@ -237,7 +253,7 @@ export function actorContext(
     append(context.choices!, visible, 1200);
   }
   const historical = rank(messages.slice(0, -RECENT_LIMIT), (item) => item.text)
-    .filter((item) => item.score > 0)
+    .filter((item) => item.score > 0 && !context.messages.some((m) => m.id === item.item.id))
     .slice(0, HISTORICAL_LIMIT);
   for (const { item } of historical) append(context.messages, item, 11500);
   const order = new Map(messages.map((message, index) => [message.id, index]));

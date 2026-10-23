@@ -210,3 +210,81 @@ test('forgotten choice sources do not re-enter a character through setback propo
   assert.deepEqual(actorContext(state, 'a', '短片', [], new Set(['choice-event'])).choices, []);
   assert.equal(state.choices[0]?.recoveryStep?.sourceMessageId, 'recovery-message');
 });
+
+test('autonomous machine trigger retains last real player words after a long NPC-only run', () => {
+  const state = world();
+  state.messages = [
+    message('player', '先别约今晚，我还没有决定。'),
+    ...Array.from({ length: 20 }, (_, i) => ({
+      ...message('npc' + i, '我准备好了，等你定时间地点。'),
+      role: 'assistant' as const,
+    })),
+  ];
+  const before = structuredClone(state);
+  const result = actorContext(
+    state,
+    'a',
+    '{"type":"npc_own_condition_ready","source":"actor_local"}',
+  );
+  assert.equal(result.messages[0]?.id, 'player');
+  assert.deepEqual(result.messages[0], state.messages[0]);
+  assert.equal(result.messages.at(-1)?.id, 'npc19');
+  assert.equal(result.messages.filter((m) => m.id === 'player').length, 1);
+  assert.deepEqual(state, before);
+});
+
+test('retained player history obeys actor privacy and forgotten message/event sources', () => {
+  const state = world();
+  state.messages = [
+    message('visible', '我还在考虑'),
+    message('forgotten-id', '已遗忘的玩家内容'),
+    message('forgotten-event', '已遗忘事件内容'),
+    message('foreign', '另一个人物的私聊', 'b'),
+    ...Array.from({ length: 20 }, (_, i) => ({
+      ...message('n' + i, '自己的消息'),
+      role: 'assistant' as const,
+    })),
+  ];
+  const result = actorContext(
+    state,
+    'a',
+    '',
+    [],
+    new Set(['forgotten-id', 'event_forgotten-event']),
+  );
+  assert.equal(result.messages[0]?.id, 'visible');
+  assert(!JSON.stringify(result).includes('已遗忘'));
+  assert(!JSON.stringify(result).includes('另一个人物的私聊'));
+});
+
+test('player anchor replaces older NPC chatter within existing budgets and is not duplicated by retrieval', () => {
+  const state = world();
+  state.messages = [
+    message('player', '海边约定' + '"'.repeat(1800)),
+    ...Array.from({ length: 20 }, (_, i) => ({
+      ...message('n' + i, '海边' + '近况'.repeat(700)),
+      role: 'assistant' as const,
+    })),
+  ];
+  const result = actorContext(state, 'a', '海边');
+  assert.equal(result.messages.filter((m) => m.id === 'player').length, 1);
+  assert.equal(result.messages[0]?.text, state.messages[0]?.text);
+  assert.equal(result.messages.at(-1)?.id, 'n19');
+  assert(JSON.stringify(result).length <= ACTOR_CONTEXT_LIMIT);
+  assert(JSON.stringify({ context: result, userText: '海边' }).length <= ACTOR_INPUT_LIMIT);
+});
+
+test('oversized old player source never displaces newest message or silently truncates its text', () => {
+  const state = world();
+  state.messages = [
+    message('player', '"'.repeat(12000)),
+    ...Array.from({ length: 20 }, (_, i) => ({
+      ...message('n' + i, '新的消息'),
+      role: 'assistant' as const,
+    })),
+  ];
+  const result = actorContext(state, 'a', '');
+  assert.equal(result.messages.at(-1)?.id, 'n19');
+  assert(!result.messages.some((m) => m.id === 'player'));
+  assert(JSON.stringify(result).length <= ACTOR_CONTEXT_LIMIT);
+});
