@@ -214,14 +214,17 @@ export function useWorldTime(
         session.current?.resumeRequired,
       ).catch(() => {});
   }, [enabled, busy, locked, sync, worldId]);
-  const startConversation = useCallback(async () => {
+  const startConversation = useCallback(() => {
     if (waiting.current || pendingWaitRef.current) throw Error('请先核对这次等待，再继续交谈。');
-    // Conversation activity controls world speed, not other actors' execution opportunities.
     const s = session.current;
-    const clock = await sync('conversation', s?.resumeRequired);
-    if (!s?.active || session.current !== s || !clock || clock.paused || session.current?.returning)
+    if (!s?.active || s.returning || (view?.worldId === worldId && view.clock.paused))
       throw Error('正在恢复这段人生，请稍后发送。');
-  }, [sync]);
+    // Keep the existing clock speed policy. Focus heartbeats must not queue the message
+    // behind unrelated clock requests; the message endpoint rechecks execution conditions.
+    void sync('conversation', s.resumeRequired).catch(() => {
+      if (session.current === s && s.active) setNotice('时间暂时未同步，稍后重试。');
+    });
+  }, [sync, view, worldId]);
   // Only an in-world stopping boundary needs a choice; entering the page never does.
   const continueAtBoundary = async () => {
     if (pendingWaitRef.current || waiting.current) return;

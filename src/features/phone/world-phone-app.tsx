@@ -341,7 +341,6 @@ export function WorldPhoneApp({
     photo?: PhonePhoto,
     updateOp?: (patch: { canInterrupt?: boolean }) => void,
   ) {
-    if (automatic) await liveTimeRef.current.startConversation();
     // Keep an earlier unknown message visible and recoverable, but never let it
     // freeze the whole composer. This is a NEW command, so it cannot replay the
     // old paid attempt. Receipt lookup for the old command remains independent.
@@ -378,29 +377,25 @@ export function WorldPhoneApp({
       ...current.filter((message) => message.id !== commandId && message.id !== replacing),
       entry,
     ]);
+    const currentVersion = Math.max(
+      data?.version ?? 0,
+      confirmedSendVersion.current.worldId === worldId ? confirmedSendVersion.current.version : 0,
+    );
+    rememberCommand(currentVersion);
     try {
-      // Chat is optimistic: another NPC turn may have advanced the world while
-      // the player was typing. Read the latest version before allocating the
-      // command so a normal send is not rejected by a stale composer frame.
-      let latestWorld: Awaited<ReturnType<typeof client.world>> | null = null;
-      try {
-        latestWorld = await client.world(worldId);
-      } catch {
-        /* Keep the current frame; the command's expectedVersion remains honest. */
+      // Clock activity is an asynchronous focus update, not a prerequisite HTTP round trip.
+      // Keep the command and visible text before local guards can reject this submission.
+      if (automatic) {
+        try {
+          liveTimeRef.current.startConversation();
+        } catch (error) {
+          throw new ApiFailure(
+            'INVALID_INPUT',
+            error instanceof Error ? error.message : '请先完成当前等待，再发送消息。',
+          );
+        }
       }
-      if (latestWorld) {
-        setData((current) =>
-          current?.id === worldId && (current.version ?? 0) <= (latestWorld!.version ?? 0)
-            ? latestWorld!
-            : current,
-        );
-      }
-      const currentVersion = Math.max(
-        data?.version ?? 0,
-        latestWorld?.version ?? 0,
-        confirmedSendVersion.current.worldId === worldId ? confirmedSendVersion.current.version : 0,
-      );
-      rememberCommand(currentVersion);
+      // The kernel admits unrelated version advances. Do not fetch a full world before send.
       let firstSegmentReceived = false;
       const tSend = performance.now();
       // One submission owns one immutable identity. A 409 may be BUSY, a prior receipt,
