@@ -2171,3 +2171,15 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
 风险：生产 `渣男体验` 4953 持续出现 `advance/operation` 503 `COMMAND_CONFLICT`（world 280
 不变，约每 20 秒一次，持续 8–14 秒），与本批修复的 stale read `VERSION_CONFLICT` 不是同一码；
 不能用本批部署宣称该循环已解决。未见新的 speaker 交换证据。
+
+## 2026-10-24 · dc10447c 表情语义闸门上线
+
+`dc10447c` 在额度恢复后由 Git 自动部署 `dpl_vqeVmwQXxyubFWLvDsooYdKhkHDC` READY，
+`parallel-world-eosin.vercel.app` health 200。该提交包含：
+
+- v67 分开发出的纯 sticker 也会对照最近一条文字做删除判断，不再只检查合并 statement；
+- 安慰/道歉/难过/委屈/认真投诉时，`bailan/wuyu/xswl` 等不适配图被移除，文字保留；
+- 公网委屈安慰 `569fec67` world 561→564 只输出两条安慰文字，无表情；
+- 投诉 `74b7c971` world 564→567 无 `wuyu/bailan`；文字仍有轻微反责，单独保留质量边界。
+
+同一测试世界第二轮 `clock/wait` 567→568、`advance` 568→571 played3，无冲突。
