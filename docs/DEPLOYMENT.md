@@ -1,3 +1,12 @@
+## 2026-10-24 · P0 长档保存、44-204、80 表情与导演上下文批次
+
+- 最新 `main e496bd3d`；Git 触发部署 `5bb579ab` ERROR（`ignoreCommand` 在 Vercel 无 `.git`，已撤回）、`d0c304b9`/`f0212a7a`/`ff195605`/`025b94b5`/`e496bd3d` READY；正式别名 health 200。本批未手动 `vercel --prod`。
+- P0：李之之 `52053b84` 在长档 committed（world v268），同 command 以原 expectedVersion 复放 200、`metrics.modelCallCount=0`、同 event；旧 unknown 仍 unknown。此前 `ac6b82fb` 曾因 `NPC_AGENT_SNAPSHOT_LIMIT` 取消，修复后 `OUTPUT_SCHEMA_LIMIT` 32,153，schema 上限提至 40k 并通过。
+- 44-204：domain/repo/SQL/PG 集成，`0112_active_episode_withdrawal.sql` 已应用生产；check 3989/3989、真实 PG 1/1。
+- 表情：用户确认 60 素材可用，复制为 `public/stickers/candidates/*.webp`，catalog 20→80；真实面板 80 按钮，selected_aa/selected_ad 发送均 committed，图片显示；纯表情 turn 已改为 expression-only（state 清空计划/问题、schema changes/executions=null），复验只回应表情、不再提旧邀约。
+- 导演上下文：预算 80k→70k 并加紧急裁剪，`DIRECTOR_CONTEXT_LIMIT` 不再出现；但原档 advance 仍因并发写/租约返回 `VERSION_CONFLICT`（world 278 vs batch 268，operation 17643b61/work 760064dd），未宣称持续事件推进通过。
+- 未完成：文字“我在忙”仍可能被提醒旧邀约；advance 冲突；容量/旧项目 cron；群聊表情。
+
 ## 2026-10-23 · P3 历史基线冻结
 
 把 44-9~59、44-104~112（保留 107/111）、44-142 中 47 条历史审计/设计行冻结为 `[x] 已冻结（历史基线）`；保留 `44-67/68/69`、`44-107`、`44-111` 继续活跃。冻结不删除编号、不改历史报告、不表示旧实现已验证；只在当前真实反例出现时重开。
