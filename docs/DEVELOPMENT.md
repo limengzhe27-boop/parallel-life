@@ -2975,7 +2975,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 主分支单独运行 `global director quiet preserves...` 与 `known invalid global director...` 均 1/1 通过；整文件 `npc-agent-advance-service.test.ts` 仍 5/18，首个 `travel...` 的 actorId 实际正确，真正差异是输入 source 为后来加入的 `actor_local`（44-182）而非旧测试预期的 `observation`，后续因 `UNKNOWN_SOURCE` 级联。重建干净 `parallel_life_test` schema 后结果相同，排除测试库残留。结论：核心“导演 quiet/已知无效不饿死独立候选”成立；整文件需按 `actor_local` 与跨用例隔离重写，本行限定收口，不宣称整套测试通过。0 模型/生产写/SQL。
 
-|MEDIA-GROK-01|[ ] 进行中|codex-grok-image-20261023，本项唯一集成发布；root已交接|独立grok-image-20261023自5aebd9b1；仅media adapter/管线/参考读取、worker组装、.env.example、聚焦测试与专属报告；world/NPC协议已完全退出|用户授权Grok生图、先验证密钥与人物/地点参考后上线；最新要求优先复用字段|已按用户纠偏实际撤回referencePlaceId、v16、modelProtocol及所有world/NPC扩展，不新增业务字段/表/迁移；复用原referenceAssetId和认证scene receipt/thread/place关系。保留Grok native generations/edits、缺参考零付费、人物精确授权及首张本人肖像复用、原ready事务实际refIds。真实本地11次=5成功6明确失败0unknown；旧地点样本仅保留像素证据，不冒充收窄后新版本端到端验证。独立PG55651；最终收窄版check/build与PG验收进行中。新项目正式54be25c0，尚未改生产模型/部署；合成guest world1bc99319已暂停，原用户存档不动。root可修改npc-agent-model.ts，发布前协调。|
+|MEDIA-GROK-01| [x] 已完成（Grok native edits/references；本地真实5/11；生产模型未切） |codex-grok-image-20261023负责媒体实现/真实复验；root本轮199接回统一集成发布|独立grok-image-20261023自5aebd9b1；仅media adapter/管线/参考读取、worker组装、.env.example、聚焦测试与专属报告；world/NPC协议已完全退出|用户授权Grok生图、先验证密钥与人物/地点参考后上线；最新要求优先复用字段|已按用户纠偏实际撤回referencePlaceId、v16、modelProtocol及所有world/NPC扩展，不新增业务字段/表/迁移；复用原referenceAssetId和认证scene receipt/thread/place关系。保留Grok native generations/edits、缺参考零付费、人物精确授权及首张本人肖像复用、原ready事务复用原referenceAssetId记录实际引用（不新增复数字段）。真实本地11次=5成功6明确失败0unknown；旧地点样本仅保留像素证据，不冒充收窄后新版本端到端验证。独立PG55651；冻结7727bd14、独立树clean；最终收窄版check3956/3956、build通过，补充pipeline11/11、handler6/6、真实PG1/1通过；root待cherry-pick与统一验收发布。新项目正式54be25c0，尚未改生产模型/部署；合成guest world1bc99319已暂停，原用户存档不动。root可修改npc-agent-model.ts，发布前协调。| 生产配置接续：已按root发布窗口成功更新新项目Production YIBU_IMAGE_MODEL为grok-imagine-image-2.0，保留原Secret类型；未改密钥/未独立部署。root统一READY后执行暂停QA档公网验收。
 
 ### 2026-10-23 · 44-99 归档
 
@@ -3029,3 +3029,9 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · 44-141 coordination 复跑失败，重新打开
 
 玩家要求林悦“现在就发消息问刘航”，林悦口头答应“我马上给刘航发消息…”，但世界 v217→221 后没有给刘航的邀约/消息/责任/结果。跨人物行动未执行，属于原“人物计划可执行下一步”缺口。`44-141` 从已完成改回部分通过；`44-147` 的真实模型验收仍未过，`44-138` 维持部分通过。
+
+|44-199-MULTI|[ ] 待验收|phone199，root集成|独立.local/worktrees/proactive-multi199，codex/proactive-multi199自3d7046cf；仅新tests/integration/proactive-multi199.test.ts、新报告44-199-MULTI.md；独立PG55660|原advance无任务双NPC/窗口幂等/unknown隔离；0付费/生产。|冻结79c9d13a；真实PG3/3+type通过，2人物/窗口续接/unknown隔离；仅受控模型，0付费/生产/部署。自有PG55660已停。|
+
+### 2026-10-23 · MEDIA-GROK-01 集成收口
+
+`a268d86a` 已把 Grok native `images/generations`/`images/edits` 与既有授权参考图链路合入主分支；最终收窄版 check3956/3956、build、pipeline11/11、handler6/6、真实PG1/1 通过。真实生成累计 11 次=5成功/6明确失败/0 unknown；旧地点样本只保留像素证据，不冒充新版本端到端。生产 `YIBU_IMAGE_MODEL` 未切换，真实媒体链/手机投递仍归 `44-155/44-158-LIVE`，不以本行完成代替。
