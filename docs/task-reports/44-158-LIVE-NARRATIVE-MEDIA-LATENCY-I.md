@@ -170,3 +170,14 @@ Candidate14 07c0e083 / dpl_5d9NPwZkf3CJVtiS7L6faHkJjuvk READY, mini + configured
 - 世界已立即暂停，停止继续生成；未自动重试/补图。
 
 因此 pending 的**过期展示/无限轮询**已修，但根因是 NPC 反复生成媒体意图、缺少“同一人物同窗口只允许一个未完成媒体请求”的限流/幂等。44-158 继续 in progress，不能因旧 pending 变灰就当媒体生命周期通过。
+
+### 2026-10-23 服务端单 pending 媒体限流（待部署）
+
+新增 `d8a7d8f2 fix(world): suppress duplicate media intent while one executes`：
+
+- 同一人物/world 已有 `executing` 的 `media.generate_image`/`media.generate_video` action 时，新的媒体意图返回 null；
+- 当前回合的普通对白仍按原 proposal 提交，不因丢弃重复媒体而整轮丢失；
+- 不自动重试、不补图、不改旧 pending，只阻止继续新增占位；
+- 新测试 8/8、typecheck、boundaries 719、build 通过。
+
+但 `vercel --prod` 仍返回 `more than 100, api-deployments-free-per-day`，因此生产尚未包含该限流，线上新 pending 仍可能继续。按用户选择等待额度恢复，不绕过配额。
