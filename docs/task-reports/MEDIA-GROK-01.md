@@ -71,3 +71,8 @@
 两张私有资产GET均200 image/jpeg，首图手机DTO聊天photoId与相册一致。人工查看两张真实像素，脸型、五官、黑色长发、灰色开衫基本保持，背景由书架变为绿植阳台；仅本样本通过，不声称所有角度/人物一致性。图片：[首图](assets/MEDIA-GROK-01-public-first.jpg)、[参考后第二图](assets/MEDIA-GROK-01-public-second.jpg)。
 
 非stream补丁8cc83f46仅world-message-http.ts与专属回归：复用原回调和事件去重，原HTTP函数端口隔离验证2/2，完整check3958/3958、build通过，交root统一集成发布，尚待该修复上线复核。QA已暂停，生产只读world_clock.paused=true确认。线上期间多次读/暂停HTTP等待较久，交root统一连接问题排查，不把媒体成功称为整站稳定。
+
+
+## 最终部署复核
+
+e09a4d17 / dpl_Ea1kJPPLsD7S5im72xdvxYAXKdGg READY并已提升正式域名，包含非stream修复。QA保持暂停，重放原command 8881629c-20f3-462c-b066-cafdb6f0e2c9（原expectedVersion0/原文本）返回HTTP200、原event5322eb01/version3；重放前后生产只读媒体/任务/attempt及clock状态完全一致，仍2张ready图、2个succeeded媒体任务和2个committed文字attempt，paused=true。本次零新增模型/图片请求。第二张图的聊天与相册投递也已在版本6读取确认。限定媒体验收完成，不代表其他并行任务或整站稳定性验收。

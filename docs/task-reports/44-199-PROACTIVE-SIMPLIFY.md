@@ -63,3 +63,17 @@
 6eaacb96玩家原话、b6c26d97唤醒原因、6bd14800非stream媒体回调、3f00f7e8群只读快照、904dac32发送前阻断、e1e80804空旧邀约SQL已集成。0110生产已应用（110迁移）。新增PG旧/新offer5/5等价且权限拒绝；旧followups两子失败在0049也复现，非新增。最终check3961/3961、build通过。
 
 后台每分钟触发与单tick最多240秒领取窗口可重叠，生产出现资源争用，故既有cron收敛为每5分钟（job3，仍新域）；每世界30分钟与在线/返回即时检查独立。单tick2世界并发/50上限保持，不新增全局计数/字段。受控100世界两个tick可覆盖，但真实模型耗时与生产容量仍需监测，不宣称全负载SLA。
+
+## 第二轮真实发送反例（08:44 UTC）
+
+e09a4d17 Git部署dpl_Ea1kJPPLsD7S5im72xdvxYAXKdGg READY且promote；随后同SHA干净归档dpl_ATVBQNVdDY5FjQBVtJSNsArGRqP5 READY。正式档读API降到375–573ms样本，按钮立即出现用户气泡并发出/messages，无旧clock/world前置等待。但command ed1b3823-d990-4d28-98be-7d2c4bc6cd53模型4.6秒后UNKNOWN，不能算聊天通过。
+
+服务日志failureCode=CANCELLED/model，DB首段status=superseded_by_interrupt。实际并无用户打断：模型基线v99，李之之v100仅本人消息+plan+episodeDecision写入，旧resolveAgentCommitVersion blanket拒绝，onStreamEvent自己abort付费响应，导致没有完整response可恢复。修复范围收敛为：他人私人状态按原episode依赖证明不相交才放行；真实共享变化仍重验；VERSION_CONFLICT不能伪装用户interrupt或主动丢弃已付费响应。旧unknown保留，不重买、不伪造完成。
+
+另实测内容仍有角色分工混淆（李之之说见父亲、青青说照护交接）及重复邀约；记录为持续演绎质量未完成，不以多条来信证明剧情正确推进。地图/人物/故事原文未手工补写。
+
+## 最后一处保存并发修复（16:58 CST）
+
+91afdb6c允许其他私人actor的纯状态变化；episode选择沿原snapshot/request表证明不相交，缺证据/共享episode/行动或位置变化仍拒绝。86ec58a9在首段版本冲突时不再标用户打断、不abort付费响应，继续读取并由原最终提交/恢复检查。未新增字段、表、审批或模型调用。
+
+必要验证：准入SQL/单测7/7，带root最终调用方修改的真实PG并发6/6、恢复9/9，check3961/3961、build通过。原unknown command保持未知，不重买、不清状态。待新部署READY后正式档再验收。

@@ -3052,7 +3052,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 `县城黄毛` 在 `e1e80804`/`904dac32` 后 5.3s 内打开锁屏，显示 3 条真实通知；解锁→微信→林悦，真实发送“在吗？现在方便说两句吗？”成功，world v264→270，NPC 分段回复。截图 `task-reports/assets/44-148-existing-world-chat.png`；测试世界已暂停。本行收口仅限合成现有世界 UI 主链，用户真实 `渣男体验` 档与 44-160/161 质量未复验。
 
-|44-199-COMMIT|[ ] 进行中|phone199，root集成|独立.local/worktrees/commit-scope199，codex/commit-scope199；仅agent-commit-version.ts、新聚焦测试/报告；借用本人独立PG55660|允许独立人物私人状态变化，不相交episode依赖证明；不改SQL/调用方，签名交root接线。|root集成。|
+|44-199-COMMIT|[ ] 待验收|phone199，root集成|独立.local/worktrees/commit-scope199，codex/commit-scope199；仅agent-commit-version.ts、新聚焦测试/报告；借用本人独立PG55660|允许独立人物私人状态变化，不相交episode依赖证明；不改SQL/调用方，签名交root接线。|root集成。|
 
 ### 2026-10-23 · 44-156 旧档锁屏真实通知
 
