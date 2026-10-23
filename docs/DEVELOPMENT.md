@@ -2689,9 +2689,9 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-161-DIRECTOR-WINDOW| [x] 已完成（集成验证） |codex-director-window161；root唯一集成|独立director-window161自155cd3ad；director-runtime domain、director-snapshot/runtime repositories、director-model-protocol、director-agent-model、narrative-wake-repository、tests/director-agent-model.test.ts、NEW纯测/PG与报告|认证有界事件思考窗口；bootstrap仅opening，后续unseen最多2，原保护snapshot完整，旧付费帧不重解。|0模型/生产/SQL。|
 |44-161-ACTOR-OPPORTUNITY| [x] 已完成（集成验证） |recovery161_audit；root唯一集成|独立actor-opportunity161/codex/actor-opportunity161自02a669dc；actor-episode-intent-repository.ts、NEW domain/actor-opportunity-context.ts、tests/actor-opportunity-context.test.ts及专属报告|fb19c219冻结；新版本人物机会投影组合已授权本人topics，v9 origin/hash认证、旧paid task/hash保持；3聚焦/类型/边界通过。无模型/生产；补c5e17fa9懒读旧版保护；真实PG55587旅程1/1通过；d6814736追加暂停recoverable/waiting→恢复原响应单次commit、0新模型入口，待root真实验收部署。|
 |44-161-DIRECTOR-TYPED-HANDOFF| [x] 已完成（集成验证） |codex-director-handoff161；root唯一集成|独立director-handoff161自02a669dc；director-model-protocol.ts、director-agent-model.ts及对应聚焦tests/report|v9本人议题/目标/互动提案结构编译原future_task，v8保护输出不重解；与recovery161本人topic投影分工。|0生产/模型。|
-|44-161-NARRATIVE-FACT-INTRODUCTION|[ ] 待开发|root-runtime161后续架构任务；公共契约须单一集成|待登记独立实施范围；依赖161原请求恢复/统一内核|受限叙事事实提案→原内核确认→观察传播；当前作者开场“住院”等不能直接当事实，禁止广播全稿或捏造玩家选择；先定义状态归属/来源/可执行能力，再实现和真实验收。|不可用预制消息或强制发生代替。|
+|44-161-NARRATIVE-FACT-INTRODUCTION| [x] 已暂缓（按计划后置） |root-runtime161后续架构任务；公共契约须单一集成|待登记独立实施范围；依赖161原请求恢复/统一内核|受限叙事事实提案→原内核确认→观察传播；当前作者开场“住院”等不能直接当事实，禁止广播全稿或捏造玩家选择；先定义状态归属/来源/可执行能力，再实现和真实验收。|不可用预制消息或强制发生代替。|
 |44-161-AUTONOMOUS-QUALITY|[ ] 进行中|root-runtime161负责；后续执行先限定文件|统一引擎现有议程/事件资格/人物选择/导演交接；不另建旁路|真实样本5quiet+1元计划，后续多次泛化quiet，持续主动质量未通过；优化人物自身目标形成与具体选择、事件后续、跨人节奏、有预算评估，保留拒绝/安静权利；不靠反复调用、关键词选人或强制发消息。|本轮真实27次/2档闭账；后续另记独立有界账本，沿用用户常驻授权，无需再问。|
-|44-161-PROTOCOL-SIMPLIFICATION|[ ] 待开发|root-runtime161后续；唯一公共协议集成|已有source机械绑定、ID生成和focusChange复用；先测量后限定范围|replyTargetRef/稀疏无变化输出/单execution包装及复杂部分成功尚未全部实现；保留事实、知情、权限、幂等、unknown与行动依赖，不以全面放宽校验解释优化。|不阻塞本轮已确认恢复根因上线。|
+|44-161-PROTOCOL-SIMPLIFICATION| [x] 已暂缓（按计划后置） |root-runtime161后续；唯一公共协议集成|已有source机械绑定、ID生成和focusChange复用；先测量后限定范围|replyTargetRef/稀疏无变化输出/单execution包装及复杂部分成功尚未全部实现；保留事实、知情、权限、幂等、unknown与行动依赖，不以全面放宽校验解释优化。|不阻塞本轮已确认恢复根因上线。|
 
 ### 44-162 本轮主登记状态快照
 
@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结与 44-152/153 验收后，当前总表 255 行、31 条未完成（其中 5 条历史相关行保留），26 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153 验收与 44-161 新能力暂缓后，当前总表 255 行、29 条未完成（其中 5 条历史相关行保留），24 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -2998,3 +2998,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · 44-153 限定收口
 
 连续运行底座已具备：统一 clock/activity、离线1x/在线3x、返回从锚点继续、manual pause/trial 隔离、旧档不补历史、双协议兼容；生产0092、PG11/14/20/9/1、check/build 与手机/PC UI 探测通过。真实后台及时频率归 `44-154-DUE-WORLD-JOB-SCHEDULER-I`，真实人物主动来信/叙事质量归 `44-165/148/150`；本行不代称这些通过。
+
+### 2026-10-23 · 44-161 新协议能力暂缓
+
+按已确认的四阶段计划，`44-161-NARRATIVE-FACT-INTRODUCTION`（受限叙事事实提案）与 `44-161-PROTOCOL-SIMPLIFICATION`（replyTargetRef/稀疏输出/单 execution 槽位）标为已暂缓、P3 后置。当前 P0/P1 仍有真实模型质量和 due 测试档阻塞，不在此时做协议/事实新能力；暂缓不删除编号，后续重开需重新登记。
