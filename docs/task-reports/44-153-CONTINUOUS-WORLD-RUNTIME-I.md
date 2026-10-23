@@ -51,3 +51,9 @@ world_clock增加continuity_mode（presence/continuous）和pause_reason（legac
 Final business commit 8eae0fbef83a587cabb1c14735e21b91f0ddb77a / dpl_4vyEpW1uwYAjVUmXfqGSahpLxAZG is READY on the formal Nu alias. Production has 92 matching migration checksums; all 107 world state/version hashes were preserved. Public original trial clock reads return 200 for both old and negotiated shapes, with the trial still paused; health/workbench return 200. No commercial model calls were added; scope 150 remains 5/6 with no pending attempts. Check 3323/build and clock PG11, arrival PG14, native wake PG20, trial PG9, scheduler PG1 passed. This is not commercial-model acceptance of normal-player offline narrative quality.
 
 Remaining task 154: timely durable background wakes, fair claims/leases, deterministic work versus model budgets, and real offline-to-return journeys. Current production configuration remains daily cron and a global two-world daily allowance; team plan is Hobby. pg_cron and pg_net are available but NOT installed (read-only capability check). No subscription/service/extension was changed. Do not claim all worlds receive minute-level offline simulation. Actor semantic/event-handoff gaps remain in 148/150.
+
+## 2026-10-23 新账号 UI 连续性探测
+
+在 `县城黄毛` 测试世界上：暂停后进入为 `speed:3/activeUntil有值`；离开 20 秒为 `speed:1/activeUntil:null`；返回后再次 `speed:3`。离线期间只读 `storyNow` 仍是存储锚点，返回时一次补到 +约23秒（含20秒 away）；在线6秒读到 +9.3秒，受 lease/投影刷新节拍影响，不能据此反推精确倍率。
+
+世界 version 保持 204、最后消息不变；页面只有 1 次 `/advance/operation` lookup，没有 `/advance`、没有新消息/事件，未观察到商业模型写入。该证据支持“离线1x/在线3x、返回不造假历史”的时钟层，但不等于持续叙事；`44-153` 仍保持待验收，后台及时性与真实剧情推进归 `44-154/165`。
