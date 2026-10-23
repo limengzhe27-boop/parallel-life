@@ -4,7 +4,6 @@ import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
 import { applyWorldHistoryEvent } from '../domain/world-history.ts';
-import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
 import { DomainError } from '../domain/errors.ts';
 import {
@@ -76,26 +75,22 @@ async function loadWorld(
   state.facts = [...(initial?.facts ?? []), ...facts].filter(
     (f, i, all) => all.findIndex((a) => a.id === f.id) === i,
   );
-  state.appointments = (
+  // Current world state already contains every applied invitation response. Some
+  // official lives keep initial appointments only in state, so never replace them
+  // with an empty table or replay historical events that may reference an invitation
+  // no longer present. Persisted table rows, when present, are the latest projection.
+  const persistedAppointments = (
     await sql.query(
       'SELECT document FROM parallel_life.world_appointments WHERE world_id=$1 ORDER BY id',
       [worldId],
     )
   ).rows.map((r) => r.document);
-  const responses = (
-    await sql.query(
-      "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
-      [worldId, state.version],
-    )
-  ).rows;
-  for (const row of responses) {
-    const event = row.payload as InvitationEvent;
-    const hydrated = applyInvitationEvent(
-      { ...state, version: event.version - 1, time: event.storyTime },
-      event,
-    );
-    state.appointments = hydrated.appointments;
-  }
+  const appointments = new Map(
+    (state.appointments ?? []).map((appointment) => [appointment.id, appointment]),
+  );
+  for (const appointment of persistedAppointments)
+    appointments.set(appointment.id, appointment);
+  state.appointments = [...appointments.values()];
   // Group processing deliberately never loads world_messages or private memories.
   state.messages = [];
   return state;
