@@ -661,6 +661,60 @@ test('confirmed appointment is owned by the code-timed source, not a duplicate r
   assert.equal((await collect(viewAt(storyAt, [a]), 'responsibility')).candidates.length, 0);
   assert.equal((await collect(viewAt(storyAt, [a]), 'appointment')).candidates.length, 1);
 });
+test('player defer or deferred responsibility suppresses the same appointment wake', async () => {
+  const storyAt = '2026-10-15T10:30:00.000Z';
+  for (const mode of ['status', 'decision'] as const) {
+    const a = appointmentActor(storyAt, '2026-10-15T10:00:00.000Z');
+    const r = responsibility(a, {
+      subject: { kind: 'appointment', id: 'ap' },
+      status: mode === 'status' ? 'deferred' : 'waiting',
+    });
+    if (mode === 'decision') {
+      a.snapshot.state.decisions.push({
+        id: 'decision',
+        responsibilityId: r.id,
+        kind: 'deferred',
+        sourceId: 'input',
+        quote: '我在忙，晚点再说',
+        responsibilityRevision: r.revision,
+      });
+      sync(a);
+    }
+    assert.equal(
+      (await collect(viewAt(storyAt, [a]), 'appointment')).candidates.length,
+      0,
+      mode,
+    );
+    assert.equal(
+      (await collect(viewAt(storyAt, [a]), 'responsibility')).candidates.length,
+      0,
+      mode,
+    );
+  }
+});
+test('player defer suppresses a ready plan tied to that responsibility', async () => {
+  const a = actor();
+  const r = responsibility(a, { subject: { kind: 'request', id: 'request' }, status: 'waiting' });
+  a.snapshot.state.actions[0]!.handlesResponsibilityIds = [r.id];
+  a.snapshot.state.decisions.push({
+    id: 'decision',
+    responsibilityId: r.id,
+    kind: 'deferred',
+    sourceId: 'input',
+    quote: '我在忙，晚点再说',
+    responsibilityRevision: r.revision,
+  });
+  sync(a);
+  assert.equal((await collect(view([a]), 'actor_plan')).candidates.length, 0);
+  const b = actor();
+  const deferred = responsibility(b, {
+    subject: { kind: 'request', id: 'request' },
+    status: 'deferred',
+  });
+  b.snapshot.state.actions[0]!.handlesResponsibilityIds = [deferred.id];
+  sync(b);
+  assert.equal((await collect(view([b]), 'actor_plan')).candidates.length, 0);
+});
 test('strict source/time boundaries reject rolled calendar dates and future evidence', async () => {
   for (const when of ['2026-02-30T10:00:00.000Z', '2026-10-15T24:00:00.000Z']) {
     const a = actor();

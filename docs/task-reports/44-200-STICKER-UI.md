@@ -1,6 +1,6 @@
 # 44-200-STICKER-UI
 
-状态：待集成验收。root-sticker-ui200；独立 `.local/worktrees/sticker-ui200` / `codex/sticker-ui200`；基线6ef53179，依赖catalog744ac85e（本树cherry-pick58cbc5e3）。
+状态：已集成验收（root，2026-10-24）。root-sticker-ui200 实现；root 在 main 完成生产浏览器与刷新复验。独立 `.local/worktrees/sticker-ui200` / `codex/sticker-ui200`；基线6ef53179，依赖catalog744ac85e（本树cherry-pick58cbc5e3）。
 
 ## 实现
 - 私聊现有表情按钮打开图片表情/Emoji面板。图片目录复用SELECTABLE_STICKERS，真实缩略图、名称、44px触控及短屏滚动。
@@ -38,3 +38,15 @@ Ego空间432，独立树3307，临时development-only合成fixture复用真实Me
 - 截图已逐张实际查看：assets/44-200-sticker-ui/{mobile-panel,mobile-sent-final,desktop-panel,desktop-failure}.png。
 
 此为浏览器界面及回调fixture验收，**不是数据库保存、刷新恢复或真实NPC选图验收**。后者仍由root。
+
+## root 生产补验（2026-10-24）
+
+生产 `81afd18c`，正式域名，Ego 空间 438；只读打开现有 `渣男体验`，不发送、不调用模型。
+
+- 李之之私聊面板：真实 390×844 手机视口与 1440×1000 PC 视口均正常打开；DOM 计数 **80** 个 `发送表情：*` 按钮、**80** 张图片 `complete && naturalWidth>0`，**0** 张加载失败。
+- 截图逐张查看：`.local/44-207-sticker-mobile.png`、`.local/44-207-sticker-desktop.png`。手机 4 列、PC 居中窄幅，均无横向溢出；面板内部滚动，未把 80 张压扁。
+- 微信会话列表预览已显示 `[加油]`（李之之 sticker-only 消息），与 `notification-projection` 的 `[表情]` 摘要一致。
+- 重新加载世界、重新进入李之之私聊后，历史文字“嘿，今天感觉怎么样？”与 `jiayou` 纯表情仍为两条独立消息；世界 version 前后均为 **280**，没有因这次只读复验新增提交或模型调用。
+- `tests/sticker-ui200.test.ts` 4/4，新增 80 个按钮/80 张图片断言；`npm run check` **3992/3992**。
+
+仍未在本轮重跑的真实网络中断发送、失败后重试、群聊表情入口：发送失败/unknown/重试状态由 `tests/chat-send-error.test.ts` 覆盖，未冒充真实网络故障旅程；群聊契约仍不承载 stickerId。

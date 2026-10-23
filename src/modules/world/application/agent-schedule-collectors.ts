@@ -197,6 +197,44 @@ function eligibility(context: ActorContext, action: AgentAction, proposal = empt
     }).status === 'ready'
   );
 }
+/**
+ * A player's explicit "later" is already durable state. Code-timed sources must
+ * not keep re-opening the same appointment/plan after that decision; only new
+ * player input can reopen it. This reads existing decisions, not keywords or a
+ * new cooldown field.
+ */
+function playerDeferred(context: ActorContext, responsibilityId: string) {
+  const decision = currentPlayerDecision(context.snapshot, empty(), responsibilityId);
+  // A decline is a different decision: it may legitimately wake the actor to
+  // reconsider its own next step. Only an explicit "later" pauses the topic.
+  return decision?.kind === 'deferred';
+}
+function appointmentDeferred(
+  context: ActorContext,
+  appointmentId: string,
+  responsibilities = context.snapshot.viewState.responsibilities,
+) {
+  return responsibilities.some(
+    (responsibility) =>
+      responsibility.subject.kind === 'appointment' &&
+      responsibility.subject.id === appointmentId &&
+      context.basis(responsibility) &&
+      (playerDeferred(context, responsibility.id) ||
+        ['deferred', 'withdrawn', 'fulfilled', 'expired'].includes(responsibility.status)),
+  );
+}
+function actionDeferred(context: ActorContext, action: AgentAction) {
+  return action.handlesResponsibilityIds.some((id) => {
+    if (playerDeferred(context, id)) return true;
+    const responsibility = context.snapshot.viewState.responsibilities.find(
+      (item) => item.id === id,
+    );
+    return (
+      responsibility?.status === 'deferred' &&
+      context.basis(responsibility)
+    );
+  });
+}
 /** Internal adapter to the ONE shared condition interpreter; never emitted or persisted as a goal/action. */
 function checksReady(context: ActorContext, responsibility: AgentResponsibility) {
   if (!responsibility.nextCheck.length || !conditionTimesValid(responsibility.nextCheck))
@@ -366,7 +404,8 @@ async function plans(view: SchedulingView, context: ActorContext) {
     );
     if (
       responsibilities.length !== new Set(action.handlesResponsibilityIds).size ||
-      responsibilities.some((r) => !context.basis(r))
+      responsibilities.some((r) => !context.basis(r)) ||
+      actionDeferred(context, action)
     )
       continue;
     const proof = evidence(context, conditions, action.dependsOnActionIds);
@@ -424,6 +463,9 @@ async function planReconsiderations(
   for (const plan of state.plans) {
     const goal = state.goals.find((g) => g.id === plan.goalId);
     const nextAction = state.actions.find((a) => a.id === plan.nextActionId);
+    // A plan tied to the exact responsibility the player already deferred is not
+    // a fresh reminder opportunity. It reopens only through new player input.
+    if (nextAction && actionDeferred(context, nextAction)) continue;
     const completedStep =
       nextAction && plan.actionIds.includes(nextAction.id)
         ? context.results.find(
@@ -661,7 +703,8 @@ async function responsibilities(view: SchedulingView, actor: ActorRead, context:
     if (
       ['fulfilled', 'withdrawn', 'expired'].includes(responsibility.status) ||
       !context.basis(responsibility) ||
-      !integer(responsibility.revision ?? 0)
+      !integer(responsibility.revision ?? 0) ||
+      playerDeferred(context, responsibility.id)
     )
       continue;
     if (
@@ -764,6 +807,7 @@ async function appointmentWindows(
   for (const appointment of actor.appointments) {
     if (appointment.status !== 'confirmed' || !appointment.participantIds.includes(actorId))
       continue;
+    if (appointmentDeferred(context, appointment.id)) continue;
     if (!instant(appointment.at)) continue;
     if (
       appointment.responseAt !== undefined &&

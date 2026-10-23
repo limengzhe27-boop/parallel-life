@@ -4,7 +4,9 @@ import {
   ActorAdvanceBlocked,
   AgentAdvanceDeferred,
   actorAdvanceFailureScope,
+  advanceReadStale,
   agentAdvanceBatchPolicy,
+  retryAdvanceReadOnce,
   runAgentAdvanceBatch,
 } from '../src/modules/world/application/agent-advance-batch.ts';
 const result = (v: number, actor?: string) => ({
@@ -219,6 +221,42 @@ test('a protected paid frame yields the batch without losing its committed prefi
   assert.equal(r?.worldVersion, 1);
   assert.equal(r?.played, 1);
   assert.deepEqual(r?.actors, ['a']);
+});
+
+test('a stale pre-read retries once, while a real version conflict is never retried', async () => {
+  let calls = 0,
+    retries = 0;
+  const value = await retryAdvanceReadOnce(
+    async () => {
+      calls++;
+      if (calls === 1) throw advanceReadStale();
+      return 'ok';
+    },
+    () => retries++,
+  );
+  assert.equal(value, 'ok');
+  assert.equal(calls, 2);
+  assert.equal(retries, 1);
+
+  calls = 0;
+  await assert.rejects(
+    retryAdvanceReadOnce(async () => {
+      calls++;
+      throw advanceReadStale();
+    }),
+    { code: 'ADVANCE_READ_STALE' },
+  );
+  assert.equal(calls, 2);
+
+  calls = 0;
+  await assert.rejects(
+    retryAdvanceReadOnce(async () => {
+      calls++;
+      throw Object.assign(Error('world moved at commit'), { code: 'VERSION_CONFLICT' });
+    }),
+    { code: 'VERSION_CONFLICT' },
+  );
+  assert.equal(calls, 1);
 });
 
 test('a proven actor preflight cancellation preserves other actors without buying or retrying that request', async () => {

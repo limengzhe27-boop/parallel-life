@@ -19,7 +19,9 @@ import {
   ActorAdvanceBlocked,
   AgentAdvanceDeferred,
   actorAdvanceFailureScope,
+  advanceReadStale,
   agentAdvanceBatchPolicy,
+  retryAdvanceReadOnce,
   runAgentAdvanceBatch,
   type AgentAdvanceBatchContext,
   type AgentAdvanceBatchPolicy,
@@ -267,7 +269,7 @@ export function npcAgentAdvanceServices(
             ownerId,
           ])
         ).rows[0];
-        if (current?.version !== world.version) throw new DomainError('VERSION_CONFLICT');
+        if (current?.version !== world.version) throw advanceReadStale();
         const states = (
           await sql.query(
             'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 ORDER BY actor_id',
@@ -1412,9 +1414,16 @@ export function npcAgentAdvanceServices(
     },
     /** Owner-authorized explicit review; bypasses the automatic batch lease only for this deliberate call. */
     async reviewDirectorDirect(ownerId: string, worldId: string) {
-      return service.advanceOne(ownerId, worldId, undefined, undefined, {
-        forceDirectorReview: true,
-      });
+      return retryAdvanceReadOnce(
+        () =>
+          service.advanceOne(ownerId, worldId, undefined, undefined, {
+            forceDirectorReview: true,
+          }),
+        () =>
+          console.info(
+            JSON.stringify({ scope: 'advance-read-stale-retry', worldId, path: 'director-review' }),
+          ),
+      );
     },
     async advanceIfEnabled(
       ownerId: string,
@@ -1423,24 +1432,30 @@ export function npcAgentAdvanceServices(
       trackWork?: (work: AdvanceWorkRef) => Promise<void>,
       options?: { forceDirectorReview?: boolean },
     ) {
+      const retryLog = (path: string) =>
+        console.info(JSON.stringify({ scope: 'advance-read-stale-retry', worldId, path }));
       const lease = await claimAgentAdvanceBatch(db, ownerId, worldId);
       if (lease.status === 'legacy')
-        return service.advanceOne(ownerId, worldId, retryDirectorAttemptId, undefined, options);
+        return retryAdvanceReadOnce(
+          () => service.advanceOne(ownerId, worldId, retryDirectorAttemptId, undefined, options),
+          () => retryLog('legacy'),
+        );
       if (lease.status === 'busy')
         return { ...quiet(lease.storyNow), deferred: 'scheduler_busy' as const };
       try {
         if (retryDirectorAttemptId)
-          return await service.advanceOne(
-            ownerId,
-            worldId,
-            retryDirectorAttemptId,
-            undefined,
-            options,
+          return await retryAdvanceReadOnce(
+            () =>
+              service.advanceOne(ownerId, worldId, retryDirectorAttemptId, undefined, options),
+            () => retryLog('retry-director'),
           );
         return await runAgentAdvanceBatch(
           async (batch) => {
             try {
-              return await service.advanceOne(ownerId, worldId, undefined, batch, options);
+              return await retryAdvanceReadOnce(
+                () => service.advanceOne(ownerId, worldId, undefined, batch, options),
+                () => retryLog('batch'),
+              );
             } catch (error) {
               const scoped = error as {
                 directorCoordinationPending?: boolean;

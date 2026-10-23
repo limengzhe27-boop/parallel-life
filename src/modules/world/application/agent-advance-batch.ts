@@ -75,6 +75,27 @@ export class AgentAdvanceDeferred extends Error {
     this.original = original;
   }
 }
+/** Internal only: the world moved between the pre-read and the read transaction. */
+export const ADVANCE_READ_STALE = 'ADVANCE_READ_STALE';
+export function advanceReadStale() {
+  return Object.assign(Error(ADVANCE_READ_STALE), { code: ADVANCE_READ_STALE });
+}
+/**
+ * Retry exactly one stale pre-read. This is narrower than VERSION_CONFLICT:
+ * a real commit conflict or a paid/unknown attempt must still surface unchanged.
+ */
+export async function retryAdvanceReadOnce<T>(run: () => Promise<T>, onRetry?: () => void) {
+  let retried = false;
+  for (;;) {
+    try {
+      return await run();
+    } catch (error) {
+      if (retried || (error as { code?: unknown } | null)?.code !== ADVANCE_READ_STALE) throw error;
+      retried = true;
+      onRetry?.();
+    }
+  }
+}
 export async function runAgentAdvanceBatch(
   step: (context: AgentAdvanceBatchContext) => Promise<AdvanceResult | null>,
   policy: AgentAdvanceBatchPolicy,

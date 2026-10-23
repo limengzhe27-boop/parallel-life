@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { createElement, isValidElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { SELECTABLE_STICKERS } from '../src/modules/world/domain/stickers.ts';
 registerHooks({
   load(url, context, nextLoad) {
     if (url.endsWith('.module.css'))
@@ -57,6 +58,20 @@ test('picker renders real catalog images with send labels; busy disables image s
   assert.match(html, /发送表情：好/);
   assert.match(html, /src="\/stickers\/hao.svg"/);
   assert.match(html, /disabled=""/);
+});
+
+test('picker renders every one of the 80 catalog entries, not a truncated first page', () => {
+  const html = renderToStaticMarkup(
+    createElement(StickerPicker, {
+      emojis: ['😊'],
+      disabled: false,
+      onEmoji: () => {},
+      onSticker: () => {},
+    }),
+  );
+  assert.equal(SELECTABLE_STICKERS.length, 80);
+  assert.equal((html.match(/aria-label="发送表情：/g) ?? []).length, 80);
+  assert.equal((html.match(/<img /g) ?? []).length, 80);
 });
 
 test('sticker preserves image alt text and does not gate neighboring text on image loading', () => {
