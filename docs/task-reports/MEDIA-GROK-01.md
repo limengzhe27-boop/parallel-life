@@ -61,3 +61,13 @@
 已单独在新生产创建合成 guest，县城创建 POST201，world `1bc99319-419d-4a6b-baca-0b42dc63e116`；读世界200、schema-status200，并已通过原 clock API 暂停。未触碰原用户 `5f296…` 存档。无 SQL 改动；迁移目录与 root 已验收的 54be25c0 / 108 项一致。
 
 本任务已暂停单独部署，等待 root 集成本提交完成统一验收并通知模型变量切换窗口；之后由 root 部署并等待新项目 READY，再在此合成档实际索图，确认 ready 图片读取、后续参考及无重复；完成后再次暂停。正式提交/部署 ID、最终全量结果和公网账本尚待补录。
+
+## 2026-10-23 公网实际验收与接线修复
+
+统一业务 bf726bb9 / dpl_37GYsTCy9U2cJpNdRHed9MSGunp8 READY 后，专用 QA world 1bc99319 实际调用 2 回合文字模型、2 次 Grok 图片生成，均成功；没有重新购买不确定生成。首次401（测试缺Origin）和409（QA暂停）均在模型前拒绝，补正后沿用同command。
+
+首次非stream请求暴露 HTTP 漏接 onMediaCommitted：图片在前缀事件 cbff1189 提交，最终receipt事件5322eb01无图片；原待派发记录没有task。生产只读确认后通过原 /outbox/drain 接续，原task0a9ccbc1最终succeeded，图b04230e8-e743-43dc-8868-d04a2f798864 ready。第二回合使用手机stream请求，原回调自动唤醒，task18660e6d成功；图6a392c6e-2696-47a4-acaf-bf6bcba57de6的原referenceAssetId精确等于第一张图。两次无新SQL字段、无绕过内核插入。
+
+两张私有资产GET均200 image/jpeg，首图手机DTO聊天photoId与相册一致。人工查看两张真实像素，脸型、五官、黑色长发、灰色开衫基本保持，背景由书架变为绿植阳台；仅本样本通过，不声称所有角度/人物一致性。图片：[首图](assets/MEDIA-GROK-01-public-first.jpg)、[参考后第二图](assets/MEDIA-GROK-01-public-second.jpg)。
+
+非stream补丁8cc83f46仅world-message-http.ts与专属回归：复用原回调和事件去重，原HTTP函数端口隔离验证2/2，完整check3958/3958、build通过，交root统一集成发布，尚待该修复上线复核。QA已暂停，生产只读world_clock.paused=true确认。线上期间多次读/暂停HTTP等待较久，交root统一连接问题排查，不把媒体成功称为整站稳定。
