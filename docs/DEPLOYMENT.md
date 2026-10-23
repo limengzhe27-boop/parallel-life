@@ -1,3 +1,11 @@
+## 2026-10-23 · P3 历史基线冻结
+
+把 44-9~59、44-104~112（保留 107/111）、44-142 中 47 条历史审计/设计行冻结为 `[x] 已冻结（历史基线）`；保留 `44-67/68/69`、`44-107`、`44-111` 继续活跃。冻结不删除编号、不改历史报告、不表示旧实现已验证；只在当前真实反例出现时重开。
+
+冻结后 `44-*`：**255 行、222 完成/限定完成/冻结、33 未完成（含 5 条历史保留）、28 活跃**。`npm run check` **3950/3950**，本地 schema/账本已修复。
+
+文档提交 `70644084`，新账号项目 `lmz3/parallel-world` 部署 `dpl_H85v3LZGs3SnH74wDrRhY1dViG47` READY，正式域名 `/api/health` 200。该批 0 模型、0 生产写、0 SQL。
+
 ## 2026-10-23 · 44-154-B 收口与新账号首次部署
 
 `44-154-B` 核心两场景在主分支单独通过：`global director quiet preserves...` 1/1、`known invalid global director...` 1/1；整文件 `npc-agent-advance-service.test.ts` 仍 5/18，首个 `travel...` actorId 断言不符并级联 `UNKNOWN_SOURCE`，重建干净 `parallel_life_test` schema 后相同，属跨用例隔离/夹具问题，不宣称整套通过。
