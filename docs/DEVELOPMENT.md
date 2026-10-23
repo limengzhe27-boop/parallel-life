@@ -3088,11 +3088,11 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 |44-203-EPISODE-WITHDRAWAL-DOMAIN|[x] 已集成验证|narrative200；root集成|narrative200树；domain/episode-participation-lifecycle.ts、tests/episode-withdrawal203.test.ts、报告44-203-EPISODE-WITHDRAWAL.md|冻结57050037；完整唯一全decline且proposed才withdraw；21聚焦/type通过；0模型/生产。root仓储SQL接线，active退出不涵盖。|
 
-|44-203-EPISODE-WITHDRAWAL|[ ] 已部署，待真实连续体验|root-core203唯一集成|复用core-stickers200；agent-narrative-repository.ts、authored-event-eligibility-repository.ts、0111_episode_decline_withdrawal.sql、报告；domain子Agent与PG子Agent独占各自文件|所有参与者明确拒绝才能withdraw proposed，拒绝不冒充完成；作者键保留拒绝终态防重开；不添加表/字段，原事务与来源校验，真实PG必要验证。main 3f80ef99；check3976/build通过，原入口PG通过；生产0111已应用，推送触发唯一新部署h8ttnj0lr，READY，正式域名已绑定且health 200；未做原档真实模型连续验收，不宣称长期推进完成。|
+|44-203-EPISODE-WITHDRAWAL|[ ] 已部署，本地复核完成，待真实连续体验|root-core203唯一集成|复用core-stickers200；agent-narrative-repository.ts、authored-event-eligibility-repository.ts、0111_episode_decline_withdrawal.sql、报告；domain子Agent与PG子Agent独占各自文件|所有参与者明确拒绝才能withdraw proposed，拒绝不冒充完成；作者键保留拒绝终态防重开；不添加表/字段，原事务与来源校验，真实PG必要验证。main 3f80ef99；check3976/build通过，原入口PG通过；生产0111已应用，推送触发唯一新部署h8ttnj0lr，READY，正式域名已绑定且health 200；2026-10-24本地原入口PG 1/1、纯规则12/12复核；未做原档真实模型连续验收，不宣称长期推进完成。|
 
 |44-204-DOMAIN|[x] 已集成验证|root集成|main；episode-participation-lifecycle.ts、tests/episode-active-withdrawal204.test.ts、报告44-204-DOMAIN.md|active共享事件全员真实退出纯判断；原receipt不改；8/8单元/type通过；0生产/模型。|
 
-|44-204-ACTIVE-WITHDRAWAL|[ ] 已集成，待部署/原档验收|root-core204唯一集成|main；episode-lifecycle-repository.ts、npc-agent-kernel.ts、0112_active_episode_withdrawal.sql、tests/integration/episode-active-withdrawal204.test.ts、报告44-204-PG.md|复用明确goal/responsibility退出，原engage历史不改；全员无开放工作才结束，媒体/在途/unknown保护；无新字段。main集成；check3987/build通过；生产0112已应用；部署与原档真实体验待完成。|
+|44-204-ACTIVE-WITHDRAWAL|[ ] 已上线，待原档连续体验|root-core204唯一集成|main；episode-lifecycle-repository.ts、npc-agent-kernel.ts、0112_active_episode_withdrawal.sql、tests/integration/episode-active-withdrawal204.test.ts、报告44-204-PG.md|复用明确goal/responsibility退出，原engage历史不改；全员无开放工作才结束，媒体/在途/unknown保护；无新字段。main集成；check3987/build通过；生产0112已应用且代码含于dc10447c；2026-10-24本地原入口PG 1/1；只缺原档真实连续体验。|
 
 |44-204-PG|[x] 已集成验证|root集成|main；tests/integration/episode-active-withdrawal204.test.ts、报告44-204-PG.md|原入口engage后明确goal/plan退出，单人/多人终止及quiet/只关plan负向；真实PG1/1通过；0生产写/真实模型。|
 
@@ -3117,7 +3117,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 本轮按用户要求先不推送、不部署，完成可本地验收的剩余工作：
 
 - `44-199-PHONE`、`44-199-SEND`、`44-199-GROUP-READ-LOCK`、`44-199-COMMIT`、`44-199-ATTENTION` 的代码已确认包含在生产 `dc10447c`；本地分别以 18/18、18/18、PG 1/1、52/52、PG 5/5 复核，不再保持“待验收/待上线”。
-- `44-200-STICKER-PERSIST` 主目录真实 PG 2/2；`44-201-PLAN-REVIEW` 只读报告完成；`44-201-PLAN-REVIEW-PG` 2/2；`44-202-RUNTIME-PG` 52/52。以上为本地/主目录证据，未新增商业模型调用或生产写。
+- `44-200-STICKER-PERSIST` 主目录真实 PG 2/2；`44-201-PLAN-REVIEW` 只读报告完成；`44-201-PLAN-REVIEW-PG` 2/2；`44-202-RUNTIME-PG` 52/52；`44-203` 原入口 PG 1/1 + 纯规则 12/12；`44-204` 原入口 PG 1/1。以上为本地/主目录证据，未新增商业模型调用或生产写。
 - `44-200-STICKER-LICENSING` 记录用户授权后的完整素材供应链与残余风险；`44-210-GROUP-STICKER` 完成群聊玩家表情入口、显示和 NPC 语义输入，尚未部署。
 - 仍不能关闭：`44-205-DIRECTOR-CONTEXT` 的真实档 `COMMAND_CONFLICT`（需诊断部署）、`44-203/204` 的原档连续体验、`44-200-CORE`/`44-201-CONTINUITY`/`44-202-PLAN-DELTA` 的部署后连续体验、`44-160/161` 的真实模型质量。
 - 本轮不推送、不部署；线上版本仍是 `dc10447c`。本地 `npm run check` **3997/3997**、`npm run build` 通过（31/31 页面），Git 本地提交待下一次部署窗口统一处理。
