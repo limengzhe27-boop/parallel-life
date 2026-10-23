@@ -394,7 +394,9 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       if (actorId !== null && !actorIds.includes(actorId)) throw new DomainError('INVALID_COMMAND');
       return { receipt, actorId, actorIds, states };
     });
-    if (!native.actorIds.length) return true;
+    /* Never report a handled task while leaving its lease running forever: with
+       no one present there is nothing this paid channel can commit. */
+    if (!native.actorIds.length) throw new DomainError('INVALID_COMMAND', 'NO_ACTOR_PRESENT');
     phase('responder');
     const selectedActorId =
       native.actorId ??
@@ -405,7 +407,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         { ...native, worldVersion: world.version, epoch: Number(control.epoch) },
         signal,
       ));
-    if (selectedActorId === null) return true;
+    if (selectedActorId === null) throw new DomainError('INVALID_COMMAND', 'NO_ACTOR_RESPONSE');
     native.actorId = selectedActorId;
     const commandId = nativeAgentCommandId(lease.id, native.actorId),
       previous = await store.lookup(lease.ownerId, world.id, commandId);

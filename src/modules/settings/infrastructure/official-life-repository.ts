@@ -12,6 +12,7 @@ import type { OfficialLifeCatalog } from '../application/official-life-pack.ts';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import { requestHash, TaskError } from '../../tasks/infrastructure/task-repository.ts';
 import { officialGenesis } from '../../world/domain/official-genesis.ts';
+import { officialGenesisPositions } from '../../world/domain/genesis-positions.ts';
 import { DEFAULT_SPEED } from '../../world/domain/clock.ts';
 
 /** Uses the existing world/initial/clock tables in one owner transaction. No AI creation task. */
@@ -136,6 +137,29 @@ export class OfficialLifeRepository {
           [worldId, owner, state, seed],
         );
         await initializeNewAgentWorld(sql, state);
+        /* An official opening may pin an actor to a place. Persist that authored
+           genesis fact at version 0 so a scene can prove presence without a model
+           inventing an arrival. Unpinned actors remain explicitly unknown. */
+        for (const position of officialGenesisPositions(state, pack.opening)) {
+          await sql.query(
+            `INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document)
+             VALUES($1,$2,$3,NULL,0,$4) ON CONFLICT(world_id,subject_key) DO NOTHING`,
+            [
+              worldId,
+              owner,
+              position.subjectKey,
+              {
+                worldId,
+                subject: position.subject,
+                status: position.status,
+                placeId: position.placeId,
+                sourceEventId: null,
+                worldVersion: 0,
+                occurredAt: state.time,
+              },
+            ],
+          );
+        }
         // Build.phone reads these same metadata; no succeeded fake AI task is inserted.
         await sql.query(
           'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id,opening) VALUES($1,$2,$3,$4)',

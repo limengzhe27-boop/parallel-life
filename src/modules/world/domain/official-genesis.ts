@@ -19,7 +19,14 @@ export type OfficialOpeningDraft = {
   startAt: string;
   identity: string;
   setting: string;
-  actors: { key: string; name: string; relationship: string; persona: string }[];
+  actors: {
+    key: string;
+    name: string;
+    relationship: string;
+    persona: string;
+    /** Author-declared genesis location; absence means the actor starts unknown. */
+    initialPlaceKey?: string;
+  }[];
   actorTies: { fromKey: string; toKey: string; relationship: string; mayShare: boolean }[];
   facts: {
     key: string;
@@ -87,6 +94,13 @@ export function officialGenesis(input: {
   )
     invalid();
   for (const list of [o.actors, o.facts, o.messages, o.invitations, o.notes]) keys(list);
+  for (const actor of o.actors) {
+    if (actor.initialPlaceKey === undefined) continue;
+    const place = o.space?.places.find((p) => p.key === actor.initialPlaceKey);
+    /* A start location is authoring data, so it must be a real place and the
+       actor must already be an authored contact there. */
+    if (!place || !place.actorKeys.includes(actor.key)) invalid();
+  }
   const ids = new Map(o.actors.map((a) => [a.key, input.newId()]));
   if (new Set(ids.values()).size !== ids.size) invalid();
   for (const id of ids.values()) validateEventId(id);
