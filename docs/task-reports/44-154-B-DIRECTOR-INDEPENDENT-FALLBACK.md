@@ -30,7 +30,7 @@
 
 - 单独运行 `global director quiet preserves...`：**1/1 通过**。
 - 单独运行 `known invalid global director...`：**1/1 通过**。
-- 整文件 `npc-agent-advance-service.test.ts`：5/18。第一个 `travel...` 用例断言 actorId 与实际不符，后续多个用例因 `UNKNOWN_SOURCE` 级联；清空并重建 `parallel_life_test` schema 后结果相同，不是测试库残留。
-- 这说明核心两条“导演 quiet/已知无效不饿死独立候选”在当前代码上仍成立；整文件失败是跨用例状态/夹具隔离问题，不能宣称整套测试通过，也不能据此否定两条核心行为。
+- 整文件 `npc-agent-advance-service.test.ts`：5/18。第一个 `travel...` 用例的 actorId 实际与 `f.a` 一致；真正失败是 `payload.input.text.source` 为 `actor_local`（现行本地主动候选，44-182）而非测试预期的 `observation`。后续多个用例因 `UNKNOWN_SOURCE` 级联；清空并重建 `parallel_life_test` schema 后结果相同，不是测试库残留。
+- 这说明核心两条“导演 quiet/已知无效不饿死独立候选”在当前代码上仍成立；整文件失败主要是测试未覆盖后来加入的 `actor_local` 候选和跨用例状态，不能宣称整套测试通过，也不能据此否定两条核心行为。
 
 本行按“核心场景单独通过；整文件夹具需重写”限定收口。未改生产源码、未调用模型、未写生产库；整文件隔离问题留给后续测试维护，不作为产品完成证据。
