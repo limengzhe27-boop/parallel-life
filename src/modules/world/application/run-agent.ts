@@ -362,6 +362,7 @@ function isKnownConflict(error: unknown) {
       'SCENE_OBSERVATION_CONSUMPTION_SCOPE_CONFLICT',
       'ACTOR_SCENE_OBSERVATION_VERSION_CONFLICT',
       'ACTOR_GROUP_OBSERVATION_VERSION_CONFLICT',
+      'SUPERSEDED_BY_USER_INTERRUPT',
     ].includes(String((error as { code?: unknown }).code ?? (error as Error).message))
   );
 }

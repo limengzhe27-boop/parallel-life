@@ -460,6 +460,54 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
     },
   );
   await t.test(
+    'a live player private turn fences automatic wake commits but not its own commit',
+    async () => {
+      const f = await fixture();
+      const wake: AgentInputReceipt = {
+        ...f.receipt,
+        id: randomUUID(),
+        commandId: randomUUID(),
+        threadId: f.b,
+        recipientActorId: f.b,
+        origin: 'wake',
+        text: '{"type":"npc_own_condition_ready","candidateId":"wake-1"}',
+      };
+      const acceptedWake = await store.accept(f.owner, wake);
+      let wakeAttempt = (
+        await store.claim(f.owner, {
+          id: randomUUID(),
+          worldId: f.worldId,
+          actorId: f.b,
+          commandId: wake.commandId,
+          inputReceiptId: acceptedWake.receipt.id,
+          engineEpoch: 2,
+          expectedWorldVersion: 0,
+          expectedActorRevision: 0,
+          inputHash: wake.inputHash,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 60000).toISOString(),
+        })
+      ).attempt;
+      wakeAttempt = await store.mark(f.owner, wakeAttempt, 'request_sent');
+      wakeAttempt = await store.saveResponse(f.owner, wakeAttempt, { statements: [] });
+      let playerAttempt = (await claim(f)).attempt;
+      playerAttempt = await store.mark(f.owner, playerAttempt, 'request_sent');
+      playerAttempt = await store.saveResponse(f.owner, playerAttempt, { statements: [] });
+      await assert.rejects(
+        () =>
+          app.transaction(f.owner, (sql) =>
+            beginAgentCommitFrameInTransaction(sql, f.owner, wakeAttempt),
+          ),
+        /SUPERSEDED_BY_USER_INTERRUPT/,
+      );
+      const frame = await app.transaction(f.owner, (sql) =>
+        beginAgentCommitFrameInTransaction(sql, f.owner, playerAttempt),
+      );
+      assert.equal(frame.world.version, 0);
+      assert.equal(frame.state.revision, 0);
+    },
+  );
+  await t.test(
     'known malformed or oversize responses are stored as invalid, not unknown',
     async () => {
       const f = await fixture();
