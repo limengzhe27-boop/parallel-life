@@ -1,3 +1,11 @@
+## 2026-10-23 · P2 媒体/协议子任务收口（17 条）
+
+把 17 条已合入主分支的 P2 媒体/协议/上下文子项从“待验收”收口为“已完成（集成验证）”：UI receipt latency、Director staging、NPC media、reply source、media intent、media purpose、trial runtime asset、conversation progress、owned item context、execution intent、plan supersession、safe diagnostics、media cancellation、current input interpretation，以及 `44-154-G/J/K` 媒体结果上下文/接线/唤醒。
+
+证据：纯协议/UI/上下文 **171/171**、媒体 purpose/取消/提示词 **18/18**、试用运行素材 **3/3**、真实 PG **16/16**。修复 `actor-media-result-wake` 的陈旧断言：媒体完成观察现在按 `npcPresentationContext` 进入 `observations` 或 `presentationContext.internalContext`，测试同时检查两池，仍严格要求 `own_media_completion`，未放宽产品校验；修复后 3/3。`npm run check` **3950/3950**、`npm run build` 通过。
+
+测试/文档提交 `0b409ba8`，`parallel-life` 部署 `dpl_7gB4AnAd37bQMsYAphG3RRB13q9r` READY，正式别名 `/api/health` 200。该批只改测试与账本，**未改生产业务代码、未调用模型、未写生产世界、未新增 SQL**；真实图片/视频生成与手机/相册投递仍归 `44-158-LIVE` / `44-171~175`，不宣称“发图已通”。
+
 ## 2026-10-23 · 44-150 真实手机 19 点协商（最后 1 次窗口）
 
 原 44-150 合成档 `cacb55e2...` 在新域名当前会话不可见（GET 404）。用户明确回复“尽量用渣男体验”，因此改用真实世界 `渣男体验`（`4953ca0f-56c4-4e92-9279-324031142356`，v17）完成最后 1 次有界文字窗口。先用原 clock 接口暂停世界，避免进入页面自动推进；随后正常手机 → 微信 → 刘胜男会话，真实输入框发送：
