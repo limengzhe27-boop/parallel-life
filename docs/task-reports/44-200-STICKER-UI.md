@@ -25,3 +25,16 @@
 - 群聊目前GroupChat只渲染text，当前群契约未承载stickerId；本批只接通已有私聊，不宣称群聊同能力。
 - 服务端marker语义/保存、刷新、重试、通知由root统一验收。本任务不新增第二套持久化实现。
 - 浏览器真实交互（失败图片、手机/PC短屏、点击发送）未由本子任务执行。
+
+## 本地浏览器补验（2026-10-23）
+
+Ego空间432，独立树3307，临时development-only合成fixture复用真实MessagesApp/PhoneAppsProvider；未加载env、0 API请求、0模型、0生产。空间已finish，本地服务已停止，临时route已删除。
+
+- 手机390×844：图文同时显示，纯图透明；面板20图，发送“我裂开了”后产生1条用户图消息，已有“保留草稿”不变。
+- PC1440×900：窄幅居中、图片面板正常，无横向溢出。
+- 短屏390×500：Emoji切换与插入成功，draft“还没发送的草稿😊”。
+- 主动将fixture图src改为不存在路径，真实onError显示“[赞 · 图片未加载]”，其他文字、已发图和草稿均保留。
+- 发现图片加载前无高度可能导致滚动落点偏移，补固定160px显示盒+contain（不裁剪/不拉伸），手机发送后imageBottom729.75 < logBottom747.75，完整可见。缩略图立即加载，正文仍可懒加载且不阻塞文字。
+- 截图已逐张实际查看：assets/44-200-sticker-ui/{mobile-panel,mobile-sent-final,desktop-panel,desktop-failure}.png。
+
+此为浏览器界面及回调fixture验收，**不是数据库保存、刷新恢复或真实NPC选图验收**。后者仍由root。

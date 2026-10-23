@@ -20,7 +20,7 @@ export function StickerImage({
       className={thumbnail ? s.thumbnail : s.image}
       src={sticker.src}
       alt={sticker.label}
-      loading="lazy"
+      loading={thumbnail ? 'eager' : 'lazy'}
       onError={() => setFailedSrc(sticker.src)}
     />
   );
