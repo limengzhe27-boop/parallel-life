@@ -2544,7 +2544,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 |44-151-MESSAGE-TERMINAL-RECOVERY-I|[x] 已完成|codex-root-recovery151 sole integrator|unified-engine137；contracts/message-receipt-lookup.ts、server/npc-agent-services.ts、phone/chat-send-state.ts、world-phone-app.tsx及对应原测试/专属报告；其他任务不改此范围。|核对截图原消息终态；已知拒绝不得永久unknown，真实unknown不自动重试；原只读回执不触发模型，必要PG/check/build/部署。|0新增模型额度，150剩1保留不用于真实用户档。| 2ddc48d8/dpl_BEgsG54MRZgVPnPoyr7RDaPKurCr正式READY；check3319/build/PG8/纯14；公网原手机核对known failed转failed，输入可用，手机PC已看，0模型新调用。
 
-|44-152-AUTO-RESUME-WORLD-I|[ ] 待验收|codex-root-entry152 sole integrator|unified-engine137；use-world-time.ts、world-time-controls.tsx、专属报告及必要时间策略检查；唯一集成人root。|用户最新要求：进入世界和返回自动从冻结锚点继续，离开暂停；去掉顶部暂停/继续开关，保留等待与休息/重要节点保护/12倍浏览1倍交谈。|0模型新调用、0生产档手动修改；必要check/build/部署/手机PC。| 06bb37ee/dpl_HxXHiUJyvL3y6d7tGaGTzSmhYy3B正式Nu READY；check3319/build、时间PG10通过。入场/返回自动resume、移除顶部暂停开关；重要约定保留边界继续。0模型，真实手机/PC自动入场界面旅程待验收，不冒称通过。
+|44-152-AUTO-RESUME-WORLD-I| [x] 已完成（手机+PC自动入场/离开away；时间PG10） |codex-root-entry152 sole integrator|unified-engine137；use-world-time.ts、world-time-controls.tsx、专属报告及必要时间策略检查；唯一集成人root。|用户最新要求：进入世界和返回自动从冻结锚点继续，离开暂停；去掉顶部暂停/继续开关，保留等待与休息/重要节点保护/12倍浏览1倍交谈。|0模型新调用、0生产档手动修改；必要check/build/部署/手机PC。| 06bb37ee/dpl_HxXHiUJyvL3y6d7tGaGTzSmhYy3B正式Nu READY；check3319/build、时间PG10通过。入场/返回自动resume、移除顶部暂停开关；重要约定保留边界继续。0模型，真实手机/PC自动入场界面旅程待验收，不冒称通过。
 
 |44-153-CONTINUOUS-WORLD-RUNTIME-I|[ ] 待验收|codex-root-continuity153 sole integrator；小安只读审查已回传|unified-engine137；统一domain clock/activity、clock schema/仓储/SQL新迁移0092、原native delivery/episode/narrative/group门禁、原scheduler/phone entry与相关必要测试/报告；公共契约root独占。|用户最新明确世界离线持续：presence只管注意力，run-state管暂停；离线1倍、在线12/1；原计划/到达/导演同链，不假补历史。旧档有据接续与试演显式暂停隔离；必要PG/check/build/迁移/部署。|先落同一架构/迁移说明。本行未新增模型调用；150剩余1次已由用户2026-10-23明确授权用于真实渣男体验。| 0092已生产应用，92checksum/107世界state hash保留；check3320/build、clockPG11/arrival14/native20/trial9/scheduler1，0商业调用。待本批READY，不宣称完整后台实时演绎。 Final 8eae0fbe/dpl_4vyEpW1uwYAjVUmXfqGSahpLxAZG READY; check3323/build; dual clock protocol/public reads200; no new model calls, trial still paused. Continuous runtime shipped; normal-player live offline journey and task154 remain pending.
 
@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行与历史基线冻结后，当前总表 255 行、33 条未完成（其中 5 条历史相关行保留），28 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结与 44-152 UI 验收后，当前总表 255 行、32 条未完成（其中 5 条历史相关行保留），27 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -2975,7 +2975,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 主分支单独运行 `global director quiet preserves...` 与 `known invalid global director...` 均 1/1 通过；整文件 `npc-agent-advance-service.test.ts` 仍 5/18，首个 `travel...` 用例 actorId 断言不符，后续因 `UNKNOWN_SOURCE` 级联。重建干净 `parallel_life_test` schema 后结果相同，排除测试库残留。结论：核心“导演 quiet/已知无效不饿死独立候选”成立；整文件跨用例隔离/夹具需重写，故本行限定收口，不宣称整套测试通过。0 模型/生产写/SQL。
 
-|MEDIA-GROK-01|[ ] 进行中|codex-grok-image-20261023唯一本任务集成发布；原root已明确交接媒体发布|独立grok-image-20261023自5aebd9b1；Yibu媒体adapter、media-pipeline-service.ts/必要参考选择链、worker-composition.ts与相关ports/types，聚焦测试/NEW报告；普通NPC协议内核先只读|用户授权Grok生图切换、图生图人物/地点一致性与通过后正式发布。保留原私有资产授权/unknown/幂等；旧154/158相关已集成M02A/175，不接文字调度。|GETmodels200可见Grok；chat参考404、xAI JSON编辑400转换失败、chat纯图500；第4次官方images/generations成功18秒1280x720。按网关文档文件编辑验证中，当前最多6探针，无线上配置变更；root迁移54be新项目READY已核。|
+|MEDIA-GROK-01|[ ] 进行中|codex-grok-image-20261023唯一本任务集成发布；原root已明确交接媒体发布|独立grok-image-20261023自5aebd9b1；Yibu媒体adapter、media-pipeline-service.ts/必要参考选择链、worker-composition.ts与相关ports/types，聚焦测试/NEW报告；普通NPC协议内核先只读|用户授权Grok生图切换、图生图人物/地点一致性与通过后正式发布。保留原私有资产授权/unknown/幂等；旧154/158相关已集成M02A/175，不接文字调度。|GETmodels200可见Grok；chat参考404、xAI JSON编辑400转换失败、chat纯图500；第4次官方images/generations成功18秒1280x720。按网关文档文件编辑验证中，当前最多6探针，无线上配置变更；root迁移54be新项目READY已核。| root明确释放历史168局部媒体字段：新增可选referencePlaceId贯穿world/domain/{types,validation,reducer,agent-state-event}.ts、world/infra/{npc-media-intent,npc-model-protocol,npc-agent-kernel,npc-agent-model}.ts，仅该字段/说明；media/domain/{types,media-tools,prompt-builder}.ts、media/application/provider-ports.ts、media/infra/{character-reference-resolver,media-pipeline-handler,media-pipeline-service,yibu-media-provider-adapter}.ts、NEW world-media-reference.ts、worker-composition.ts及对应测试/report。独占PG55651（已核无监听），HTTP无；新作者图仍复用既有owner/source认证函数，无SQL迁移。第9适配器真实图生图成功23秒，合计3成功6失败0unknown，未改线上。
 
 ### 2026-10-23 · 44-99 归档
 
@@ -2986,3 +2986,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 把 44-9~59、44-104~112（保留 107/111）与 44-142 共 47 条历史审计/设计行从“待验收”冻结为历史基线：`[x] 已冻结（历史基线；不纳入当前验收）`。这些行不是新完成的功能，不表示其旧实现已验证；保留编号、报告与失败证据，只在出现当前真实反例时重开。
 
 保留 `44-67/68/69`（P2 作者事件设计输入）、`44-107`（进行中）、`44-111`（真实模型未通过）继续活跃；冻结后当前 pending 33 条、活跃 28 条（含外部 `44-198`）。冻结不删除、不改历史报告，也不把旧行当产品完成。
+
+### 2026-10-23 · 44-152 新账号手机/PC自动入场验收
+
+在新账号正式域名测试世界 `县城黄毛` 上完成两轮干净 UI 旅程：390×844 与 1440×1000 进入均从手动暂停自动恢复为 `paused:false/speed:3/activeUntil有值`，离开后为 `paused:false/speed:1/activeUntil:null`；进入/离开 `/advance` 均为 0，世界 version 204 与最后消息不变，无新消息/事件。手机锁屏正常显示既有未读，无补造。该批只验证时间策略/UI，不覆盖人物自然演绎；0 商业模型/生产写/SQL。截图见报告。
