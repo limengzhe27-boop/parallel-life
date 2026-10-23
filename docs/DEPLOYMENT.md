@@ -1,3 +1,17 @@
+## 2026-10-23 · 44-196 T2-3 epoch-2 日程定时消息
+
+T2-3 补齐：epoch-2 新增 `appointment` 候选源，确认日程在到期前 2 小时、到点 0–1 小时、过期 1–12 小时各生成一次稳定身份候选；候选带阶段 `wakeCue`，模型提示词前置为必须按该阶段回应；confirmed 日程不再由通用 responsibility 重复唤醒；窗口内有真实消息则静默。业务 `4b0c187d` / `dpl_GL3ySYHezhHyxwodsVd6MCAhaWBk` READY；诊断日志 `8937fc38` / `dpl_9aGwvfCXSu7DNERLLwNRXRdcnnXK` READY；正式 Nu health 200。`npm run check` **3948/3948**、`npm run build` 通过；无新增 SQL 迁移。
+
+生产验收世界 `5f296b6e...` 使用既有阿杰日程，改到 `2026-10-20T18:30:00Z` 并接受（v187）。同一日程真实产生：
+
+- 到期前 `18:28:17`：准备出发了吗？记得路上小心，别急。
+- 到点 `18:30:15`：现在到了约定时间，我这边先在车间等着，具体情况你到时告诉我一声吧。
+- 过期 `19:41:09`：时间过去了，我这边车间还在，等你消息呢。你那边还好么？
+
+玩家在日历明确记录“未赴约”，`invitation.responded` / `miss` / world v197，`status=missed`、`responseVersion=197`；随后真实对话引用未到，阿杰回复“别介意今天没来”并询问原因。截图见 [三段消息](task-reports/assets/44-196-appointment-three-phases.png)、[未赴约](task-reports/assets/44-196-appointment-missed.png)、[后续](task-reports/assets/44-196-appointment-result-followup.png)。
+
+验收世界原有两条无响应的 `unknown_after_send`（导演 `4d0cd73e...`、阿杰 `2ef0c54d...`）挡住了候选；按 unknown 不自动重试规则，只显式标记 `stale_discarded`，未重放、未伪造响应。后续模型调用都是新命令。旧 `parallel-life` 项目构建限额 failure，未使用。
+
 ## 2026-10-21 · 44-180 导演真实时间 cadence 修复
 
 44-180修复：导演复查 cadence 改用真实当前时间，不再用落后于真实时间的 storyAt 比较 director attempt 时间。业务 `69cf4ec8` / dpl_cgf7uztyq，Production READY；doc `949219ca`。全量 check 3889/build 通过。
@@ -2020,7 +2034,7 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
   [现场与老周对话](task-reports/assets/44-196-scene-laozhou-dialogue.png)。T2-7 通过。
 - 本地 `npm run check` 3943/3943、`npm run build` 通过；新增
   `official-genesis-positions` 2/2。
-- T2-3 仍未过：锁屏有代码生成的过期日历卡，但清掉老周开放提问后 `/advance` 仍返回
-  `played:0`，没有真实 NPC 到点/过期消息。44-196 保持待验收，不把日历卡或单测冒充
-  真实模型样本。详见
+- T2-3 当轮仍未过：锁屏有代码生成的过期日历卡，但清掉老周开放提问后 `/advance` 仍返回
+  `played:0`，没有真实 NPC 到点/过期消息。当轮 44-196 保持待验收，不把日历卡或单测冒充
+  真实模型样本。该缺口已在 2026-10-23「T2-3 epoch-2 日程定时消息」一节关闭，详见
   [44-196 报告](task-reports/44-196-NPC-HUMAN-FEEL-CLOSURE-PLAN.md)。

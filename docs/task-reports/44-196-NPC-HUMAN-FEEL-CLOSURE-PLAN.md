@@ -1,7 +1,7 @@
 # 44-196 · NPC 人感清单合并与关账计划
 
 日期：2026-10-23  
-状态：待验收（T2-7 现场 NPC 对话已通过；T2-3 到点/过期真实 NPC 消息仍未取得）  
+状态：已完成（T2-3 到期前/到点/过期真实 NPC 消息与 missed 结果均已取得）
 负责人 / 集成：`dsh-human196-20261023`（root 唯一集成）  
 基线：`main` / `2be29501`  
 依据：`NPC-HUMAN-FEEL-DEV-LIST.md`、`NPC-HUMAN-FEEL-BATCH-1.md`、`NPC-HUMAN-FEEL-BATCH-2-PLAN.md`、`44-193`、`44-195`
@@ -59,13 +59,13 @@
 |---|---|---|
 | T2-1 | `DEFAULT_SPEED=3`；`FOREGROUND_SPEED=3`、`BACKGROUND_SPEED=1`；`activityMode` 不再因 conversation 降速，conversation 仅保留 focus；时钟/约会截止按 3×；移除时间面板 1×/2× 手动速度；开场/等待 SQL 用 `DEFAULT_SPEED` | `clock-activity` 7/7、`time-pacing` 8/8、`world-clock` 20/20；新增“前台10分钟≈30分钟，后台10分钟=10分钟” |
 | T2-2 | 未新增另一套日程；沿用 `world_appointments`、`state.appointments`、日历/地图地点关联 | 现有日历/邀请/地图用例；卡片测试覆盖 `links[app=map]` |
-| T2-3 | `agenda.ts` 新增 `appointment_upcoming`（确认后 2 小时内、窗口内无真实发言才触发）与 `appointment_overdue`（到点 1 小时后、12 小时内、每次只承接一次）；`return-followups` 允许这两个 code-timed 节点；cue 明说不能编造到场/失约 | `appointment-reminder` 5/5；世界时钟/返回消息回归 |
+| T2-3 | 旧路径 `agenda.ts`/`return-followups` 保留；新增 epoch-2 `appointment` 候选源：确认日程在到期前 2 小时、到点 0–1 小时、过期 1–12 小时各生成一次稳定身份候选；`wakeCue` 明确三阶段边界，并由模型提示词前置为“必须按这个阶段回应”；同阶段已有真实消息则静默，不重复 | `agent-schedule-collectors` 45/45（含窗口、稳定 ID、阶段 cue、抑制重复、confirmed 不重复触发 responsibility）；`appointment-reminder` 5/5 |
 | T2-4 | 保留 `proposed/confirmed/cancelled/attended/missed` 最小状态；不凭到期自动写 attended/missed；结果由现场证据或玩家明确记录产生，`appointment_result` 承接 | `world-clock` 的 due→result；日历 Actions 原测试 |
 | T2-5 | 新增 `lockScreenNotifications` 纯投影：过期>到点>临近>待回复>普通消息，最多 3 条，同一 actor 不刷屏；锁屏再过滤 `isGenericProactiveLine` 等待噪声；`PhoneShell` 新增 `lockNotifications`，世界页传入，低利害仍留在应用列表 | `lock-notifications` 5/5、`lock-screen-ui` 静态渲染 1/1（3 条，不显示“查看其余”） |
 | T2-6 | `advanceClock` 长离开只回放最近 1–2 个节拍，旧时刻作废；`activeUntil` 之外按 1×；主动性仍由现有虚拟时间候选+30 分钟真实冷却+服务端 cron 驱动，未新增额度表 | `world-clock` 长离开 2 条；`return-messages` 最新窗口；原有 scheduler 测试 |
 | T2-7 | 聊天内嵌日程卡片：接受/改期/拒绝；已确认显示“前往{地点}”（地图 target）、“进入现场”、“查看日程”；改期复用日历详情；拒绝后不伪造对方回复。补官方开场 `initialPlaceKey` 与 version-0 权威位置：现场可用作者位置证明老周在场，不再依赖模型编造到达 | `chat-invitation-ui` 2/2；`official-genesis-positions` 2/2（真实 preset） |
 
-本地检查：`npm run check` 通过（3943/3943），`npm run build` 通过。格式只对本次改动文件执行 Prettier。
+本地检查：`npm run check` 通过（3948/3948），`npm run build` 通过。格式只对本次改动文件执行 Prettier。
 
 ## 6. 公网真实验收（`3dd7eca9` + 二次部署 `204ddfa3`）
 
@@ -77,6 +77,7 @@
   - 两条真实未读消息
   锁屏总共 3 条，未显示“查看其余”。二次部署后 `isGenericProactiveLine` 已过滤掉“继续观察着”的旧等待腔，但另外两条旧消息含“今晚/老周修车”等具体词，仍占锁屏；不把它们当新质量样本。
   截图：[锁屏三条](assets/44-196-lock-screen-three.png)。
+  首轮这条仅是代码生成的日历卡，不是 T2-3 的 NPC 消息；真实到期前/到点/过期三段与 `missed` 结果在 §7.4 补齐。
 - **T2-7**：聊天里真实渲染 sticky 邀约卡（见截图），`前往老周修车铺` → 地图 `target=repair_shop`，显示 18 分钟/15:25 到达；点击“前往这里”真实到达 `15:28`，地图出现“看看这里（进入现场）”；点击后创建现场 `9964a558-2d05-4c2e-b300-e7ec3c213ded`，URL 进入 `panel=scene`。二次部署后滚动到聊天底部，邀约卡仍在视口内（`cardVisible: true`）。
   **首轮未完成点（已在 §7 关闭）**：现场任务 `9cafe9d3-22c2-4668-88ef-60a1c22f10c6` 当时仍是 `queued`，现场只有玩家、没有老周，因此首轮没有宣称“现场与 NPC 对话”通过，也没有伪造 NPC 到场。
 - **T1-1**：在同一个真实世界向老周发送“我在店里，R17的钥匙带着。你什么时候过来？”，Grok 真实回复两条短气泡：
@@ -136,19 +137,63 @@
   [现场与老周对话](assets/44-196-scene-laozhou-dialogue.png)。
 - **T2-7 通过**：卡片 → 前往 → 到达 → 现场 → 与该 NPC 真实对话。
 
-### 7.4 T2-3 仍未过
+### 7.4 T2-3 通过：同一日程的三段真实 NPC 消息与 missed 结果
 
-- 锁屏现在显示 3 条，第一条是 `约定时间已过 / 16:00 / R17车辆交接 · 还没有结果记录`，
-  后两条是旧消息。这是代码按时间生成的日历卡，不是 NPC 消息。
-- 清掉老周的开放提问后再次 `/advance`，返回 `played:0`；当前 epoch-2 的 director 没有
-  生成“到点/过期”的 NPC 消息。没有把单测、日历卡或现场对话冒充成 T2-3 真实模型样本。
-- 因而 44-196 仍保持 **待验收**，只差 T2-3 的到点/过期真实 NPC 消息；下一步必须把
-  `agenda` 的 due/overdue follow-up 接入 epoch-2 advance/director，再取真实样本。
+先把 epoch-2 的代码定时入口补齐，而不是继续用 `/advance` 碰运气：
 
-## 8. 当前接续点
+- 新增 `appointment` 候选源。确认日程在以下窗口各生成一次稳定身份候选：
+  到期前 2 小时内、到点后 0–1 小时、过期后 1–12 小时。
+- 候选携带 `wakeCue`，明确写出“只做临行提醒 / 只询问等待 / 只承接真实经过”，
+  模型提示词把它前置为“必须按这个阶段回应，不能改写成别的阶段”。
+- 同阶段窗口内已有真实 assistant 消息则静默；confirmed 日程不再由通用
+  `responsibility` 二次唤醒；候选 ID 绑定日程、阶段和来源版本，已提交的同一阶段
+  不会重复购买。
+- 代码提交 `4b0c187d`，业务部署 `dpl_GL3ySYHezhHyxwodsVd6MCAhaWBk` READY；
+  诊断日志提交 `8937fc38`，部署 `dpl_9aGwvfCXSu7DNERLLwNRXRdcnnXK` READY。
+
+验收世界仍是 `县城黄毛`（`5f296b6e...`）。使用既有阿杰日程，将时间改到
+`2026-10-20T18:30:00Z`（本地 `10-21 02:30`）并接受（world v187）。同一日程产生：
+
+- **到期前** `18:28:17`：`准备出发了吗？记得路上小心，别急。`
+- **到点** `18:30:15`：`现在到了约定时间，我这边先在车间等着，具体情况你到时告诉我一声吧。`
+- **过期后** `19:41:09`：`时间过去了，我这边车间还在，等你消息呢。你那边还好么？`
+
+这三条都是真实模型回复，不是日历卡、单测或人工文案。截图：
+[三段消息](assets/44-196-appointment-three-phases.png)。
+
+随后由玩家在日历明确记录“未赴约”：
+
+- 事件 `invitation.responded` / `operation=miss` / world v197，story `19:42:27`；
+- 读取结果为 `status=missed`、`responseVersion=197`；
+- **没有**因为时间到达自动写 `attended` 或 `missed`，也没有替玩家编造到场。
+
+截图：[未赴约结果](assets/44-196-appointment-missed.png)。
+
+玩家随后真实发送“今天车间那边我没能过去，抱歉。你还在吗？”，阿杰回复：
+
+- `还在呢，别介意今天没来，没啥大事。`
+- `不过你现在方便说说是怎么回事吗？`
+
+这是后续对话真实引用 missed 结果的证据；没有新增数值亲密度/关系分，也没有用
+时间自动改好感。“关系影响”落在真实记录和对方后续反应里，而不是伪造一个分数。
+截图：[missed 后续](assets/44-196-appointment-result-followup.png)。
+
+### 7.5 验收世界的一次性 unknown 清理
+
+生产世界原先还有两条没有响应、无法恢复的 unknown 调用：
+
+- 导演 `4d0cd73e-2d6c-4439-9c45-bbeb538ef533`（`unknown_after_send`，无 response）；
+- 阿杰 `2ef0c54d-76ea-464d-aca5-d54f14a1f3ae`（`unknown_after_send`，无 response、无 event）。
+
+它们挡住新候选。按既有“unknown 不自动重试”规则，只把这两条显式标记为
+`stale_discarded`，没有重放原请求、没有伪造响应；之后的模型调用都是新的命令。
+这是验收世界的一次性数据修复，不是生产代码的自动恢复策略。
+
+## 8. 关账结论
 
 1. T2-7 已通过：现场 `6367b839...` 有老周，三条真实对话，截图已留。
-2. T2-3 仍未过：锁屏有过期日历卡，但没有真实 NPC“到点/过期”消息；`/advance` 返回
-   `played:0`，不能勾完成。
-3. 44-196 继续保持待验收；下一个工程动作是把 code-timed agenda follow-up 接入
-   epoch-2 的 advance/director，再在真实世界取一条到点或过期 NPC 消息。
+2. T2-3 已通过：同一确认日程的到期前/到点/过期三条真实 NPC 消息，加玩家明确
+   记录的 `missed` 结果和后续引用；没有用日历卡或单测冒充模型样本。
+3. 44-196 全部验收项完成，状态改为 **已完成**；旧域名兼容、旧 `渣男体验副本`
+   stale/unknown 恢复、长期协议简化仍不在本任务范围。
+4. 最终检查：`npm run check` **3948/3948**，`npm run build` 通过；公网 health 200。
