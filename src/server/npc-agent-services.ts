@@ -4,7 +4,10 @@ import type { TextModel } from '../modules/ai/application/ports.ts';
 import type { PostgresDatabase, SqlClient } from '../modules/storage/infrastructure/postgres.ts';
 import type { TurnCommand } from '../modules/world/domain/types.ts';
 import { runNpcAgent, type AgentRunPhaseTimings } from '../modules/world/application/run-agent.ts';
-import { PostgresAgentRuntimeRepository } from '../modules/world/infrastructure/agent-runtime-repository.ts';
+import {
+  PostgresAgentRuntimeRepository,
+  supersedeAutomaticActorAttemptsInTransaction,
+} from '../modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { readChatContextWorld } from '../modules/world/infrastructure/chat-context-read-repository.ts';
 import {
@@ -641,6 +644,24 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           );
         if (clock.paused)
           throw new NpcMessageError('INVALID_STATE', '请先继续这段人生，再发送消息。', 409);
+        // An automatic wake for this actor may already hold the only attempt slot
+        // while its provider call is slow or its lease has expired. The player's
+        // explicit message owns the thread; retire that attempt before claiming.
+        const superseded = await turnDb.transaction(ownerId, (sql) =>
+          supersedeAutomaticActorAttemptsInTransaction(
+            sql,
+            ownerId,
+            command.worldId,
+            command.actorId,
+          ),
+        );
+        if (superseded)
+          console.info(
+            JSON.stringify({
+              scope: 'player-supersede-automatic',
+              count: superseded,
+            }),
+          );
         // Only fresh context preparation uses a bounded read. Paid response recovery
         // keeps its existing full-world path and immutable snapshot.
         let bounded: ChatContextRead | null = null;

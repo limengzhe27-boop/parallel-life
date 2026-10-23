@@ -54,6 +54,67 @@ export class AgentRuntimePersistenceError extends Error {
 function fail(code: string): never {
   throw new AgentRuntimePersistenceError(code);
 }
+/**
+ * A live player private turn owns the world until its reply commits. Automatic
+ * wake turns may still be in flight from an earlier batch; reject their commit
+ * instead of letting them invalidate the player's paid reply.
+ */
+async function assertNoLivePlayerTurn(
+  sql: SqlClient,
+  ownerId: string,
+  expected: AgentAttempt,
+): Promise<void> {
+  const own = (
+    await sql.query(
+      "SELECT document->>'origin' AS origin FROM parallel_life.agent_input_receipts WHERE id=$1 AND world_id=$2 AND owner_id=$3",
+      [expected.inputReceiptId, expected.worldId, ownerId],
+    )
+  ).rows[0];
+  if (own?.origin === 'player') return;
+  const live = (
+    await sql.query(
+      `SELECT 1 FROM parallel_life.agent_attempts p
+       JOIN parallel_life.agent_input_receipts r
+         ON r.world_id=p.world_id AND r.owner_id=p.owner_id AND r.id=p.input_receipt_id
+       WHERE p.world_id=$1 AND p.owner_id=$2 AND p.id<>$3
+         AND p.status IN ('reserved','request_sent','response_received')
+         AND p.lease_until>clock_timestamp()
+         AND r.document->>'origin'='player' AND r.document->>'channel'='private'
+       LIMIT 1`,
+      [expected.worldId, ownerId, expected.id],
+    )
+  ).rowCount;
+  if (live) fail('SUPERSEDED_BY_USER_INTERRUPT');
+}
+/**
+ * Retire automatic attempts for this actor when the player writes explicitly.
+ * A slow provider call or an expired lease otherwise keeps the only attempt slot
+ * occupied and causes a user-visible BUSY even though nothing is progressing.
+ */
+export async function supersedeAutomaticActorAttemptsInTransaction(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+  actorId: string,
+): Promise<number> {
+  const result = await sql.query(
+    `UPDATE parallel_life.agent_attempts a
+        SET status = CASE
+              WHEN a.sent_at IS NULL AND a.response_hash IS NULL
+                THEN 'cancelled_before_send'
+              ELSE 'stale_discarded'
+            END,
+            updated_at = now()
+       FROM parallel_life.agent_input_receipts r
+      WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3
+        AND r.world_id=a.world_id AND r.owner_id=a.owner_id
+        AND r.id=a.input_receipt_id
+        AND r.document->>'origin' IN ('wake','coordination')
+        AND a.status IN ('reserved','request_sent','response_received','unknown_after_send')`,
+    [worldId, ownerId, actorId],
+  );
+  return result.rowCount ?? 0;
+}
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 function key(value: string) {
   if (typeof value !== 'string' || !/^[a-zA-Z0-9_:-]{1,160}$/.test(value)) fail('INVALID_INPUT');
@@ -906,6 +967,7 @@ export async function beginAgentCommitFrameInTransaction(
     )
   ).rows[0]?.document as AgentInputReceipt | undefined;
   if (!receipt) fail('INPUT_SCOPE_FORBIDDEN');
+  await assertNoLivePlayerTurn(sql, ownerId, expected);
   await requireInputAuthority(
     sql,
     ownerId,
@@ -987,6 +1049,7 @@ export async function finishAgentCommitInTransaction(
   const row = checkedAttemptRow({ ...head.attempt, live: head.live }, expected);
   if (Number(head.engine_epoch) !== expected.engineEpoch) fail('ENGINE_EPOCH_CONFLICT');
   if (!row.live || row.status !== 'response_received') fail('ATTEMPT_STALE');
+  await assertNoLivePlayerTurn(sql, ownerId, expected);
   if (
     w.version < expected.expectedWorldVersion + 1 ||
     state.worldId !== expected.worldId ||

@@ -19,6 +19,7 @@ import {
   beginAgentCommitInTransaction,
   beginAgentCommitFrameInTransaction,
   finishAgentCommitInTransaction,
+  supersedeAutomaticActorAttemptsInTransaction,
 } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 const at = '2026-10-15T07:00:00.000Z';
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -457,6 +458,95 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
           .rows[0].version,
         0,
       );
+    },
+  );
+  await t.test(
+    'a live player private turn fences automatic wake commits but not its own commit',
+    async () => {
+      const f = await fixture();
+      const wake: AgentInputReceipt = {
+        ...f.receipt,
+        id: randomUUID(),
+        commandId: randomUUID(),
+        threadId: f.b,
+        recipientActorId: f.b,
+        origin: 'wake',
+        text: '{"type":"npc_own_condition_ready","candidateId":"wake-1"}',
+      };
+      const acceptedWake = await store.accept(f.owner, wake);
+      let wakeAttempt = (
+        await store.claim(f.owner, {
+          id: randomUUID(),
+          worldId: f.worldId,
+          actorId: f.b,
+          commandId: wake.commandId,
+          inputReceiptId: acceptedWake.receipt.id,
+          engineEpoch: 2,
+          expectedWorldVersion: 0,
+          expectedActorRevision: 0,
+          inputHash: wake.inputHash,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 60000).toISOString(),
+        })
+      ).attempt;
+      wakeAttempt = await store.mark(f.owner, wakeAttempt, 'request_sent');
+      wakeAttempt = await store.saveResponse(f.owner, wakeAttempt, { statements: [] });
+      let playerAttempt = (await claim(f)).attempt;
+      playerAttempt = await store.mark(f.owner, playerAttempt, 'request_sent');
+      playerAttempt = await store.saveResponse(f.owner, playerAttempt, { statements: [] });
+      await assert.rejects(
+        () =>
+          app.transaction(f.owner, (sql) =>
+            beginAgentCommitFrameInTransaction(sql, f.owner, wakeAttempt),
+          ),
+        /SUPERSEDED_BY_USER_INTERRUPT/,
+      );
+      const frame = await app.transaction(f.owner, (sql) =>
+        beginAgentCommitFrameInTransaction(sql, f.owner, playerAttempt),
+      );
+      assert.equal(frame.world.version, 0);
+      assert.equal(frame.state.revision, 0);
+    },
+  );
+  await t.test(
+    'an explicit player send retires a slow automatic attempt for the same actor',
+    async () => {
+      const f = await fixture();
+      const wake: AgentInputReceipt = {
+        ...f.receipt,
+        id: randomUUID(),
+        commandId: randomUUID(),
+        origin: 'wake',
+        text: '{"type":"npc_own_condition_ready","candidateId":"wake-blocking"}',
+      };
+      const acceptedWake = await store.accept(f.owner, wake);
+      const wakeAttempt = (
+        await store.claim(f.owner, {
+          id: randomUUID(),
+          worldId: f.worldId,
+          actorId: f.a,
+          commandId: wake.commandId,
+          inputReceiptId: acceptedWake.receipt.id,
+          engineEpoch: 2,
+          expectedWorldVersion: 0,
+          expectedActorRevision: 0,
+          inputHash: wake.inputHash,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 60000).toISOString(),
+        })
+      ).attempt;
+      await store.mark(f.owner, wakeAttempt, 'request_sent');
+      const retired = await app.transaction(f.owner, (sql) =>
+        supersedeAutomaticActorAttemptsInTransaction(sql, f.owner, f.worldId, f.a),
+      );
+      assert.equal(retired, 1);
+      assert.equal(
+        (await store.lookup(f.owner, f.worldId, wake.commandId))?.status,
+        'stale_discarded',
+      );
+      const player = (await claim(f)).attempt;
+      assert.equal(player.actorId, f.a);
+      assert.equal(player.status, 'reserved');
     },
   );
   await t.test(
