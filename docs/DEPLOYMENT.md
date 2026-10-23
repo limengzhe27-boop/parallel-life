@@ -1,3 +1,10 @@
+## 2026-10-24 · 44-206 表情与文字分开发
+
+- `main 81afd18c`；Git 部署 READY，正式别名 health 200。本批只推一次代码提交，未手动 `vercel --prod`。
+- 最终解析与流式解析把 `text + stickerId` 合并 statement 拆成两条独立消息；prompt v67 明确禁止同条；不改字段/表/迁移/模型调用。
+- 真实原档：李之之 `command 80831d3c`，world v280；助手文字“嘿，今天感觉怎么样？”（ordinal 3850）与 `jiayou` 表情（ordinal 3852，text 为空）分开落库，刷新后仍分开；用户 `selected_ad` 纯表情此前已 committed 并被 NPC 承接。
+- 未完成：手机/PC、失败重试、通知/列表预览、完整真实上下文矩阵；P1 重复等待/邀约、人物归属、持续推进另列。
+
 ## 2026-10-24 · P0 长档保存、44-204、80 表情与导演上下文批次
 
 - 最新 `main e496bd3d`；Git 触发部署 `5bb579ab` ERROR（`ignoreCommand` 在 Vercel 无 `.git`，已撤回）、`d0c304b9`/`f0212a7a`/`ff195605`/`025b94b5`/`e496bd3d` READY；正式别名 health 200。本批未手动 `vercel --prod`。
