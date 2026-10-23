@@ -1998,3 +1998,29 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
 没有老周；需要既有独立 worker，未为验收启动生产 worker 或伪造 NPC 到场。T2-7
 “现场 NPC 对话”因此保持待验收，44-196 不勾完成。详见
 [44-196 报告](task-reports/44-196-NPC-HUMAN-FEEL-CLOSURE-PLAN.md)。
+
+## 2026-10-23 · 44-196 第二轮：worker 配置与现场 NPC 对话
+
+业务代码 `14f01259` 已推送；`parallel-world` 部署
+`dpl_7uHZGoFJfZRb88J4PiHFfdjQ6ED3` READY，`parallel-world-eosin.vercel.app/api/health`
+200。无新 SQL 迁移；旧 `parallel-life` 项目构建限额 failure，未使用其产物。
+
+- 生产任务接口原返回 503。Vercel Production 已有 `WORKER_DATABASE_URL`，但用受限
+  `pl_worker` 直连生产库验证 `claim_task_for_owner` 可认领；更新该生产值为已验证连接并
+  Redeploy `dpl_AGjqqwiasUoqGAL9TCYRRuhWXRvB` 后接口恢复。旧任务 `9cafe9d3...`
+  重跑得到 `VERSION_CONFLICT`（expected 165，world 169），未自动重试，改为重开当前版本现场。
+- 根因不是 worker 本身：官方世界没有 version-0 演员位置，现场确定性环境只能证明玩家。
+  新增 preset `initialPlaceKey`（老周=`repair_shop`）、`officialGenesisPositions` 和官方
+  世界创建时的权威位置写入；旧验收世界按同一作者位置做一次性 backfill（version 0、
+  无 source event）。另修无在场演员时任务永久 `running` 的缺陷，改为已知
+  `INVALID_COMMAND`。
+- 现场 `6367b839-41bd-4ba5-9dda-00c7557b9cfc`（world v177）environment v178 的
+  presence 同时包含玩家和老周；现场动作任务 `c8d2f404-7c63-48cd-9eab-fe298e71cce6`
+  succeeded、result v180，老周返回三条真实对话。截图
+  [现场与老周对话](task-reports/assets/44-196-scene-laozhou-dialogue.png)。T2-7 通过。
+- 本地 `npm run check` 3943/3943、`npm run build` 通过；新增
+  `official-genesis-positions` 2/2。
+- T2-3 仍未过：锁屏有代码生成的过期日历卡，但清掉老周开放提问后 `/advance` 仍返回
+  `played:0`，没有真实 NPC 到点/过期消息。44-196 保持待验收，不把日历卡或单测冒充
+  真实模型样本。详见
+  [44-196 报告](task-reports/44-196-NPC-HUMAN-FEEL-CLOSURE-PLAN.md)。
