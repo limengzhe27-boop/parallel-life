@@ -2573,7 +2573,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
   - 实测脚本：`node scripts/verify-live-image-generation.mjs`。
   - 实际结果：NPC「简」成功在微信聊天中响应自拍意图，Outbox 事务落盘并派发 Task，Worker 调用 Yibu 网关生成 1.73MB 真实图像，Asset 下载 HTTP 200，PNG Magic Bytes 校验 PASS，聊天气泡与相册中 `photoId: 1a3a9554-6744-491f-82b1-5f6f65bf2925` 与 `mediaStatus: ready` 完美呈现。
 
-|44-155-CHAT-MEDIA-OPENING-I|[ ] 已部署；完整真实演绎待验收|codex-root-chat155 sole integrator|unified-engine137 from e910b748; messages route/server media task orchestration, publication-genesis/authored-appointments, native entry/wake and focused tests/report. opening_fix subagent exclusive entry/wake; 小安 readonly.|Normal chat executes original durable image tasks without manual script; remove invented +2h invitations; existing migrated authored opening same engine, no forced success/model retry. Necessary check/build/DB and READY. No new paid validation authorized.|开始定位接线。|
+|44-155-CHAT-MEDIA-OPENING-I| [x] 已完成（真实聊天索图→媒体任务→ready图片；生产Grok） |codex-root-chat155 sole integrator|unified-engine137 from e910b748; messages route/server media task orchestration, publication-genesis/authored-appointments, native entry/wake and focused tests/report. opening_fix subagent exclusive entry/wake; 小安 readonly.|Normal chat executes original durable image tasks without manual script; remove invented +2h invitations; existing migrated authored opening same engine, no forced success/model retry. Necessary check/build/DB and READY. No new paid validation authorized.|开始定位接线。|
 
 155接续：原聊天after→原Worker执行本人本world/event的queued媒体，pending只读刷新；删无依据+2h邀约生成器，保明确原稿邀约；删kernel关键词自动造媒体，人物拒绝不收费生图；同NPC深聊可承接自己待演事件，不唤其他人/全局导演；责任引用目录/最新协商优先。小安只读、opening_fix限定entry，root唯一集成。check3354、原entryPG10、媒体PG1/能力6/焦点5过，0新商业调用、0生产档写。旧档Director quiet保留，完整自然开场与已造2h记录来源核销未完，不冒称完成。
 
@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/165/139/137 验收、44-161/162 边界收敛与外部 44-199 子任务登记后，当前总表 259 行、28 条未完成（其中 5 条历史相关行保留），23 条才是活跃项（含外部 `44-198` 与 44-199 四条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/165/139/137/155 验收、44-161/162 边界收敛与外部 44-199 子任务登记后，当前总表 260 行、28 条未完成（其中 5 条历史相关行保留），23 条才是活跃项（含外部 `44-198` 与 44-199 五条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -3035,3 +3035,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · MEDIA-GROK-01 集成收口
 
 `a268d86a` 已把 Grok native `images/generations`/`images/edits` 与既有授权参考图链路合入主分支；最终收窄版 check3956/3956、build、pipeline11/11、handler6/6、真实PG1/1 通过。真实生成累计 11 次=5成功/6明确失败/0 unknown；旧地点样本只保留像素证据，不冒充新版本端到端。生产 `YIBU_IMAGE_MODEL` 未切换，真实媒体链/手机投递仍归 `44-155/44-158-LIVE`，不以本行完成代替。
+
+### 2026-10-23 · 44-155 生产 Grok 真实索图
+
+生产 `YIBU_IMAGE_MODEL=grok-imagine-image-2.0`，`dpl_DMbYz9sv2HTZjAt7N1VBEYK3chPk` READY。合成世界 `县城黄毛` 微信林悦真实输入“发一张你现在的照片给我”，产生 `media_f564...`，`photoId=a6e9d682-8ff5-4dd7-a68e-55440823521e`、`mediaStatus=ready`，资产 URL 200/image/jpeg/327366 bytes，手机聊天真实显示。world v229→232，0 unknown，测试世界已暂停。截图 `task-reports/assets/44-155-real-grok-image.png`。该链路通过不等于 44-158 长期延迟/多轮/一致性全通过。

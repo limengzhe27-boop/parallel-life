@@ -29,3 +29,14 @@ These changes remove identified transport/execution/focus bugs. They do not prov
 Business 04db62dde3b505526a68070d70858108e90540c0, dpl_4Lyn4ohNHdwXM74JZWJiNxfbjxnK exact READY and formal alias parallel-life-nu.vercel.app verified. Final check3354/build passed. Public health/workbench200 and anonymous publications/publisher works401; original paused synthetic trial old/new clock protocol200, still paused. No new paid calls. Local browser TaskSpace210 synthetic UI mobile390x844 / PC1365x900 screenshots inspected, no model or generation run; finished/closed. This UI check is not live media performance evidence.
 
 Full old-save opening and commercial automatic image journey remain unaccepted, tracked in canonical DEVELOPMENT.md. Current old-save Director quiet is retained; no forced authored opportunity or hidden paid retry introduced. Prior artificial +2h records have not been bulk removed without source reconciliation.
+
+## 2026-10-23 生产 Grok 真实索图（通过）
+
+- 生产 `YIBU_IMAGE_MODEL` 已切到 `grok-imagine-image-2.0`，新部署 `dpl_DMbYz9sv2HTZjAt7N1VBEYK3chPk` READY，正式域名 health 200。
+- 合成验收世界 `县城黄毛`，微信林悦真实输入“发一张你现在的照片给我。”；NPC 先回复“你等着，我给你拍张照片。”，随后产生 `media_f564...` 媒体消息。
+- 媒体消息 `photoId=a6e9d682-8ff5-4dd7-a68e-55440823521e`，`mediaStatus=ready`，标题“【留影】林悦的生活随拍”，`mediaType=image`；world version 229→232。
+- 授权资产 URL `/api/v1/assets/{photoId}?worldId=...&revision=1` 返回 **200 / image/jpeg / 327366 bytes**；手机聊天内真实显示林悦照片。
+- 截图：[44-155-real-grok-image.png](assets/44-155-real-grok-image.png)。
+- 0 unknown；未手工插入图片/消息；测试世界已暂停。
+
+这证明“普通聊天 → 原媒体任务/队列 → Grok 真实生成 → 存储 → ready → 手机显示”的生产链路已打通。仍不等于 `44-158-LIVE` 的长期延迟/多轮/人物一致性全部通过。

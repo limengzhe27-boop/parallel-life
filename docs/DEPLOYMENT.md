@@ -2122,3 +2122,10 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
 ## 2026-10-23 · 44-198 新账号接管
 
 `54be25c0` → 新账号 `lmz3/parallel-world`，部署 `dpl_4f6qRfnVnbQPTHASKddXUd5LZv6x` READY；正式别名 `parallel-world-eosin.vercel.app`。补齐发布后台三项和scheduler数据库配置，原角色权限保持。公网会话200、发布登录/作品读取200、合成图上传201/读取200/清理204。108迁移一致（0104已存在表，仅补账本），旧数据不删。build通过；check因本地测试库42P06阻断，未记通过。旧项目cron/Git因无旧账号权限未停，按用户最新要求单独保留，不宣称已全量切断旧运行。详见44-198报告。
+
+## 2026-10-23 · 44-155 Grok 图像生产切换与首次真实索图
+
+- 生产 `YIBU_IMAGE_MODEL` 更新为 `grok-imagine-image-2.0`；`vercel --prod` 部署 `dpl_DMbYz9sv2HTZjAt7N1VBEYK3chPk` READY，正式别名 `parallel-world-eosin.vercel.app` health 200。未在文档记录密钥/原值；切换前配置可回滚。
+- 合成世界 `县城黄毛`，微信林悦真实输入“发一张你现在的照片给我。”：NPC 回复“你等着，我给你拍张照片。”，媒体消息 `media_f564ee76...`，`photoId=a6e9d682-8ff5-4dd7-a68e-55440823521e`，`mediaStatus=ready`，标题“【留影】林悦的生活随拍”。
+- 授权资产 URL `/api/v1/assets/{photoId}?worldId=5f296...&revision=1` 返回 200 / image/jpeg / 327366 bytes；手机聊天真实显示。截图 `task-reports/assets/44-155-real-grok-image.png`。
+- world version 229→232，0 unknown，未手工插消息；测试世界已暂停。该次是生产 Grok 首次真实图片，不等同 44-158-LIVE 的长延迟、多轮人物一致性、失败/取消与相册投递全部通过。
