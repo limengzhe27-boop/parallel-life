@@ -298,8 +298,15 @@ test('actual media completion wakes its own native actor once under a pending Di
       async complete(messages) {
         const payload = JSON.parse(messages.find((m) => m.role === 'user')!.content);
         assert.equal(payload.replyAs?.actorId, 'a');
+        const observations = [
+          ...payload.observations,
+          ...(payload.presentationContext?.internalContext ?? []).map(
+            (entry: any) => entry.observation,
+          ),
+        ];
         assert.ok(
-          payload.observations.some((o: any) => {
+          observations.some((o: any) => {
+            if (o.kind === 'own_media_completion') return true;
             try {
               return JSON.parse(o.text).kind === 'own_media_completion';
             } catch {
