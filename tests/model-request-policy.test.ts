@@ -42,6 +42,11 @@ test('request budget includes all messages, preserves 85k director input and exa
 });
 
 test('schema and tokens use the same pure preflight and safe bounded diagnostics', () => {
+  const largeButAllowed: ModelOutputOptions = {
+    ...output,
+    schema: { type: 'object', description: 'x'.repeat(26000) },
+  };
+  assert.doesNotThrow(() => validateModelRequest(messages(6000), 4096, largeButAllowed));
   const oversized: ModelOutputOptions = {
     ...output,
     schema: { type: 'object', description: 'PRIVATE'.repeat(MODEL_SCHEMA_CHARACTER_LIMIT) },

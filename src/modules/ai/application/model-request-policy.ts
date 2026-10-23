@@ -3,7 +3,8 @@ import type { ModelMessage, ModelOutputOptions } from './ports.ts';
 
 export { MODEL_TEXT_CHARACTER_LIMIT } from './model-content.ts';
 export const DEFAULT_MODEL_OUTPUT_TOKENS = 4096;
-export const MODEL_SCHEMA_CHARACTER_LIMIT = 24000;
+/** Long-lived worlds accumulate source/goal enums; keep a bounded but usable schema. */
+export const MODEL_SCHEMA_CHARACTER_LIMIT = 32000;
 export type ModelRequestFailureReason =
   | 'INPUT_TEXT_LIMIT'
   | 'INPUT_CONTENT_INVALID'

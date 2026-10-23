@@ -230,12 +230,22 @@ export async function runNpcAgent(
         // A failing mark must not trigger another model invocation or hide the original failure.
         const rejection = modelRequestRejection(error);
         const notSent = modelRequestNotSent(error);
+        const preflight = (() => {
+          if (!notSent || !error || typeof error !== 'object') return {};
+          const e = error as { reason?: unknown; actual?: unknown; limit?: unknown };
+          return {
+            ...(typeof e.reason === 'string' ? { reason: e.reason } : {}),
+            ...(typeof e.actual === 'number' ? { actual: e.actual } : {}),
+            ...(typeof e.limit === 'number' ? { limit: e.limit } : {}),
+          };
+        })();
         if (rejection || notSent) {
           try {
             const saved = await deps.attempts.saveResponse(ownerId, attempt, {
               kind: notSent ? 'model_preflight_rejection' : 'model_request_rejection',
               schemaVersion: 1,
               ...(rejection ?? {}),
+              ...preflight,
             });
             await deps.attempts.mark(ownerId, saved, 'invalid_output');
           } catch {
