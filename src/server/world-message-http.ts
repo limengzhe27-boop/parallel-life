@@ -227,16 +227,26 @@ export async function worldMessageRoute(request: Request, worldId: string) {
     // Each execution entry checks ownership and existence itself. Do not hydrate
     // the complete phone projection a second time before accepting the turn.
     try {
-      const receipt = await s.npcAgents.sendMessageIfEnabled(s.ownerId, {
-        id: input.commandId,
-        worldId: parsedWorldId.data,
-        expectedVersion: input.expectedVersion,
-        actorId: input.actorId,
-        text: input.text,
-      });
+      const startedMedia = new Set<string>();
+      const startMedia = (eventId: string) => {
+        if (startedMedia.has(eventId)) return;
+        startedMedia.add(eventId);
+        startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, eventId);
+      };
+      const receipt = await s.npcAgents.sendMessageIfEnabled(
+        s.ownerId,
+        {
+          id: input.commandId,
+          worldId: parsedWorldId.data,
+          expectedVersion: input.expectedVersion,
+          actorId: input.actorId,
+          text: input.text,
+        },
+        { onMediaCommitted: startMedia },
+      );
       if (receipt) {
         try {
-          startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId);
+          startMedia(receipt.eventId);
         } catch (error) {
           console.warn(
             JSON.stringify({
