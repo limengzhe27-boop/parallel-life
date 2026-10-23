@@ -263,6 +263,7 @@ export type AgentCandidate = AgentIdentity & {
     | 'actor_plan'
     | 'actor_local'
     | 'responsibility'
+    | 'appointment'
     | 'conversation'
     | 'observation'
     | 'action_result';
@@ -276,6 +277,8 @@ export type AgentCandidate = AgentIdentity & {
   expectedActorRevision: number;
   priority: number;
   reason: string;
+  /** Code-timed instruction for this wake, distinct from the scheduler's reason. */
+  wakeCue?: string;
   requiresCoordination: boolean;
   /** The exact private plan/result selected by the existing scheduler. */
   planReview?: { planId: string; goalId: string; result?: AgentActionResult };

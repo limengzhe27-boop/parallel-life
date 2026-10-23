@@ -556,6 +556,17 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
             return snapshot.input.text;
           }
         })();
+  const codeTimedCue =
+    snapshot.input.origin === 'wake'
+      ? (() => {
+          try {
+            const wake = JSON.parse(snapshot.input.text) as { wakeCue?: unknown };
+            return typeof wake.wakeCue === 'string' ? wake.wakeCue : '';
+          } catch {
+            return '';
+          }
+        })()
+      : '';
   const wirePayload = () => {
     // Partition only the final retained records; budget trimming still operates on
     // the original ordered pool and never duplicates or rewrites source content.
@@ -601,7 +612,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       content:
         snapshot.input.origin === 'player'
           ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。无状态变化时changes=null。`
-          : `当前为服务器${snapshot.input.origin}唤醒，不是玩家新消息。来源仍为${inputSourceRef}。你是${snapshot.actor.name}，自行决定是否参与或保持安静；不要把任务说明复述成向玩家索取任务。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
+          : `${codeTimedCue ? `服务器代码定时提示（必须按这个阶段回应，不能改写成别的阶段）：${codeTimedCue}\n` : ''}当前为服务器${snapshot.input.origin}唤醒，不是玩家新消息。来源仍为${inputSourceRef}。你是${snapshot.actor.name}，自行决定是否参与或保持安静；不要把任务说明复述成向玩家索取任务。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
     },
   ];
   const fits = () =>

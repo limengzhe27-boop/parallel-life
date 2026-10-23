@@ -119,7 +119,7 @@ function responsibility(a: ActorRead, change: Partial<AgentResponsibility> = {})
 }
 async function collect(
   v: SchedulingView,
-  source?: 'actor_plan' | 'responsibility' | 'observation',
+  source?: 'actor_plan' | 'responsibility' | 'appointment' | 'observation',
 ) {
   const outputs = await Promise.all(
     createAgentScheduleSources(v)
@@ -577,6 +577,90 @@ test('cancelled/foreign/future-response/unknown-source appointments cannot trigg
     assert.equal((await collect(view([a]), 'responsibility')).candidates.length, 0, change);
   }
 });
+function appointmentActor(storyAt: string, appointmentAt: string) {
+  const a = actor();
+  a.snapshot.storyAt = storyAt;
+  a.snapshot.worldContext!.time.storyAt = storyAt;
+  a.appointments = [
+    {
+      id: 'ap',
+      title: '一起吃饭',
+      at: appointmentAt,
+      participantIds: ['a'],
+      status: 'confirmed',
+      sourceEventId: 'ap-event',
+    },
+  ];
+  a.snapshot.sources.push({
+    id: 'appointment:ap',
+    kind: 'world_event',
+    recordId: 'ap-event',
+    worldVersion: 4,
+    at: '2026-10-15T06:00:00.000Z',
+  });
+  return a;
+}
+function viewAt(storyAt: string, actors = [actor()]): SchedulingView {
+  return { ...view(actors), storyAt };
+}
+test('confirmed appointment yields one code-timed wake per phase with explicit cue', async () => {
+  for (const [storyAt, appointmentAt, phase, cue] of [
+    ['2026-10-15T09:30:00.000Z', '2026-10-15T10:30:00.000Z', 'upcoming', '临行提醒'],
+    ['2026-10-15T10:30:00.000Z', '2026-10-15T10:00:00.000Z', 'due', '约定时间'],
+    ['2026-10-15T12:00:00.000Z', '2026-10-15T10:00:00.000Z', 'overdue', '过去一小时以上'],
+  ] as const) {
+    const a = appointmentActor(storyAt, appointmentAt);
+    const result = await collect(viewAt(storyAt, [a]), 'appointment');
+    assert.equal(result.candidates.length, 1, phase);
+    const candidate = result.candidates[0]!;
+    assert.equal(candidate.source, 'appointment');
+    assert.equal(candidate.priority, 65);
+    assert.deepEqual(candidate.resourceIds, ['appointment:ap']);
+    assert.equal(candidate.requiresCoordination, false);
+    assert.match(candidate.wakeCue!, new RegExp(cue));
+    assert.match(candidate.wakeCue!, /不能|绝不能/);
+  }
+});
+test('appointment wake is bounded to its phase windows and has stable identity', async () => {
+  const far = appointmentActor('2026-10-15T07:00:00.000Z', '2026-10-15T10:00:00.000Z');
+  assert.equal(
+    (await collect(viewAt('2026-10-15T07:00:00.000Z', [far]), 'appointment')).candidates.length,
+    0,
+  );
+  const late = appointmentActor('2026-10-15T23:00:00.000Z', '2026-10-15T10:00:00.000Z');
+  assert.equal(
+    (await collect(viewAt('2026-10-15T23:00:00.000Z', [late]), 'appointment')).candidates.length,
+    0,
+  );
+  const a = appointmentActor('2026-10-15T09:30:00.000Z', '2026-10-15T10:30:00.000Z');
+  const first = (await collect(viewAt('2026-10-15T09:30:00.000Z', [a]), 'appointment'))
+    .candidates[0]!;
+  const second = (await collect(viewAt('2026-10-15T09:30:00.000Z', [a]), 'appointment'))
+    .candidates[0]!;
+  assert.equal(first.id, second.id);
+  const due = appointmentActor('2026-10-15T10:30:00.000Z', '2026-10-15T10:00:00.000Z');
+  const dueCandidate = (await collect(viewAt('2026-10-15T10:30:00.000Z', [due]), 'appointment'))
+    .candidates[0]!;
+  assert.notEqual(first.id, dueCandidate.id);
+});
+test('a real message in the phase window settles the moment without a duplicate wake', async () => {
+  for (const [storyAt, appointmentAt, last] of [
+    ['2026-10-15T09:30:00.000Z', '2026-10-15T10:30:00.000Z', '2026-10-15T09:00:00.000Z'],
+    ['2026-10-15T10:30:00.000Z', '2026-10-15T10:00:00.000Z', '2026-10-15T10:15:00.000Z'],
+    ['2026-10-15T12:00:00.000Z', '2026-10-15T10:00:00.000Z', '2026-10-15T11:30:00.000Z'],
+  ] as const) {
+    const a = appointmentActor(storyAt, appointmentAt);
+    const v = { ...viewAt(storyAt, [a]), lastAssistantAtByActor: { a: last } };
+    assert.equal((await collect(v, 'appointment')).candidates.length, 0, storyAt);
+  }
+});
+test('confirmed appointment is owned by the code-timed source, not a duplicate responsibility wake', async () => {
+  const storyAt = '2026-10-15T10:30:00.000Z';
+  const a = appointmentActor(storyAt, '2026-10-15T10:00:00.000Z');
+  responsibility(a, { subject: { kind: 'appointment', id: 'ap' } });
+  assert.equal((await collect(viewAt(storyAt, [a]), 'responsibility')).candidates.length, 0);
+  assert.equal((await collect(viewAt(storyAt, [a]), 'appointment')).candidates.length, 1);
+});
 test('strict source/time boundaries reject rolled calendar dates and future evidence', async () => {
   for (const when of ['2026-02-30T10:00:00.000Z', '2026-10-15T24:00:00.000Z']) {
     const a = actor();
@@ -604,6 +688,33 @@ test('factory captures detached immutable view and never returns internal mutabl
   const two = await sources[0]!.source.collect('owner', 'w');
   assert.notEqual(two.candidates[0]!.reason, 'caller modified');
   await assert.rejects(sources[0]!.source.collect('owner', 'foreign'), { code: 'INVALID_COMMAND' });
+});
+test('scheduler preserves the code-timed wake cue in the selected candidate', async () => {
+  const storyAt = '2026-10-15T09:30:00.000Z';
+  const a = appointmentActor(storyAt, '2026-10-15T10:30:00.000Z');
+  const v = viewAt(storyAt, [a]);
+  const result = await scheduleAgents(
+    {
+      sources: createAgentScheduleSources(v),
+      director: {
+        async coordinate() {
+          throw Error('No coordination needed');
+        },
+      },
+    },
+    {
+      ownerId: 'owner',
+      worldId: 'w',
+      engineEpoch: 2,
+      worldVersion: 5,
+      storyAt,
+      actorRevisions: { a: 2 },
+      observations: [],
+    },
+  );
+  const selected = result.selected.find((item) => item.candidate.source === 'appointment');
+  assert.ok(selected);
+  assert.match(selected.candidate.wakeCue!, /临行提醒/);
 });
 test('scheduler selects another actor when one is unknown, without calling a model or retrying unknown', async () => {
   const v = {
@@ -677,7 +788,7 @@ test('stale one-actor projection is a scoped source failure; other actors contin
     },
   );
   assert.equal(result.selected[0]!.candidate.actorId, 'b');
-  assert.equal(result.sourceFailures.length, 3);
+  assert.equal(result.sourceFailures.length, 4);
   assert.ok(
     result.sourceFailures.every((f) => f.scope.kind === 'actor' && f.scope.actorId === 'a'),
   );

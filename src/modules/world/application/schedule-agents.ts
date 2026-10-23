@@ -179,6 +179,7 @@ function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandi
       'expectedActorRevision',
       'priority',
       'reason',
+      'wakeCue',
       'requiresCoordination',
       'planReview',
     ]) &&
@@ -194,6 +195,7 @@ function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandi
       'actor_plan',
       'actor_local',
       'responsibility',
+      'appointment',
       'conversation',
       'observation',
       'action_result',
@@ -213,6 +215,8 @@ function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandi
     Number.isFinite(v.priority) &&
     typeof v.reason === 'string' &&
     v.reason.trim().length > 0 &&
+    (v.wakeCue === undefined ||
+      (typeof v.wakeCue === 'string' && v.wakeCue.trim().length > 0 && v.wakeCue.length <= 800)) &&
     typeof v.requiresCoordination === 'boolean'
   );
 }
@@ -242,6 +246,7 @@ function canonical(candidate: AgentCandidate): AgentCandidate {
     expectedActorRevision: candidate.expectedActorRevision,
     priority: candidate.priority,
     reason: candidate.reason,
+    ...(candidate.wakeCue ? { wakeCue: candidate.wakeCue } : {}),
     requiresCoordination: candidate.requiresCoordination,
   });
 }

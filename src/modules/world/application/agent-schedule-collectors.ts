@@ -1,4 +1,5 @@
 import type { ActorAgendaInitializeGrant } from '../domain/actor-agenda-initialization.ts';
+import { worldDateTimeLabel } from '../domain/display-time.ts';
 import { collectPendingSceneObservationCandidates } from '../domain/actor-observation-candidate.ts';
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
 import { agentConditionsReady } from './agent-condition-checks.ts';
@@ -265,7 +266,7 @@ async function candidate(
   view: SchedulingView,
   context: ActorContext,
   input: {
-    source: 'actor_plan' | 'actor_local' | 'responsibility' | 'observation';
+    source: 'actor_plan' | 'actor_local' | 'responsibility' | 'appointment' | 'observation';
     actionId: string | null;
     sourceIds: string[];
     responsibilities: readonly AgentResponsibility[];
@@ -274,6 +275,7 @@ async function candidate(
     resourceIds?: string[];
     planReview?: AgentCandidate['planReview'];
     reason: string;
+    wakeCue?: string;
   },
 ): Promise<AgentCandidate> {
   const snapshot = context.snapshot;
@@ -312,12 +314,15 @@ async function candidate(
     priority:
       input.source === 'actor_plan'
         ? 60
-        : input.source === 'responsibility'
-          ? 50
-          : input.source === 'actor_local'
-            ? 30
-            : 40,
+        : input.source === 'appointment'
+          ? 65
+          : input.source === 'responsibility'
+            ? 50
+            : input.source === 'actor_local'
+              ? 30
+              : 40,
     reason: input.reason,
+    ...(input.wakeCue ? { wakeCue: input.wakeCue } : {}),
     requiresCoordination: episodes.length > 1,
   };
 }
@@ -680,6 +685,9 @@ async function responsibilities(view: SchedulingView, actor: ActorRead, context:
     }
     if (responsibility.subject.kind === 'appointment') {
       const appointment = actor.appointments.find((a) => a.id === responsibility.subject.id);
+      // Confirmed dates are owned by the code-timed appointment source below; the
+      // generic responsibility wake must not buy a second evaluation at the same instant.
+      if (appointment?.status === 'confirmed') continue;
       const source = appointment && context.sources.get(`appointment:${appointment.id}`);
       if (
         appointment &&
@@ -725,6 +733,91 @@ async function responsibilities(view: SchedulingView, actor: ActorRead, context:
             : {}),
         },
         reason: '当前责任有实际复查依据，重新评估本人的安排；不推定到场、同意或失约。',
+      }),
+    );
+  }
+  return out;
+}
+
+const HOUR_MS = 60 * 60_000;
+/**
+ * A confirmed date is a code-timed reason to speak, not a model-derived reminder.
+ * Each phase has a stable candidate identity, so one confirmed date yields at most
+ * one reminder, one due message and one overdue consequence even across retries.
+ */
+async function appointmentWindows(
+  view: SchedulingView,
+  actor: ActorRead,
+  context: ActorContext,
+): Promise<AgentCandidate[]> {
+  const out: AgentCandidate[] = [];
+  const actorId = context.snapshot.state.actorId;
+  const now = Date.parse(view.storyAt);
+  if (!Number.isFinite(now)) return out;
+  for (const appointment of actor.appointments) {
+    if (appointment.status !== 'confirmed' || !appointment.participantIds.includes(actorId))
+      continue;
+    if (!instant(appointment.at)) continue;
+    if (
+      appointment.responseAt !== undefined &&
+      (!instant(appointment.responseAt) || Date.parse(appointment.responseAt) > now)
+    )
+      continue;
+    if (
+      appointment.responseVersion !== undefined &&
+      (!integer(appointment.responseVersion) || appointment.responseVersion > view.worldVersion)
+    )
+      continue;
+    const source = context.sources.get(`appointment:${appointment.id}`);
+    if (
+      !source ||
+      source.recordId !== appointment.sourceEventId ||
+      !['world_event', 'authored'].includes(source.kind) ||
+      !context.basis({ id: appointment.id, sourceIds: [source.id] })
+    )
+      continue;
+    const at = Date.parse(appointment.at);
+    const phase =
+      now >= at + HOUR_MS && now <= at + 12 * HOUR_MS
+        ? ('overdue' as const)
+        : now >= at && now < at + HOUR_MS
+          ? ('due' as const)
+          : at > now && at - now <= 2 * HOUR_MS
+            ? ('upcoming' as const)
+            : null;
+    if (!phase) continue;
+    // A real message in this phase's window already settles the moment. This is
+    // evaluated against the world's story times, not the ambient phone clock.
+    const lastAssistant = Date.parse(view.lastAssistantAtByActor?.[actorId] ?? '');
+    if (
+      (phase === 'upcoming' && lastAssistant >= at - 2 * HOUR_MS) ||
+      (phase === 'due' && lastAssistant >= at) ||
+      (phase === 'overdue' && lastAssistant >= at + HOUR_MS)
+    )
+      continue;
+    const label = worldDateTimeLabel(appointment.at);
+    const minutes = Math.max(1, Math.ceil((at - now) / 60_000));
+    const cue =
+      phase === 'upcoming'
+        ? `服务器按时间确认：你和主角已确认「${appointment.title}」，约定在${label}，距现在约${minutes}分钟。现在只做临行提醒或确认出发安排；不能说已经见面、已经赴约，也不要替主角确认。请给主角发一条符合此阶段的短消息。`
+        : phase === 'due'
+          ? `服务器按时间确认：你们确认的「${appointment.title}」约定时间${label}已到，主角是否到场没有证据。现在可以询问、等待或说明你本人的安排；绝不能声称看见主角、已经赴约，也不能指责主角迟到或失约。请给主角发一条符合此阶段的短消息。`
+          : `服务器按时间确认：你们确认的「${appointment.title}」约定在${label}，现在已经过去一小时以上，仍没有到场或结果记录。可以承接这段真实经过的等待、离开或改期；不能编造主角到场、故意失约、出事故，也不能说关系已经因此改变。请给主角发一条符合此阶段的短消息。`;
+    out.push(
+      await candidate(view, context, {
+        source: 'appointment',
+        actionId: null,
+        sourceIds: [source.id],
+        responsibilities: [],
+        resourceIds: [`appointment:${appointment.id}`],
+        semantic: {
+          appointmentId: appointment.id,
+          at: appointment.at,
+          phase,
+          sourceVersion: source.worldVersion,
+        },
+        reason: cue,
+        wakeCue: cue,
       }),
     );
   }
@@ -950,6 +1043,7 @@ export function createAgentScheduleSources(
           'actor_plan',
           'actor_local' as const,
           'responsibility',
+          'appointment' as const,
           ...(view.agendaInitializeGrants?.some((g) => g.actorId === actor.snapshot.state.actorId)
             ? ['agenda_initialize' as const]
             : []),
@@ -1037,9 +1131,11 @@ export function createAgentScheduleSources(
                     ])
                   : source === 'responsibility'
                     ? responsibilities(view, actor, context)
-                    : source === 'actor_local'
-                      ? localInitiative(view, context)
-                      : observations(view, context))
+                    : source === 'appointment'
+                      ? appointmentWindows(view, actor, context)
+                      : source === 'actor_local'
+                        ? localInitiative(view, context)
+                        : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };
           },

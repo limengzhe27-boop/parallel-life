@@ -804,8 +804,7 @@ export function npcAgentAdvanceServices(
       });
       const sources = registrations
         .filter(
-          (source) =>
-            !batch?.localInitiativeStarted() || !source.id.startsWith('actor_local:'),
+          (source) => !batch?.localInitiativeStarted() || !source.id.startsWith('actor_local:'),
         )
         .map(wrap);
       const existingCollections = await Promise.all(
@@ -1251,6 +1250,7 @@ export function npcAgentAdvanceServices(
                   source: candidate.source,
                   actionId: candidate.actionId,
                   basisSourceIds: candidate.sourceIds,
+                  ...(candidate.wakeCue ? { wakeCue: candidate.wakeCue } : {}),
                   ...(candidate.planReview ? { planReview: candidate.planReview } : {}),
                   nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
                 });
