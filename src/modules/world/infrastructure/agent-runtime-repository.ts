@@ -352,7 +352,25 @@ export async function acceptAgentInputInTransaction(
     )
   ).rows[0];
   if (row) {
-    if (receiptBody(row.document) !== receiptBody(input)) fail('COMMAND_CONFLICT');
+    if (receiptBody(row.document) !== receiptBody(input)) {
+      const stored = row.document as AgentInputReceipt;
+      // Diagnostics carry opaque IDs only; never player text or source content.
+      console.warn(
+        JSON.stringify({
+          scope: 'agent-input-command-conflict',
+          commandId: input.commandId,
+          incomingOrigin: input.origin,
+          storedOrigin: stored.origin,
+          incomingExpectedWorldVersion: input.expectedWorldVersion,
+          storedExpectedWorldVersion: stored.expectedWorldVersion,
+          incomingReceiptId: input.id,
+          storedReceiptId: stored.id,
+          incomingHash: input.inputHash.slice(0, 8),
+          storedHash: stored.inputHash.slice(0, 8),
+        }),
+      );
+      fail('COMMAND_CONFLICT');
+    }
     return { receipt: row.document, replay: true };
   }
   if (input.recipientActorId !== null) actorExists(w, input.recipientActorId);
@@ -575,7 +593,22 @@ export class PostgresAgentRuntimeRepository
           'expectedWorldVersion',
           'expectedActorRevision',
         ] as const)
-          if (a[k] !== input[k]) fail('COMMAND_CONFLICT');
+          if (a[k] !== input[k]) {
+            console.warn(
+              JSON.stringify({
+                scope: 'agent-attempt-command-conflict',
+                commandId: input.commandId,
+                actorId: input.actorId,
+                field: k,
+                existingStatus: old.status,
+                incoming:
+                  k === 'inputHash' ? input.inputHash.slice(0, 8) : (input[k] as string | number),
+                stored:
+                  k === 'inputHash' ? a.inputHash.slice(0, 8) : (a[k] as string | number),
+              }),
+            );
+            fail('COMMAND_CONFLICT');
+          }
         if (old.status === 'cancelled_before_send') {
           const resumed = await resumeCancelledAgentAttemptInTransaction(
             sql,
