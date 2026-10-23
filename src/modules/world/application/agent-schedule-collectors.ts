@@ -459,10 +459,21 @@ async function planReconsiderations(
     // trigger. It still deserves a bounded review opportunity: the actor can
     // speak, wait, revise or close it. This is deliberately separate from the
     // action path below, which remains condition-gated.
+    // A plan that already names a missing condition, or whose thread has an
+    // unanswered question, has no new evidence to review. Re-opening it every
+    // story hour only repeats the same ask and pressures a silent player.
+    const pendingQuestion = state.questions?.some(
+      (question) =>
+        question.status === 'open' &&
+        question.channel === context.snapshot.channel.kind &&
+        question.threadId === context.snapshot.channel.threadId,
+    );
     const savedReview = view.planReviews?.get(plan.id);
     if (
       !plan.nextActionId &&
       !plan.triggers.length &&
+      !plan.missingConditions.length &&
+      !pendingQuestion &&
       !completedStep &&
       !refs.length &&
       (!savedReview || Date.parse(savedReview.nextReviewAt) <= Date.parse(view.storyAt)) &&

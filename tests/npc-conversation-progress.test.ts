@@ -209,3 +209,34 @@ test('bounds long excerpts and marks them as incomplete without changing source 
   assert.equal(input.viewState.questions![0]!.resolution!.quote, longAnswer);
   assert.equal(input.viewState.responsibilities[0]!.summary, longSummary);
 });
+
+test('keeps only the latest open ask per responsibility or wording', () => {
+  const input = fixture();
+  input.viewState.questions!.push(
+    {
+      id: 'duplicate-open',
+      channel: 'private',
+      threadId: 'actor1',
+      sourceId: 'new-question-source',
+      text: '还需要看材料吗？',
+      askedAt: at,
+      status: 'open',
+      responsibilityId: 'design-request',
+    },
+    {
+      id: 'reworded-open',
+      channel: 'private',
+      threadId: 'actor1',
+      sourceId: 'new-question-source',
+      text: '材料还要不要再看一次？',
+      askedAt: at,
+      status: 'open',
+      responsibilityId: 'design-request',
+    },
+  );
+  const result = projectNpcConversationProgress(input);
+  assert.deepEqual(
+    result.questions.map((question) => question.id),
+    ['budget-question', 'reworded-open'],
+  );
+});

@@ -29,7 +29,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v64-adult-boundaries';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v65-no-repeat-open-question';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -98,7 +98,7 @@ media.generate_image/video是虚构世界中注册的制作能力，不要求语
 形象依据本人已授权人设，不只写姓名；姿态、构图、中性背景可自行创作，无需已有照片、真实相机或采购预算。不编造真实位置或未完成布置，设计图须明确是构想而非施工结果。确实缺权限或必要事实才说明具体缺项。入队不等于素材完成或已发出，收到真实完成结果前不得声称拍好、发送成功。不要用空计划拖延冒充已执行。
 private_strategy来源仅用于本人持续目标、计划及已有决定；其原私聊正文和decision.quote未提供，不允许补造或对群/现场转述。channel_context才是此刻渠道中的原话与观察。隐去原话不是忘记自己的决定，拒绝/暂缓仍应影响本人下一步。
 当本轮确实向玩家提出问题、邀请回答时，在相应statement增加requestsPlayerReply:true；服务器将其绑定实际生成的本人物消息，不要编未来消息ID。普通陈述不必标记。
-conversationProgress是同一授权状态的当前会话进展投影：answered及其answer只是已有回答证据，不代表责任完成；截断片段明确标记，不当作完整原话。已有待回应问题见state.questions，与当前focus和话题分开。若玩家已提供你需要的信息，结合已有回答和本次原话更新对应问题与责任，不再追问同一项；旧责任可以转为open/waitingOn:self等实际下一步，不能只复制等待玩家的旧状态。只有确实还缺新的具体信息才说明缺项并继续等待，使用完整旧sourceIds加本轮来源。回答问题不是整段任务fulfilled，也不自动代表接受邀请；无关话题不核销责任，换话题可先回应当前诉求。当前输入的承接只通过inputInterpretation一次表达；sourceId只能为当前input.sourceId，quote只能逐字引用当前input.text，不能引用旧问题的文字或旧消息来源；只评估本轮确实相关的同会话问题，无关旧问题不消费。仅评价本渠道本会话中的已知问题。天气、换话题、暂缓、不确定不能当作回答；拒绝回答也不等于拒绝邀约。回答问题本身不证明承诺、到场或任务完成。可选questionWithdrawals:[{questionId,sourceIds:本人合法依据,reason}]表示你主动撤回自己的问题，按人物立场判断，不能统一因沉默撤回。statement的questionForResponsibilityId可选，必须指向本人的已知责任且requestsPlayerReply:true。
+conversationProgress是同一授权状态的当前会话进展投影：answered及其answer只是已有回答证据，不代表责任完成；截断片段明确标记，不当作完整原话。已有待回应问题见state.questions，与当前focus和话题分开。若玩家已提供你需要的信息，结合已有回答和本次原话更新对应问题与责任，不再追问同一项；旧责任可以转为open/waitingOn:self等实际下一步，不能只复制等待玩家的旧状态。只有确实还缺新的具体信息才说明缺项并继续等待，使用完整旧sourceIds加本轮来源。若state.questions中已有open问题且本轮玩家没有回答它，不得再次提出同一问题或近似问法；只回应本轮内容或保持安静。回答问题不是整段任务fulfilled，也不自动代表接受邀请；无关话题不核销责任，换话题可先回应当前诉求。当前输入的承接只通过inputInterpretation一次表达；sourceId只能为当前input.sourceId，quote只能逐字引用当前input.text，不能引用旧问题的文字或旧消息来源；只评估本轮确实相关的同会话问题，无关旧问题不消费。仅评价本渠道本会话中的已知问题。天气、换话题、暂缓、不确定不能当作回答；拒绝回答也不等于拒绝邀约。回答问题本身不证明承诺、到场或任务完成。可选questionWithdrawals:[{questionId,sourceIds:本人合法依据,reason}]表示你主动撤回自己的问题，按人物立场判断，不能统一因沉默撤回。statement的questionForResponsibilityId可选，必须指向本人的已知责任且requestsPlayerReply:true。
 可选locationReports:[{subject:{kind:"player"}或{kind:"actor",actorId},placeId:已有地点id或null,sourceId:当前玩家输入id,quote:当前输入的逐字片段,assertion:"reported|hypothetical|uncertain"}]。只记录玩家实际告知，不把假设/引用/不确定内容当确定告知；告知仅为player_report认知，永不证明实际到达，也不新增地点。没有明确位置告知可省略。
 每项变更须引用本轮合法来源；withdrawn须endReason，完成与回执由内核维护。deadline只能逐字等于来源deadlineAt，未提供则省略；时间必须明确时区。
 同一worldId/actorId跨渠道保持身份与目标；不得猜测隐去资料或代他人说话、决定、行动。

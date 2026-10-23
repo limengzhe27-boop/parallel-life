@@ -48,45 +48,58 @@ export function projectNpcConversationProgress(input: ProgressInput): NpcConvers
       .filter((source) => source.usage !== 'private_strategy')
       .map((source) => source.id),
   );
-  const questions = (input.viewState.questions ?? [])
-    .filter(
-      (question) =>
-        question.channel === input.channel.kind &&
-        question.threadId === input.channel.threadId &&
-        authorized.has(question.sourceId) &&
-        question.text.trim() &&
-        (question.status === 'open' ||
-          (question.status === 'answered' &&
-            question.resolution &&
-            (question.resolution.kind === 'answer' ||
-              question.resolution.kind === 'decline_to_answer') &&
-            authorized.has(question.resolution.sourceId) &&
-            question.resolution.quote?.trim())),
-    )
-    .slice(-8)
-    .map((question) => {
-      const text = excerpt(question.text);
-      const answer = question.resolution?.quote ? excerpt(question.resolution.quote) : null;
-      return {
-        id: question.id,
-        sourceId: question.sourceId,
-        text: text.value,
-        ...(text.truncated ? { textTruncated: true as const } : {}),
-        status: question.status as 'open' | 'answered',
-        ...(question.responsibilityId ? { responsibilityId: question.responsibilityId } : {}),
-        ...(question.status === 'answered' && question.resolution && answer
-          ? {
-              answer: {
-                sourceId: question.resolution.sourceId,
-                quote: answer.value,
-                ...(answer.truncated ? { quoteTruncated: true as const } : {}),
-                kind: question.resolution.kind as 'answer' | 'decline_to_answer',
-                at: question.resolution.at,
-              },
-            }
-          : {}),
-      };
-    });
+  const candidates = (input.viewState.questions ?? []).filter(
+    (question) =>
+      question.channel === input.channel.kind &&
+      question.threadId === input.channel.threadId &&
+      authorized.has(question.sourceId) &&
+      question.text.trim() &&
+      (question.status === 'open' ||
+        (question.status === 'answered' &&
+          question.resolution &&
+          (question.resolution.kind === 'answer' ||
+            question.resolution.kind === 'decline_to_answer') &&
+          authorized.has(question.resolution.sourceId) &&
+          question.resolution.quote?.trim())),
+  );
+  // Keep one current open ask per linked responsibility or exact wording. Older
+  // duplicates are history, not eight separate questions the model must repeat.
+  const seenOpen = new Set<string>();
+  const deduped: typeof candidates = [];
+  for (let index = candidates.length - 1; index >= 0; index--) {
+    const question = candidates[index]!;
+    if (question.status === 'open') {
+      const key = question.responsibilityId
+        ? `responsibility:${question.responsibilityId}`
+        : `text:${question.text.trim()}`;
+      if (seenOpen.has(key)) continue;
+      seenOpen.add(key);
+    }
+    deduped.unshift(question);
+  }
+  const questions = deduped.slice(-8).map((question) => {
+    const text = excerpt(question.text);
+    const answer = question.resolution?.quote ? excerpt(question.resolution.quote) : null;
+    return {
+      id: question.id,
+      sourceId: question.sourceId,
+      text: text.value,
+      ...(text.truncated ? { textTruncated: true as const } : {}),
+      status: question.status as 'open' | 'answered',
+      ...(question.responsibilityId ? { responsibilityId: question.responsibilityId } : {}),
+      ...(question.status === 'answered' && question.resolution && answer
+        ? {
+            answer: {
+              sourceId: question.resolution.sourceId,
+              quote: answer.value,
+              ...(answer.truncated ? { quoteTruncated: true as const } : {}),
+              kind: question.resolution.kind as 'answer' | 'decline_to_answer',
+              at: question.resolution.at,
+            },
+          }
+        : {}),
+    };
+  });
   const focus = input.viewState.focus;
   const focusedId =
     focus?.channel === input.channel.kind && focus.threadId === input.channel.threadId

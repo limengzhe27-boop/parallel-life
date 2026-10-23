@@ -3061,3 +3061,41 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · 44-156 旧档锁屏真实通知
 
 正式域名只读打开 `渣男体验`，5000ms 内锁屏显示欣欣 08:26、林白语 08:22 两条真实 assistant 消息，未手工插入、未触发新模型。截图 `task-reports/assets/44-156-old-world-lock.png`。本行关闭“旧世界锁屏无主动通知”；完整 Director→NPC 自然开场/剧情质量仍归 44-161。
+
+|44-200-STICKER-CATALOG|[ ] 待验收|stickers_catalog200；root集成|.local/worktrees/sticker-catalog200；domain/stickers.ts、features/phone/stickers.ts、静态素材审计文档及专属测试|统一无框架目录、旧ID兼容；未授权素材不进public；0模型/生产/部署。|
+
+|44-200-NARRATIVE|[ ] 待验收|narrative200；root集成|.local/worktrees/narrative200；director-model-protocol.ts、director-agent-model.ts、director-agent-model.test.ts、报告44-200-NARRATIVE.md|dfb1c3a8/fcb7b278/3ffb07a7/ce6024c4；56聚焦/type通过，真实snapshot裁剪6条opening全丢→6条保留，1次真实导演9.081s解析通过但同主题双机会仍存；0生产写/部署。|
+
+|44-200-STICKER-UI|[ ] 待验收|root-sticker-ui200|.local/worktrees/sticker-ui200；features/phone/apps/messages.tsx、专属sticker UI组件/CSS及测试报告|复用发送marker，图片面板/文字共存/失败标签；typecheck/boundaries721、聚焦6/6；私聊限定；本地Ego432手机/PC/短屏+草稿/404验证完成，冻结1da9bc67，空间/3307已停；保存/真实模型归root，不部署。|
+
+|44-200-CORE|[ ] 本地已集成，待连续体验及部署|root-core200唯一集成|main已合并codex/core-stickers200；报告docs/task-reports/44-200-CORE.md|开场事实裁剪与人物绑定、表情协议/保存/UI已修；check3967/build/并发6恢复9/表情PG2通过；现有档历史snapshot真实导演1次。重复等待、同主题双机会、旧错误计划接续、原档连续体验与部署仍未完成；无新增持久字段/生产写。|
+
+|44-200-STICKER-PERSIST|[ ] 待验收|stickers_catalog200；root集成|独立sticker-persist200，仅新tests/integration/sticker-persist200.test.ts及专属报告；PG55672|借用root WIP不提交；受控模型保存/纯图/幂等/stream final必要旅程，0付费生产。|
+
+|44-201-CONTINUITY|[ ] 本地集成通过，待部署及原档连续体验|root-core201唯一集成|main合并d2845a6a及PG两提交，报告44-201-CONTINUITY.md|修复canonical丢失planReview、导演持久schema漏接及复查默认重复建目标；check3970/build/聚焦53/真实PG2通过，导演attempt全部committed。原档v154至158输入只读证实断点；0生产写/真实模型/部署。同主题双机会、旧错配接续及长期体验仍未完成。|
+
+|44-201-PLAN-REVIEW|[ ] 待验收|stickers_catalog200；root集成|只读3c7d14b2与.local/narrative200；新报告44-201-PLAN-REVIEW.md|计划复查身份链路审查，0源码/模型/生产修改。|
+
+|44-201-PLAN-REVIEW-PG|[ ] 待验收|stickers_catalog200；root集成|独立plan-review201新tests/integration/plan-review201.test.ts和报告，借用root两WIP不提交；独占PG55672|原advance模型收到精确复查plan/goal/result，重复不重买；0生产/付费。|
+
+|44-202-PLAN-DELTA|[ ] 本地已集成，待部署与连续体验|root-core202唯一集成|main集成1de9bfcc；报告44-202-PLAN-DELTA.md|省略nextStep保留原等待条件；无变化计划不写新来源；玩家回合保护收窄同actor。check3972/build/真实PG51通过；原档10回合离线decode均无冗余计划增量，0生产写/本轮真实模型/部署。重复机会、旧错配episode接续与真实长期演绎仍未完成。|
+
+|44-202-DIRECTOR-TOPIC|[ ] 待验收|narrative200；root集成|独立narrative200树，仅docs/task-reports/44-202-DIRECTOR-TOPIC.md|冻结a20b6cc4；actorTopics是关联非事件身份，同非空refs可重复开episode；建议现candidate+nudge续接，不能无依据去重。基线3c7d14b2，0源码/生产/模型。|
+
+|44-202-RUNTIME-PG|[ ] 待验收|stickers_catalog200；root集成|独立plan-review201树借用root runtime/test不提交；新报告44-202-RUNTIME-PG.md；PG55672|同人物抢占保护、跨人物不冻结及既有并发/恢复必要PG，0生产/付费。|
+
+|44-203-EPISODE-RETIREMENT-PG|[x] 已集成验证|stickers_catalog200；root集成|独立episode-retirement203；新tests/integration/episode-retirement203.test.ts和报告44-203-EPISODE-RETIREMENT-PG.md；PG55672|ede3b39d；原入口PG双场景1/1：全拒绝撤回、quiet保留、SQL伪造拒绝/RLS、其他事件仍eligible；不改公共源码/生产/模型。|
+
+|44-203-EPISODE-WITHDRAWAL-DOMAIN|[x] 已集成验证|narrative200；root集成|narrative200树；domain/episode-participation-lifecycle.ts、tests/episode-withdrawal203.test.ts、报告44-203-EPISODE-WITHDRAWAL.md|冻结57050037；完整唯一全decline且proposed才withdraw；21聚焦/type通过；0模型/生产。root仓储SQL接线，active退出不涵盖。|
+
+|44-203-EPISODE-WITHDRAWAL|[ ] 已部署，待真实连续体验|root-core203唯一集成|复用core-stickers200；agent-narrative-repository.ts、authored-event-eligibility-repository.ts、0111_episode_decline_withdrawal.sql、报告；domain子Agent与PG子Agent独占各自文件|所有参与者明确拒绝才能withdraw proposed，拒绝不冒充完成；作者键保留拒绝终态防重开；不添加表/字段，原事务与来源校验，真实PG必要验证。main 3f80ef99；check3976/build通过，原入口PG通过；生产0111已应用，推送触发唯一新部署h8ttnj0lr，READY，正式域名已绑定且health 200；未做原档真实模型连续验收，不宣称长期推进完成。|
+
+|44-204-DOMAIN|[x] 已集成验证|root集成|main；episode-participation-lifecycle.ts、tests/episode-active-withdrawal204.test.ts、报告44-204-DOMAIN.md|active共享事件全员真实退出纯判断；原receipt不改；8/8单元/type通过；0生产/模型。|
+
+|44-204-ACTIVE-WITHDRAWAL|[ ] 已集成，待部署/原档验收|root-core204唯一集成|main；episode-lifecycle-repository.ts、npc-agent-kernel.ts、0112_active_episode_withdrawal.sql、tests/integration/episode-active-withdrawal204.test.ts、报告44-204-PG.md|复用明确goal/responsibility退出，原engage历史不改；全员无开放工作才结束，媒体/在途/unknown保护；无新字段。main集成；check3987/build通过；生产0112已应用；部署与原档真实体验待完成。|
+
+|44-204-PG|[x] 已集成验证|root集成|main；tests/integration/episode-active-withdrawal204.test.ts、报告44-204-PG.md|原入口engage后明确goal/plan退出，单人/多人终止及quiet/只关plan负向；真实PG1/1通过；0生产写/真实模型。|
+
+|44-205-P0-ACCEPT|[ ] 已线上验证，待本批部署复验|root唯一集成|线上渣男体验4953…；无源码|舒雅婷真实发送command928cd6ce→committed、world v265、用户原话+3条NPC消息落库；同command以原expectedVersion复放200且metrics.modelCallCount=0、同一event；旧unknown d522…仍unknown_after_send、无event/消息。|
+|44-205-REPEAT-WAIT|[ ] 本地验证，待部署/真实体验|root唯一集成|agent-schedule-collectors.ts、npc-conversation-progress.ts、npc-agent-model.ts及聚焦测试|blocked+missingConditions或同会话open question不再每小时重开计划复查；prompt v65禁止对未回答open问题重复近似追问；projection只保留最新open问题/责任；47/47调度、5/5进度、101聚焦通过；check3987/build通过；真实模型待部署后验。|
+|44-205-PUBLISH|[ ] 待部署验证|root唯一集成|vercel.json、docs/DEPLOYMENT.md|Git为唯一发布入口；ignoreCommand跳过纯docs/tests/reports；历史16:13–16:41同sha 1 Git+2 CLI已记录，本批不再手动`vercel --prod`；部署READY后补公网证据。|

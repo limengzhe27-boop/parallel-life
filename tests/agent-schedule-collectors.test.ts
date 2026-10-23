@@ -1089,6 +1089,47 @@ test('actionless plan gets one bounded proactive review per story hour', async (
   assert.notEqual(second.id, first.id);
 });
 
+test('actionless plan with a missing condition or an open question does not re-ask every story hour', async () => {
+  const a = actor();
+  a.snapshot.state.actions = [];
+  a.snapshot.state.plans[0]!.actionIds = [];
+  a.snapshot.state.plans[0]!.nextActionId = null;
+  a.snapshot.state.plans[0]!.triggers = [];
+  sync(a);
+  const base = view([a]);
+  assert.equal((await collect(base, 'actor_plan')).candidates.length, 1);
+
+  const missing = structuredClone(base);
+  missing.actors[0]!.snapshot.state.plans[0]!.missingConditions = ['等待玩家回答'];
+  sync(missing.actors[0]!);
+  assert.equal((await collect(missing, 'actor_plan')).candidates.length, 0);
+
+  const asked = structuredClone(base);
+  asked.actors[0]!.snapshot.state.questions = [
+    {
+      id: 'q1',
+      channel: 'private',
+      threadId: 'a',
+      sourceId: 's',
+      text: '你愿意吗？',
+      askedAt: before,
+      status: 'open',
+    },
+  ];
+  sync(asked.actors[0]!);
+  assert.equal((await collect(asked, 'actor_plan')).candidates.length, 0);
+
+  asked.actors[0]!.snapshot.state.questions[0]!.status = 'answered';
+  asked.actors[0]!.snapshot.state.questions[0]!.resolution = {
+    sourceId: 'input',
+    quote: '愿意',
+    at,
+    kind: 'answer',
+  };
+  sync(asked.actors[0]!);
+  assert.equal((await collect(asked, 'actor_plan')).candidates.length, 1);
+});
+
 test('persisted plan review cadence suppresses a not-yet-due actionless review', async () => {
   const a = actor();
   a.snapshot.state.actions = [];

@@ -223,3 +223,55 @@ export function shouldWithdrawDeclinedEpisode(
     return false;
   return considerations.every((c) => participants.has(c.actorId) && c.choice === 'decline');
 }
+
+/** Derive shared withdrawal from authenticated original choices and current owned work.
+ * Never rewrites the original participation. The transaction must additionally fence unknown
+ * executions and pending external deliveries, which are not represented by these actor states.
+ */
+export function shouldWithdrawActiveEpisode(
+  episode: import('./director-runtime.ts').SharedEpisode,
+  participants: readonly EpisodeParticipationLifecycleInput[],
+): boolean {
+  if (episode.status !== 'active' || !episode.participantActorIds.length) return false;
+  const actors = new Set(episode.participantActorIds);
+  if (
+    actors.size !== episode.participantActorIds.length ||
+    participants.length !== actors.size ||
+    new Set(participants.map((p) => p.request.actorId)).size !== participants.length ||
+    new Set(participants.map((p) => p.request.id)).size !== participants.length
+  )
+    return false;
+  return participants.every((input) => {
+    if (
+      !actors.has(input.request.actorId) ||
+      input.request.worldId !== episode.worldId ||
+      input.request.episodeId !== episode.id ||
+      input.request.status !== 'consumed' ||
+      !input.request.receiptId ||
+      !input.request.inputReceiptId
+    )
+      return false;
+    const lane = projectEpisodeParticipationLifecycle(input);
+    if (!['engage', 'decline'].includes(lane.stance.choice)) return false;
+    const items = [...lane.goals, ...lane.plans, ...lane.responsibilities];
+    // A closed/replaced plan, successful result or empty lane is not an explicit exit.
+    if (items.some((item) => item.status !== 'withdrawn')) return false;
+    if ([...lane.goals, ...lane.responsibilities].some((item) => !item.endReason?.trim()))
+      return false;
+    if (lane.stance.choice === 'engage' && !lane.goals.length && !lane.responsibilities.length)
+      return false;
+    const goals = new Set(lane.goals.map((g) => g.id));
+    const actions = new Set(
+      lane.plans.flatMap((p) => [...p.actionIds, ...(p.nextActionId ? [p.nextActionId] : [])]),
+    );
+    const responsibilities = new Set(lane.responsibilities.map((r) => r.id));
+    return !input.state.actions.some(
+      (a) =>
+        (a.sourceIds.includes(ACTOR_EPISODE_INTENT_PREFIX + input.request.id) ||
+          (a.goalId !== null && goals.has(a.goalId)) ||
+          actions.has(a.id) ||
+          a.handlesResponsibilityIds.some((id) => responsibilities.has(id))) &&
+        !['succeeded', 'failed', 'withdrawn'].includes(a.status),
+    );
+  });
+}

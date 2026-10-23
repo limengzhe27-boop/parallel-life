@@ -8,7 +8,10 @@ import { validateGroupObservationContext } from './group-observation-context-val
 import { validateActorObservationInbox } from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
-import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
+import {
+  projectActiveEpisodeWithdrawalInTransaction,
+  validateEpisodeLifecycleContext,
+} from './episode-lifecycle-repository.ts';
 import {
   validatePlayerEpisodeManifest,
   requirePlayerEpisodeBinding,
@@ -1563,8 +1566,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         }
       }
       if (proposal.recallLast) {
-        if (snapshot.channel.kind !== 'private')
-          throw new AgentValidationError('RECALL_SCOPE');
+        if (snapshot.channel.kind !== 'private') throw new AgentValidationError('RECALL_SCOPE');
         const excluded = new Set([
           eventId,
           ...allSegmentRows.map((row) => String(row.source_event_id)),
@@ -2017,6 +2019,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       for (const journey of departures)
         await recordAgentDepartureInTransaction(sql, ownerId, { attempt, journey });
       await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId });
+      await projectActiveEpisodeWithdrawalInTransaction(sql, ownerId, {
+        attempt,
+        eventId,
+        state: accepted.state,
+      });
       await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       await this.afterCommit?.(sql, { attempt, eventId });
       await requireActiveAgentDeliveryInTransaction(

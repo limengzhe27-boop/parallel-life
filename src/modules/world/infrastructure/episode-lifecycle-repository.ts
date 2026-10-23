@@ -4,7 +4,10 @@ import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
 import type { AgentActionResult } from '../domain/agent-runtime.ts';
 import type { AgentEpisodeRequest } from '../domain/agent-narrative.ts';
 import type { EpisodeFollowUpContext } from '../domain/episode-followup-context.ts';
-import { projectEpisodeParticipationLifecycle } from '../domain/episode-participation-lifecycle.ts';
+import {
+  projectEpisodeParticipationLifecycle,
+  shouldWithdrawActiveEpisode,
+} from '../domain/episode-participation-lifecycle.ts';
 import { agentConditionsReady } from '../application/agent-condition-checks.ts';
 
 /** Read-only, from real committed consideration receipts and the already authorized actor view. */
@@ -144,4 +147,85 @@ export async function validateEpisodeLifecycleContext(
     throw Object.assign(Error('EPISODE_LIFECYCLE_SOURCE_CONFLICT'), {
       code: 'EPISODE_LIFECYCLE_SOURCE_CONFLICT',
     });
+}
+
+/** Project later explicit exits without rewriting the original consideration or purchasing a turn. */
+export async function projectActiveEpisodeWithdrawalInTransaction(
+  sql: SqlClient,
+  owner: string,
+  input: {
+    attempt: import('../domain/agent-runtime.ts').AgentAttempt;
+    eventId: string;
+    state: import('../domain/agent-runtime.ts').ActorAgentState;
+  },
+): Promise<void> {
+  const { attempt, state, eventId } = input;
+  if (
+    !state.episodeParticipations?.length ||
+    (![...state.goals, ...state.responsibilities].some((item) => item.status === 'withdrawn') &&
+      !state.episodeParticipations.some((item) => item.choice === 'decline'))
+  )
+    return;
+  const episodes = (
+    await sql.query(
+      `SELECT ep.document FROM parallel_life.shared_episodes ep
+     WHERE ep.world_id=$1 AND ep.owner_id=$2 AND ep.document->>'status'='active'
+       AND ep.document->'participantActorIds' ? $3
+     ORDER BY ep.id FOR UPDATE`,
+      [attempt.worldId, owner, attempt.actorId],
+    )
+  ).rows;
+  for (const row of episodes) {
+    const episode = row.document as import('../domain/director-runtime.ts').SharedEpisode;
+    if (episode.sourceEventIds.includes(eventId)) continue;
+    // The SQL guard also checks incomplete physical/media work and unknown paid results.
+    const eligible = (
+      await sql.query(
+        `SELECT bool_and(parallel_life.episode_actor_withdrawn($1,$2,$3,actor)) AS ready
+       FROM unnest($4::text[]) actor`,
+        [attempt.worldId, owner, episode.id, episode.participantActorIds],
+      )
+    ).rows[0]?.ready;
+    if (!eligible) continue;
+    const participants = (
+      await sql.query(
+        `SELECT q.*,er.choice,er.reason,er.source_ids,s.document AS state
+       FROM parallel_life.agent_episode_requests q
+       JOIN parallel_life.agent_episode_receipts er ON er.world_id=q.world_id AND er.owner_id=q.owner_id AND er.id=q.receipt_id AND er.request_id=q.id
+       JOIN parallel_life.actor_agent_states s ON s.world_id=q.world_id AND s.owner_id=q.owner_id AND s.actor_id=q.actor_id
+       WHERE q.world_id=$1 AND q.owner_id=$2 AND q.episode_id=$3 AND q.engine_epoch=$4 AND q.status='consumed'`,
+        [attempt.worldId, owner, episode.id, attempt.engineEpoch],
+      )
+    ).rows.map((r) => ({
+      request: {
+        schemaVersion: 1 as const,
+        worldId: r.world_id,
+        actorId: r.actor_id,
+        id: r.id,
+        episodeId: r.episode_id,
+        originDecisionId: r.origin_decision_id,
+        engineEpoch: r.engine_epoch,
+        createdAtVersion: r.created_at_version,
+        activity: r.activity,
+        status: r.status,
+        inputReceiptId: r.input_receipt_id,
+        receiptId: r.receipt_id,
+      },
+      decision: { requestId: r.id, choice: r.choice, reason: r.reason, sourceIds: r.source_ids },
+      state: r.state,
+      results: [],
+    }));
+    if (!shouldWithdrawActiveEpisode(episode, participants)) continue;
+    const next = {
+      ...episode,
+      revision: episode.revision + 1,
+      status: 'withdrawn',
+      endReason: 'all_participants_withdrew',
+      sourceEventIds: [...episode.sourceEventIds, eventId],
+    };
+    await sql.query(
+      `UPDATE parallel_life.shared_episodes SET document=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3 AND (document->>'revision')::integer=$5`,
+      [attempt.worldId, owner, episode.id, next, episode.revision],
+    );
+  }
 }
