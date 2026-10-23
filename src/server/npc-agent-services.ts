@@ -770,11 +770,16 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
                   );
                   if (segOutcome.outcome === 'committed') {
                     await options?.onSegment?.(segOutcome.event);
-                  } else if (segOutcome.outcome === 'superseded') {
+                  } else if (
+                    segOutcome.outcome === 'superseded' &&
+                    segOutcome.reason !== 'VERSION_CONFLICT'
+                  ) {
                     streamAbortController.abort(
                       Object.assign(Error(segOutcome.reason), { code: segOutcome.reason }),
                     );
                   }
+                  // A world append conflict is not a user cancellation. Keep consuming
+                  // this paid response; final commit revalidates the actual dependencies.
                 } else if (event.kind === 'execution_intents') {
                   const committed = await streamKernel
                     .commitMediaPrefix(ownerId, {

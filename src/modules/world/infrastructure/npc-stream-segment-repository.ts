@@ -394,9 +394,11 @@ export async function persistAndCommitStreamSegment(
       attempt,
       currentWorldVersion,
       !isFirstCommit,
+      snapshot,
     );
     if (!position) {
-      await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
+      // Keep the persisted unit for the same response's final commit/recovery.
+      // Another world append is not evidence of a player interrupt.
       return { outcome: 'superseded' as const, reason: 'VERSION_CONFLICT' };
     }
 
