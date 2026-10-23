@@ -405,3 +405,39 @@
 .pendingSend .bubble {
   background: #e7e7e7;
 }
+.pendingSend .stickerBubble {
+  background: transparent;
+}
+.stickerToggle {
+  flex-shrink: 0;
+  min-width: 44px;
+  font-size: 24px;
+  line-height: 1;
+  color: #2b2b2b;
+}
+.stickerBubble {
+  padding: 2px;
+  background: transparent;
+}
+.own .stickerBubble {
+  background: transparent;
+}
+.stickerBubble img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+}
+.stickerCaption {
+  display: block;
+  margin-top: 4px;
+  padding: 0 4px;
+}
+.stickerPanel {
+  flex-shrink: 0;
+  max-height: min(240px, 42vh);
+  overflow: auto;
+  background: #f7f7f7;
+}
+.stickerPanel > section {
+  margin-top: 0;
+}

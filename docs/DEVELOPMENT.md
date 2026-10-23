@@ -3022,9 +3022,9 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-162-KNOWN-PAID-FAILURE-RECOVERY`：旧已付费 invalid 不自动恢复；保留原失败/unknown 证据，不做每次刷新重买。按用户“unknown不自动重试”边界暂缓。
 
 |44-199-PROACTIVE-SIMPLIFY|[ ] 进行中|root-proactive199 唯一集成|主目录；agent-schedule-collectors.ts、agent-advance-batch.ts、npc-agent-advance-services.ts、proactive-quality.ts、run-agent.ts、npc-agent-model.ts及聚焦测试/报告|基线0e42a2e4；按附件精简主动链路；禁止新增字段/表；现有渣男体验真实验收后部署。续接独占0110 publication offer只读空集短路迁移及专属PG测试，不改结果/权限。再续接npc-agent-services.ts与npc-stream-segment-repository.ts版本冲突不主动中断付费响应；phone199独占agent-commit-version.ts依赖准入。|保留他人文档WIP；媒体已释放NPC模型文件。|
-|44-199-PHONE|[ ] 待验收|root子Agent phone199|独立.local/worktrees/phone199，codex/phone199，基线51be078f；world-phone-app.tsx、use-world-time.ts、time-experience-policy.ts及聚焦测试/报告|解除sending/全局空闲阻断，复用通知/计时器；不改倍速/协议。|冻结2524b74e；26聚焦/type/boundaries/build通过；check3940/3951，11本地DB账号认证失败。无真实模型/页面/部署，root集成验收。|
-|44-199-SCHEDULER|[ ] 待验收|root子Agent scheduler199|独立.local/worktrees/scheduler199；services.ts、scheduler-repository.ts、application/run-proactive-scheduler.ts、新0109迁移、proactive-scheduler及199PG测试、npc-agent-advance-service仅unknown用例/报告|后台30分钟，移除错误全局六行/整世界unknown否决；真实PG100世界容量/隔离。|0109、复用多人物批次、2并发/50世界/240秒开始边界。PG100世界2tick(受控executor非真实模型容量)通过；Aunknown可claim/B执行/A不重买通过。旧整文件5/18，其余fixture失败未改；root集成/生产迁移部署。|
-|44-199-ATTENTION|[ ] 待验收|root子Agent attention199|独立worktree；agent-episode-attention.ts、agent-delivery-activity.ts、agent-phone-entry-probe.ts、agent-episode-dispatch-eligibility.ts、notification-projection.ts、server/npc-agent-episode-dispatch.ts、player-episode-manifest.test.ts、lock-notifications.test.ts及专属测试/报告；工作树.local/worktrees/attention199|焦点A不阻止B，审计模型上下文/内核只读；保留真实权限/暂停保护。|冻结1ef41fd1；85聚焦+45模型payload通过，typecheck/boundaries通过；删attention执行门槛与锁屏主观过滤，保留暂停/版本/unknown。待root集成真实旅程与部署。| 续接root分配：只改application/actor-context.ts、tests/actor-context.test.ts及本报告，保留近期玩家原话，其他文件停写。 续接已冻结：最近玩家原话保留，12聚焦/typecheck/boundaries通过；等待root集成上线。 紧急续接：NEW tests/integration/publication-offer-empty199.test.ts与报告；只读0110迁移，本地独立PG55549，原actor-context停写。 0110紧急验证冻结2fbbcd5c：真实PG旧新函数对照5/5、typecheck通过；原followups两子失败在0049原体同样复现，非新增。
+|44-199-PHONE|[x] 已完成（代码已含于生产dc10447c；本地18/18聚焦）|root子Agent phone199|独立.local/worktrees/phone199，codex/phone199，基线51be078f；world-phone-app.tsx、use-world-time.ts、time-experience-policy.ts及聚焦测试/报告|解除sending/全局空闲阻断，复用通知/计时器；不改倍速/协议。|2026-10-24：集成代码8bdf122b已含于生产dc10447c；`phone-send-entry199`、`phone-continuity-policy`、`time-experience-policy` 18/18，本地typecheck通过；不新增字段/表/模型调用。|
+|44-199-SCHEDULER|[x] 已完成（0109生产；受控PG100）|root子Agent scheduler199|独立.local/worktrees/scheduler199；services.ts、scheduler-repository.ts、application/run-proactive-scheduler.ts、新0109迁移、proactive-scheduler及199PG测试、npc-agent-advance-service仅unknown用例/报告|后台30分钟，移除错误全局六行/整世界unknown否决；真实PG100世界容量/隔离。|0109、复用多人物批次、2并发/50世界/240秒开始边界。PG100世界2tick(受控executor非真实模型容量)通过；Aunknown可claim/B执行/A不重买通过。旧整文件5/18，其余fixture失败未改；62a7ae8a已在生产dc10447c祖先内。|
+|44-199-ATTENTION|[x] 已完成（0110生产；本地PG 5/5）|root子Agent attention199|独立worktree；agent-episode-attention.ts、agent-delivery-activity.ts、agent-phone-entry-probe.ts、agent-episode-dispatch-eligibility.ts、notification-projection.ts、server/npc-agent-episode-dispatch.ts、player-episode-manifest.test.ts、lock-notifications.test.ts及专属测试/报告；工作树.local/worktrees/attention199|焦点A不阻止B，审计模型上下文/内核只读；保留真实权限/暂停保护。|冻结1ef41fd1；85聚焦+45模型payload通过，typecheck/boundaries通过；删attention执行门槛与锁屏主观过滤，保留暂停/版本/unknown。待root集成真实旅程与部署。| 续接root分配：只改application/actor-context.ts、tests/actor-context.test.ts及本报告，保留近期玩家原话，其他文件停写。 续接已冻结：最近玩家原话保留，12聚焦/typecheck/boundaries通过；等待root集成上线。 紧急续接：NEW tests/integration/publication-offer-empty199.test.ts与报告；只读0110迁移，本地独立PG55549，原actor-context停写。 0110紧急验证冻结2fbbcd5c：真实PG旧新函数对照5/5、typecheck通过；原followups两子失败在0049原体同样复现，非新增。
 
 ### 2026-10-23 · 44-141 coordination 复跑失败，重新打开
 
@@ -3044,19 +3044,19 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 独立 PG55660 真实旅程 3/3：无任务双人物各自获机会并落两条消息、同真实分钟不重买、测试 Date 推进后各再获一次；A unknown 仅挡本人，B 仍提交；重复 advance 不增加调用。受控模型、0付费/生产/部署。作为测试子包收口，不代替 44-199 真实主动体验/手机 PC。
 
-|44-199-SEND|[ ] 待验收|phone199，root集成|独立.local/worktrees/phone-send199，codex/phone-send199自6bd14800；world-phone-app.tsx发送段、use-world-time.ts startConversation、聚焦测试/报告|移除发送前clock串行等待与完整world GET，原文/command先保留；不改时间政策，不新增队列字段。|17聚焦/type通过；无模型/生产，root集成部署。|
+|44-199-SEND|[x] 已完成（代码已含于生产dc10447c；本地18/18聚焦）|phone199，root集成|独立.local/worktrees/phone-send199，codex/phone-send199自6bd14800；world-phone-app.tsx发送段、use-world-time.ts startConversation、聚焦测试/报告|移除发送前clock串行等待与完整world GET，原文/command先保留；不改时间政策，不新增队列字段。|2026-10-24：集成代码904dac32已含于生产dc10447c；发送/等待守卫/时钟独立18/18，typecheck通过；0真实模型/生产写/新字段。|
 
-|44-199-GROUP-READ-LOCK|[ ] 待验收|scheduler199；root批准|独立scheduler199/codex/scheduler199-read；group-repository.ts仅read/list及私有快照helper、NEW group-read-lock199.test.ts、专属报告|普通群读取复用readonlySnapshot及RR只读事务，去world SHARE排队；写路径不改；PG持写锁并发读取与快照一致性。|969ef462冻结；PG持写锁read/list不等待、RLS与RR快照一致性1/1通过；root负责集成部署，不生产写。|
+|44-199-GROUP-READ-LOCK|[x] 已完成（代码3f00f7e8已含于生产dc10447c；本地PG 1/1）|scheduler199；root批准|独立scheduler199/codex/scheduler199-read；group-repository.ts仅read/list及私有快照helper、NEW group-read-lock199.test.ts、专属报告|普通群读取复用readonlySnapshot及RR只读事务，去world SHARE排队；写路径不改；PG持写锁并发读取与快照一致性。|2026-10-24：本地PG持写锁read/list不等待、RLS与RR快照一致性1/1通过；测试支持`GROUP_READ_LOCK_TEST_PORT`，默认仍55659专用端口；生产dc10447c已含3f00f7e8；0生产写。|
 
 ### 2026-10-23 · 44-148 现有合成世界 UI 复验
 
 `县城黄毛` 在 `e1e80804`/`904dac32` 后 5.3s 内打开锁屏，显示 3 条真实通知；解锁→微信→林悦，真实发送“在吗？现在方便说两句吗？”成功，world v264→270，NPC 分段回复。截图 `task-reports/assets/44-148-existing-world-chat.png`；测试世界已暂停。本行收口仅限合成现有世界 UI 主链，用户真实 `渣男体验` 档与 44-160/161 质量未复验。
 
-|44-199-COMMIT|[ ] 待上线|phone199，root集成|独立.local/worktrees/commit-scope199，codex/commit-scope199；仅agent-commit-version.ts、新聚焦测试/报告；借用本人独立PG55660|允许独立人物私人状态变化，不相交episode依赖证明；不改SQL/调用方，签名交root接线。|91afdb6c/86ec58a9已集成push；PG并发6/6、恢复9/9、check3961/build通过。Vercel每日100部署限额，最后修复未上线。|
+|44-199-COMMIT|[x] 已完成（91afdb6c/86ec58a9已含于生产dc10447c；本地52/52）|phone199，root集成|独立.local/worktrees/commit-scope199，codex/commit-scope199；仅agent-commit-version.ts、新聚焦测试/报告；借用本人独立PG55660|允许独立人物私人状态变化，不相交episode依赖证明；不改SQL/调用方，签名交root接线。|2026-10-24：`agent-runtime`36、并发6、恢复9及父项共52/52通过；91afdb6c/86ec58a9均在dc10447c祖先内；0新字段/模型/生产写。|
 
 ### 44-199 本轮接续与部署阻断
 
-主动调度、通知、上下文、发送前阻断和0109/0110已部署。正式渣男体验4953…约48秒两人物新来信、超过五分钟持续来信；重复等待与角色分工混淆仍未通过。最后并发保存修复91afdb6c/86ec58a9被Vercel每日100部署限额阻断，完整SHA自动部署查询为空。当前正式域READY为dpl_HHzfeARbBtubfi35pjMkr813yC8K，不能宣称包含最后修复。配额恢复后先部署并在原档复测，再收口；不重买旧unknown。纯情绪主动、长期情节质量和真实生产容量继续保留。详见44-199-PROACTIVE-SIMPLIFY报告。
+主动调度、通知、上下文、发送前阻断和0109/0110已部署。正式渣男体验4953…约48秒两人物新来信、超过五分钟持续来信；重复等待与角色分工混淆仍未通过。此前“91afdb6c/86ec58a9未上线”的判断已被后续核对修正：两个提交均在当前生产 `dc10447c` 的祖先内，且本地 `agent-runtime`/并发/恢复共52/52通过；不再保留“最后修复未上线”的旧说法。原档持续来信和角色分工仍待真实连续体验，不重买旧unknown。纯情绪主动、长期情节质量和真实生产容量继续保留。详见44-199-PROACTIVE-SIMPLIFY报告。
 
 ### 2026-10-23 · 44-156 旧档锁屏真实通知
 
@@ -3066,23 +3066,23 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 |44-200-NARRATIVE|[ ] 待验收|narrative200；root集成|.local/worktrees/narrative200；director-model-protocol.ts、director-agent-model.ts、director-agent-model.test.ts、报告44-200-NARRATIVE.md|dfb1c3a8/fcb7b278/3ffb07a7/ce6024c4；56聚焦/type通过，真实snapshot裁剪6条opening全丢→6条保留，1次真实导演9.081s解析通过但同主题双机会仍存；0生产写/部署。|
 
-|44-200-STICKER-UI|[x] 已完成（root 集成验收）|root-sticker-ui200；root 集成|main；`src/features/phone/apps/messages.tsx`、`sticker-ui.tsx`、`sticker-ui.module.css`、`sticker-content.ts`、`tests/sticker-ui200.test.ts`、`docs/task-reports/44-200-STICKER-UI.md`|私聊复用既有stickerId/message/command/retry链路；80图面板、文字共存、失败图标签、44px触控与短屏滚动；生产只读 390×844/1440×1000，80按钮/80图片加载0失败，列表预览[加油]；刷新 version280 不变；群聊未接，失败重试仅单测。|2026-10-24：check3992、sticker-ui 4/4；截图 .local/44-207-sticker-{mobile,desktop}.png；未新增字段/表/迁移；旧20 ID不变。|
+|44-200-STICKER-UI|[x] 已完成（root 集成验收）|root-sticker-ui200；root 集成|main；`src/features/phone/apps/messages.tsx`、`sticker-ui.tsx`、`sticker-ui.module.css`、`sticker-content.ts`、`tests/sticker-ui200.test.ts`、`docs/task-reports/44-200-STICKER-UI.md`|私聊复用既有stickerId/message/command/retry链路；80图面板、文字共存、失败图标签、44px触控与短屏滚动；生产只读 390×844/1440×1000，80按钮/80图片加载0失败，列表预览[加油]；刷新 version280 不变；群聊玩家入口见44-210（本地，待部署），失败重试仅单测。|2026-10-24：check3992、sticker-ui 4/4；截图 .local/44-207-sticker-{mobile,desktop}.png；未新增字段/表/迁移；旧20 ID不变。|
 
 |44-200-CORE|[ ] 本地已集成，待连续体验及部署|root-core200唯一集成|main已合并codex/core-stickers200；报告docs/task-reports/44-200-CORE.md|开场事实裁剪与人物绑定、表情协议/保存/UI已修；check3967/build/并发6恢复9/表情PG2通过；现有档历史snapshot真实导演1次。重复等待、同主题双机会、旧错误计划接续、原档连续体验与部署仍未完成；无新增持久字段/生产写。|
 
-|44-200-STICKER-PERSIST|[ ] 待验收|stickers_catalog200；root集成|独立sticker-persist200，仅新tests/integration/sticker-persist200.test.ts及专属报告；PG55672|借用root WIP不提交；受控模型保存/纯图/幂等/stream final必要旅程，0付费生产。|
+|44-200-STICKER-PERSIST|[x] 已完成（本地真实PG 2/2）|stickers_catalog200；root集成|独立sticker-persist200，仅新tests/integration/sticker-persist200.test.ts及专属报告；PG55672|借用root WIP不提交；受控模型保存/纯图/幂等/stream final必要旅程，0付费生产。|2026-10-24：主目录测试`sticker-persist200` 2/2（纯marker、混合/纯图、非法装饰、stream 不重复）；0商业模型/生产写/新字段。|
 
 |44-201-CONTINUITY|[ ] 本地集成通过，待部署及原档连续体验|root-core201唯一集成|main合并d2845a6a及PG两提交，报告44-201-CONTINUITY.md|修复canonical丢失planReview、导演持久schema漏接及复查默认重复建目标；check3970/build/聚焦53/真实PG2通过，导演attempt全部committed。原档v154至158输入只读证实断点；0生产写/真实模型/部署。同主题双机会、旧错配接续及长期体验仍未完成。|
 
-|44-201-PLAN-REVIEW|[ ] 待验收|stickers_catalog200；root集成|只读3c7d14b2与.local/narrative200；新报告44-201-PLAN-REVIEW.md|计划复查身份链路审查，0源码/模型/生产修改。|
+|44-201-PLAN-REVIEW|[x] 已完成（只读审计）|stickers_catalog200；root集成|只读3c7d14b2与.local/narrative200；新报告44-201-PLAN-REVIEW.md|计划复查身份链路审查，0源码/模型/生产修改。|2026-10-24：报告已提交；确认canonical身份风险，后续由44-201-CONTINUITY修复；不声称单一样本即根因。|
 
-|44-201-PLAN-REVIEW-PG|[ ] 待验收|stickers_catalog200；root集成|独立plan-review201新tests/integration/plan-review201.test.ts和报告，借用root两WIP不提交；独占PG55672|原advance模型收到精确复查plan/goal/result，重复不重买；0生产/付费。|
+|44-201-PLAN-REVIEW-PG|[x] 已完成（本地真实PG 2/2）|stickers_catalog200；root集成|独立plan-review201新tests/integration/plan-review201.test.ts和报告，借用root两WIP不提交；独占PG55672|原advance模型收到精确复查plan/goal/result，重复不重买；0生产/付费。|2026-10-24：测试已接入主目录，succeeded/failed 两条真实PG旅程2/2；导演attempt均committed；重复advance不增复查；0商业模型/生产写。|
 
 |44-202-PLAN-DELTA|[ ] 本地已集成，待部署与连续体验|root-core202唯一集成|main集成1de9bfcc；报告44-202-PLAN-DELTA.md|省略nextStep保留原等待条件；无变化计划不写新来源；玩家回合保护收窄同actor。check3972/build/真实PG51通过；原档10回合离线decode均无冗余计划增量，0生产写/本轮真实模型/部署。重复机会、旧错配episode接续与真实长期演绎仍未完成。|
 
 |44-202-DIRECTOR-TOPIC|[ ] 待验收|narrative200；root集成|独立narrative200树，仅docs/task-reports/44-202-DIRECTOR-TOPIC.md|冻结a20b6cc4；actorTopics是关联非事件身份，同非空refs可重复开episode；建议现candidate+nudge续接，不能无依据去重。基线3c7d14b2，0源码/生产/模型。|
 
-|44-202-RUNTIME-PG|[ ] 待验收|stickers_catalog200；root集成|独立plan-review201树借用root runtime/test不提交；新报告44-202-RUNTIME-PG.md；PG55672|同人物抢占保护、跨人物不冻结及既有并发/恢复必要PG，0生产/付费。|
+|44-202-RUNTIME-PG|[x] 已完成（本地真实PG 52/52）|stickers_catalog200；root集成|独立plan-review201树借用root runtime/test不提交；新报告44-202-RUNTIME-PG.md；PG55672|同人物抢占保护、跨人物不冻结及既有并发/恢复必要PG，0生产/付费。|2026-10-24：`agent-runtime`36、并发6、恢复9及父项共52/52；含无关B append、unknown不重买、媒体prefix一次；0商业模型/生产写。|
 
 |44-203-EPISODE-RETIREMENT-PG|[x] 已集成验证|stickers_catalog200；root集成|独立episode-retirement203；新tests/integration/episode-retirement203.test.ts和报告44-203-EPISODE-RETIREMENT-PG.md；PG55672|ede3b39d；原入口PG双场景1/1：全拒绝撤回、quiet保留、SQL伪造拒绝/RLS、其他事件仍eligible；不改公共源码/生产/模型。|
 
@@ -3107,3 +3107,17 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-207-ATTRIBUTION-AUDIT|[x] 已完成（只读审计）|dsh-continuation-20261024；root 唯一集成|`docs/task-reports/44-207-ATTRIBUTION-AUDIT.md`；生产只读DTO、既有44-200-NARRATIVE/44-162报告；无源码修改|核验李之之/青青可见消息与导演actorTasks绑定：未发现新的speaker交换；旧问题是导演任务内容错配，不是姓名机械映射；不按姓名过滤、不手改历史/原稿。|2026-10-24：world4953 version280只读；李之之文字+jiayou两条独立，青青“妈妈”为本人对玩家说话；director-actor-task-wire覆盖键控绑定；0源码/生产写/本轮模型。|
 |44-208-STICKER-SEMANTIC|[x] 已完成（公网真实模型复验）|dsh-continuation-20261024；root 唯一集成|main；`src/modules/world/infrastructure/npc-agent-model.ts`、`src/modules/world/domain/sticker-expression.ts`、`src/modules/world/infrastructure/agent-proposal-parser.ts`、`tests/sticker-protocol200.test.ts`、`tests/npc-agent-model.test.ts`、`docs/task-reports/44-208-STICKER-SEMANTIC.md`|prompt v69 + 解析删除闸门，合并与v67分开发出的纯sticker都对照最近文字；安慰/道歉/难过/委屈/认真投诉时不保留自嘲/调侃/无语/摆烂图，文字保留；调皮语境保留；无字段/表/二次调用。|2026-10-24：dc10447c / dpl_vqeVmwQXxyubFWLvDsooYdKhkHDC READY；委屈安慰569fec67 world561→564只两条安慰文字无表情；投诉74b7c971 world564→567无不适配表情；sticker-protocol4/4、npc-model49/49、check3995、build通过。文字仍有轻微反责，不冒充长期质量。|
 |44-209-SEND-AND-PROGRESS-ACCEPT|[x] 已完成（限定：真实断网 unknown + 两轮自动推进）|dsh-continuation-20261024；root 唯一集成|`docs/task-reports/44-209-SEND-AND-PROGRESS-ACCEPT.md`；无源码|生产dc10447c，县城黄毛：CDP offline后发送显示发送结果待确认/点按核对，输入不冻结，恢复后不自动重发，world561未落库；两轮automatic advance 558→561、568→571均played3，无VERSION_CONFLICT/503；列表预览[摆烂]/[摸鱼中]/[加油]。|2026-10-24：真实手机390；不覆盖44-204退出、长期剧情质量、真实用户档；第二轮经clock/wait short。|
+
+|44-200-STICKER-LICENSING|[x] 已完成（本地文档与哈希核验）|dsh-continuation-20261024；root 唯一集成|`docs/task-reports/44-200-STICKER-LICENSING.md`、`public/stickers/README.md`；无源码/素材改动|记录60张用户确认素材的来源、许可标注、尺寸、字节、SHA-256和残余风险；80 ID/80素材；不声称独立取得版权链或替换用户授权。|2026-10-24：60/60哈希与尺寸核验，总计3,505,942字节；许可标注33 Personal Use Only、3 Creator & Stream Use、24 unknown；24张unknown列为后续商业化风险；0模型/生产写/SQL。|
+
+|44-210-GROUP-STICKER|[ ] 本地已集成，待部署/真机验收|dsh-continuation-20261024；root 唯一集成|`src/features/phone/groups/group-chat.tsx`、`groups.module.css`、`state.ts`、`src/modules/world/application/group-turn.ts`、`tests/group-sticker.test.ts`、`docs/task-reports/44-210-GROUP-STICKER.md`|群聊玩家复用现有text marker发送独立表情消息，草稿保留；消息/待核对/列表预览显示图片或标签；NPC群上下文收到语义标签；无新字段/表/API/第二次模型；NPC群内主动发表情未做。|2026-10-24：group-sticker/group-planner/group-ui-state 12/12，typecheck通过；0商业模型/生产写/SQL；未部署、未做真实手机群聊。|
+
+### 2026-10-24 · 部署无关收口批次
+
+本轮按用户要求先不推送、不部署，完成可本地验收的剩余工作：
+
+- `44-199-PHONE`、`44-199-SEND`、`44-199-GROUP-READ-LOCK`、`44-199-COMMIT`、`44-199-ATTENTION` 的代码已确认包含在生产 `dc10447c`；本地分别以 18/18、18/18、PG 1/1、52/52、PG 5/5 复核，不再保持“待验收/待上线”。
+- `44-200-STICKER-PERSIST` 主目录真实 PG 2/2；`44-201-PLAN-REVIEW` 只读报告完成；`44-201-PLAN-REVIEW-PG` 2/2；`44-202-RUNTIME-PG` 52/52。以上为本地/主目录证据，未新增商业模型调用或生产写。
+- `44-200-STICKER-LICENSING` 记录用户授权后的完整素材供应链与残余风险；`44-210-GROUP-STICKER` 完成群聊玩家表情入口、显示和 NPC 语义输入，尚未部署。
+- 仍不能关闭：`44-205-DIRECTOR-CONTEXT` 的真实档 `COMMAND_CONFLICT`（需诊断部署）、`44-203/204` 的原档连续体验、`44-200-CORE`/`44-201-CONTINUITY`/`44-202-PLAN-DELTA` 的部署后连续体验、`44-160/161` 的真实模型质量。
+- 本轮不推送、不部署；线上版本仍是 `dc10447c`。本地 `npm run check` **3997/3997**、`npm run build` 通过（31/31 页面），Git 本地提交待下一次部署窗口统一处理。

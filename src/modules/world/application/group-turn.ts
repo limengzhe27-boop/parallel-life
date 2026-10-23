@@ -1,4 +1,5 @@
 import { groupHistory, selectGroupSpeakers, currentGroupMember } from '../domain/group-runtime.ts';
+import { stickerMessageMeaning } from '../domain/sticker-expression.ts';
 import { DomainError } from '../domain/errors.ts';
 import type { GroupReply } from '../domain/group-runtime.ts';
 import type { GroupRead, GroupPlanner } from './group-ports.ts';
@@ -36,7 +37,11 @@ export async function planGroupTurn(
                 : world.actors.find((a) => a.id === (m.participant as { actorId: string }).actorId)!
                     .name,
           })),
-        messages: groupHistory(context, group, messages, { kind: 'actor', actorId }).slice(-80),
+        messages: groupHistory(context, group, messages, { kind: 'actor', actorId })
+          .slice(-80)
+          // A group sticker is stored as its existing marker, but the model receives
+          // the same semantic label/description as a private-chat sticker.
+          .map((message) => ({ ...message, text: stickerMessageMeaning(message.text) })),
       },
       signal,
     );

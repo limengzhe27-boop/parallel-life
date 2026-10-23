@@ -10,7 +10,10 @@ import { PostgresGroupRepository } from '../../src/modules/world/infrastructure/
 
 test('group read/list do not wait behind a world writer and retain one authorized snapshot', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55659);
+  const portText = process.env.GROUP_READ_LOCK_TEST_PORT ?? '55659';
+  assert.match(portText, /^[1-9][0-9]{0,4}$/);
+  assert.ok(Number(portText) <= 65535);
+  assert.equal(cfg.port, Number(portText));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Id, Version } from '../../../contracts/api.ts';
 import type { GroupConversation, Participant } from '../../../contracts/world-experiences.ts';
 import type { PhoneContact } from '../apps/types.ts';
+import { stickerMessageContent } from '../apps/sticker-content.ts';
 import type { GroupDetail, GroupTask } from './client.ts';
 export function groupTarget(id: string) {
   return 'group:' + Id.parse(id);
@@ -22,7 +23,12 @@ export function publicMemberName(p: Participant, contacts: readonly PhoneContact
 }
 export function groupPreview(detail: GroupDetail, contacts: readonly PhoneContact[]) {
   const latest = detail.messages.at(-1);
-  return latest ? publicMemberName(latest.sender, contacts) + '：' + latest.text : '还没有消息';
+  if (!latest) return '还没有消息';
+  const content = stickerMessageContent(latest.text);
+  const preview = content.imageOnly
+    ? `[${content.sticker?.label ?? '表情'}]`
+    : content.text.trim() || '[表情]';
+  return publicMemberName(latest.sender, contacts) + '：' + preview;
 }
 export function taskText(task?: GroupTask) {
   switch (task?.status) {

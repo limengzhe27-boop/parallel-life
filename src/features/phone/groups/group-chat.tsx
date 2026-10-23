@@ -14,6 +14,8 @@ import {
   type Pending,
 } from './state.ts';
 import { dayKey, timeText } from '../apps/helpers.ts';
+import { StickerImage, StickerPicker } from '../apps/sticker-ui.tsx';
+import { stickerMessageContent } from '../apps/sticker-content.ts';
 import { GroupMembers } from './group-members.tsx';
 import { playSendSound } from '../audio-feedback.ts';
 import s from './groups.module.css';
@@ -32,6 +34,17 @@ function saveLocal(key: string, value: string | null) {
   } catch {
     /* Browsing still works when local storage is disabled. */
   }
+}
+function GroupBubble({ text }: { text: string }) {
+  const content = stickerMessageContent(text);
+  return (
+    <p className={`${s.bubble} ${content.imageOnly ? s.stickerBubble : ''}`}>
+      {content.sticker && <StickerImage sticker={content.sticker} />}
+      {content.text ? (
+        <span className={content.sticker ? s.stickerCaption : undefined}>{content.text}</span>
+      ) : null}
+    </p>
+  );
 }
 export function GroupChat({
   id,
@@ -52,6 +65,7 @@ export function GroupChat({
     [error, setError] = useState<string>(),
     [members, setMembers] = useState(false),
     [retryConfirm, setRetryConfirm] = useState(false),
+    [showStickers, setShowStickers] = useState(false),
     [loading, setLoading] = useState(!detail);
   const pendingRef = useRef<Pending | undefined>(undefined),
     busyRef = useRef(false),
@@ -187,8 +201,9 @@ export function GroupChat({
     void groups.syncWorld();
     if (result.status === 'succeeded') pendingChange(undefined);
   }
-  async function submit(reconcile = false) {
-    if (busyRef.current || (!reconcile && !text.trim())) return;
+  async function submit(reconcile = false, stickerId?: string) {
+    const body = stickerId ? `[[sticker:${stickerId}]]` : text.trim();
+    if (busyRef.current || (!reconcile && !body)) return;
     busyRef.current = true;
     setBusy(true);
     setError(undefined);
@@ -204,7 +219,7 @@ export function GroupChat({
           groupId: id,
           commandId: crypto.randomUUID(),
           expectedVersion: fresh.version,
-          text: text.trim(),
+          text: body,
         };
         setTask(undefined);
         pendingChange(p);
@@ -213,7 +228,9 @@ export function GroupChat({
       const receipt = await groups.client.send(groups.worldId, id, p);
       pendingChange({ ...p, taskId: receipt.task.id });
       setTask(receipt.task);
-      if (text.trim() === p.text) {
+      // A sticker is its own message. Keep any typed draft so text and sticker
+      // never merge into one bubble, matching private chat.
+      if (!stickerId && text.trim() === p.text) {
         setText('');
         saveLocal(draftKey, null);
       }
@@ -290,6 +307,8 @@ export function GroupChat({
       />
     );
   const joined = detail ? isJoined(detail.group) : false;
+  const sendingBlocked =
+    Boolean(pending && !task) || Boolean(task && ['queued', 'running'].includes(task.status));
   const pendingMessageId = pending
     ? detail?.messages.find(
         (m) =>
@@ -385,7 +404,7 @@ export function GroupChat({
                 )}
                 <div className={s.messageBody}>
                   <span className={s.sender}>{name}</span>
-                  <p className={s.bubble}>{message.text}</p>
+                  <GroupBubble text={message.text} />
                   {date && <time title={timeText(date)}>{timeText(date)}</time>}
                   {message.id === pendingMessageId && sendFeedback}
                 </div>
@@ -396,7 +415,7 @@ export function GroupChat({
         {pending && !pendingMessageId && (
           <div className={s.pendingSend}>
             <p className={s.hint}>待核对的消息</p>
-            <p className={s.bubble}>{pending.text}</p>
+            <GroupBubble text={pending.text} />
             {sendFeedback}
           </div>
         )}
@@ -447,6 +466,17 @@ export function GroupChat({
           void submit();
         }}
       >
+        <button
+          type="button"
+          className={s.stickerToggle}
+          aria-label="表情"
+          aria-expanded={showStickers}
+          aria-controls="group-sticker-panel"
+          disabled={!joined}
+          onClick={() => setShowStickers((open) => !open)}
+        >
+          ☺
+        </button>
         <textarea
           aria-label="群消息"
           rows={1}
@@ -465,19 +495,30 @@ export function GroupChat({
             }
           }}
         />
-        <button
-          className={s.send}
-          disabled={
-            busy ||
-            !joined ||
-            !text.trim() ||
-            Boolean(pending && !task) ||
-            Boolean(task && ['queued', 'running'].includes(task.status))
-          }
-        >
+        <button className={s.send} disabled={busy || !joined || !text.trim() || sendingBlocked}>
           {busy ? '发送中…' : '发送'}
         </button>
       </form>
+      {showStickers && (
+        <div className={s.stickerPanel} id="group-sticker-panel">
+          <StickerPicker
+            emojis={['😀', '😂', '🥰', '😭', '👍', '🙏']}
+            disabled={!joined || busy || sendingBlocked}
+            onEmoji={(emoji) => {
+              setText((current) => {
+                const next = current + emoji;
+                saveLocal(draftKey, next);
+                return next;
+              });
+            }}
+            onSticker={(stickerId) => {
+              if (!joined || busy || sendingBlocked) return;
+              setShowStickers(false);
+              void submit(false, stickerId);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
