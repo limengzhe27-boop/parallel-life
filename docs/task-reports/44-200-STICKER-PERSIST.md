@@ -12,3 +12,7 @@
 只运行2条必要PG旅程与typecheck；全量check/build由root统一。0生产写、0付费模型、0部署。
 
 类型检查发现借用root新runAgent签名与基线旧img-chat-flow夹具两处六参调用不匹配（110/438行）；未改越界旧测试。新测试自身可选下标已修正为确定存在断言。root需在完整集成树运行typecheck。
+
+## 并发与恢复必要回归
+
+继续使用同一root core-stickers200源码快照、独立PG55672，不复制主目录其他WIP。MESSAGE_RECOVERY_TEST_PORT=55672运行既有chat-version-concurrency与message-response-recovery：15/15通过（6并发+9恢复含父项），耗时5.9秒。覆盖无关人物插入前后首段/后续追加、同人物新输入、不重买重复HTTP、媒体prefix、原response重放/并发恢复/权限/回滚。未改测试断言，0生产/付费。
