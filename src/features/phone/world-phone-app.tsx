@@ -54,7 +54,7 @@ import type {
   PhoneNote,
   PhoneRecordsState,
 } from './apps/types.ts';
-import { worldAppData } from './world-app-data.ts';
+import { STALE_PENDING_MEDIA_MS, worldAppData } from './world-app-data.ts';
 import { mergeNoteReceipt } from './world-receipts.ts';
 import { dialogueText, formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage, PhonePhoto } from './apps/types.ts';
@@ -727,7 +727,11 @@ export function WorldPhoneApp({
   // Other workers/tabs can commit messages even when this page's advance is quiet.
   // Read projections even during a send/advance batch. Actor leases remain server-owned;
   // committed messages merge by version without touching route, drafts or stream state.
-  const hasPendingMedia = data?.messages.some((message) => message.mediaStatus === 'pending');
+  const hasPendingMedia = data?.messages.some(
+    (message) =>
+      message.mediaStatus === 'pending' &&
+      Date.now() - Date.parse(message.at) <= STALE_PENDING_MEDIA_MS,
+  );
   const liveWorldReady = data?.id === worldId;
   useEffect(() => {
     if (!liveWorldReady || (!automatic && !hasPendingMedia)) return;

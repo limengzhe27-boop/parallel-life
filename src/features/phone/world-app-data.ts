@@ -2,6 +2,8 @@ import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { resolveAvatarArt } from './avatar-art.ts';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import type { PhoneAppsData, PhoneMessage, PhonePhoto } from './apps/types.ts';
+/** A pending media projection older than this is honestly shown as unfinished, not forever "generating". */
+export const STALE_PENDING_MEDIA_MS = 5 * 60 * 1000;
 /**
  * Map the authorized opening projection only; no private interview or inferred events.
  *
@@ -151,14 +153,19 @@ export function worldAppData(
               };
             }
           } else if (message.mediaStatus === 'pending') {
+            const stale = Date.now() - Date.parse(message.at) > STALE_PENDING_MEDIA_MS;
             photo = {
               id: `pending_${message.id}`,
               date: message.at,
-              title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
-              description: isVideo
-                ? 'AI 视频片段生成中，完成后将在此展示'
-                : 'AI 摄影记录中，生成后将在此展示并同步至相册',
-              status: 'generating' as const,
+              title: stale
+                ? message.mediaTitle || (isVideo ? '视频生成未完成' : '画面记录未完成')
+                : message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
+              description: stale
+                ? '生成超时或未完成，可稍后重新发起'
+                : isVideo
+                  ? 'AI 视频片段生成中，完成后将在此展示'
+                  : 'AI 摄影记录中，生成后将在此展示并同步至相册',
+              status: stale ? ('failed' as const) : ('generating' as const),
               tag: 'event' as const,
               mediaType: isVideo ? 'video' : 'image',
             };

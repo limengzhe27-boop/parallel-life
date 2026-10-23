@@ -366,7 +366,12 @@ test('trial runtime generated pictures use a revision-aware asset endpoint disti
         id: 'authored',
         attachment: { kind: 'image', assetId: 'authored-photo' },
       },
-      { ...world.messages[0]!, id: 'pending', mediaStatus: 'pending' },
+      {
+        ...world.messages[0]!,
+        id: 'pending',
+        mediaStatus: 'pending',
+        at: new Date().toISOString(),
+      },
     ],
   } as Parameters<typeof worldAppData>[0];
   const projection = worldAppData(
@@ -530,4 +535,28 @@ test('legacy recall marker still replaces the previous assistant bubble with a r
   const data = worldAppData(recalled as Parameters<typeof worldAppData>[0]);
   assert.equal(data.messages.length, 1);
   assert.equal(data.messages[0]?.text, '对方撤回了一条消息');
+});
+
+test('stale pending media is projected as failed instead of forever generating', () => {
+  const pending = (at: string) => ({
+    ...world,
+    messages: [
+      {
+        ...world.messages[0]!,
+        id: `pending-${at}`,
+        text: '',
+        mediaStatus: 'pending' as const,
+        mediaTitle: '画面',
+        at,
+      },
+    ],
+  });
+  const stale = worldAppData(
+    pending('2026-09-22T00:00:00Z') as Parameters<typeof worldAppData>[0],
+  );
+  assert.equal(stale.messages[0]?.photo?.status, 'failed');
+  const fresh = worldAppData(
+    pending(new Date().toISOString()) as Parameters<typeof worldAppData>[0],
+  );
+  assert.equal(fresh.messages[0]?.photo?.status, 'generating');
 });
