@@ -1890,14 +1890,17 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             )}
           </article>
         ))}
-        {operation?.busy && (
-          <div className={s.typingBubble} aria-live="polite">
-            <span>{actor.name}正在输入</span>
-            <i />
-            <i />
-            <i />
-          </div>
-        )}
+        {messages.at(-1)?.role === 'user' &&
+          operation?.busy &&
+          messages.at(-1)?.status !== 'failed' &&
+          messages.at(-1)?.status !== 'unknown' && (
+            <div className={s.typingBubble} aria-live="polite">
+              <span>{actor.name}正在输入</span>
+              <i />
+              <i />
+              <i />
+            </div>
+          )}
       </div>
 
       {/* 原生微信底栏输入区域 */}
