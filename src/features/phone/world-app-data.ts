@@ -119,17 +119,29 @@ export function worldAppData(
     photos,
     messages: [
       ...world.messages
-        .filter(
-          (message) =>
+        .filter((message) => {
+          const hasText = message.text.trim().length > 0;
+          const stalePending =
+            message.mediaStatus === 'pending' &&
+            now - Date.parse(message.at) > STALE_PENDING_MEDIA_MS;
+          const silentMediaFailure =
+            (message.mediaStatus === 'failed' || stalePending) &&
+            !hasText &&
+            !message.stickerId &&
+            !message.photoId &&
+            !(message as { attachment?: unknown }).attachment;
+          return (
             !recalledMessageIds.has(message.id) &&
-            (message.text.trim().length > 0 ||
+            !silentMediaFailure &&
+            (hasText ||
               !!message.stickerId ||
               message.recalled === true ||
               !!message.photoId ||
               message.mediaStatus === 'pending' ||
               message.mediaStatus === 'failed' ||
-              !!(message as { attachment?: unknown }).attachment),
-        )
+              !!(message as { attachment?: unknown }).attachment)
+          );
+        })
         .map((message) => {
           let photo: PhonePhoto | undefined = undefined;
           const isVideo = message.mediaType === 'video';
@@ -155,31 +167,20 @@ export function worldAppData(
             }
           } else if (message.mediaStatus === 'pending') {
             const stale = now - Date.parse(message.at) > STALE_PENDING_MEDIA_MS;
-            photo = {
-              id: `pending_${message.id}`,
-              date: message.at,
-              title: stale
-                ? message.mediaTitle || (isVideo ? '视频生成未完成' : '画面记录未完成')
-                : message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
-              description: stale
-                ? '生成超时或未完成，可稍后重新发起'
-                : isVideo
+            // A failed image is omitted from the chat instead of leaving a
+            // broken card mixed into the character's spoken reply.
+            if (!stale)
+              photo = {
+                id: `pending_${message.id}`,
+                date: message.at,
+                title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
+                description: isVideo
                   ? 'AI 视频片段生成中，完成后将在此展示'
                   : 'AI 摄影记录中，生成后将在此展示并同步至相册',
-              status: stale ? ('failed' as const) : ('generating' as const),
-              tag: 'event' as const,
-              mediaType: isVideo ? 'video' : 'image',
-            };
-          } else if (message.mediaStatus === 'failed') {
-            photo = {
-              id: `failed_${message.id}`,
-              date: message.at,
-              title: message.mediaTitle || (isVideo ? '视频生成未完成' : '画面记录未完成'),
-              description: '生成未成功或已取消',
-              status: 'failed' as const,
-              tag: 'event' as const,
-              mediaType: isVideo ? 'video' : 'image',
-            };
+                status: 'generating' as const,
+                tag: 'event' as const,
+                mediaType: isVideo ? 'video' : 'image',
+              };
           } else if (message.text) {
             const match = message.text.match(/^\[分享了相册照片：《(.+?)》\]$/);
             if (match) {

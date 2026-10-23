@@ -15,19 +15,17 @@ const messages = readFileSync(
   'utf8',
 );
 
-test('incoming message banners sit below the status bar and push page content down', () => {
+test('a private-chat banner sits below the chat header and keeps message width', () => {
   const banner = css.match(/^\.banner \{[^}]*\}/m)?.[0] ?? '';
   assert.match(banner, /position:\s*relative/);
   assert.match(banner, /flex-shrink:\s*0/);
-  assert.match(banner, /margin:\s*0 12px 8px/);
   assert.doesNotMatch(banner, /position:\s*absolute|top:\s*calc\(100% \+ 8px\)/);
-  assert.match(css, /\.statusLayer \{[^}]*position: relative;[^}]*flex-shrink: 0;/s);
-  assert.doesNotMatch(css, /:has\(> \.notice\) \.banner/);
-  assert.match(
-    shell,
-    /<div className=\{styles\.statusLayer\}>\s*<StatusBar[\s\S]*?<\/div>\s*\{banner && !locked && \(\s*<div className=\{styles\.banner\}/,
-  );
-  assert.match(shell, /<\/div>\s*\)\}\s*<div className=\{styles\.unlockedContent\}/);
+  const chatBanner = css.match(/^\.bannerChat \{[^}]*\}/m)?.[0] ?? '';
+  assert.match(chatBanner, /width:\s*min\(100%, 340px\)/);
+  assert.match(chatBanner, /align-self:\s*flex-start/);
+  assert.match(shell, /bannerInChat/);
+  assert.match(shell, /banner:\s*bannerNode/);
+  assert.match(messages, /\{banner\}\s*\{\/\* 消息滚动流 \*\//);
 });
 
 test('WeChat top bar keeps the plus action but drops the redundant search icon', () => {

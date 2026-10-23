@@ -537,7 +537,7 @@ test('legacy recall marker still replaces the previous assistant bubble with a r
   assert.equal(data.messages[0]?.text, '对方撤回了一条消息');
 });
 
-test('stale pending media is projected as failed instead of forever generating', () => {
+test('stale pending media is omitted instead of forever generating or showing a broken card', () => {
   const pending = (at: string) => ({
     ...world,
     messages: [
@@ -551,10 +551,8 @@ test('stale pending media is projected as failed instead of forever generating',
       },
     ],
   });
-  const stale = worldAppData(
-    pending('2026-09-22T00:00:00Z') as Parameters<typeof worldAppData>[0],
-  );
-  assert.equal(stale.messages[0]?.photo?.status, 'failed');
+  const stale = worldAppData(pending('2026-09-22T00:00:00Z') as Parameters<typeof worldAppData>[0]);
+  assert.equal(stale.messages.length, 0);
   const fresh = worldAppData(
     pending(new Date().toISOString()) as Parameters<typeof worldAppData>[0],
   );

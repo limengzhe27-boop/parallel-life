@@ -56,7 +56,7 @@ const EMOJI_LIST = [
   '🆗',
 ];
 
-export function MessagesApp({ target, open }: PhoneAppContext) {
+export function MessagesApp({ target, open, banner }: PhoneAppContext) {
   const {
     worldId,
     transport,
@@ -1537,6 +1537,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           </div>
         </div>
       )}
+      {banner}
       {/* 消息滚动流 */}
       <div
         ref={messageScroll}

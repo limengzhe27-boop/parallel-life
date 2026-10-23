@@ -121,7 +121,7 @@ test('IMG-CHAT-01: pending media displays non-blocking generating status without
   assert.equal(msg.photo?.url, undefined, 'Must not manufacture fake URL while generating');
 });
 
-test('IMG-CHAT-01: failed media displays honest failed state without fake fallback', () => {
+test('IMG-CHAT-01: failed media is omitted instead of showing a broken image card', () => {
   const worldId = '00000000-0000-4000-8000-000000000001';
   const actorId = '00000000-0000-4000-8000-000000000002';
 
@@ -153,10 +153,7 @@ test('IMG-CHAT-01: failed media displays honest failed state without fake fallba
 
   assert.ok(msg);
   assert.equal(msg.text, '刚才光线太暗了，拍出来模糊没成。');
-  assert.ok(msg.photo);
-  assert.equal(msg.photo?.status, 'failed');
-  assert.equal(msg.photo?.title, '【拍摄失败】黄昏手冲');
-  assert.equal(msg.photo?.url, undefined, 'Must not manufacture fake image on failure');
+  assert.equal(msg.photo, undefined, 'A failed image must not leave a broken card in the chat');
 });
 
 test('IMG-CHAT-01: plain text mentioning photo titles never manufactures attachments', () => {

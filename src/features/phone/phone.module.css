@@ -769,6 +769,13 @@
   animation: bannerEnter 0.3s ease-out;
   color: var(--phone-ink);
 }
+/* Inside a chat the banner sits below the chat header and keeps message width. */
+.bannerChat {
+  width: min(100%, 340px);
+  max-width: 340px;
+  align-self: flex-start;
+  margin: 8px 12px 4px;
+}
 .banner .notification {
   padding-right: 36px;
   box-shadow: 0 8px 24px var(--phone-shadow);
