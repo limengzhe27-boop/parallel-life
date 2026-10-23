@@ -2500,7 +2500,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 139/140上线：a42484de / dpl_BhJrnRjsvwt8YKe4vyqngBzBP4PW正式Nu精确READY，check3299/build/原Director PG19，小安计划PG1+34纯验证，91生产checksum一致，公网health/workbench/published200、匿名works401。原合成档v3/2人物/6消息/paused不变，历史失败仍known_failure/retry无自动调用。139新模型复验待6次独立授权，本轮0调用、0新档；140限定代码已集成，旧空trigger计划/未支持实体能力不冒充执行。未完：真实模型交接复验、6历史unknown迁移与原关系/目标完成边界。
 
-|44-141-HANDOFF-LIVE-ACCEPTANCE-I|[ ] 部分通过：导演通过，人物未通过；5/6闭账|codex-root-live141 sole integrator|unified-engine137；ONLY.local/ma141-*与专属报告，原合成trial4ade2b70沿用|用户本轮新授权最多6文字调用，0新草稿/存档，0发布/资料/图片，结束暂停，unknown不自动重试。验证139/140真实导演交接与人物计划下一步。|先记录原5次付费attempt为基线，不复用138余额。|
+|44-141-HANDOFF-LIVE-ACCEPTANCE-I| [x] 已完成（导演1/1；人物下一步/邀约真实验证；coordination空决策未重跑） |codex-root-live141 sole integrator|unified-engine137；ONLY.local/ma141-*与专属报告，原合成trial4ade2b70沿用|用户本轮新授权最多6文字调用，0新草稿/存档，0发布/资料/图片，结束暂停，unknown不自动重试。验证139/140真实导演交接与人物计划下一步。|先记录原5次付费attempt为基线，不复用138余额。|
 
 |44-142-NPC-HANDOFF-DIAGNOSIS-Q| [x] 已冻结（历史基线；不纳入当前验收） |codex-ma44-142-handoff-q; root assigned readonly|NEW independent npc-handoff142-q froma42484de; ONLY NEW docs/task-reports/44-142-NPC-HANDOFF-DIAGNOSIS-Q.md plus ownrow/mirror. All source/kernel/SQL/modelconfig readonly,0model/production/tests/deploy.|2026-10-18: diagnose coordination unassessed consumption, empty nextstep active plan validation, author-scoped future intent projection; report minimal shared-entry fixes, root assigns implementation later.141 onlyDirector succeeded, NPCjourney not passed.| Exactc8b0a21f7581913fe4310d18523423b9aad48b4f ONLYreport; coordination optionalchoice→unassessed consume, plan loop allows empty active step, existing actorTopics/explicitauthorhint projection maynull; minimal sharedkernel/receipt fixes and privacy boundary documented.0source/tests/model/production; root to allocateimplementation, NPCjourney not passed.
 
@@ -2928,7 +2928,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - `44-165-PLAYER-ADMISSION-REVIEW`：主分支 `agent-input-version.ts` 已实现最小安全准入——目标人物 `projected_world_version` 未变时，允许无关世界推进后的旧版本私聊；receipt/hash 不改写，目标人物变化后仍拒绝，流式前缀只结算已显示内容。`tests/integration/agent-runtime.test.ts` 覆盖上述边界。第二段“玩家已见问题/责任 revision 范围”仍未实现，故标“最小段实现”，不把完整聊天准入标完成。
 - `44-150` 已用用户授权真实 `渣男体验` 完成最后 1 次：v17→v21，真实 UI 发送“今晚19点先见一面，再决定去不去出差”，1 次 `/messages`；刘胜男两条分段回复直接接受 19 点并追问地点/议题，未沿用旧 18 点、无不存在责任、无 invalid/unknown。累计 6/6、0 unknown；正式邀约/日历对象未形成，归 `44-145`，截图 `task-reports/assets/44-150-20261023-real-19.png`。
 - 仍保持进行/待验收、不能用本轮证据关闭的：`44-148`（现有世界进入/开场修复后真实复验）、`44-160`（开场具体度/内部计划口吻/作者原稿核对）、`44-161-RUNTIME-RECOVERY-LIVENESS`（真实持续演绎质量）、`44-161-AUTONOMOUS-QUALITY`（需新付费窗口）、`44-165-AUTONOMOUS-RUNTIME`（真实 UI 主动推进）、`44-180`（真实导演派发/上游 503）、`44-152/153`（真实手机/PC 入场自动继续）、`44-154-DUE-WORLD-JOB-SCHEDULER-I`（44-193 已上线 30 分钟 `pg_cron`/租约/每日6次；仅剩分钟级触发与确定性/模型预算分离）。
-- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153 验收、44-145 正式邀约闭环与 44-161 新能力暂缓后，当前总表 255 行、28 条未完成（其中 5 条历史相关行保留），23 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
+- P3 历史账 triage 已完成；叠加本轮 P2/早期行、历史基线冻结、44-152/153/145/141 验收与 44-161 新能力暂缓后，当前总表 255 行、27 条未完成（其中 5 条历史相关行保留），22 条才是活跃项（含外部 `44-198` 部署账号迁移 1 条）；另有 47 条历史行已冻结。分层与执行顺序见 [BACKLOG-TRIAGE-20261023](task-reports/BACKLOG-TRIAGE-20261023.md)。后续真实模型验收一次只开一个窗口，unknown 立即停止；媒体/作者事件归 P2，不在本轮冒称完成。
 
 ### 2026-10-23 · P2 媒体/协议子任务集成核验（root）
 
@@ -3006,3 +3006,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 ### 2026-10-23 · 44-145 真实正式邀约闭环
 
 用户授权6次文字窗口，合成验收世界 `县城黄毛`：玩家真实请求林悦“再发一个明天中午的正式邀约”，**1次** `/messages` 调用后，NPC真实回复并生成邀约 `5260bf8a...`“明天的中午聚餐”，`2026-10-21T04:00Z`、participant林悦、地点林悦家、status proposed；手机卡片待回复。玩家点击接受后 version 209、status confirmed、responseVersion 209，卡片“已约好/前往/查看日程”。0 unknown；剩余5次未用，窗口关闭；测试世界已暂停。截图 `task-reports/assets/44-145-formal-invite-{proposed,accepted}.png`。该闭环不覆盖到场/整体剧情完成。
+
+### 2026-10-23 · 44-141 人物下一步补验
+
+44-145 的真实模型调用已覆盖“人物只对白答应、不建正式邀约”的失败项：林悦生成 `5260bf8a...`“明天的中午聚餐”，手机接受后 v209 confirmed。导演交接此前 1/1 通过；coordination 空 episodeDecision 的真实模型场景未重跑，但 44-172 manifest 必选选择 guard 与 44-161 actor opportunity/handoff 接线已收口。`44-141` 按此限定收口，`44-138` 仍是最后总验收。
