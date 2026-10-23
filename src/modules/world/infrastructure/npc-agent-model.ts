@@ -681,17 +681,32 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   ]);
   while (!fits()) {
     const index = payload.observations.findIndex((o) => !protectedSources.has(o.sourceId));
-    if (index === -1)
-      throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {
-        code: 'NPC_AGENT_SNAPSHOT_LIMIT',
-        contextSizes: Object.fromEntries(
-          Object.entries(payload).map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0]),
-        ),
-      });
+    if (index === -1) break;
     const [removed] = payload.observations.splice(index, 1);
     if (!payload.contextSelection.omittedObservationSourceIds.includes(removed!.sourceId))
       payload.contextSelection.omittedObservationSourceIds.push(removed!.sourceId);
   }
+  // A long-lived world eventually exhausts the observation budget. Degrade
+  // secondary context before failing the player's send; protected evidence and
+  // the current input stay intact.
+  if (!fits())
+    for (const source of payload.sources) {
+      const value = source as unknown as Record<string, unknown>;
+      delete value.localDateTime;
+      delete value.worldVersion;
+    }
+  const optional = payload as unknown as Record<string, unknown>;
+  if (!fits()) optional.episodeFollowUps = [];
+  if (!fits()) optional.recentSelfMessages = [];
+  if (!fits()) optional.conversationProgress = null;
+  if (!fits()) optional.stickerCatalog = (optional.stickerCatalog as unknown[]).slice(0, 12);
+  if (!fits())
+    throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {
+      code: 'NPC_AGENT_SNAPSHOT_LIMIT',
+      contextSizes: Object.fromEntries(
+        Object.entries(payload).map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0]),
+      ),
+    });
   return messages();
 }
 
