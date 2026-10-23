@@ -148,3 +148,15 @@ Candidate14 07c0e083 / dpl_5d9NPwZkf3CJVtiS7L6faHkJjuvk READY, mini + configured
 但同一 world 仍存在 **4 条 `mediaStatus=pending` 的媒体消息**（03:15:25、03:22:30、03:27:09、03:29:03），从几分钟到十几分钟未进入 ready/failed/cancelled；同一时刻只有一条 ready。它们没有在聊天里正常显示，却持续留在世界投影中。不能确认是否已产生付费调用，也不能自动重试/补图；必须先审计这些 pending 的来源、租约和 provider 状态，再决定取消/完成，避免重复购买或长期占位。
 
 因此 44-158 仍不通过：同人物第二轮图片已成功且视觉一致，但失败/取消与 pending 生命周期未收口；`44-155` 的一次成功路径不受此推翻。
+
+### 2026-10-23 待部署：pending 过期投影修复
+
+已提交 `9e2f7edc fix(phone): expire stale pending media instead of infinite polling`：
+
+- `world-app-data.ts` 把超过 5 分钟的 `pending` 投影为 failed（“生成超时或未完成，可稍后重新发起”），不再永久显示 generating；
+- `world-phone-app.tsx` 只对 5 分钟内的 pending 做 3 秒轮询，避免 4 条旧 pending 持续拉 world；
+- focused 20/20、typecheck、boundaries 719 files、build 通过。
+
+但用干净 worktree `9e2f7edc` 执行 `vercel --prod` 返回：
+`Resource is limited - try again in 24 hours (more than 100, code: "api-deployments-free-per-day")`。
+因此最新生产 `jkilp1gm3` **不含**该修复，线上 pending 占位仍在，不能宣称已修复。需等 Vercel 免费日部署额度恢复或升级后再部署/公网复验；不可绕过配额或把本地 build 当线上。
