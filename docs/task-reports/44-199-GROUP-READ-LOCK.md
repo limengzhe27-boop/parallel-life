@@ -23,4 +23,4 @@ markRead, mutate, send, worker loads and all world write locks/versions remain u
 - wrong owner receives NOT_FOUND;
 - inject a committed group title change after the header read; list retains original group title in the same snapshot, next read sees new title.
 
-Typecheck/boundaries pending at initial report; integrated check/build/deployment belongs to root. This fix removes the read/write lock convoy but does not claim to solve the separately observed slow offer SQL or database resource pressure.
+Typecheck0 errors / boundaries719 passed; integrated check/build/deployment belongs to root. This fix removes the read/write lock convoy but does not claim to solve the separately observed slow offer SQL or database resource pressure.
