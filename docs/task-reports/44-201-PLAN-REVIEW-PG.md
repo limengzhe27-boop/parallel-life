@@ -18,3 +18,7 @@ canonical保留planReview后首次PG报DirectorSnapshot Candidate strict拒绝pl
 ## 限定
 
 Director受控quiet输出仍记录invalid_output，该旧fixture导演协议适配未在本任务解决；并未阻止上述原计划复查与去重，不能据2/2宣称导演质量/整体演绎通过。没有生产/真实模型调用，未测试隐式create更新（由root53项单测），未部署。
+
+## Director夹具收口
+
+只读本地失败attempt的真实response并调用decodeDirectorWire，错误明确为candidates[0].ref缺失及candidateRef未知字段；不是放宽schema可解决。新测试改为当前合法ref字段并按wireCatalog全量defer候选，新增每条director attempt均committed断言。两场景重跑2/2通过、日志lastStatus=committed、无invalid_output，耗时2.1秒。上节旧夹具限制已在本提交解除，仍不等于真实模型质量验收。

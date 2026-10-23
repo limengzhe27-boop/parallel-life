@@ -70,7 +70,7 @@ for (const outcome of ['succeeded', 'failed'] as const) {
             return JSON.stringify({
               protocol: 'director-wire-v14',
               candidates: p.wireCatalog.candidates.map((c: { ref: string }) => ({
-                candidateRef: c.ref,
+                ref: c.ref,
                 decision: 'defer',
                 reason: 'No global coordination needed.',
               })),
@@ -189,6 +189,17 @@ for (const outcome of ['succeeded', 'failed'] as const) {
       assert.equal(reviewCalls, 1, 'one result-driven reconsideration');
       await advance.advanceIfEnabled(owner, worldId);
       assert.equal(reviewCalls, 1, 'same terminal result must not buy another review');
+      const directorStates = (
+        await admin.query(
+          'SELECT status FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
+          [worldId],
+        )
+      ).rows;
+      assert.ok(directorStates.length > 0);
+      assert.ok(
+        directorStates.every((r) => r.status === 'committed'),
+        JSON.stringify(directorStates),
+      );
       const afterWake = await store.read(owner, { worldId, actorId });
       assert.ok(afterWake);
       assert.equal(afterWake.goals[0]!.status, 'active');
