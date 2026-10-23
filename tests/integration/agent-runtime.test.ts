@@ -461,7 +461,7 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
     },
   );
   await t.test(
-    'a live player private turn fences automatic wake commits but not its own commit',
+    'a live player private turn does not fence another actor automatic commit',
     async () => {
       const f = await fixture();
       const wake: AgentInputReceipt = {
@@ -494,13 +494,11 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
       let playerAttempt = (await claim(f)).attempt;
       playerAttempt = await store.mark(f.owner, playerAttempt, 'request_sent');
       playerAttempt = await store.saveResponse(f.owner, playerAttempt, { statements: [] });
-      await assert.rejects(
-        () =>
-          app.transaction(f.owner, (sql) =>
-            beginAgentCommitFrameInTransaction(sql, f.owner, wakeAttempt),
-          ),
-        /SUPERSEDED_BY_USER_INTERRUPT/,
+      const wakeFrame = await app.transaction(f.owner, (sql) =>
+        beginAgentCommitFrameInTransaction(sql, f.owner, wakeAttempt),
       );
+      assert.equal(wakeFrame.state.actorId, f.b);
+      assert.equal(wakeFrame.world.version, 0);
       const frame = await app.transaction(f.owner, (sql) =>
         beginAgentCommitFrameInTransaction(sql, f.owner, playerAttempt),
       );
