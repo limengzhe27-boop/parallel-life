@@ -8,7 +8,7 @@ import {
   getSticker,
 } from '../src/modules/world/domain/stickers.ts';
 import { parseStickerText, STICKER_LABELS } from '../src/features/phone/stickers.ts';
-test('shared catalogue resolves all historical assets without exposing unlicensed candidates', () => {
+test('shared catalogue resolves historical and user-authorized assets', () => {
   assert.deepEqual(
     STICKER_CATALOG.map((s) => s.id),
     [...STICKER_IDS],
@@ -23,6 +23,7 @@ test('shared catalogue resolves all historical assets without exposing unlicense
       src: s.src,
     });
   }
-  assert.equal(getSticker('selected_aa'), null);
+  assert.equal(getSticker('selected_aa')?.src, '/stickers/candidates/selected_aa.webp');
+  assert.equal(getSticker('not-a-sticker'), null);
   assert.equal(parseStickerText('[[sticker:__proto__]]'), null);
 });

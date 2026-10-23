@@ -3062,7 +3062,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 正式域名只读打开 `渣男体验`，5000ms 内锁屏显示欣欣 08:26、林白语 08:22 两条真实 assistant 消息，未手工插入、未触发新模型。截图 `task-reports/assets/44-156-old-world-lock.png`。本行关闭“旧世界锁屏无主动通知”；完整 Director→NPC 自然开场/剧情质量仍归 44-161。
 
-|44-200-STICKER-CATALOG|[ ] 待验收|stickers_catalog200；root集成|.local/worktrees/sticker-catalog200；domain/stickers.ts、features/phone/stickers.ts、静态素材审计文档及专属测试|统一无框架目录、旧ID兼容；未授权素材不进public；0模型/生产/部署。|
+|44-200-STICKER-CATALOG|[x] 已集成，素材授权已更新|root集成|main；domain/stickers.ts、features/phone/stickers.ts、public/stickers/candidates、tests/sticker-catalog200.test.ts|统一无框架目录、旧20 ID兼容；用户2026-10-23确认60候选均可用后登记为80 ID，资源存在/解析/typecheck通过；保存与真实NPC选图归原档验收。|
 
 |44-200-NARRATIVE|[ ] 待验收|narrative200；root集成|.local/worktrees/narrative200；director-model-protocol.ts、director-agent-model.ts、director-agent-model.test.ts、报告44-200-NARRATIVE.md|dfb1c3a8/fcb7b278/3ffb07a7/ce6024c4；56聚焦/type通过，真实snapshot裁剪6条opening全丢→6条保留，1次真实导演9.081s解析通过但同主题双机会仍存；0生产写/部署。|
 
@@ -3099,5 +3099,6 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-205-P0-ACCEPT|[x] 已线上验证|root唯一集成|线上渣男体验4953…；无源码|舒雅婷928cd6ce→committed v265；李之之52053b84→committed v268（原“我在忙”+2条NPC落库）；同command 52053b84以原expectedVersion复放200、modelCallCount=0、同event b3e60bd0；旧unknown d522…仍unknown。|
 |44-205-CONTEXT-LIMIT|[x] 已线上验证|root唯一集成|npc-agent-model.ts、model-request-policy.ts、run-agent.ts、tests|长档先撞32k snapshot，裁剪state.questions后转32,153 OUTPUT_SCHEMA_LIMIT；schema上限提至40k；重试成功且复放0模型调用；preflight尺寸日志保留。|
 |44-205-REPEAT-WAIT|[ ] 部分通过，待继续|root唯一集成|agent-schedule-collectors.ts、npc-conversation-progress.ts、npc-agent-model.ts及聚焦测试|调度闸门/prompt v65/projection去重已上线；李之之不再每小时重开计划，但对“我在忙，晚点再说”仍回“别忘周末美食”，重复施压未完全消除；47/47调度、5/5进度、101聚焦、check3988/build通过。|
-|44-205-DIRECTOR-CONTEXT|[ ] 本地验证，待部署|root唯一集成|director-agent-model.ts、tests/director-context-budget.test.ts|原档/定时任务`DIRECTOR_CONTEXT_LIMIT` 503；预算80k→70k并新增actorStates问题/focus及episodes/topics紧急裁剪，保留system余量；36聚焦、check3988/build通过；部署后用原档advance验证。|
-|44-205-PUBLISH|[ ] 部署重试中|root唯一集成|vercel.json、docs/DEPLOYMENT.md|Git为唯一发布入口；ignoreCommand在Vercel不可用（.git被.vercelignore移除，5bb579ab部署ERROR），已撤回；改为docs与代码同批推、不单独推文档；历史16:13–16:41同sha 1 Git+2 CLI已记录；本批不再手动`vercel --prod`，重推后补READY/公网证据。|
+|44-205-DIRECTOR-CONTEXT|[ ] 已部署，advance仍scheduler_busy|root唯一集成|director-agent-model.ts、tests/director-context-budget.test.ts|原档/定时任务`DIRECTOR_CONTEXT_LIMIT` 503；预算80k→70k并新增actorStates问题/focus及episodes/topics紧急裁剪；36聚焦/check3988/build通过；ff195605 READY、health200；原档advance返回200 complete但`deferred:scheduler_busy`、played0，存在f3f9f0cf request_sent租约，未宣称推进通过。|
+|44-205-STICKER-ASSETS|[x] 已集成，待真实UI/模型验收|root唯一集成|public/stickers/candidates、src/modules/world/domain/stickers.ts、tests/sticker-catalog200.test.ts|用户确认60素材均可用；按proposedId原样复制webp（保留动画/像素），catalog 20→80、旧20 ID不变；资源存在/解析/typecheck/7聚焦通过；真实手机保存/刷新/重试/NPC同轮选图待原档。|
+|44-205-PUBLISH|[x] 已部署 READY|root唯一集成|vercel.json、docs/DEPLOYMENT.md|Git为唯一入口；ignoreCommand在Vercel不可用（.git被.vercelignore移除，5bb579ab ERROR），已撤回；ff195605 READY、正式别名/health200；本批未手动`vercel --prod`；docs与代码同批，未再单独部署。|
