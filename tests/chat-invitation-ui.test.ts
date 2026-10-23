@@ -85,9 +85,10 @@ test('a proposed invitation renders an actionable card inside the chat, not just
   assert.match(html, /拒绝/);
 });
 
-test('an accepted invitation exposes one-tap directions to its map place and the scene entry', () => {
+test('an accepted invitation no longer keeps an actionable card in the chat', () => {
   const html = render('confirmed');
-  assert.match(html, /前往小馆/);
-  assert.match(html, /进入现场/);
-  assert.match(html, /查看日程/);
+  assert.doesNotMatch(html, /日程邀约/);
+  assert.doesNotMatch(html, /今晚一起吃饭/);
+  assert.doesNotMatch(html, /接受/);
+  assert.doesNotMatch(html, /改期/);
 });
