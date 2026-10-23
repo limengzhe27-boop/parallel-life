@@ -1,3 +1,11 @@
+## 2026-10-23 · 44-154-B 收口与新账号首次部署
+
+`44-154-B` 核心两场景在主分支单独通过：`global director quiet preserves...` 1/1、`known invalid global director...` 1/1；整文件 `npc-agent-advance-service.test.ts` 仍 5/18，首个 `travel...` actorId 断言不符并级联 `UNKNOWN_SOURCE`，重建干净 `parallel_life_test` schema 后相同，属跨用例隔离/夹具问题，不宣称整套通过。
+
+代码/文档提交 `5aebd9b1`，新账号项目 `lmz3/parallel-world` 部署 `dpl_f6wzmxMHK4TUCSRQQPnbRdBtpvmX` READY（`https://parallel-world-halu9ab2x-lmz3.vercel.app`），正式域名 `https://parallel-world-eosin.vercel.app/api/health` 200。当前 CLI 已登录 `lim622270-5590`、`.vercel/project.json` 指向 `parallel-world`；下方旧 `parallel-life` 部署记录均为迁移前历史，不再作为当前入口。
+
+该批只改文档/账本，未改生产源码、未调用模型、未写生产世界、未新增 SQL。
+
 ## 2026-10-23 · 早期投影/审计行收口（44-3/88/88A/88C）
 
 ## 当前唯一生产目标（2026-10-23 账号迁移）
