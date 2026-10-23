@@ -728,6 +728,57 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   }
   if (!fits()) optional.conversationProgress = null;
   if (!fits()) optional.stickerCatalog = (optional.stickerCatalog as unknown[]).slice(0, 12);
+  // Long-lived actors accumulate terminal goals/plans/actions/responsibilities
+  // and old decisions. They are history, not current authority; keep the active
+  // plan graph and drop terminal records before failing the player's send.
+  if (!fits()) {
+    const state = optional.state as
+      | {
+          goals?: { id: string; status: string }[];
+          plans?: {
+            id: string;
+            goalId: string;
+            status: string;
+            actionIds?: string[];
+            nextActionId?: string | null;
+          }[];
+          actions?: { id: string; status: string }[];
+          responsibilities?: { id: string; status: string; responsibilityId?: string }[];
+          decisions?: { responsibilityId: string }[];
+        }
+      | null;
+    if (state) {
+      const activePlans = (state.plans ?? []).filter((plan) =>
+        ['active', 'waiting', 'blocked'].includes(plan.status),
+      );
+      const activePlanGoalIds = new Set(activePlans.map((plan) => plan.goalId));
+      const referencedActionIds = new Set(
+        activePlans.flatMap((plan) => [
+          ...(plan.actionIds ?? []),
+          ...(plan.nextActionId ? [plan.nextActionId] : []),
+        ]),
+      );
+      state.goals = (state.goals ?? []).filter(
+        (goal) => !['fulfilled', 'withdrawn'].includes(goal.status) || activePlanGoalIds.has(goal.id),
+      );
+      state.plans = activePlans;
+      state.actions = (state.actions ?? []).filter(
+        (action) =>
+          !['succeeded', 'failed', 'withdrawn'].includes(action.status) ||
+          referencedActionIds.has(action.id),
+      );
+      state.responsibilities = (state.responsibilities ?? []).filter(
+        (responsibility) =>
+          !['fulfilled', 'withdrawn', 'expired'].includes(responsibility.status),
+      );
+      const activeResponsibilityIds = new Set(
+        state.responsibilities.map((responsibility) => responsibility.id),
+      );
+      state.decisions = (state.decisions ?? [])
+        .filter((decision) => activeResponsibilityIds.has(decision.responsibilityId))
+        .slice(-8);
+    }
+  }
   if (!fits())
     throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {
       code: 'NPC_AGENT_SNAPSHOT_LIMIT',

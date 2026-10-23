@@ -477,6 +477,81 @@ test('a long duplicate question ledger is degraded before preflight fails the se
   assert((payload.state.questions ?? []).length <= 8);
 });
 
+test('long-lived terminal history is compacted before preflight fails the send', async () => {
+  const input = snapshot();
+  const long = '旧历史'.repeat(120);
+  for (let index = 0; index < 120; index++) {
+    input.state.goals.push({
+      id: `g-old-${index}`,
+      summary: long,
+      status: 'withdrawn',
+      sourceIds: ['source-1'],
+      resultIds: [],
+    });
+    input.state.plans.push({
+      id: `p-old-${index}`,
+      goalId: `g-old-${index}`,
+      summary: long,
+      status: 'finished',
+      sourceIds: ['source-1'],
+      actionIds: [],
+      nextActionId: null,
+      triggers: [],
+      missingConditions: [],
+    });
+    input.state.actions.push({
+      id: `a-old-${index}`,
+      goalId: `g-old-${index}`,
+      capability: 'own.schedule',
+      status: 'succeeded',
+      sourceIds: ['source-1'],
+      targetIds: [],
+      parameters: {},
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+    });
+    input.state.responsibilities.push({
+      id: `r-old-${index}`,
+      subject: { kind: 'request', id: `request-old-${index}` },
+      summary: long,
+      status: 'withdrawn',
+      waitingOn: null,
+      sourceIds: ['source-1'],
+      nextCheck: [],
+      endReason: '旧历史',
+    });
+    input.state.decisions.push({
+      id: `d-old-${index}`,
+      responsibilityId: `r-old-${index}`,
+      kind: 'accepted',
+      sourceId: 'source-1',
+      quote: '好',
+    });
+  }
+  input.viewState = structuredClone(input.state);
+  const { adapter, calls } = capture();
+  adapter.validateInput(input);
+  await adapter.decide(input);
+  assert.equal(calls.length, 1);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert(calls[0]!.messages[1]!.content.length <= NPC_AGENT_PAYLOAD_LIMIT);
+  assert.deepEqual(
+    payload.state.goals.map((goal: { id: string }) => goal.id),
+    ['g1'],
+  );
+  assert.deepEqual(
+    payload.state.plans.map((plan: { id: string }) => plan.id),
+    ['p1'],
+  );
+  assert.deepEqual(payload.state.actions, []);
+  assert.deepEqual(
+    payload.state.responsibilities.map((responsibility: { id: string }) => responsibility.id),
+    ['r1'],
+  );
+  assert.deepEqual(payload.state.decisions, []);
+});
+
 test('protected state or current input over budget fails in deterministic preflight with zero calls', async () => {
   for (const oversize of ['input', 'state', 'boundary'] as const) {
     const input = snapshot();
