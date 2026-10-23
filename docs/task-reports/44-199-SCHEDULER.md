@@ -16,7 +16,7 @@ Dedicated PostgreSQL 55659; all migrations through 0109 applied locally.
 - `proactive-scheduler199.test.ts`: 100 due worlds, two ticks of 50, no duplicates, subsequent claim zero; 29 minutes not due / 31 minutes due, overlapping claims return that world only once; scheduler cannot SELECT worlds. 1/1 passed, 147–335ms measured drain time. The execution callback represents two actor executions per world, 200 simulated executions total. **This is real SQL plus a controlled executor, not 100 real NPC model/transaction runs or model latency evidence.**
 - Existing service integration unknown test now also calls actual background SQL after A enters unknown: world is claimed, B executes, A stays unknown with one paid-adapter invocation. This specific test passed (~1.1s).
 - Entire legacy `npc-agent-advance-service.test.ts`: 18 total, 5 pass / 13 fail, including existing UNKNOWN_SOURCE / actor_local source expectations. Not claiming full file green; no unrelated fixtures changed. Only the unknown isolation test received assertions.
-- Pure proactive scheduler 3/3 passed (including time-boundary without aborting running work); boundaries passed. Typecheck running at handoff; integrated check/build belongs to root.
+- Pure proactive scheduler 3/3 passed (including time-boundary without aborting running work); boundaries passed. Typecheck passed (0 errors); integrated check/build belongs to root.
 
 ## Capacity and outstanding work
 
