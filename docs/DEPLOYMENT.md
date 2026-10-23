@@ -1,3 +1,9 @@
+## 2026-10-23 · 早期投影/审计行收口（44-3/88/88A/88C）
+
+`44-3` 按 `agent-channel-projector` 纯测收口，`44-88A` 按 episode evidence 纯测收口，合计 **8/8**：稳定 UUID、提案/邀请/到达/失败证据边界、失败/他人/旧 epoch 证据拒绝。`44-88`/`44-88C` 只读架构验证/独立审计报告已交付；报告中的缺陷仍由后续 P0/P1/P2 行处理，不宣称已全部修复。剩余早期行 `44-84`/`44-94`/`44-99`/`44-103` 未批量改完成。
+
+文档提交 `1d8741ac`，`parallel-life` 部署 `dpl_CorLZCTMi685sivA8sYqRJ2voXna` READY，正式别名 `/api/health` 200。该批只改账本/文档，**未改生产源码、未调用模型、未写生产世界、未新增 SQL**。
+
 ## 2026-10-23 · 44-174/175 媒体生命周期收口
 
 `44-175` 的 `media-pipeline175` 已接入主分支，本地 PostgreSQL **1/1 通过**：原 `npcAgentServices`/kernel 创建 goal/plan + `media.generate_image` action → 成功入队（request 1 条 pending）→ pending 时 advance 不重复复盘/生图（actorCalls 1、goal active）→ 真实 `PostgresOutbox`/`dispatchOutbox`/`PostgresTaskQueue`/`createMediaPipelineHandler` 完成 → ready asset/outbox/task succeeded → advance 一次后续（actorCalls 2）→ 再 advance 不增加、request 仍 1 条、goal 仍 active，模型收到 `own_media_completion`。
