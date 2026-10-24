@@ -1,10 +1,12 @@
 ## 2026-10-24 · 44-205 入场长读与锁队列修复（真实档仍受 Supabase 限制）
 
-- `main d12c801a` / `dpl_3mxfzdx6i` READY；正式别名 health 200。五次代码提交依次为
+- `main cd321bd1` / `dpl_k84pq9qdq` READY；正式别名 health 200。七次代码提交依次为
   `ff27bd74`（不再全量读取 agent response）、`83178c87`（serverless 连接池
   max3/5s/1s）、`3dd1160a`（opening/probe 去掉 `FOR SHARE`）、`e4347057`
   （narrative wake 不再读取未使用的 director response）、`d12c801a`
-  （私聊 focus 按 world version 缓存 5 分钟）。
+  （私聊 focus 按 world version 缓存 5 分钟）、`d83addec`（DB 断连 15s
+  进程内断路器）、`cd321bd1`（director snapshot/校验的 actorKnownTopics
+  改为同一 client 顺序读取）。
 - 现场根因证据：真实档 4953 的入场探针在 world/clock share lock 内读取
   `agent_attempts` 全部 `a.response`（表 75MB TOAST）；生产只读快照出现 17 条
   长事务、头部 133 秒，后续 12+ 条 `FOR UPDATE worlds` 排队。修掉全量响应和
@@ -16,6 +18,9 @@
   `failure_code=UNCLASSIFIED`；07:19 又有 operation 持有 270 秒 batch lease
   至 07:24。lease 到期前新请求只能 deferred，lease 期间若 DB 再次断开，
   `releaseAgentAdvanceBatch` 也失败，形成“270 秒 lease 周期”。
+- 生产日志曾出现 `client.query() when the client is already executing a query`；
+  `cd321bd1` 后同窗口已不再出现。此次修复把 director snapshot/校验对同一
+  `PoolClient` 的 `Promise.all` 改为顺序读取，避免打乱 pg 协议和事务。
 - 另有一个 2026-10-23 08:44 的旧 `unknown_after_send`（command
   `ed1b3823...`，expected world v99），按 unknown 不自动重试规则保留；它不是
   本轮新产生的付费调用。
@@ -23,7 +28,7 @@
   `world_clock` 的 autovacuum ANALYZE 都能等 38 秒，属于 Supabase 项目级
   连接/性能饱和。恢复后再验证 advance 是否创建新 attempt、world 286 是否提交
   新事件；在恢复前不强写真实档、不删 receipt、不重买 unknown。
-- `npm run check` **3999/3999**、`npm run build` 31/31 通过；本批无新字段/表/
+- `npm run check` **4000/4000**、`npm run build` 31/31 通过；本批无新字段/表/
   迁移，未清 lease，未改用户历史。
 
 ## 2026-10-24 · 44-206 表情与文字分开发

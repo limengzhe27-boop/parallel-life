@@ -137,6 +137,19 @@ wake 未使用的 director response 后，仍有 55–78 秒 `clock/activity` �
 不能为了“看起来推进”而手工清；需要等持有者结束或 lease 过期，且 DB 恢复
 后再验证下一轮 advance。
 
+### 15:30 · 同连接并发查询修复
+
+生产日志捕获到 pg 警告：
+
+`client.query() when the client is already executing a query is deprecated`
+
+`director-snapshot-repository` 和 `director-runtime-repository` 都在同一个
+`PoolClient` 上用 `Promise.all` 读取多个 actor 的 knownTopics。pg 的一个 client
+只能顺序执行查询；并发提交会打乱协议/事务，可能导致连接中断和
+`UNCLASSIFIED`。`cd321bd1` 改为同一 client 顺序读取；部署后同窗口该警告为 **0**。
+这消除了一个明确的代码风险，但 Supabase 随后仍然 `authentication did not
+complete`，世界继续停在 v286，不能把“警告消失”当成真实推进通过。
+
 ### 阻塞与恢复条件
 
 - 阻塞：Supabase `parallel-life` 项目连接池/计算资源饱和，生产 API 间歇
