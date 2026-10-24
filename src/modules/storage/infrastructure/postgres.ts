@@ -19,9 +19,13 @@ export class PostgresDatabase {
     this.pool = new pg.Pool({
       connectionString,
       ssl,
-      max: 8,
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 10000,
+      // Serverless invocations are many and short-lived. Keep each instance's
+      // footprint small and release idle pooler slots immediately; one slow
+      // archive must not multiply into hundreds of held Supabase clients.
+      max: 3,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 1000,
+      allowExitOnIdle: true,
     });
     this.pool.on('error', () => {
       /* Request errors are surfaced without query text or secrets. */

@@ -62,6 +62,10 @@
    任何请求遇到长行锁时快速失败并释放连接，不把整个连接池拖死。
 3. 新增回归断言：入场探针的 attempt 查询必须包含 `has_response`，且不得出现
    `a.response,`。
+4. `PostgresDatabase` 连接池按 serverless 收缩：`max 8→3`、
+   `connectionTimeout 10s→5s`、`idleTimeout 10s→1s`，并启用
+   `allowExitOnIdle`。原配置在大量短生命周期函数实例下会保留过多 Supabase
+   pooler 客户端，放大了锁队列。
 
 ### 本地验证
 
@@ -71,10 +75,18 @@
 - `npm run build`：通过，31/31 页面。
 - 热修复提交前未写生产业务数据；只终止了卡住的应用事务并用只读快照取证。
 
+### 第一次部署后观察（ff27bd74 / dpl_GpzP5trCMRUzYhvmXAunKmjnaG35）
+
+新版本 READY 后，入场本身从数十秒降到 2.3 秒，`GET /groups` 为 0.5–8 秒；
+但 `POST /clock/activity` 仍大量 10 秒连接超时，Supabase pooler 间歇性
+`authentication did not complete`。现场仍有约 5 秒一次的多个客户端心跳，
+说明仅去掉全量响应读取还不足以清空既有 pooler 压力。已追加连接池收缩，
+等待第二次部署确认；此时仍不能宣称锁队列或 `COMMAND_CONFLICT` 已解决。
+
 ### 待完成
 
-- 推送并部署后重新打开 4953，确认不再出现 10 秒连接池超时和 40 秒以上
-  `clock/activity`；再单独观察 `POST /advance/operation` 是否仍返回
+- 推送并部署第二次连接池收缩后重新打开 4953，确认不再出现 10 秒连接池超时和
+  40 秒以上 `clock/activity`；再单独观察 `POST /advance/operation` 是否仍返回
   `COMMAND_CONFLICT`。
 - 若 `COMMAND_CONFLICT` 仍存在，继续用已部署的 `agent-input-command-conflict`
   与 `agent-attempt-command-conflict` 安全日志定位，不重买 unknown、不强写真实档。
