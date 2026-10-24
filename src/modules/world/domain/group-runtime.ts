@@ -1,6 +1,7 @@
 import type { AgentRuntimeTransition } from './agent-state-event.ts';
 import type { WorldEffect } from './types.ts';
 import { DomainError } from './errors.ts';
+import { getSticker } from './stickers.ts';
 import type { WorldState } from './types.ts';
 import {
   assertGroupConversation,
@@ -15,9 +16,13 @@ import {
 
 export type GroupReply = {
   actorId: string;
+  /** Empty only when stickerId is present. */
   text: string;
+  /** Optional independent sticker message, never merged into the text message. */
+  stickerId?: string;
   /** Assigned by runtime when building the event, never accepted from the model. */
   messageId?: string;
+  stickerMessageId?: string;
   invitation?: { title: string; at: string; id?: string };
 };
 export type GroupEvent = {
@@ -186,10 +191,29 @@ export function reduceGroupEvent(
         )
           invalid();
         for (const reply of event.data.replies) {
-          send({ kind: 'actor', actorId: reply.actorId }, reply.text, reply.messageId ?? event.id);
+          const hasText = reply.text.trim().length > 0;
+          const sticker = reply.stickerId ? getSticker(reply.stickerId) : null;
+          if ((!hasText && !sticker) || (reply.stickerId && !sticker)) invalid();
+          if (hasText)
+            send(
+              { kind: 'actor', actorId: reply.actorId },
+              reply.text,
+              reply.messageId ?? event.id,
+            );
+          if (sticker) {
+            // A text+sticker reply is two independent messages and therefore
+            // needs a distinct runtime-assigned identity for the sticker.
+            if (hasText && !reply.stickerMessageId) invalid();
+            send(
+              { kind: 'actor', actorId: reply.actorId },
+              `[[sticker:${sticker.id}]]`,
+              hasText ? reply.stickerMessageId! : (reply.messageId ?? event.id),
+            );
+          }
           if (
             reply.invitation &&
-            (!reply.invitation.title.trim() ||
+            (!hasText ||
+              !reply.invitation.title.trim() ||
               reply.invitation.title.length > 120 ||
               !Number.isFinite(Date.parse(reply.invitation.at)) ||
               !/Z$|[+-]\d\d:\d\d$/u.test(reply.invitation.at) ||

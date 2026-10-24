@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   agentWakeRecovery,
+  orphanedWakeCandidateIds,
+  wakeCandidateIdFromInputText,
   type AgentWakeRecoveryPrior,
 } from '../src/modules/world/domain/agent-wake-recovery.ts';
 
@@ -64,4 +66,43 @@ test('paid, sent, response, event and any other status never authorize successor
       keep,
     );
   }
+});
+
+test('wake candidate parser only accepts the semantic wake shape', () => {
+  const valid = JSON.stringify({ type: 'npc_own_condition_ready', candidateId: 'observation:abc' });
+  assert.equal(wakeCandidateIdFromInputText(valid), 'observation:abc');
+  assert.equal(wakeCandidateIdFromInputText(valid), wakeCandidateIdFromInputText(valid));
+  for (const text of [
+    undefined,
+    null,
+    42,
+    '',
+    'not json',
+    '{}',
+    '{"type":"npc_own_condition_ready"}',
+    '{"type":"npc_own_condition_ready","candidateId":""}',
+    '{"type":"other","candidateId":"observation:abc"}',
+  ])
+    assert.equal(wakeCandidateIdFromInputText(text), undefined);
+});
+
+test('orphaned wake candidates are consumed only when their receipt version is older', () => {
+  const at = (version: number, candidateId: string) => ({
+    expectedWorldVersion: version,
+    inputText: JSON.stringify({ type: 'npc_own_condition_ready', candidateId }),
+  });
+  const ids = orphanedWakeCandidateIds(
+    [
+      at(123, 'observation:old'),
+      at(285, 'observation:previous'),
+      at(286, 'observation:current'),
+      at(287, 'observation:future'),
+      { expectedWorldVersion: Number.NaN, inputText: at(100, 'observation:bad-version').inputText },
+      { expectedWorldVersion: 100, inputText: 'not json' },
+    ],
+    286,
+  );
+  assert.deepEqual([...ids].sort(), ['observation:old', 'observation:previous']);
+  assert.equal(orphanedWakeCandidateIds([at(123, 'observation:old')], 123).size, 0);
+  assert.equal(orphanedWakeCandidateIds([at(123, 'observation:old')], Number.NaN).size, 0);
 });

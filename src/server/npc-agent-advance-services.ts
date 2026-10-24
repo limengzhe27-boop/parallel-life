@@ -1,6 +1,10 @@
 import { readAgentObservationScheduleCandidatesInTransaction } from '../modules/world/infrastructure/agent-observation-schedule-read.ts';
 import { independentObservationWork } from '../modules/world/domain/independent-observation-work.ts';
-import { agentWakeRecovery } from '../modules/world/domain/agent-wake-recovery.ts';
+import {
+  agentWakeRecovery,
+  orphanedWakeCandidateIds,
+  wakeCandidateIdFromInputText,
+} from '../modules/world/domain/agent-wake-recovery.ts';
 import type { AdvanceWorkRef } from '../modules/world/domain/advance-operation.ts';
 import {
   readOwnAgendaReviewWorkInTransaction,
@@ -304,25 +308,40 @@ export function npcAgentAdvanceServices(
           expectedWorldVersion: Number(r.expected_world_version),
           expectedActorRevision: Number(r.expected_actor_revision),
           engineEpoch: Number(r.engine_epoch),
-          wakeCandidateId: (() => {
-            if (r.origin !== 'wake') return undefined;
-            try {
-              const input = JSON.parse(r.input_text);
-              return input.type === 'npc_own_condition_ready' &&
-                typeof input.candidateId === 'string'
-                ? input.candidateId
-                : undefined;
-            } catch {
-              return undefined;
-            }
-          })(),
+          wakeCandidateId:
+            r.origin === 'wake' ? wakeCandidateIdFromInputText(r.input_text) : undefined,
         }));
+        // An interrupted wake can leave a receipt without any attempt. Once the
+        // world has moved on that receipt cannot be replayed, so exclude its
+        // semantic candidate instead of letting every scheduler tick conflict.
+        const staleWakeCandidateIds = orphanedWakeCandidateIds(
+          (
+            await sql.query(
+              `SELECT (r.document->>'expectedWorldVersion')::integer AS expected_world_version,
+                      r.document->>'text' AS input_text
+                 FROM parallel_life.agent_input_receipts r
+                WHERE r.world_id=$1 AND r.owner_id=$2
+                  AND r.document->>'origin'='wake'
+                  AND (r.document->>'expectedWorldVersion')::integer < $3
+                  AND NOT EXISTS (
+                    SELECT 1 FROM parallel_life.agent_attempts a
+                     WHERE a.world_id=r.world_id AND a.owner_id=r.owner_id
+                       AND a.input_receipt_id=r.id
+                  )`,
+              [worldId, ownerId, world.version],
+            )
+          ).rows.map((r) => ({
+            expectedWorldVersion: Number(r.expected_world_version),
+            inputText: String(r.input_text ?? ''),
+          })),
+          world.version,
+        );
         const agendaInitializeGrants = await readAgendaInitializeGrantsInTransaction(sql, ownerId, {
           worldId,
           engineEpoch,
           worldVersion: world.version,
         });
-        return { states, results, prior, agendaInitializeGrants };
+        return { states, results, prior, staleWakeCandidateIds, agendaInitializeGrants };
       });
       if (
         read.states.length !== world.actors.length ||
@@ -757,6 +776,9 @@ export function npcAgentAdvanceServices(
               if (batch?.handledActorIds.has(candidate.actorId)) continue;
               const prior = read.prior.find((a) => a.commandId === commandForCandidate(candidate));
               if (prior?.status === 'committed') continue;
+              // The receipt was accepted at an older world version but no attempt
+              // was ever written. Replaying it can only fail the version CAS.
+              if (!prior && read.staleWakeCandidateIds.has(candidate.id)) continue;
               // An invalid/stale result is a known failed attempt, not permission to buy a replacement.
               // The blocker names only this semantic candidate, preserving other actors and matters.
               const resourceId = `wake:${candidate.id}`;
@@ -1445,8 +1467,7 @@ export function npcAgentAdvanceServices(
       try {
         if (retryDirectorAttemptId)
           return await retryAdvanceReadOnce(
-            () =>
-              service.advanceOne(ownerId, worldId, retryDirectorAttemptId, undefined, options),
+            () => service.advanceOne(ownerId, worldId, retryDirectorAttemptId, undefined, options),
             () => retryLog('retry-director'),
           );
         return await runAgentAdvanceBatch(

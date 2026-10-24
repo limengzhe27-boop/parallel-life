@@ -88,8 +88,7 @@ async function loadWorld(
   const appointments = new Map(
     (state.appointments ?? []).map((appointment) => [appointment.id, appointment]),
   );
-  for (const appointment of persistedAppointments)
-    appointments.set(appointment.id, appointment);
+  for (const appointment of persistedAppointments) appointments.set(appointment.id, appointment);
   state.appointments = [...appointments.values()];
   // Group processing deliberately never loads world_messages or private memories.
   state.messages = [];
@@ -541,6 +540,7 @@ export function groupReplyEvent(
       replies: replies.map((r) => ({
         ...r,
         messageId: randomUUID(),
+        ...(r.stickerId && r.text.trim() ? { stickerMessageId: randomUUID() } : {}),
         ...(r.invitation
           ? {
               invitation: {
