@@ -208,13 +208,21 @@ Supabase 管理连接已可读，生产 health 200，但世界仍为 **v286**。
   operation 恢复 `succeeded=true`，`result.played=0`、`actors=[]`，连续多次
   51–70 秒正常 quiet；旧 command `760064dd` 不再被选中，空转循环停止。
 - 世界仍为 **v286**，没有新事件。loop 修好后，调度开始转向 `actor_local` 自主候选，
-  但在 `22:39:43Z`–`22:49:38Z` 连续创建了 **5 个** attempt（actor `f8fe...`、
-  `c06e...`、`aecd...`、`6a53...`，不同 candidate）；每个 `response` 都只有
+  在 `22:39:43Z`–`22:58:23Z` 连续创建了 **13 个** attempt（不同 actor/candidate，
+  含 `f8fe...`、`c06e...`、`aecd...`、`6a53...`）；每个 `response` 都只有
   `{"kind":"model_request_rejection","httpStatus":403}`，状态 `invalid_output`，
-  无 event。说明下一道阻塞是模型请求 403（供应商鉴权/额度/权限），不是旧 receipt；
-  但这些自主候选仍会在新 tick 继续尝试，不能宣称世界推进或系统已完全安静。
+  无 event。说明下一道阻塞是模型请求 403（供应商鉴权/额度/权限），不是旧 receipt。
+  这些自主候选每个 tick 都换一个新 candidate，因此会持续尝试，不能宣称系统安静。
+- 追加 `2a321a35`：advance 控制读同时检查最近 10 分钟是否有 401/403/429
+  `model_request_rejection`；命中则本世界自动推进直接 quiet，不再购买新候选。
+  玩家主动私聊路径不受影响。该 SQL 已在生产只读验证命中当前 403 记录。
+- `2a321a35` 部署 `dpl_31JiNw5D9GWqppue1jXFjmjdK7zF` READY（正式别名
+  `parallel-world-eosin.vercel.app`）后，operation 从 50–70 秒降为 **0 秒**
+  `succeeded/played0`；最新 403 attempt 停在 `22:58:23Z`，到 `23:01:30Z`
+  没有新增 attempt。世界仍 v286，等待供应商恢复后再验真实推进。
 - 本轮没有手工重试、没有重买、没有写世界、没有清旧 lease、没有删 receipt。
   旧 07:xx 的过期未完成 operation 仍在，但不影响新 operation 正常 quiet，保留原证据。
 
-结论：orphan stale wake 循环已修复并线上验证；世界“能推进”仍未通过，当前
-外部阻塞是模型 403，需要恢复供应商权限/额度后再开新的真实窗口。
+结论：orphan stale wake 循环已修复并线上验证；403 自主冷却也已上线并停止重复
+尝试。世界“能推进”仍未通过：当前外部阻塞是模型 403（供应商鉴权/额度/权限），
+需要恢复供应商配置后再开新的真实窗口。不能把“operation 0 秒 quiet”当世界推进。
