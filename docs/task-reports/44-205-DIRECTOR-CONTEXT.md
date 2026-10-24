@@ -110,6 +110,26 @@ wake 未使用的 director response 后，仍有 55–78 秒 `clock/activity` �
 导致 advance 事务在创建 attempt 前被连接中断。不能通过清 lease、删 receipt、
 手工插入 attempt 或重买 unknown 来“修复”。
 
+### 缓存部署后观察（15:15–15:20）
+
+`d12c801a` READY 后，`clock/activity`、`/groups`、`/world` 多数恢复 200，
+长事务里不再出现重复的私聊 frame；这说明缓存确实削掉了心跳的主要长读。
+
+但真实档仍停在 **v286**，并进入另一个明确的串行状态：
+
+- 07:04、07:16、07:17 的 advance 均成功返回 `deferred:"scheduler_busy"`、
+  `played:0`；
+- 07:15 一次 operation 跑 66 秒后 `failure_code=UNCLASSIFIED`；
+- 07:19:37 创建 operation `74d863c1`，batch lease 续到 07:24:13，期间新请求
+  只能得到 `advance-lease-busy`；
+- 没有新的 `agent_attempts`，没有新的付费调用；旧的
+  `unknown_after_send` `ed1b3823`（expected world v99）仍按规则保留。
+
+也就是说，`COMMAND_CONFLICT` 当前没有复现；阻塞变成“DB 断连导致 operation
+无法收尾 → 270 秒 batch lease 周期”。lease 本身是防重复付费的正确保护，
+不能为了“看起来推进”而手工清；需要等持有者结束或 lease 过期，且 DB 恢复
+后再验证下一轮 advance。
+
 ### 阻塞与恢复条件
 
 - 阻塞：Supabase `parallel-life` 项目连接池/计算资源饱和，生产 API 间歇
