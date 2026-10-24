@@ -173,7 +173,7 @@ test('group planner accepts a sticker id from the visible catalog only', async (
   const planner = new WorldGroupPlanner({
     async complete(messages) {
       seen = JSON.parse(messages[1]!.content as string);
-      return JSON.stringify({ text: '', stickerId: 'zan' });
+      return JSON.stringify({ stickerId: 'zan' });
     },
   });
   const reply = await planner.propose(input);

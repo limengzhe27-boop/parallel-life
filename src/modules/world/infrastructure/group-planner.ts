@@ -7,7 +7,7 @@ import type { GroupActorInput, GroupPlanner } from '../application/group-ports.t
 export const GROUP_PROMPT_VERSION = 'group-v2-sticker';
 const Reply = z
   .strictObject({
-    text: z.string().trim().max(500),
+    text: z.string().trim().max(500).default(''),
     stickerId: z.string().trim().min(1).optional(),
     invitation: z.preprocess(
       (value) =>
