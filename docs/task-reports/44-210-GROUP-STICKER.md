@@ -59,3 +59,10 @@
 
 本改动不依赖 `44-205-DIRECTOR-CONTEXT` 的 `COMMAND_CONFLICT` 诊断，也不触碰真实用户档。它是独立的
 本地群聊 UI/上下文改动，可在下一次部署窗口一起带上，或单独回退，不影响私聊表情链。
+
+### 2026-10-25 · 部署
+
+代码 `45324ce4` 已推送，Production `dpl_HnrwvuohStdf4wTHykMwCj2fRNJc` READY，
+新账号正式别名 `parallel-world-eosin.vercel.app` health 200。线上已包含玩家群表情、
+NPC 语义上下文、可选 NPC 主动表情与 `group-v2-sticker`。仍未做真实手机/PC 群聊
+旅程，也未调用真实群模型；因此只算部署完成，不算产品体验验收。

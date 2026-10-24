@@ -199,3 +199,22 @@ Supabase 管理连接已可读，生产 health 200，但世界仍为 **v286**。
 部署后验证条件：同一 command 不再被选中；operation 不再每 30 秒
 `VERSION_CONFLICT`；若没有其他到期工作，世界应正常 quiet 而不是继续空转；
 若出现新候选，才允许产生新 attempt。**在观察到这些之前，不宣称 v286 已推进。**
+
+### 2026-10-25 · 部署后只读验证
+
+- 代码提交 `45324ce4` 已推送，Production `dpl_HnrwvuohStdf4wTHykMwCj2fRNJc`
+  READY；当前新账号正式别名 `parallel-world-eosin.vercel.app`，health 200。
+- 部署前最后一次 `VERSION_CONFLICT` 为 `22:34:33Z`；部署后 `22:35:03Z` 起
+  operation 恢复 `succeeded=true`，`result.played=0`、`actors=[]`，连续多次
+  51–70 秒正常 quiet；旧 command `760064dd` 不再被选中，空转循环停止。
+- 世界仍为 **v286**，没有新事件。原因是另一个真实候选在 `22:39:43Z` 创建了
+  新 attempt `681b654e...`（actor `f8fe...`，expected v286）；该 attempt
+  `response` 只有 `{"kind":"model_request_rejection","httpStatus":403}`，
+  状态 `invalid_output`，无 event。也就是 loop 修好后，下一道阻塞变成模型
+  请求 403（供应商鉴权/额度/权限），不是旧 receipt。
+- 该 403 attempt 不重试、不重买；本轮没有手工写世界、没有清旧 lease、没有删
+  receipt。旧 07:xx 的过期未完成 operation 仍在，但不影响新 operation 正常
+  quiet，保留原证据。
+
+结论：orphan stale wake 循环已修复并线上验证；世界“能推进”仍未通过，当前
+外部阻塞是模型 403，需要恢复供应商权限/额度后再开新的真实窗口。

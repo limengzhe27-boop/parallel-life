@@ -2223,3 +2223,31 @@ Vercel 构建限额 failure，未使用其产物。无新 SQL 迁移。
 Vercel Git 未生成部署，手动 `vercel --prod` 再次被 `api-deployments-free-per-day` 拒绝。
 生产仍为 `dc10447c`，因此诊断代码未运行，4953 的 `COMMAND_CONFLICT` 仍未定位。
 不通过清 lease、强写世界或伪造新事件绕过。
+
+## 2026-10-25 · orphan wake 与 NPC 群表情
+
+代码 `45324ce4` / 文档 `6017ca4b` 已推送。Production
+`dpl_HnrwvuohStdf4wTHykMwCj2fRNJc` READY，正式别名
+`parallel-world-eosin.vercel.app` health 200；`parallel-world-lmz3.vercel.app`
+仍受 Vercel Authentication 保护，不作为公开验收地址。旧 `parallel-life-nu.vercel.app`
+不属于当前 `lmz3/parallel-world` 项目，仍是旧账号域名，不能据此宣称新代码已覆盖。
+
+`45324ce4` 包含：
+
+- advance 读取时排除“无 attempt、receipt 版本落后于当前世界”的 orphan wake 候选，
+  不再每 30 秒重放不可提交的 command；旧收据/attempt/世界数据不修改，无新字段/表/迁移；
+- 群模型可选 `stickerId`，NPC 文字与表情拆成两条独立消息；纯表情允许空文本，
+  未知 ID/空内容拒绝；群模型 payload 带静态目录，prompt 升级为 `group-v2-sticker`。
+
+部署后只读验证（world 4953）：
+
+- 部署前最后 `VERSION_CONFLICT`：`22:34:33Z`；部署后 `22:35:03Z` 起连续 operation
+  `succeeded=true`、`played=0`，旧 command 不再被选中，空转停止。
+- world 仍 **v286**；`22:39:43Z` 新 attempt `681b654e...` 的 response 为
+  `{"kind":"model_request_rejection","httpStatus":403}`，状态 `invalid_output`，
+  无 event。loop 修好后下一道阻塞是模型 403（鉴权/额度/权限），未重试、未重买。
+- 未清 lease、未删 receipt、未写生产世界、未调用商业模型；403 是生产调度自行产生，
+  不是本轮手工触发。
+
+本地验证：`npm run check` **4005/4005**、`npm run typecheck`、`npm run build`
+（31/31 页面）；群表情与 orphan 回归聚焦 10/10。真实手机/PC 群聊仍未验收。
