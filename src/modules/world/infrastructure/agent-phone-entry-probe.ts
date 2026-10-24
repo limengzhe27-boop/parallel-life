@@ -31,9 +31,13 @@ export async function readAgentPhoneEntryProbe(
       )
       .digest('hex'),
   });
+  // This is an advisory entry hint, not a write barrier. It must not hold a
+  // share lock across dozens of reads on a long archive: clock/advance need the
+  // same rows, and every held lock turns a slow probe into a global queue.
+  // Callers recheck world version, paid/unknown fences and authority before work.
   const row = (
     await sql.query(
-      'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2 FOR SHARE',
+      'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
       [frame.worldId, ownerId],
     )
   ).rows[0];

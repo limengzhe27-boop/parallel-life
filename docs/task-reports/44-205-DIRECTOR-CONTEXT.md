@@ -66,6 +66,9 @@
    `connectionTimeout 10s→5s`、`idleTimeout 10s→1s`，并启用
    `allowExitOnIdle`。原配置在大量短生命周期函数实例下会保留过多 Supabase
    pooler 客户端，放大了锁队列。
+5. 入场探针和 opening 读取不再对 `worlds`/`world_clock` 持有 `FOR SHARE`。
+   探针只是入场提示，调用方会在真正执行前重新校验 world version、paid/unknown
+   和权限；把长读放在 share lock 内会把一次慢查询放大成全体请求排队。
 
 ### 本地验证
 

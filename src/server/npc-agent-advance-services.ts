@@ -133,7 +133,7 @@ export async function readNpcAgentOpeningStatusIfEnabled(
       await sql.query(
         `SELECT w.state,w.version,COALESCE(c.engine_epoch,1) epoch FROM parallel_life.worlds w
       LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
-      WHERE w.id=$1 AND w.owner_id=$2 FOR SHARE OF w`,
+      WHERE w.id=$1 AND w.owner_id=$2`,
         [worldId, ownerId],
       )
     ).rows[0];
