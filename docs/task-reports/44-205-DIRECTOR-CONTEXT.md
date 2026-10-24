@@ -76,12 +76,15 @@
    （最多 512 条）。同一版本下消息、约定和联系人不会变化；group/scene 仍走
    完整 frame。真实档每个心跳都在重复同一段 25 秒 frame 查询，这是持续负载的
    主要来源；缓存只在世界版本变化时重新校验。
+8. `endpoint` 增加数据库断连短路：只识别 Postgres 连接错误码/消息，打开
+   15 秒进程内断路器，期间请求直接 503，不再每次心跳都去抢 pooler 连接。
+   浏览器/SDK 仍看到明确的 UNAVAILABLE + requestId；健康检查不经过此层。
 
 ### 本地验证
 
-- 聚焦 `agent-phone-entry-focus`：6/6；私聊 focus 缓存：1/1。
+- 聚焦 `agent-phone-entry-focus`：6/6；私聊 focus 缓存：1/1；HTTP 断连短路：8/8。
 - 本地真实 PG 锁验证：第二事务在 **5,012ms** 后以 `55P03`（lock timeout）失败。
-- `npm run check`：**3999/3999**。
+- `npm run check`：**4000/4000**。
 - `npm run build`：通过，31/31 页面。
 - 热修复提交前未写生产业务数据；只终止了卡住的应用事务并用只读快照取证。
 

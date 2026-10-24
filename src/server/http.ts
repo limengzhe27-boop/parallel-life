@@ -34,9 +34,46 @@ const messages: Record<string, string> = {
   INVALID_STATE: '当前状态无法执行这个操作。',
   INVALID_COMMAND: '这条操作暂时无法执行。',
 };
+const DB_CIRCUIT_MS = 15_000;
+let dbCircuitUntil = 0;
+/** Test seam only; production opens/closes the circuit from real database failures. */
+export function resetDatabaseCircuitForTest() {
+  dbCircuitUntil = 0;
+}
+function databaseUnavailable(error: unknown) {
+  const code =
+    error instanceof Error ? String((error as Error & { code?: unknown }).code ?? '') : '';
+  if (
+    ['08000', '08001', '08003', '08004', '08006', '08007', '53300', '57P03', 'ECONNREFUSED', 'ETIMEDOUT'].includes(
+      code,
+    )
+  )
+    return true;
+  const message = error instanceof Error ? error.message : '';
+  return /authentication did not complete|timeout expired|Connection terminated unexpectedly|too many clients|ECONNREFUSED|ETIMEDOUT/i.test(
+    message,
+  );
+}
 export async function endpoint(run: (context: HttpRequestContext) => Promise<Response>) {
   const requestId = randomUUID(),
     started = Date.now();
+  // Stop a database outage from multiplying into one connection attempt per
+  // heartbeat/tab. The circuit is per server instance and reopens briefly.
+  if (Date.now() < dbCircuitUntil) {
+    const response = json(
+      {
+        error: {
+          code: 'UNAVAILABLE',
+          message: messages.UNAVAILABLE,
+          retryable: true,
+          requestId,
+        },
+      },
+      503,
+    );
+    response.headers.set('X-Request-Id', requestId);
+    return response;
+  }
   const context = createHttpRequestContext(requestId, started);
   try {
     if (isPreviewOnly()) {
@@ -58,6 +95,7 @@ export async function endpoint(run: (context: HttpRequestContext) => Promise<Res
     response.headers.set('X-Request-Id', requestId);
     return response;
   } catch (error) {
+    if (databaseUnavailable(error)) dbCircuitUntil = Date.now() + DB_CIRCUIT_MS;
     return httpFailureResponse(error, context);
   }
 }

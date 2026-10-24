@@ -34,7 +34,9 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { endpoint, json, HttpError } = await import('../src/server/http.ts');
+const { endpoint, json, HttpError, resetDatabaseCircuitForTest } = await import(
+  '../src/server/http.ts'
+);
 const { worldMessageRoute } = await import('../src/server/world-message-http.ts');
 const { NpcMessageError } = await import('../src/server/npc-agent-services.ts');
 const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -213,6 +215,28 @@ test('successful endpoint returns original response without failure logging', as
   assert.equal(body.ok, true);
   assert.equal(body.requestId, response.headers.get('x-request-id'));
   assert.equal(logs, 0);
+});
+
+test('a database connection failure opens a short circuit instead of retrying on every request', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  resetDatabaseCircuitForTest();
+  let runs = 0;
+  const first = await endpoint(async () => {
+    runs++;
+    throw Object.assign(Error('timeout expired'), { code: 'ETIMEDOUT' });
+  });
+  assert.equal(first.status, 503);
+  assert.equal((await first.json()).error.retryable, true);
+  const second = await endpoint(async () => {
+    runs++;
+    return json({ ok: true });
+  });
+  assert.equal(second.status, 503);
+  assert.equal(runs, 1, 'the circuit must not touch the database for a later request');
+  assert.ok(second.headers.get('x-request-id'));
+  resetDatabaseCircuitForTest();
+  const recovered = await endpoint(async () => json({ ok: true }));
+  assert.equal(recovered.status, 200);
 });
 
 test('streaming known version conflict is a closed error frame, not a broken unknown transport', async (t) => {
