@@ -69,6 +69,9 @@
 5. 入场探针和 opening 读取不再对 `worlds`/`world_clock` 持有 `FOR SHARE`。
    探针只是入场提示，调用方会在真正执行前重新校验 world version、paid/unknown
    和权限；把长读放在 share lock 内会把一次慢查询放大成全体请求排队。
+6. `narrative-wake-repository` 不再选择未使用的 `a.response`。生产只读快照曾
+   捕获该查询在同一入场事务里持续 190 秒，`director_runtime_attempts` 总大小
+   62MB；该字段从未被此读取器使用。
 
 ### 本地验证
 

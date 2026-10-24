@@ -40,7 +40,9 @@ export async function readDirectorNarrativeWakeInTransaction(
   const bootstrap = await readDirectorBootstrapCauseInTransaction(sql, ownerId, input);
   const attempts = (
     await sql.query(
-      `SELECT a.id,a.status,a.sent_at,a.snapshot,a.response,a.response_hash,a.decision_id,d.id actual_decision_id,d.document actual_decision
+      // The director response is not read here; selecting it would pull every
+      // protected TOAST payload on the entry path for a field this reader never uses.
+      `SELECT a.id,a.status,a.sent_at,a.snapshot,a.response_hash,a.decision_id,d.id actual_decision_id,d.document actual_decision
      FROM parallel_life.director_runtime_attempts a
      LEFT JOIN parallel_life.director_decisions d ON d.world_id=a.world_id AND d.owner_id=a.owner_id
        AND d.id=a.decision_id AND d.input_hash=a.input_hash AND d.attempt_id=a.id
