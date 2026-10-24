@@ -159,3 +159,43 @@ complete`，世界继续停在 v286，不能把“警告消失”当成真实推
   `COMMAND_CONFLICT` 安全日志不再出现；真实档连续体验才可重新验收。
 - 在此之前不写真实档、不删 receipt、不强写 attempt、不重买旧 unknown；本轮
   四次代码修复仍保留，未回退。
+
+### 2026-10-25 · 旧 wake receipt 重放循环（已定位，代码待部署）
+
+Supabase 管理连接已可读，生产 health 200，但世界仍为 **v286**。只读核对发现
+阻塞已不是单纯的连接容量：
+
+- `agent_advance_operations` 每约 30 秒新建一次，最近连续 `finished_at` 均为
+  27–44 秒后 `failure_code=VERSION_CONFLICT`；最新 operation 仍在 270 秒 lease 内。
+- 所有 operation work 都指向同一个 command
+  `760064dd-15cc-8118-a488-b7486e008f92`，kind=`npc`。
+- 该 command 只有 `agent_input_receipts` 收据，`expectedWorldVersion=123`，没有
+  任何 `agent_attempts`；当前世界已是 v286。
+- 该收据的 text 是 `npc_own_condition_ready`，candidateId 为
+  `observation:c425...`，basis 是旧 `media-result:f312...`。
+- 生产全库符合“wake、无 attempt、receipt 版本落后于当前世界”的收据只有 **1 条**，
+  即上述收据；不是大量脏数据。
+
+根因：候选仍会从旧 media-result source 重新产生；`attempts.accept` 命中旧收据
+后按幂等 replay 返回，不重新做世界版本校验；执行阶段再以 v123 对 v286 失败。
+由于没有 attempt 行，候选消费逻辑也不会把它视为已处理，于是每个调度 tick 都
+重复一次完整 operation。
+
+修复：读取 advance 事务时额外取“无 attempt 的旧 wake 收据”，解析其 candidateId，
+在候选进入调度前排除；旧收据、旧 attempt、世界数据均不修改。解析与阈值逻辑放在
+[`agent-wake-recovery.ts`](../../src/modules/world/domain/agent-wake-recovery.ts)，
+查询与过滤在
+[`npc-agent-advance-services.ts`](../../src/server/npc-agent-advance-services.ts)。
+没有新增数据库字段、表或迁移；没有调用商业模型，没有写生产世界。
+
+本地验证：
+
+- `tests/agent-wake-recovery.test.ts` **5/5**（旧版本才消费、当前/未来版本不消费、
+  非法 JSON 忽略、重复 candidate 去重）。
+- `npm run typecheck` 通过；`npm run check` **4005/4005**；`npm run build` 通过
+  （31/31 页面）。
+- 生产只读 SQL 已确认旧收据会被查询命中并解析出 candidateId。
+
+部署后验证条件：同一 command 不再被选中；operation 不再每 30 秒
+`VERSION_CONFLICT`；若没有其他到期工作，世界应正常 quiet 而不是继续空转；
+若出现新候选，才允许产生新 attempt。**在观察到这些之前，不宣称 v286 已推进。**

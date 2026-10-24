@@ -33,10 +33,27 @@
 ## 未完成/边界
 
 1. 群聊只看本地代码和纯测试；尚未在本机真实手机/PC 群聊旅程中点击发送并刷新核对。
-2. NPC 群内主动发表情仍是后续能力；当前人物群回复只发文字。
+2. NPC 群内主动发表情已在 2026-10-25 补上代码与纯测试，但尚未用真实模型/公网群聊验收。
 3. 群通知/锁屏摘要仍以文本为主；本轮只改聊天列表预览。
 4. 群消息仍受原 `text` 1–4000 字符约束；marker 很短，不影响原发送长度。
-5. 需部署后才可对公网群聊验收；本轮按用户要求不推送、不部署。
+5. 需部署后才可对公网群聊验收；本轮按用户要求先本地完成，再最小批次部署。
+
+## 2026-10-25 · NPC 群内主动表情
+
+在不新增数据库字段/表/迁移的前提下，`GroupReply` 增加仅运行时使用的可选
+`stickerId`；群模型返回 `text` + `stickerId` 时，领域 reducer 拆成“文字消息”
+和“独立表情 marker 消息”两条，若纯表情则 `text` 可为空。`stickerMessageId` 由
+运行时分配，保证两条消息 ID 不同；未知 sticker ID、空内容、纯表情带邀约均拒绝。
+群模型 payload 增加静态 `stickerCatalog`（id/label/description），提示词只允许
+从目录选择，并明确安慰/道歉等语境不要发不合时宜的图。群历史仍用
+`stickerMessageMeaning` 把 marker 转成语义，模型看不到原始 `[[sticker:...]]`。
+没有新增持久字段、SQL 或第二次模型调用。
+
+验证：`tests/group-sticker.test.ts` 5/5（玩家 marker、NPC 文字+表情两条、纯表情、
+未知 ID 拒绝、planner 目录/校验）；`tests/group-planner.test.ts` 与
+`tests/group-ui-state.test.ts` 同跑 15/15；`npm run check` 4005/4005；
+`npm run typecheck`、`npm run build` 通过。尚未调用真实群模型，不能据此宣称
+公网 NPC 群表情已验收。
 
 ## 与 44-205 阻塞的关系
 
