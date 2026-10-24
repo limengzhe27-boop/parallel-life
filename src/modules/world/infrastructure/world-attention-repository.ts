@@ -11,6 +11,14 @@ export type WorldAttention = {
   conversationWithoutTarget: boolean;
 };
 type Input = { worldId: string; worldVersion: number; realNow?: string };
+/**
+ * Private-chat visibility is a pure function of owner, world version and actor.
+ * Heartbeats repeat it every few seconds; caching only until that version changes
+ * avoids re-running the full attention frame while preserving the same fence.
+ */
+const privateFocusCache = new Map<string, { expiresAt: number; visible: boolean }>();
+const PRIVATE_FOCUS_CACHE_MS = 5 * 60_000;
+const PRIVATE_FOCUS_CACHE_MAX = 512;
 /** A single read statement keeps world, client leases and business membership on the same snapshot. */
 async function frame(
   sql: SqlClient,
@@ -166,6 +174,24 @@ export async function resolveWorldConversationFocusInTransaction(
   input: Input & { focus: ClockConversationFocus },
 ): Promise<DirectorSnapshot['focus'][number] | null> {
   if (!validClockConversationFocus(input.focus)) throw new DomainError('INVALID_COMMAND');
+  if (input.focus.channel === 'private') {
+    const key = [ownerId, input.worldId, input.worldVersion, input.focus.threadId].join('\u0000');
+    const cached = privateFocusCache.get(key);
+    if (cached && cached.expiresAt > Date.now())
+      return cached.visible
+        ? { channel: 'private', threadId: input.focus.threadId, actorIds: [input.focus.threadId] }
+        : null;
+    const resolved = resolve((await frame(sql, ownerId, input, input.focus)).row, input.focus);
+    privateFocusCache.set(key, {
+      expiresAt: Date.now() + PRIVATE_FOCUS_CACHE_MS,
+      visible: Boolean(resolved),
+    });
+    if (privateFocusCache.size > PRIVATE_FOCUS_CACHE_MAX) {
+      const oldest = privateFocusCache.keys().next().value;
+      if (oldest !== undefined) privateFocusCache.delete(oldest);
+    }
+    return resolved;
+  }
   return resolve((await frame(sql, ownerId, input, input.focus)).row, input.focus);
 }
 /** Director-only structured attention, never last-message inference or a real position/decision. */

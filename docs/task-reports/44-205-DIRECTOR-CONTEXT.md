@@ -72,12 +72,16 @@
 6. `narrative-wake-repository` 不再选择未使用的 `a.response`。生产只读快照曾
    捕获该查询在同一入场事务里持续 190 秒，`director_runtime_attempts` 总大小
    62MB；该字段从未被此读取器使用。
+7. 私聊 focus 可见性按 `owner + worldId + worldVersion + threadId` 缓存 5 分钟
+   （最多 512 条）。同一版本下消息、约定和联系人不会变化；group/scene 仍走
+   完整 frame。真实档每个心跳都在重复同一段 25 秒 frame 查询，这是持续负载的
+   主要来源；缓存只在世界版本变化时重新校验。
 
 ### 本地验证
 
-- 聚焦 `agent-phone-entry-focus`：6/6。
+- 聚焦 `agent-phone-entry-focus`：6/6；私聊 focus 缓存：1/1。
 - 本地真实 PG 锁验证：第二事务在 **5,012ms** 后以 `55P03`（lock timeout）失败。
-- `npm run check`：**3998/3998**。
+- `npm run check`：**3999/3999**。
 - `npm run build`：通过，31/31 页面。
 - 热修复提交前未写生产业务数据；只终止了卡住的应用事务并用只读快照取证。
 
