@@ -218,7 +218,16 @@ export function npcAgentAdvanceServices(
         async (sql) =>
           (
             await sql.query(
-              `SELECT COALESCE(c.engine_epoch,1) engine_epoch FROM parallel_life.worlds w
+              `SELECT COALESCE(c.engine_epoch,1) engine_epoch,
+                      EXISTS (
+                        SELECT 1 FROM parallel_life.agent_attempts a
+                         WHERE a.world_id=w.id AND a.owner_id=w.owner_id
+                           AND a.status='invalid_output'
+                           AND a.response->>'kind'='model_request_rejection'
+                           AND (a.response->>'httpStatus') IN ('401','403','429')
+                           AND a.created_at > now() - interval '10 minutes'
+                      ) AS model_cooldown
+                 FROM parallel_life.worlds w
          LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
          WHERE w.id=$1 AND w.owner_id=$2`,
               [worldId, ownerId],
@@ -266,6 +275,10 @@ export function npcAgentAdvanceServices(
         if (retryCommandId) throw new DomainError('INVALID_COMMAND', '请先开始试演。');
         return quiet(storyAt);
       }
+      // A provider auth/rate-limit rejection is not a fresh character decision.
+      // Back off this world's autonomous model work instead of buying a new
+      // candidate every scheduler tick; a player-initiated message has its own path.
+      if (control.model_cooldown === true) return quiet(storyAt);
       const read = await db.transaction(ownerId, async (sql) => {
         const current = (
           await sql.query('SELECT version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
