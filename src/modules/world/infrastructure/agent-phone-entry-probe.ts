@@ -49,7 +49,9 @@ export async function readAgentPhoneEntryProbe(
     return { status: 'deferred' };
   const actors = (
     await sql.query(
-      `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,a.response,a.event_id,
+      // Never select a.response: protected model responses are TOAST-heavy and this
+      // probe runs under world/clock share locks on every entry. Only presence matters.
+      `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,(a.response IS NOT NULL) AS has_response,a.event_id,
     a.expected_world_version,a.expected_actor_revision,a.lease_until,r.document,s.revision,b.request_id AS bound_request_id
     FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
       ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
@@ -259,7 +261,10 @@ export async function readAgentPhoneEntryProbe(
           !(
             ['committed', 'invalid_output', 'stale_discarded'].includes(attempt.status) ||
             (attempt.status === 'cancelled_before_send' &&
-              (attempt.sent_at || attempt.response_hash || attempt.response || attempt.event_id))
+              (attempt.sent_at ||
+                attempt.response_hash ||
+                attempt.has_response ||
+                attempt.event_id))
           )
         )
           return false;

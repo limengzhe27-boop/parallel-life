@@ -14,6 +14,7 @@ function fixture(options: {
   unknown?: boolean;
 }) {
   let directorReads = 0;
+  let attemptQuery = '';
   const future = new Date(Date.now() + 60_000).toISOString();
   const clock = { paused: false, managed: true, active_until: future };
   const attempts =
@@ -74,6 +75,7 @@ function fixture(options: {
           ],
         };
       if (query.includes('FROM parallel_life.world_clock')) return { rows: [clock] };
+      if (query.includes('FROM parallel_life.agent_attempts a')) attemptQuery = query;
       if (query.includes('a.document') || query.includes('FROM parallel_life.agent_attempts a'))
         return { rows: attempts };
       if (query.includes("current_setting('app.user_id'"))
@@ -111,6 +113,7 @@ function fixture(options: {
   return {
     read: () => readAgentPhoneEntryProbe(sql, owner, frame),
     directorReads: () => directorReads,
+    attemptQuery: () => attemptQuery,
   };
 }
 
@@ -140,4 +143,11 @@ test('focused conversation allows a cheap known Director handoff check', async (
   const f = fixture({ focus: 'a' });
   assert.equal((await f.read()).status, 'ready');
   assert.equal(f.directorReads(), 1);
+});
+test('entry probe never selects the full protected response payload under locks', async () => {
+  const f = fixture({ focus: 'a', rawActor: 'a' });
+  await f.read();
+  const query = f.attemptQuery();
+  assert.match(query, /\(a\.response IS NOT NULL\) AS has_response/);
+  assert.doesNotMatch(query, /a\.response,/);
 });

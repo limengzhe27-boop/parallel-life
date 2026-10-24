@@ -36,3 +36,45 @@
 这与本报告修复的“事务外 world.version 过期”不同；本批只证明 stale read 不再直接抛
 `VERSION_CONFLICT`，不能宣称生产推进循环已恢复。需要单独定位 operation/attempt 冲突，
 不能靠清 lease、强制重试或手工写世界冒充通过。
+
+## 2026-10-24 现场根因：入场探针在锁内全量读取模型响应
+
+部署 `dpl_CQWkTyG2YkPToj8b1MGM953pkofu` 后，读取同一真实档时出现连接池级联超时：
+
+- `GET /worlds/4953...`、`GET /groups`、`POST /clock/activity` 在 10 秒连接超时后返回 503；
+- 单次 `clock/activity` 曾持续 40–147 秒，最终 409 `VERSION_CONFLICT`；
+- Supabase 只读快照显示 17 条长事务，头部事务持续 133 秒，持 `worlds` 行锁；
+  后续 12+ 条 `FOR UPDATE worlds` 全部排在它后面，`pg_blocking_pids` 形成队列；
+- 头部事务执行的是 `readAgentPhoneEntryProbe` 的 attempt 查询。该查询在持有
+  `worlds`/`world_clock` share lock 时读取了该世界全部 `agent_attempts.a.response`；
+  生产 `agent_attempts` 仅 6,693 行但总大小 **75 MB**（响应为 TOAST 大字段），
+  同世界 268 条消息、286 个事件。全量读取导致锁持有时间被放大，随后所有入场、
+  心跳和推进请求排队，最终 10 秒连接池超时。
+
+这不是 `COMMAND_CONFLICT` 本身，但足以把真实档推进循环拖成持续 503。原先的
+`COMMAND_CONFLICT` 诊断还没有机会稳定运行，不能把本次修复当作该冲突已解决。
+
+### 修复
+
+1. `agent-phone-entry-probe.ts` 不再选择 `a.response`，改为
+   `(a.response IS NOT NULL) AS has_response`；唯一使用点改为布尔值。
+2. `PostgresDatabase.transaction` 统一设置 `SET LOCAL lock_timeout = '5000ms'`：
+   任何请求遇到长行锁时快速失败并释放连接，不把整个连接池拖死。
+3. 新增回归断言：入场探针的 attempt 查询必须包含 `has_response`，且不得出现
+   `a.response,`。
+
+### 本地验证
+
+- 聚焦 `agent-phone-entry-focus`：6/6。
+- 本地真实 PG 锁验证：第二事务在 **5,012ms** 后以 `55P03`（lock timeout）失败。
+- `npm run check`：**3998/3998**。
+- `npm run build`：通过，31/31 页面。
+- 热修复提交前未写生产业务数据；只终止了卡住的应用事务并用只读快照取证。
+
+### 待完成
+
+- 推送并部署后重新打开 4953，确认不再出现 10 秒连接池超时和 40 秒以上
+  `clock/activity`；再单独观察 `POST /advance/operation` 是否仍返回
+  `COMMAND_CONFLICT`。
+- 若 `COMMAND_CONFLICT` 仍存在，继续用已部署的 `agent-input-command-conflict`
+  与 `agent-attempt-command-conflict` 安全日志定位，不重买 unknown、不强写真实档。
