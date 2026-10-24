@@ -81,18 +81,37 @@
 - `npm run build`：通过，31/31 页面。
 - 热修复提交前未写生产业务数据；只终止了卡住的应用事务并用只读快照取证。
 
-### 第一次部署后观察（ff27bd74 / dpl_GpzP5trCMRUzYhvmXAunKmjnaG35）
+### 第一至四次部署后观察
 
-新版本 READY 后，入场本身从数十秒降到 2.3 秒，`GET /groups` 为 0.5–8 秒；
-但 `POST /clock/activity` 仍大量 10 秒连接超时，Supabase pooler 间歇性
-`authentication did not complete`。现场仍有约 5 秒一次的多个客户端心跳，
-说明仅去掉全量响应读取还不足以清空既有 pooler 压力。已追加连接池收缩，
-等待第二次部署确认；此时仍不能宣称锁队列或 `COMMAND_CONFLICT` 已解决。
+`ff27bd74` 后入场从数十秒降到 2.3 秒，`GET /groups` 为 0.5–8 秒；但
+`POST /clock/activity` 仍出现 10 秒连接超时，Supabase pooler 间歇性
+`authentication did not complete`。追加 `83178c87` 收缩连接池、
+`3dd1160a` 去掉 opening/probe 的 `FOR SHARE`、`e4347057` 去掉 narrative
+wake 未使用的 director response 后，仍有 55–78 秒 `clock/activity` 和 503。
 
-### 待完成
+最终只读取证（2026-10-24 15:00 左右）：
 
-- 推送并部署第二次连接池收缩后重新打开 4953，确认不再出现 10 秒连接池超时和
-  40 秒以上 `clock/activity`；再单独观察 `POST /advance/operation` 是否仍返回
-  `COMMAND_CONFLICT`。
-- 若 `COMMAND_CONFLICT` 仍存在，继续用已部署的 `agent-input-command-conflict`
-  与 `agent-attempt-command-conflict` 安全日志定位，不重买 unknown、不强写真实档。
+- world 仍为 **v286**，clock `story_now=2026-10-17T11:02:06Z`、`paused=false`；
+- `agent_advance_operations` 最近完成项全部 `succeeded=false`、
+  `failure_code=UNCLASSIFIED`；
+- 最新 operation work 全部指向同一个 NPC command
+  `760064dd-15cc-8118-a488-b7486e008f92`；
+- `agent_input_receipts` 有该 command 的 wake 收据，但 `agent_attempts` 与
+  `director_runtime_attempts` 都没有对应行，说明在“已接收输入、尚未 claim
+  attempt”的中间态反复失败；
+- 无 `agent-input-command-conflict` / `agent-attempt-command-conflict` 安全日志。
+
+这说明 `COMMAND_CONFLICT` 不再是当前可观测的失败码；当前主因是 Supabase
+项目级连接/性能饱和（连 `world_clock` 的 autovacuum ANALYZE 都能等 38 秒），
+导致 advance 事务在创建 attempt 前被连接中断。不能通过清 lease、删 receipt、
+手工插入 attempt 或重买 unknown 来“修复”。
+
+### 阻塞与恢复条件
+
+- 阻塞：Supabase `parallel-life` 项目连接池/计算资源饱和，生产 API 间歇
+  `authentication did not complete`、10 秒连接超时和 55–78 秒事务。
+- 恢复条件：Supabase 连接与查询延迟恢复正常，或项目升级/迁移到可承载的实例。
+- 恢复后验证：同一 command 能创建 attempt；advance 提交新事件或明确 quiet；
+  `COMMAND_CONFLICT` 安全日志不再出现；真实档连续体验才可重新验收。
+- 在此之前不写真实档、不删 receipt、不强写 attempt、不重买旧 unknown；本轮
+  四次代码修复仍保留，未回退。

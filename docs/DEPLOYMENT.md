@@ -1,3 +1,29 @@
+## 2026-10-24 · 44-205 入场长读与锁队列修复（真实档仍受 Supabase 限制）
+
+- `main e4347057` / `dpl_f0v9tmlxf` READY；正式别名 health 200。四次代码提交依次为
+  `ff27bd74`（不再全量读取 agent response）、`83178c87`（serverless 连接池
+  max3/5s/1s）、`3dd1160a`（opening/probe 去掉 `FOR SHARE`）、`e4347057`
+  （narrative wake 不再读取未使用的 director response）。
+- 现场根因证据：真实档 4953 的入场探针在 world/clock share lock 内读取
+  `agent_attempts` 全部 `a.response`（表 75MB TOAST）；生产只读快照出现 17 条
+  长事务、头部 133 秒，后续 12+ 条 `FOR UPDATE worlds` 排队。修掉全量响应和
+  share lock 后，仍捕获 `narrative-wake` 读取未使用的 director response 持续
+  190 秒。
+- 当前真实档：world **v286**，clock `story_now=2026-10-17T11:02:06Z`，
+  `paused=false`；但 `agent_advance_operations` 最近完成项均为
+  `failure_code=UNCLASSIFIED`，最新 work 全部指向同一 NPC command
+  `760064dd-15cc-8118-a488-b7486e008f92`，且没有对应 `agent_attempts` 行。
+  `clock/activity` 仍出现 55–78 秒甚至 503，Supabase pooler 间歇
+  `authentication did not complete within 15000ms`；世界版本未推进，不能宣称
+  真实连续体验通过。
+- 这不是继续加索引或改客户端能完全解决的：只读连接在 `world_clock` 的
+  autovacuum ANALYZE 上都能等 38 秒，属于 Supabase 项目级连接/性能饱和。
+  恢复后再验证同一 command 是否创建 attempt、`COMMAND_CONFLICT` 安全日志是否
+  出现、以及 world 286 是否提交新事件；在恢复前不强写真实档、不删 receipt、
+  不重买 unknown。
+- `npm run check` **3998/3998**、`npm run build` 31/31 通过；本批无新字段/表/
+  迁移，未清 lease，未改用户历史。
+
 ## 2026-10-24 · 44-206 表情与文字分开发
 
 - `main 81afd18c`；Git 部署 READY，正式别名 health 200。本批只推一次代码提交，未手动 `vercel --prod`。
