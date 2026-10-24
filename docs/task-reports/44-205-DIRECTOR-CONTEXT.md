@@ -207,14 +207,14 @@ Supabase 管理连接已可读，生产 health 200，但世界仍为 **v286**。
 - 部署前最后一次 `VERSION_CONFLICT` 为 `22:34:33Z`；部署后 `22:35:03Z` 起
   operation 恢复 `succeeded=true`，`result.played=0`、`actors=[]`，连续多次
   51–70 秒正常 quiet；旧 command `760064dd` 不再被选中，空转循环停止。
-- 世界仍为 **v286**，没有新事件。原因是另一个真实候选在 `22:39:43Z` 创建了
-  新 attempt `681b654e...`（actor `f8fe...`，expected v286）；该 attempt
-  `response` 只有 `{"kind":"model_request_rejection","httpStatus":403}`，
-  状态 `invalid_output`，无 event。也就是 loop 修好后，下一道阻塞变成模型
-  请求 403（供应商鉴权/额度/权限），不是旧 receipt。
-- 该 403 attempt 不重试、不重买；本轮没有手工写世界、没有清旧 lease、没有删
-  receipt。旧 07:xx 的过期未完成 operation 仍在，但不影响新 operation 正常
-  quiet，保留原证据。
+- 世界仍为 **v286**，没有新事件。loop 修好后，调度开始转向 `actor_local` 自主候选，
+  但在 `22:39:43Z`–`22:49:38Z` 连续创建了 **5 个** attempt（actor `f8fe...`、
+  `c06e...`、`aecd...`、`6a53...`，不同 candidate）；每个 `response` 都只有
+  `{"kind":"model_request_rejection","httpStatus":403}`，状态 `invalid_output`，
+  无 event。说明下一道阻塞是模型请求 403（供应商鉴权/额度/权限），不是旧 receipt；
+  但这些自主候选仍会在新 tick 继续尝试，不能宣称世界推进或系统已完全安静。
+- 本轮没有手工重试、没有重买、没有写世界、没有清旧 lease、没有删 receipt。
+  旧 07:xx 的过期未完成 operation 仍在，但不影响新 operation 正常 quiet，保留原证据。
 
 结论：orphan stale wake 循环已修复并线上验证；世界“能推进”仍未通过，当前
 外部阻塞是模型 403，需要恢复供应商权限/额度后再开新的真实窗口。

@@ -2226,11 +2226,13 @@ Vercel Git 未生成部署，手动 `vercel --prod` 再次被 `api-deployments-f
 
 ## 2026-10-25 · orphan wake 与 NPC 群表情
 
-代码 `45324ce4` / 文档 `6017ca4b` 已推送。Production
-`dpl_HnrwvuohStdf4wTHykMwCj2fRNJc` READY，正式别名
-`parallel-world-eosin.vercel.app` health 200；`parallel-world-lmz3.vercel.app`
-仍受 Vercel Authentication 保护，不作为公开验收地址。旧 `parallel-life-nu.vercel.app`
-不属于当前 `lmz3/parallel-world` 项目，仍是旧账号域名，不能据此宣称新代码已覆盖。
+代码 `45324ce4` / 文档 `9c27aacf` 已推送。首个 Production
+`dpl_HnrwvuohStdf4wTHykMwCj2fRNJc` READY；纯表情缺省文本修复
+`a32e5c79` 随后部署 `dpl_7kLBpb6Esk6LHexssuspwZXUc1Tm`，两者均以
+`parallel-world-eosin.vercel.app` 为正式别名，health 200。
+`parallel-world-lmz3.vercel.app` 仍受 Vercel Authentication 保护，不作为公开
+验收地址。旧 `parallel-life-nu.vercel.app` 不属于当前 `lmz3/parallel-world`
+项目，仍是旧账号域名，不能据此宣称新代码已覆盖。
 
 `45324ce4` 包含：
 
@@ -2243,9 +2245,11 @@ Vercel Git 未生成部署，手动 `vercel --prod` 再次被 `api-deployments-f
 
 - 部署前最后 `VERSION_CONFLICT`：`22:34:33Z`；部署后 `22:35:03Z` 起连续 operation
   `succeeded=true`、`played=0`，旧 command 不再被选中，空转停止。
-- world 仍 **v286**；`22:39:43Z` 新 attempt `681b654e...` 的 response 为
+- world 仍 **v286**；`22:39:43Z`–`22:49:38Z` 调度转向 `actor_local` 自主候选后连续
+  创建 **5 个** attempt（不同 actor/candidate），response 均为
   `{"kind":"model_request_rejection","httpStatus":403}`，状态 `invalid_output`，
-  无 event。loop 修好后下一道阻塞是模型 403（鉴权/额度/权限），未重试、未重买。
+  无 event。loop 修好后下一道阻塞是模型 403（鉴权/额度/权限），未重试、未重买；
+  这些自主候选仍会随新 tick 尝试，不能宣称系统已完全安静。
 - 未清 lease、未删 receipt、未写生产世界、未调用商业模型；403 是生产调度自行产生，
   不是本轮手工触发。
 
