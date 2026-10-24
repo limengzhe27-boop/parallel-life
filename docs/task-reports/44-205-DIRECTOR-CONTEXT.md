@@ -79,6 +79,10 @@
 8. `endpoint` 增加数据库断连短路：只识别 Postgres 连接错误码/消息，打开
    15 秒进程内断路器，期间请求直接 503，不再每次心跳都去抢 pooler 连接。
    浏览器/SDK 仍看到明确的 UNAVAILABLE + requestId；健康检查不经过此层。
+9. director snapshot 与 director 校验不再对同一个 `PoolClient` 使用
+   `Promise.all` 读取 actorKnownTopics，改为顺序读取。生产日志已出现
+   `client.query() when the client is already executing a query`，同一连接
+   并发查询会打乱 pg 协议/事务，是 `UNCLASSIFIED` 与连接中断的直接风险。
 
 ### 本地验证
 

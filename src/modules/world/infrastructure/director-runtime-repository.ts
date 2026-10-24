@@ -846,13 +846,18 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         fail('DIRECTOR_ACTOR_DIRECTION_CONFLICT');
     }
     if (s.actorKnownTopics !== undefined) {
-      const topics = (
-        await Promise.all(
-          states.map((state) =>
-            readActorKnownTopicsInTransaction(sql, owner, state, world.version, s.storyAt),
-          ),
-        )
-      ).flat();
+      const topics: NonNullable<typeof s.actorKnownTopics> = [];
+      // Same PoolClient: never issue these reads concurrently.
+      for (const state of states)
+        topics.push(
+          ...(await readActorKnownTopicsInTransaction(
+            sql,
+            owner,
+            state,
+            world.version,
+            s.storyAt,
+          )),
+        );
       if (!equal(topics, s.actorKnownTopics)) fail('DIRECTOR_ACTOR_TOPIC_CONFLICT');
     }
     if (

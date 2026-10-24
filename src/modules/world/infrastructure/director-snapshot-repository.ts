@@ -1123,6 +1123,20 @@ export class PostgresDirectorSnapshotRepository {
             };
           })()
         : undefined;
+      const actorKnownTopics: NonNullable<DirectorSnapshot['actorKnownTopics']> = [];
+      // A PoolClient executes one query at a time; Promise.all here makes pg
+      // interleave/queue queries on the same connection and can corrupt the
+      // transaction. Keep the reads sequential on this client.
+      for (const state of states)
+        actorKnownTopics.push(
+          ...(await readActorKnownTopicsInTransaction(
+            sql,
+            owner,
+            state,
+            h.world.version,
+            h.storyAt,
+          )),
+        );
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         ...(openingContextAuthority ? { openingContextAuthority } : {}),
@@ -1146,13 +1160,7 @@ export class PostgresDirectorSnapshotRepository {
         ...(actorDirectionMaterials.length ? { actorDirectionMaterials } : {}),
         actorStates: states,
         ...(input.nativeTurn ? { nativeTurn: structuredClone(input.nativeTurn) } : {}),
-        actorKnownTopics: (
-          await Promise.all(
-            states.map((state) =>
-              readActorKnownTopicsInTransaction(sql, owner, state, h.world.version, h.storyAt),
-            ),
-          )
-        ).flat(),
+        actorKnownTopics,
         episodes,
         candidates: structuredClone(input.candidates),
         blockers: structuredClone(input.blockers),
