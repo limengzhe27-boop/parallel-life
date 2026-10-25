@@ -3159,3 +3159,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
   不解暂停。本地真实 PG 证据：archive→restore 后 `paused` 仍为 true。这可能是有意
   （恢复后由用户自己继续），也可能是遗漏；缺少“是否由归档置暂停”的来源，不能安全地
   只在 restore 里解暂停，保留为待确认项。
+- 出版故事侧车在本地 55432 可完整运行：`PUBLICATION_STORY_TEST_PORT=55432` 下
+  `publication-story.test.ts` **31/31** 通过（含地点揭示、来源/回执/unknown 围栏）；
+  另三个 publication-story-* 测试硬编码 55478，当前集群未覆盖。epoch-2 与出版故事的
+  交叉仍未验证，继续保持待确认，不据此改代码。
