@@ -1,3 +1,8 @@
+// NOTE(2026-10-25): this fixture predates aa03dfa9 (local initiative). An idle
+// private actor now always has an actor_local candidate, so the original
+// "zero candidate" premise no longer holds; this test needs rewriting (local
+// initiative first, director only when no candidate exists) when 44-180 resumes.
+// It is currently red on 55432 and must not be counted as passing evidence.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
