@@ -159,7 +159,7 @@ export async function loadGroupRead(
   const context = await experienceContext(sql, world);
   const rows = (
     await sql.query(
-      'SELECT m.document,e.payload,e.occurred_at FROM parallel_life.world_group_messages m JOIN parallel_life.world_events e ON e.id=m.source_event_id AND e.world_id=m.world_id WHERE m.group_id=$1 AND m.world_id=$2 ORDER BY m.source_version,m.id',
+      `SELECT m.document,e.payload,e.occurred_at FROM parallel_life.world_group_messages m JOIN parallel_life.world_events e ON e.id=m.source_event_id AND e.world_id=m.world_id WHERE m.group_id=$1 AND m.world_id=$2 ORDER BY m.source_version,(left(m.document->>'text',10)='[[sticker:') ASC,m.id`,
       [groupId, worldId],
     )
   ).rows;

@@ -66,3 +66,50 @@
 新账号正式别名 `parallel-world-eosin.vercel.app` health 200。线上已包含玩家群表情、
 NPC 语义上下文、可选 NPC 主动表情与 `group-v2-sticker`。仍未做真实手机/PC 群聊
 旅程，也未调用真实群模型；因此只算部署完成，不算产品体验验收。
+
+## 2026-10-25 · 本地真实链路复验：发现并修复 4 个阻断
+
+此前只有单元测试与类型检查，群聊 NPC 表情从未经过真实 HTTP/DB/浏览器。本轮用本地
+`parallel_life_dev` + 真实 Next 服务 + 真实 worker + 确定性网关桩
+（`.local/stub-fetch.mjs` 只把 `https://yibuapi.com` 重写到本地桩，不改业务代码），
+以官方人生 `county-yellow-hair` 建立世界 `dbbf79e4-e51c-434e-a8bc-911a6a3ca700`、
+群 `148db397-c93b-4269-9e35-0f906b173243`，从 390×844 锁屏进入微信→群聊→表情面板
+真实点击发送。桩不是真实模型，只用于验证协议/DB/UI；不冒充模型质量验收。
+
+第一次发送就暴露了 4 个真实缺陷，全部在本地复现并修复：
+
+1. **立即执行器把群任务当成 NPC 任务**：`runGroupOwnedTask` 的 `world` handler 先调用
+   `nativeNpcTaskHandler`，epoch≥2 世界返回 true 并走导演协议，群回合根本没到群 planner，
+   任务以 `INVALID_DIRECTOR_PROPOSAL`/`AI_FAILED` 失败。改为该入口只调用
+   `groupTaskHandler`（任务已在该函数里校验 `input.channel==='group'`）。
+2. **DB 触发器拒绝表情投影**：0038 的 `group_projection_guard` 只匹配
+   `reply.text = message.text AND reply.messageId = message.id`。表情消息文本是
+   `[[sticker:id]]`、id 是 `stickerMessageId`，因此任何 NPC 表情/纯表情都抛
+   `INVALID_GROUP_MESSAGE_AUTHOR`。新增 `0113_group_sticker_message_author.sql`
+   仅替换该函数：在原作者分支之外允许
+   `text='[[sticker:'||stickerId||']]' AND coalesce(stickerMessageId,messageId)=message.id`；
+   不新增表/字段/权限，玩家分支保持原样。
+3. **epoch-2 世界围栏**：群回复事务更新 `worlds` 时没有声明
+   `app.agent_world_id/app.agent_engine_epoch`，抛 `ENGINE_EPOCH_CONFLICT`；而 leased
+   worker 又不能直接读 `agent_runtime_worlds`（42501）。新增
+   `0114_runtime_engine_epoch.sql`：`SECURITY DEFINER` 只返回单个世界的整数 epoch，
+   授权 `pl_app,pl_worker` 执行；`group-task-handler` 在 lease 校验并复核版本后设置同一
+   事务配置，再写投影。与玩家群发送的授权路径一致。
+4. **文字/表情顺序不确定**：`loadGroup` 只按 `source_version,id` 排序，同一事件的文字与
+   表情 id 都是随机 UUID，顺序可能颠倒。改为同一版本内非表情消息优先
+   （`left(text,10)='[[sticker:'` 升序），再按 id；仍然没有新增列。
+
+修复后同一页面真实点击验证：
+
+- 纯表情回合：world v13 `group.turn_resolved`，reply `text:'' / stickerId:wole`；
+  投影一行 `[[sticker:wole]]`，UI 显示图片 `alt=我裂开了`，无文字泡。
+- 文字+表情回合：reply `text:'我看了下，周六下午可以。' / stickerId:xswl`；
+  投影两行且顺序为文字在前、`[[sticker:xswl]]` 在后；UI 两个独立气泡（文字 + 图片）。
+- 玩家侧仍走既有 `[[sticker:id]]` 单条消息，列表预览和待核对状态不变。
+
+回归：新增 `tests/integration/group-sticker-npc.test.ts`（真实 PG）：epoch-2 下不带
+声明必须 `23514/ENGINE_EPOCH_CONFLICT`；声明后文字+表情+纯表情三条消息落库且顺序正确。
+`npm run check` **4005/4005**、typecheck 通过。
+
+限制：桩模型不是真实群模型，不能据此宣称 NPC 表情语义质量通过；0113/0114 只应用到本地
+测试库，生产尚未迁移、代码尚未推送部署；真机/PC 真实模型验收仍待供应商额度恢复。

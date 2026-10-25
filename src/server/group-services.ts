@@ -1,4 +1,3 @@
-import { nativeNpcTaskHandler } from './npc-agent-channel-services.ts';
 import 'server-only';
 import { PostgresGroupRepository } from '../modules/world/infrastructure/group-repository.ts';
 import { getServices } from './services.ts';
@@ -52,14 +51,12 @@ export async function runGroupOwnedTask(
         finish: (lease, outcome) => queue.finish(lease, outcome),
       },
       {
-        world: async (lease, signal) => {
-          if (await nativeNpcTaskHandler(s.db, createTextModel)(lease, signal)) return;
-          await groupTaskHandler(
+        world: (lease, signal) =>
+          groupTaskHandler(
             queue,
             new WorldGroupPlanner(createTextModel()),
             config.model,
-          )(lease, signal);
-        },
+          )(lease, signal),
       },
       AbortSignal.timeout(110000),
     );

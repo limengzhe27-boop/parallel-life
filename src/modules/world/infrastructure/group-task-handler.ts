@@ -81,6 +81,22 @@ export function groupTaskHandler(
           ).rows[0]?.paused
         )
           throw new DomainError('INVALID_COMMAND', 'WORLD_PAUSED');
+        // Epoch-2 worlds fence every world write unless the writer declares the
+        // runtime epoch. The reply commit is lease-authorized above; mirror the
+        // player group-send transaction so the projection can be written.
+        const control = (
+          await sql.query('SELECT parallel_life.runtime_engine_epoch($1,$2) AS engine_epoch', [
+            input.worldId,
+            lease.ownerId,
+          ])
+        ).rows[0];
+        const engineEpoch = Number(control?.engine_epoch ?? 1);
+        if (!Number.isSafeInteger(engineEpoch) || engineEpoch < 1)
+          throw new DomainError('INVALID_COMMAND', 'Invalid world engine control');
+        await sql.query(
+          "SELECT set_config('app.agent_world_id',$1,true),set_config('app.agent_engine_epoch',$2,true)",
+          [input.worldId, String(engineEpoch)],
+        );
         const event = groupReplyEvent(
           lease.ownerId,
           current.world,
