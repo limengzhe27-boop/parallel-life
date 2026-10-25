@@ -1,8 +1,6 @@
-// NOTE(2026-10-25): this fixture predates aa03dfa9 (local initiative). An idle
-// private actor now always has an actor_local candidate, so the original
-// "zero candidate" premise no longer holds; this test needs rewriting (local
-// initiative first, director only when no candidate exists) when 44-180 resumes.
-// It is currently red on 55432 and must not be counted as passing evidence.
+// A private actor always has an actor_local initiative candidate (aa03dfa9), so a
+// zero-candidate world must have no actors. This keeps the original 44-180 premise:
+// the director wakes once per durable cadence only when nothing else is due.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -12,14 +10,9 @@ import { migrate } from '../../scripts/migrate.mjs';
 import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
-import {
-  initializeActorAgentStateInTransaction,
-  switchAgentEngineEpochInTransaction,
-} from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
+import { switchAgentEngineEpochInTransaction } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
-import { emptyActorAgentState } from '../../src/modules/world/domain/agent-runtime.ts';
-import { agentDefinitionRef } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 import type { TextModel } from '../../src/modules/ai/application/ports.ts';
@@ -34,8 +27,7 @@ test('zero-candidate world wakes director once per durable review cadence', asyn
   );
   try {
     const owner = randomUUID(),
-      worldId = randomUUID(),
-      actorId = randomUUID();
+      worldId = randomUUID();
     await new IdentityRepository(db).ensureGuest(owner);
     const world: WorldState = {
       schemaVersion: 1,
@@ -44,7 +36,7 @@ test('zero-candidate world wakes director once per durable review cadence', asyn
       version: 0,
       title: 'Director wake test',
       time: '2026-10-21T06:00:00.000Z',
-      actors: [{ id: actorId, name: 'A', persona: 'An independent fictional shopkeeper' }],
+      actors: [],
       facts: [],
       messages: [],
       appointments: [],
@@ -53,11 +45,6 @@ test('zero-candidate world wakes director once per durable review cadence', asyn
     const worlds = new PostgresWorldRepository(db);
     await worlds.initialize({ userId: owner }, world);
     await db.transaction(owner, async (sql) => {
-      await initializeActorAgentStateInTransaction(
-        sql,
-        owner,
-        emptyActorAgentState({ worldId, actorId }, agentDefinitionRef(world, actorId), 0),
-      );
       await switchAgentEngineEpochInTransaction(sql, owner, {
         worldId,
         expectedEpoch: 1,
