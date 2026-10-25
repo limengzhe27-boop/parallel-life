@@ -3151,10 +3151,13 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 #### 2026-10-25 · 写入点审计的残余项（未改代码）
 
-- `publication-story-repository` 的 `UPDATE worlds`（出版故事地点揭示等）没有声明
-  runtime epoch；`/worlds/[id]/migration` 对任何自有世界开放，因此“出版世界先迁移
-  epoch-2、再继续未完成故事节点”理论上会 `ENGINE_EPOCH_CONFLICT`。本地没有可复用的
-  出版+迁移旅程，未证实，也没有凭猜测加声明；恢复该任务时先用真实出版世界验证再决定。
+- `publication-story-repository` 的 `UPDATE worlds`（出版故事地点揭示等）原先没有声明
+  runtime epoch；`/worlds/[id]/migration` 对任何自有世界开放，理论上“出版世界先迁移
+  epoch-2、再继续未完成故事节点”会 `ENGINE_EPOCH_CONFLICT`。2026-10-25 已在该 owner
+  写入前调用 `declareWorldEngineContext`（与归档/群回复同一 helper），epoch-1 行为不变；
+  `PUBLICATION_STORY_TEST_PORT=55432` 下 `publication-story.test.ts` **31/31** 通过。
+  “出版世界 + epoch-2 + 未完成节点”的完整旅程仍缺专门 fixture，未证实，保留为残余验证项；
+  该声明不授予权限，调用方仍先按 owner `FOR UPDATE`。
 - `archiveWorld` 会把 `world_clock.paused` 置 true，`restoreWorld` 只移除 `archivedAt`
   不解暂停（本地真实 PG：archive→restore 后 `paused` 仍为 true）。2026-10-25 复核：
   `src/features` 与页面层没有任何 archive/restore 调用，只有 `/api/v1/worlds/[id]`
