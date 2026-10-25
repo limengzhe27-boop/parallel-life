@@ -3156,9 +3156,10 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
   epoch-2、再继续未完成故事节点”理论上会 `ENGINE_EPOCH_CONFLICT`。本地没有可复用的
   出版+迁移旅程，未证实，也没有凭猜测加声明；恢复该任务时先用真实出版世界验证再决定。
 - `archiveWorld` 会把 `world_clock.paused` 置 true，`restoreWorld` 只移除 `archivedAt`
-  不解暂停。本地真实 PG 证据：archive→restore 后 `paused` 仍为 true。这可能是有意
-  （恢复后由用户自己继续），也可能是遗漏；缺少“是否由归档置暂停”的来源，不能安全地
-  只在 restore 里解暂停，保留为待确认项。
+  不解暂停（本地真实 PG：archive→restore 后 `paused` 仍为 true）。2026-10-25 复核：
+  `src/features` 与页面层没有任何 archive/restore 调用，只有 `/api/v1/worlds/[id]`
+  PATCH 暴露；因此这不是当前用户可见缺口。保留行为不变，等真正接入 UI 时再决定
+  “恢复是否自动继续”，不再作为待办阻塞。
 - 出版故事侧车在本地 55432 可完整运行：`PUBLICATION_STORY_TEST_PORT=55432` 下
   `publication-story.test.ts` **31/31** 通过（含地点揭示、来源/回执/unknown 围栏）；
   另三个 publication-story-* 测试硬编码 55478，当前集群未覆盖。epoch-2 与出版故事的
