@@ -3143,7 +3143,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - **同批修复归档/恢复**：`archiveWorld`/`restoreWorld` 在 epoch-2 世界缺少 runtime epoch
   声明，实测抛 `ENGINE_EPOCH_CONFLICT`；抽出 `declareWorldEngineContext()`（只在调用方
   已持有世界锁/lease 后声明，不授予权限），归档、恢复、群回复共用。新增
-  `tests/integration/world-archive-epoch.test.ts`，与群测试合计真实 PG 3/3。
+  `tests/integration/world-archive-epoch.test.ts` 与群测试（含 epoch-2 建群）合计真实 PG **4/4**。
 - 本地提交 `2fe779a9`、`6a60d4b5`；未 push，线上仍是 `a630fd20`。
 
 仍不能关闭：模型额度恢复后的原档真实推进、44-210 真机/真实模型验收、
