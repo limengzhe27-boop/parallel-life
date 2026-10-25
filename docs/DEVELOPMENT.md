@@ -3148,3 +3148,14 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 仍不能关闭：模型额度恢复后的原档真实推进、44-210 真机/真实模型验收、
 44-203/204 原档连续体验、44-160/161 质量、44-198 旧账号清理、A01–A18 用户验收。
+
+#### 2026-10-25 · 写入点审计的残余项（未改代码）
+
+- `publication-story-repository` 的 `UPDATE worlds`（出版故事地点揭示等）没有声明
+  runtime epoch；`/worlds/[id]/migration` 对任何自有世界开放，因此“出版世界先迁移
+  epoch-2、再继续未完成故事节点”理论上会 `ENGINE_EPOCH_CONFLICT`。本地没有可复用的
+  出版+迁移旅程，未证实，也没有凭猜测加声明；恢复该任务时先用真实出版世界验证再决定。
+- `archiveWorld` 会把 `world_clock.paused` 置 true，`restoreWorld` 只移除 `archivedAt`
+  不解暂停。本地真实 PG 证据：archive→restore 后 `paused` 仍为 true。这可能是有意
+  （恢复后由用户自己继续），也可能是遗漏；缺少“是否由归档置暂停”的来源，不能安全地
+  只在 restore 里解暂停，保留为待确认项。
