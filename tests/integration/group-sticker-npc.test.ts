@@ -142,3 +142,26 @@ test('epoch-1 group sticker replies keep working without a runtime row', async (
     await f.admin.end();
   }
 });
+
+test('epoch-2 worlds can create a new group through the player command path', async () => {
+  const f = await fixture();
+  try {
+    await f.admin.query(
+      'INSERT INTO parallel_life.agent_runtime_worlds(world_id,owner_id,engine_epoch) VALUES($1,$2,2)',
+      [f.id, f.owner],
+    );
+    const world = await f.worlds.get({ userId: f.owner }, f.id);
+    const receipt = await f.groups.create(f.owner, {
+      worldId: f.id,
+      commandId: randomUUID(),
+      expectedVersion: world.version,
+      title: '第二群',
+      actorIds: [f.a],
+    });
+    assert.ok(receipt.groupId);
+    assert.equal(receipt.version, world.version + 1);
+  } finally {
+    await f.db.close();
+    await f.admin.end();
+  }
+});

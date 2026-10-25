@@ -122,7 +122,7 @@ epoch，在 epoch-2 世界必然抛 `ENGINE_EPOCH_CONFLICT`（本地真实 PG �
 `world-command-uow.declareWorldEngineContext()`，在调用方已持有世界锁/任务 lease 的
 前提下读取 `runtime_engine_epoch` 并设置同一事务配置；归档、恢复和群回复共用它。
 新测试 `tests/integration/world-archive-epoch.test.ts` 在 epoch-2 世界执行归档→恢复
-通过。该方法只声明上下文，不授予权限；调用方必须先完成所有权或 lease 校验。
+通过；群测试另补“epoch-2 世界仍可建群”（走玩家命令授权路径），合计真实 PG 4/4。该方法只声明上下文，不授予权限；调用方必须先完成所有权或 lease 校验。
 
 同时把群消息排序改为：先按事件内 reply 的 ordinal，再按“文字先于表情”，最后按 id。
 这样两位人物同事件回复时不会因随机 UUID 交错文字和表情。
