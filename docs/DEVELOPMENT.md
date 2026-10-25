@@ -3140,6 +3140,10 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
   新增 `0113`/`0114` 迁移与 `tests/integration/group-sticker-npc.test.ts`（真实 PG 2/2），
   纯表情与文字+表情均在 UI 正确分条显示；`npm run check` **4005/4005**、typecheck、
   `build` 通过。0113/0114 仅本地应用，生产未迁移；桩模型不是真实群模型。
+- **同批修复归档/恢复**：`archiveWorld`/`restoreWorld` 在 epoch-2 世界缺少 runtime epoch
+  声明，实测抛 `ENGINE_EPOCH_CONFLICT`；抽出 `declareWorldEngineContext()`（只在调用方
+  已持有世界锁/lease 后声明，不授予权限），归档、恢复、群回复共用。新增
+  `tests/integration/world-archive-epoch.test.ts`，与群测试合计真实 PG 3/3。
 - 本地提交 `2fe779a9`、`6a60d4b5`；未 push，线上仍是 `a630fd20`。
 
 仍不能关闭：模型额度恢复后的原档真实推进、44-210 真机/真实模型验收、

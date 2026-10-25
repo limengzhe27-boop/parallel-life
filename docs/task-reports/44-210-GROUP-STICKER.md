@@ -113,3 +113,16 @@ NPC 语义上下文、可选 NPC 主动表情与 `group-v2-sticker`。仍未做�
 
 限制：桩模型不是真实群模型，不能据此宣称 NPC 表情语义质量通过；0113/0114 只应用到本地
 测试库，生产尚未迁移、代码尚未推送部署；真机/PC 真实模型验收仍待供应商额度恢复。
+
+### 同批发现：归档/恢复也被 epoch 围栏挡住
+
+排查群回复时顺便核对了其他直接 `UPDATE parallel_life.worlds` 的用户操作：
+`archiveWorld`/`restoreWorld` 只做 owner `FOR UPDATE` 就改世界，没有声明 runtime
+epoch，在 epoch-2 世界必然抛 `ENGINE_EPOCH_CONFLICT`（本地真实 PG 复现）。新增
+`world-command-uow.declareWorldEngineContext()`，在调用方已持有世界锁/任务 lease 的
+前提下读取 `runtime_engine_epoch` 并设置同一事务配置；归档、恢复和群回复共用它。
+新测试 `tests/integration/world-archive-epoch.test.ts` 在 epoch-2 世界执行归档→恢复
+通过。该方法只声明上下文，不授予权限；调用方必须先完成所有权或 lease 校验。
+
+同时把群消息排序改为：先按事件内 reply 的 ordinal，再按“文字先于表情”，最后按 id。
+这样两位人物同事件回复时不会因随机 UUID 交错文字和表情。

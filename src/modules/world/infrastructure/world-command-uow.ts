@@ -98,3 +98,29 @@ export async function authorizeWorldCommandInTransaction(
     throw new DomainError('INVALID_COMMAND', 'An explicit player command transaction is required');
   return { engineEpoch, worldVersion: world.version };
 }
+
+/**
+ * Declare the runtime epoch for a writer that already holds the world lock or a
+ * verified task lease. The DB fence only checks the declared epoch, so callers
+ * must have authorized ownership/lease first; this never grants authority.
+ */
+export async function declareWorldEngineContext(
+  sql: SqlClient,
+  worldId: string,
+  ownerId: string,
+): Promise<number> {
+  const row = (
+    await sql.query('SELECT parallel_life.runtime_engine_epoch($1,$2) AS engine_epoch', [
+      worldId,
+      ownerId,
+    ])
+  ).rows[0];
+  const engineEpoch = Number(row?.engine_epoch ?? 1);
+  if (!Number.isSafeInteger(engineEpoch) || engineEpoch < 1)
+    throw new DomainError('INVALID_COMMAND', 'Invalid world engine control');
+  await sql.query(
+    "SELECT set_config('app.agent_world_id',$1,true),set_config('app.agent_engine_epoch',$2,true)",
+    [worldId, String(engineEpoch)],
+  );
+  return engineEpoch;
+}

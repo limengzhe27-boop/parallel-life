@@ -5,7 +5,10 @@ import {
   projectExplicitInvitationDecision,
 } from './agent-external-event-projector.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
-import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
+import {
+  authorizeWorldCommandInTransaction,
+  declareWorldEngineContext,
+} from './world-command-uow.ts';
 import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
 import { readPublicationInvitationLinks } from '../../settings/infrastructure/publication-story-repository.ts';
@@ -1012,6 +1015,7 @@ export class PostgresWorldRepository implements WorldRepository {
         )
       ).rows[0];
       if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
+      await declareWorldEngineContext(sql, worldId, userId);
 
       const nowIso = new Date().toISOString();
       await sql.query(
@@ -1046,6 +1050,7 @@ export class PostgresWorldRepository implements WorldRepository {
         )
       ).rows[0];
       if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
+      await declareWorldEngineContext(sql, worldId, userId);
 
       await sql.query(
         `UPDATE parallel_life.worlds
