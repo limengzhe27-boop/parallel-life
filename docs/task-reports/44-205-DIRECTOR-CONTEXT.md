@@ -226,3 +226,62 @@ Supabase 管理连接已可读，生产 health 200，但世界仍为 **v286**。
 结论：orphan stale wake 循环已修复并线上验证；403 自主冷却也已上线并停止重复
 尝试。世界“能推进”仍未通过：当前外部阻塞是模型 403（供应商鉴权/额度/权限），
 需要恢复供应商配置后再开新的真实窗口。不能把“operation 0 秒 quiet”当世界推进。
+
+## 2026-10-25 · 403 根因定位：供应商预扣额度不足（不是鉴权/权限）
+
+此前把 403 记为“供应商鉴权/额度/权限”待恢复，本轮用 `.env.local` 的同一
+`YIBU_API_KEY`、同一 `baseUrl` 做了 4 次最小协议探针（脚本在忽略目录
+`.local/diag-provider-*.mjs`，不打印密钥），结果可以区分：
+
+| 探针 | 请求形状 | HTTP | 结果 |
+|---|---|---|---|
+| plain | 单条 `ping`，`max_tokens:16` | 200 | 正常返回 `pong`，计费 prompt 1243 tokens |
+| json_object | `response_format:{type:"json_object"}`，256 | 200 | 正常返回 JSON |
+| json_schema | `response_format:{type:"json_schema"}` 严格 schema，256 | **403** | 见下 |
+| big_text | 约 21k 字符 system + `max_tokens:16` | **403** | 见下 |
+
+403 的响应体是明确的预扣额度失败：
+
+```json
+{"error":{"message":"token quota is not enough, token remain quota: ＄0.014446, need quota: ＄0.017024","type":"new_api_error","param":"","code":"pre_consume_token_quota_failed"}}
+```
+
+`big_text` 同类：
+
+```json
+{"error":{"message":"token quota is not enough, token remain quota: ＄0.014446, need quota: ＄0.066120",...}}
+```
+
+结论：
+
+1. 403 **不是** key 失效、模型无权或 baseUrl 错误——同一把 key 的普通/JSON
+   对象请求都 200，`grok-4.7` 实际落 `grok-4.7-build`。
+2. 403 是供应商在发请求前按 `max_tokens` + 输入 token 预扣额度，账户剩余
+   `＄0.014446`，而最小结构化调用需要 `＄0.017024`，差额 15%。
+3. 生产 13 个 `invalid_output` attempt 的 `model_request_rejection/httpStatus:403`
+   与这里完全一致：NPC 调用带严格 `json_schema` 与 4096 默认输出预算，预扣
+   金额必然高于余额，所以**每一次都必然 403，且没有产生世界写或 event**。
+4. 这不是代码能绕过的：把一个需要结构化输出的 NPC 回合压到 `max_tokens<256`
+   会被本地 `validateModelRequest` 拒绝，且 256 仍不够一次完整 NPC 回合。
+   唯一恢复方式是由账户持有人给该 key 充值/提额，或换一个有余额的 key。
+5. 探针本身用了 2 次成功调用（plain/json_object），各约 1.3k prompt tokens；
+   余额因此略低于表中读数。没有重试生产 attempt、没有重买 unknown。
+
+恢复后的验证顺序（不需要再改代码）：充值 → 等 10 分钟自主冷却自然过期 →
+观察 `advanceOne` 是否创建 attempt 并产生 event → 世界应越过 v286。若仍 403，
+应重新读响应体，而不是再猜鉴权。
+
+### 补充：403 是“当前模型价格 × 余额”问题，不是账户被停
+
+同一把 key、同样严格 `json_schema`（256 输出 token），换成 `gpt-4.1-mini`
+（`YIBU_DIRECTOR_MODEL`，本项目已在用的模型）返回 **200** 且 JSON 合法。
+说明账户仍可用，只是 `grok-4.7` 的预扣金额（$0.017024）高于余额
+（$0.014446），而 gpt-4.1-mini 的预扣低于余额。
+
+因此恢复路径有两条，都需要账户持有人决定：
+
+1. 给该 key 充值/提额，保留 `YIBU_NPC_MODEL=grok-4.7`（质量不变）。
+2. 临时把 `YIBU_NPC_MODEL` 换成已在用的更便宜模型（如 `gpt-4.1-mini`），
+   用剩余余额继续，但 NPC 文本质量会变化，且需要一次部署才生效。
+
+本轮没有替用户切换生产模型、没有用剩余余额跑完整 NPC 回合、没有写生产。
