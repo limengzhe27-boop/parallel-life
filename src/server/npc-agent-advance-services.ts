@@ -921,6 +921,16 @@ export function npcAgentAdvanceServices(
       const scheduled = await scheduleAgents(
         {
           sources,
+          log: (entry) => {
+            if (entry.path === 'coordination')
+              console.info(
+                JSON.stringify({
+                  scope: 'agent-schedule-coordination',
+                  worldId,
+                  reason: entry.reason,
+                }),
+              );
+          },
           director: {
             async coordinate(input) {
               coordinated = true;

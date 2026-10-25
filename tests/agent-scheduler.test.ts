@@ -688,3 +688,25 @@ test('canonical scheduling preserves the immutable plan review target through se
   planReview.planId = 'mutated';
   assert.equal(result.selected[0]!.candidate.planReview?.planId, 'plan');
 });
+
+test('reports fast selection and the coordination reason without changing behavior', async () => {
+  const paths: string[] = [];
+  const log = (entry: { path: string; reason: string }) =>
+    paths.push(`${entry.path}:${entry.reason}`);
+  await scheduleAgents(
+    { sources: [source('ordinary', [candidate('a')])], director: director().port, log },
+    input(),
+  );
+  assert.deepEqual(paths, ['fast:independent_candidates']);
+
+  paths.length = 0;
+  await scheduleAgents(
+    {
+      sources: [source('authored', [candidate('a', 'a', { requiresCoordination: true })])],
+      director: director().port,
+      log,
+    },
+    input(),
+  );
+  assert.deepEqual(paths, ['coordination:requires_coordination']);
+});

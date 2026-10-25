@@ -321,7 +321,12 @@ function validCoordination(
 
 /** Pure orchestration around ports: no persistence, clock movement, paid retry, NPC generation or claim. */
 export async function scheduleAgents(
-  deps: { sources: readonly RegisteredAgentCandidateSource[]; director: DirectorAgent },
+  deps: {
+    sources: readonly RegisteredAgentCandidateSource[];
+    director: DirectorAgent;
+    /** Operational evidence only: never an authorization or retry decision. */
+    log?: (entry: { path: 'fast' | 'coordination'; reason: string }) => void;
+  },
   input: ScheduleAgentsInput,
 ): Promise<AgentSchedule> {
   if (
@@ -472,6 +477,7 @@ export async function scheduleAgents(
     !competingActors(eligible) &&
     !current.approvedCoordination
   ) {
+    deps.log?.({ path: 'fast', reason: 'independent_candidates' });
     if (!current.selectAllIndependent)
       deferred.push(
         ...eligible.slice(1).map((c) => ({ candidateId: c.id, reason: 'lower_priority' })),
@@ -481,6 +487,16 @@ export async function scheduleAgents(
       current.selectAllIndependent ? eligible.map((c) => c.id) : [eligible[0]!.id],
     );
   }
+  deps.log?.({
+    path: 'coordination',
+    reason: eligible.some((c) => c.requiresCoordination)
+      ? 'requires_coordination'
+      : competingActors(eligible)
+        ? 'competing_actors'
+        : current.approvedCoordination
+          ? 'approved_coordination'
+          : 'unknown',
+  });
   let coordination: DirectorCoordination;
   if (current.approvedCoordination) {
     if (
