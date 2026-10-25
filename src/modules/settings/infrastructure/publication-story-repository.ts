@@ -13,7 +13,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Id } from '../../../contracts/api.ts';
 import { PostgresDatabase, type SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
-import { declareWorldEngineContext } from '../../world/infrastructure/world-command-uow.ts';
 import { validateCharacterEffects } from '../../world/domain/character-policy.ts';
 import {
   buildStoryPlan,
@@ -668,9 +667,6 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
       [eventId, worldId, ownerId, version, commandId, event, event.occurredAt],
     );
-    // Publication worlds can be migrated to the native engine while a story
-    // node is still pending; declare the epoch so the owner write is not fenced.
-    await declareWorldEngineContext(sql, worldId, ownerId);
     await sql.query(
       'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1 AND owner_id=$4',
       [worldId, version, snapshot, ownerId],
