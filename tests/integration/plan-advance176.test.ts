@@ -74,6 +74,7 @@ test('actionless plan advances into one proactive review and does not repeat on 
       });
     });
     let npcCalls = 0;
+    let planCalls = 0;
     const model: TextModel = {
       async complete(messages) {
         const p = JSON.parse(messages[1]!.content);
@@ -109,7 +110,17 @@ test('actionless plan advances into one proactive review and does not repeat on 
             },
           });
         assert.equal(p.input.origin, 'wake');
-        assert.equal(JSON.parse(p.input.text).actionId, null);
+        const wake = JSON.parse(p.input.text);
+        // aa03dfa9 adds an unrelated actor_local candidate; keep this fixture about plan reviews.
+        if (wake.source === 'actor_local')
+          return JSON.stringify({
+            protocol: 'npc-wire-v15',
+            statements: [],
+            executions: [],
+            changes: null,
+          });
+        planCalls++;
+        assert.equal(wake.actionId, null);
         return JSON.stringify({
           protocol: 'npc-wire-v15',
           statements: [{ text: '我还记得那件没完成的事。', dependsOnActionIds: [] }],
@@ -163,7 +174,7 @@ test('actionless plan advances into one proactive review and does not repeat on 
     assert.equal(reviewRows.length, 1, 'durable plan review state exists');
     assert.equal(Number(reviewRows[0].review_count), 1);
     await advance.advanceIfEnabled(owner, id);
-    assert.equal(npcCalls, 2, 'same evidence quiet wake must never repeat');
+    assert.equal(planCalls, 1, 'same evidence quiet wake must never repeat');
     assert.equal(
       Number(
         (
@@ -189,7 +200,7 @@ test('actionless plan advances into one proactive review and does not repeat on 
       [id],
     );
     await advance.advanceIfEnabled(owner, id);
-    assert.equal(npcCalls, 3, 'a due persistent review gets one new proactive opportunity');
+    assert.equal(planCalls, 2, 'a due persistent review gets one new proactive opportunity');
     const dueWorld = await worlds.get({ userId: owner }, id);
     assert.equal(
       dueWorld.messages.filter((m) => m.text.includes('我还记得那件没完成的事')).length,
@@ -217,7 +228,7 @@ test('actionless plan advances into one proactive review and does not repeat on 
         id: randomUUID(),
       }),
     );
-    assert.equal(npcCalls, 3);
+    assert.equal(planCalls, 2, 'rejected send adds no plan review');
   } finally {
     await db.close();
     await admin.end();
