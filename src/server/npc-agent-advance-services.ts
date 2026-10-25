@@ -759,6 +759,14 @@ export function npcAgentAdvanceServices(
         );
         if (pendingEpisode) return pendingEpisode;
       }
+      const directorReview = await directorReviewRepository.read(ownerId, worldId);
+      // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
+      const directorNow = new Date().toISOString();
+      const forceDirectorReview = options?.forceDirectorReview === true;
+      const forceNonce = forceDirectorReview ? randomUUID() : undefined;
+      const directorDue = forceDirectorReview || directorReviewDue(directorReview, directorNow);
+      // A due review must reach the Director even though every idle private actor
+      // has a local-initiative candidate; otherwise the cadence is starved forever.
       const registrations = createAgentScheduleSources({
         worldId,
         engineEpoch,
@@ -769,6 +777,7 @@ export function npcAgentAdvanceServices(
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
         planReviews: planReviewStates,
+        suppressLocalInitiative: directorDue,
         lastAssistantAtByActor: Object.fromEntries(
           world.messages
             .filter((message) => message.role === 'assistant' && message.actorId)
@@ -1024,12 +1033,6 @@ export function npcAgentAdvanceServices(
             failures: scheduled.sourceFailures,
           }),
         );
-      const directorReview = await directorReviewRepository.read(ownerId, worldId);
-      // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
-      const directorNow = new Date().toISOString();
-      const forceDirectorReview = options?.forceDirectorReview === true;
-      const forceNonce = forceDirectorReview ? randomUUID() : undefined;
-      const directorDue = forceDirectorReview || directorReviewDue(directorReview, directorNow);
       // An explicit owner review must reach the Director even when a local actor
       // candidate exists; the Director can still decline or defer that opportunity.
       const emptyDirectorDue = forceDirectorReview

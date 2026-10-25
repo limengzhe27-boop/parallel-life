@@ -70,12 +70,30 @@ test('zero-candidate director opportunity reaches the actor and commits a messag
     );
     await new PostgresClockStore(db).setClock(owner, worldId, { paused: false, speed: 0 });
     let directorCalls = 0;
+    let cadenceCalls = 0;
+    let coordinationCalls = 0;
     let npcCalls = 0;
     const model: TextModel = {
       async complete(messages) {
         const p = JSON.parse(messages[1]!.content);
         if (p.promptVersion.startsWith('director-')) {
           directorCalls++;
+          if (p.candidates.length) {
+            coordinationCalls++;
+            return JSON.stringify({
+              protocol: 'director-wire-v14',
+              openingContext: null,
+              authoredChoices: {},
+              candidates: p.candidates.map((_c: unknown, i: number) => ({
+                ref: `candidate:${i + 1}`,
+                decision: 'defer',
+                reason: '本批不再重复安排，保留人物已有机会。',
+              })),
+              opportunities: [],
+              audit: { reason: '协调已有候选，保持安静。', sourceRefs: [] },
+            });
+          }
+          cadenceCalls++;
           const source = p.wireCatalog.sources[0]?.ref;
           assert.ok(source);
           return JSON.stringify({
@@ -128,7 +146,7 @@ test('zero-candidate director opportunity reaches the actor and commits a messag
       new PostgresDirectorSnapshotRepository(db),
     );
     const first = await advance.advanceIfEnabled(owner, worldId);
-    assert.equal(directorCalls, 1, 'director wakes with zero actor candidates');
+    assert.equal(cadenceCalls, 1, 'director review still wakes without actor candidates');
     assert.equal(npcCalls, 1, 'director opportunity wakes the actor');
     const store = new PostgresAgentRuntimeRepository(db);
     const actor = await store.read(owner, { worldId, actorId });
@@ -142,7 +160,11 @@ test('zero-candidate director opportunity reaches the actor and commits a messag
       1,
       'the director opportunity is delivered once',
     );
-    assert.equal(directorCalls, 1, 'immediate advance does not repeat the director');
+    assert.equal(cadenceCalls, 1, 'immediate advance does not repeat the review cadence');
+    assert.ok(
+      coordinationCalls <= 1,
+      'a later round may coordinate the local candidate at most once',
+    );
   } finally {
     await db.close();
     await admin.end();

@@ -42,6 +42,8 @@ export type SchedulingView = {
   planReviews?: ReadonlyMap<string, PlanReviewState>;
   /** Per-actor last assistant time; each actor's local initiative is independent. */
   lastAssistantAtByActor?: Readonly<Record<string, string>>;
+  /** A due Director review owns the round before optional local contact. */
+  suppressLocalInitiative?: boolean;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -229,10 +231,7 @@ function actionDeferred(context: ActorContext, action: AgentAction) {
     const responsibility = context.snapshot.viewState.responsibilities.find(
       (item) => item.id === id,
     );
-    return (
-      responsibility?.status === 'deferred' &&
-      context.basis(responsibility)
-    );
+    return responsibility?.status === 'deferred' && context.basis(responsibility);
   });
 }
 /** Internal adapter to the ONE shared condition interpreter; never emitted or persisted as a goal/action. */
@@ -1000,6 +999,7 @@ async function observations(view: SchedulingView, context: ActorContext) {
 
 /** A bounded contact opportunity, not a task or a requirement to send a message. */
 async function localInitiative(view: SchedulingView, context: ActorContext, realNow: number) {
+  if (view.suppressLocalInitiative) return [];
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
