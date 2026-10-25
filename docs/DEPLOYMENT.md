@@ -2259,3 +2259,21 @@ Vercel Git 未生成部署，手动 `vercel --prod` 再次被 `api-deployments-f
 
 本地验证：`npm run check` **4005/4005**、`npm run typecheck`、`npm run build`
 （31/31 页面）；群表情与 orphan 回归聚焦 10/10。真实手机/PC 群聊仍未验收。
+
+## 待部署：0113 / 0114 必须先于群表情代码
+
+`6a60d4b5` 只提交在本地，尚未推送。下一次部署窗口必须先应用迁移，再让代码上线，
+否则群回复会因函数不存在或 epoch 围栏继续失败：
+
+1. `0113_group_sticker_message_author.sql`：只 `CREATE OR REPLACE` 群投影守卫，
+   增加 `[[sticker:id]]` 投影的授权分支；无新表/字段/权限变化，可先于代码应用。
+2. `0114_runtime_engine_epoch.sql`：新增 `runtime_engine_epoch(text,text)`，
+   `SECURITY DEFINER` 只返回单个世界的整数 epoch，授权 `pl_app,pl_worker`。
+   **代码依赖该函数存在**，所以必须 0114 先于代码上线。
+3. 生产应用后核对 `pl_migrations` 校验和；再用一个 epoch-2 合成世界做一次
+   “玩家发表情 → NPC 文字+表情/纯表情”验证，确认没有 `INVALID_GROUP_MESSAGE_AUTHOR`
+   或 `ENGINE_EPOCH_CONFLICT`。
+
+回滚边界：0113 是对既有函数的兼容替换，回滚代码不会破坏数据；0114 只是新增只读函数，
+可保留。已写入的 `group.turn_resolved` 事件和消息不需要回滚。不要为了回滚删除函数或
+重写历史事件。

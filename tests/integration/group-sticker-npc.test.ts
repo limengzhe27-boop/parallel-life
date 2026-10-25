@@ -115,3 +115,30 @@ test('epoch-2 group sticker replies need the runtime epoch and persist as separa
     await f.admin.end();
   }
 });
+
+test('epoch-1 group sticker replies keep working without a runtime row', async () => {
+  const f = await fixture();
+  try {
+    const world = await f.worlds.get({ userId: f.owner }, f.id);
+    const event = groupReplyEvent(
+      f.owner,
+      world,
+      randomUUID(),
+      f.groupId,
+      [{ actorId: f.a, text: '', stickerId: 'wole' }],
+      time,
+    );
+    const sql = f.admin as unknown as Parameters<typeof persistGroupEvent>[0];
+    await f.admin.query('BEGIN');
+    await persistGroupEvent(sql, world, event, 'sticker-reply-epoch-1');
+    await f.admin.query('COMMIT');
+    const read = await f.groups.read(f.owner, f.id, f.groupId);
+    assert.deepEqual(
+      read.messages.map((m) => m.text),
+      ['[[sticker:wole]]'],
+    );
+  } finally {
+    await f.db.close();
+    await f.admin.end();
+  }
+});
