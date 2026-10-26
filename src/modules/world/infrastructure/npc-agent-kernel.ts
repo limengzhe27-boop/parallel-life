@@ -1,3 +1,7 @@
+import {
+  planInitialPosition,
+  type InitialPositionCommit,
+} from '../domain/agent-initial-position.ts';
 import { normalizeNpcImageExecutionParameters } from './npc-model-protocol.ts';
 import { compileNpcExecutionProposal } from './npc-execution-intent.ts';
 import { npcSourceReferences, mapNpcSourceFields } from './npc-source-reference.ts';
@@ -435,6 +439,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       const results: AgentActionResult[] = [],
         effects: WorldEffect[] = [],
         departures: AgentJourney[] = [],
+        initialPositions: InitialPositionCommit[] = [],
         sceneDepartures: AgentSceneDeparture[] = [];
       const changedScenes: import('../domain/experience-rules.ts').SceneSession[] = [];
       for (const action of proposal.actions) {
@@ -1184,6 +1189,54 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           if (action.goalId) {
             completedGoalIds = [action.goalId];
           }
+        } else if (action.capability === 'position.establish') {
+          if (
+            Object.keys(action.parameters).length !== 1 ||
+            typeof action.parameters.placeId !== 'string' ||
+            action.targetIds.length ||
+            action.handlesResponsibilityIds.length
+          )
+            throw new AgentValidationError('INVALID_INITIAL_POSITION_PARAMETERS');
+          const actual = (
+            await sql.query(
+              'SELECT document FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND owner_id=$2 AND subject_key=$3 FOR UPDATE',
+              [attempt.worldId, ownerId, `actor:${attempt.actorId}`],
+            )
+          ).rows[0]?.document;
+          const hasJourney = !!(
+            await sql.query(
+              'SELECT 1 FROM parallel_life.npc_journeys WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 LIMIT 1',
+              [attempt.worldId, ownerId, attempt.actorId],
+            )
+          ).rowCount;
+          const placed = planInitialPosition({
+            worldId: attempt.worldId,
+            actorId: attempt.actorId,
+            ownPosition: actual,
+            hasJourney,
+            placeIds: (executionWorld.space?.places ?? [])
+              .map((p: { id: string }) => p.id)
+              .filter((id: string) =>
+                snapshot.worldContext?.initialPlacement?.places.some((p) => p.id === id),
+              ),
+            placeId: action.parameters.placeId,
+            sourceIds: action.sourceIds,
+            allowedSourceIds: snapshot.sources.map((source) => source.id),
+          });
+          if (placed.status !== 'ready' || initialPositions.length)
+            failureCode =
+              placed.status === 'blocked' ? placed.reason : 'INITIAL_POSITION_ALREADY_FIXED';
+          else {
+            initialPositions.push({
+              actorId: attempt.actorId,
+              placeId: action.parameters.placeId,
+              actionId: action.id,
+              resultId: `${eventId}_result_${results.length}`,
+              policy: placed.policy,
+              sourceId: placed.sourceId,
+            });
+            outputRefs = [{ kind: 'place', id: action.parameters.placeId }];
+          }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
           if (
@@ -1736,6 +1789,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         ...(accepted.questionChanges.length ? { questionChanges: accepted.questionChanges } : {}),
         results: appendUnits ? results.filter((result) => result.eventId === eventId) : results,
         ...(departures.length ? { departures, sceneDepartures } : {}),
+        ...(initialPositions.length ? { initialPositions } : {}),
         ...(positionKnowledge.length ? { positionKnowledge } : {}),
         ...(proposal.episodeDecision ? { episodeDecision: proposal.episodeDecision } : {}),
         stateAfter: accepted.state,

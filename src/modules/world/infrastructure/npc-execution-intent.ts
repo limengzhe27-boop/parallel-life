@@ -1,3 +1,4 @@
+import { initialPositionPolicySourceId } from '../domain/agent-initial-position.ts';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
@@ -221,13 +222,19 @@ export function compileNpcExecutionProposal(context: AgentValidationContext, raw
       const immediate = z
         .strictObject({
           ref: Id,
-          action: z.strictObject({
-            capability: z.literal('media.generate_image'),
-            parameters: z.strictObject({
-              sceneDescription: Text,
-              purpose: z.enum(['portrait', 'scene', 'memorial', 'evidence']),
+          action: z.discriminatedUnion('capability', [
+            z.strictObject({
+              capability: z.literal('media.generate_image'),
+              parameters: z.strictObject({
+                sceneDescription: Text,
+                purpose: z.enum(['portrait', 'scene', 'memorial', 'evidence']),
+              }),
             }),
-          }),
+            z.strictObject({
+              capability: z.literal('position.establish'),
+              parameters: z.strictObject({ placeId: Id }),
+            }),
+          ]),
         })
         .parse(item);
       if (!context.channel.allowedCapabilities.includes(immediate.action.capability))
@@ -243,7 +250,12 @@ export function compileNpcExecutionProposal(context: AgentValidationContext, raw
         preconditions: [],
         dependsOnActionIds: [],
         handlesResponsibilityIds: [],
-        sourceIds: [context.input.sourceId],
+        sourceIds: [
+          context.input.sourceId,
+          ...(immediate.action.capability === 'position.establish'
+            ? [initialPositionPolicySourceId(context.state.worldId, context.state.actorId)]
+            : []),
+        ],
         status: 'proposed',
       });
       actionIdsByRef[immediate.ref] = id;

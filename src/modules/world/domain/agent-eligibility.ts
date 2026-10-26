@@ -1,4 +1,4 @@
-import { isStandaloneMediaAction } from './agent-runtime.ts';
+import { isStandaloneAgentAction } from './agent-runtime.ts';
 import { currentPlayerDecision, type AgentValidationContext } from './agent-kernel.ts';
 import type {
   ActorAgentState,
@@ -111,7 +111,7 @@ export function evaluateAgentActionEligibility(
       add({ code: 'inactive_goal', subjectId: action.goalId }, true);
     if (goal) checkBasis(goal);
   } else if (
-    !isStandaloneMediaAction(action) ||
+    !isStandaloneAgentAction(action) ||
     snapshot.state.actions.some((old) => old.id === action.id && old.goalId !== null)
   ) {
     add({ code: 'inactive_goal' }, true);

@@ -17,6 +17,7 @@ export type AgentRuntimeTransition = {
   /** Proven answer relevance or withdrawal; never an attendance/action completion receipt. */
   questionChanges?: import('./agent-questions.ts').QuestionApplicationReceipt[];
   /** Actual departures certified against route, own origin, result and journey ledger. */
+  initialPositions?: import('./agent-initial-position.ts').InitialPositionCommit[];
   departures?: import('./agent-travel.ts').AgentJourney[];
   sceneDepartures?: import('./agent-scene-departure.ts').AgentSceneDeparture[];
   /** Kernel-certified report provenance, not a position change. */

@@ -3,6 +3,7 @@ export const NPC_AGENT_CAPABILITIES = [
   'plan.record',
   'appointment.propose',
   'travel.begin',
+  'position.establish',
   'appointment.fulfill',
   'appointment.cancel',
   'appointment.accept',

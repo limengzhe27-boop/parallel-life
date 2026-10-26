@@ -1,3 +1,8 @@
+import {
+  canEstablishInitialPosition,
+  INITIAL_POSITION_POLICY,
+  initialPositionPolicySourceId,
+} from '../domain/agent-initial-position.ts';
 import { stickerMessageMeaning } from '../domain/sticker-expression.ts';
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import {
@@ -677,7 +682,7 @@ async function attachAgentWorldContextInTransaction(
   const observations = snapshot.observations.filter((observation) =>
     permitted.has(observation.sourceId),
   );
-  const allowed = new Set(awareness.boundary.placeIds);
+  const allowed = new Set<string>(awareness.boundary.placeIds);
   const knowledge = awareness.knowledge
     .filter(
       (k) =>
@@ -761,6 +766,54 @@ async function attachAgentWorldContextInTransaction(
       sourceId,
     };
   }
+  let initialPlacement: NonNullable<AgentSnapshot['worldContext']>['initialPlacement'];
+  if (selfPosition.status === 'unknown' && 'worldVersion' in own && own.worldVersion === 0) {
+    const hasJourney = !!(
+      await sql.query(
+        'SELECT 1 FROM parallel_life.npc_journeys WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 LIMIT 1',
+        [snapshot.state.worldId, ownerId, snapshot.state.actorId],
+      )
+    ).rowCount;
+    if (
+      canEstablishInitialPosition({
+        worldId: snapshot.state.worldId,
+        actorId: snapshot.state.actorId,
+        ownPosition: own as import('../domain/world-awareness.ts').AuthoritativePosition,
+        hasJourney,
+        placeIds: [...allowed],
+      })
+    ) {
+      const row = (
+        await sql.query(
+          `SELECT state->'space'->'places' AS places FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2`,
+          [snapshot.state.worldId, ownerId],
+        )
+      ).rows[0];
+      const places = (row?.places ?? [])
+        .filter((p: { id: string; name: string }) => allowed.has(p.id))
+        .map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
+      const sourceId = initialPositionPolicySourceId(
+        snapshot.state.worldId,
+        snapshot.state.actorId,
+      );
+      if (places.length && !blocked.has(sourceId)) {
+        sources.push({
+          id: sourceId,
+          kind: 'authored',
+          recordId: snapshot.state.worldId,
+          worldVersion: 0,
+          at: snapshot.storyAt,
+        });
+        initialPlacement = { policy: INITIAL_POSITION_POLICY, sourceId, places };
+      }
+    }
+  }
+  const boundaryCapabilities = [
+    ...new Set([
+      ...awareness.boundary.capabilityIds,
+      ...(initialPlacement ? ['position.establish'] : []),
+    ]),
+  ];
   let travelRoutes: NonNullable<AgentSnapshot['worldContext']>['travelRoutes'] = [];
   if (
     selfPosition.status === 'at' &&
@@ -805,7 +858,8 @@ async function attachAgentWorldContextInTransaction(
       ...snapshot.channel,
       allowedCapabilities: NPC_AGENT_CAPABILITIES.filter(
         (cap) =>
-          awareness.boundary.capabilityIds.includes(cap) &&
+          boundaryCapabilities.includes(cap) &&
+          (cap !== 'position.establish' || !!initialPlacement) &&
           (cap !== 'travel.begin' || !!travelRoutes?.length) &&
           (!['item.deliver', 'item.use'].includes(cap) || ownedItems.length > 0),
       ),
@@ -818,10 +872,11 @@ async function attachAgentWorldContextInTransaction(
       boundary: {
         actorIds: awareness.boundary.actorIds,
         placeIds: awareness.boundary.placeIds,
-        capabilityIds: awareness.boundary.capabilityIds,
+        capabilityIds: boundaryCapabilities,
         extensionPermission: 'none',
       },
       selfPosition,
+      ...(initialPlacement ? { initialPlacement } : {}),
       travelRoutes,
       ownedItems,
       knowledge,

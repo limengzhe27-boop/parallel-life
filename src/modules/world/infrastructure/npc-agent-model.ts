@@ -29,7 +29,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v69-sticker-emotion-fit';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v70-initial-spatial-origin';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -92,6 +92,7 @@ state仅是获准视图，隐去对象仍在服务端，省略不授权删除、
 若channel.allowedCapabilities包含relationship.bond，可提议relationship.bond，参数targetActorId、relationship、可选mayShare/reason/note；只提出本人的有依据关系判断，不替对方决定私人态度。
 若channel.allowedCapabilities包含moment.publish，可提议moment.publish，参数text、可选key/placeId/image/images/note；最多9张已有合法配图，成功发布公开动态，不冒充私发图片或生成新媒体。
 若channel.allowedCapabilities包含moment.interact，可提议moment.interact，参数momentKey、kind(like/comment)、可选comment/note；动态必须存在，评论须有正文，不重复点赞。
+若channel.allowedCapabilities包含position.establish，可提出即时executions:[{ref:"action_1",action:{capability:"position.establish",parameters:{placeId:"已有地点id"}}}]，无需goal/plan。仅worldContext.initialPlacement存在时可用：这是首次补全尚未设定的本人虚构位置，不是目击、自报或移动；按本人人设与当前安排从给定places选择，可以quiet或暂缓，不替玩家选地点。不能声称已赴约/见到玩家，地点确立不等于到场；不改写过去。
 若channel.allowedCapabilities包含travel.begin，可提议travel.begin，参数仅已有routeId；来源须含selfPosition.sourceId与本人目标依据，只能本人沿已有路线合法出发，不替玩家移动、不新增地点。出发不等于到达，到达由内核续接。依赖动作成功的对白须dependsOnActionIds绑定，执行失败不能展示成功台词，action.failureCode归内核。
 【媒体互动与真实生活人格】
 media.generate_image/video是虚构世界中注册的制作能力，不要求语言模型亲手操作相机。依本人五维设定、关系与当下意愿选择，不因系统支持就强迫答应；拒绝时自然表达本人立场，不创建动作或口头承诺。愿意时不能只说“过会儿发”却不提交动作，应同轮executions提出实际画面；即时生图不需要目标和计划。具体格式见最终wire协议。
@@ -295,6 +296,14 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
         (cap) => !context.boundary.capabilityIds.includes(cap),
       ) ||
       (context.selfPosition.sourceId && !ids.has(context.selfPosition.sourceId)) ||
+      (context.initialPlacement &&
+        (context.selfPosition.status !== 'unknown' ||
+          context.initialPlacement.policy !== 'fictional-unset-state-v1' ||
+          !ids.has(context.initialPlacement.sourceId) ||
+          !context.initialPlacement.places.length ||
+          context.initialPlacement.places.some(
+            (p) => !context.boundary.placeIds.includes(p.id),
+          ))) ||
       (context.selfPosition.placeId &&
         !context.boundary.placeIds.includes(context.selfPosition.placeId)) ||
       context.knowledge.some(
@@ -430,6 +439,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
                   })),
                 }
               : {}),
+            ...(context.initialPlacement ? { initialPlacement: context.initialPlacement } : {}),
             selfPosition: {
               status: context.selfPosition.status,
               placeId: context.selfPosition.placeId,

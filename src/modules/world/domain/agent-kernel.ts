@@ -1,4 +1,4 @@
-import { isStandaloneMediaAction } from './agent-runtime.ts';
+import { isStandaloneAgentAction } from './agent-runtime.ts';
 import {
   validPlayerEpisodeManifest,
   type PlayerEpisodeManifest,
@@ -79,7 +79,7 @@ export function authorizedAgentState(
     viewState.actions = viewState.actions.filter(
       (item) =>
         based(item) &&
-        (isStandaloneMediaAction(item) || (item.goalId !== null && goals.has(item.goalId))) &&
+        (isStandaloneAgentAction(item) || (item.goalId !== null && goals.has(item.goalId))) &&
         item.handlesResponsibilityIds.every((id) => responsibilities.has(id)) &&
         item.dependsOnActionIds.every((id) => actions.has(id)) &&
         conditions(item.preconditions),
@@ -464,7 +464,7 @@ export function validateAgentProposal(
   }
   for (const action of proposal.actions) {
     requireValid(
-      isStandaloneMediaAction(action) || (action.goalId !== null && goals.has(action.goalId)),
+      isStandaloneAgentAction(action) || (action.goalId !== null && goals.has(action.goalId)),
       'UNKNOWN_GOAL',
     );
     requireValid(
@@ -489,7 +489,7 @@ export function validateAgentProposal(
     conditions(action.preconditions);
     if (['proposed', 'ready'].includes(action.status))
       requireValid(
-        isStandaloneMediaAction(action) ||
+        isStandaloneAgentAction(action) ||
           (action.goalId !== null &&
             (goals.get(action.goalId)?.status === 'active' ||
               goals.get(action.goalId)?.status === 'fulfilled')),

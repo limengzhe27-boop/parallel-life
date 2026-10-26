@@ -781,8 +781,39 @@ export function npcResponseFormat(
         },
       },
     };
-    if (executionArray?.items) executionArray.items = { anyOf: [immediate, executionArray.items] };
+    if (executionArray?.items)
+      executionArray.items = {
+        anyOf: [immediate, ...(executionArray.items.anyOf ?? [executionArray.items])],
+      };
     else properties.executions = { type: 'array', maxItems: 1, items: immediate };
+  }
+  if (current?.channel.allowedCapabilities.includes('position.establish')) {
+    const immediate = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ref', 'action'],
+      properties: {
+        ref: { type: 'string', enum: ['action_1'] },
+        action: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['capability', 'parameters'],
+          properties: {
+            capability: { type: 'string', enum: ['position.establish'] },
+            parameters: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['placeId'],
+              properties: { placeId: { type: 'string', minLength: 1 } },
+            },
+          },
+        },
+      },
+    };
+    if (executionArray?.items)
+      executionArray.items = {
+        anyOf: [immediate, ...(executionArray.items.anyOf ?? [executionArray.items])],
+      };
   }
   const changes = Object.fromEntries(
     Object.entries(schema.properties!).filter(

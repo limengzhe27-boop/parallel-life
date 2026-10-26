@@ -1,3 +1,7 @@
+import {
+  INITIAL_POSITION_POLICY,
+  initialPositionPolicySourceId,
+} from './agent-initial-position.ts';
 import type { WorldState } from './types.ts';
 import type { ActorAgentState } from './agent-runtime.ts';
 import type { SceneSession, Participant } from './experience-rules.ts';
@@ -404,6 +408,8 @@ export function committedAwarenessDelta(
     'group.turn_resolved',
     'scene.reaction_recorded',
   ].includes(event.type);
+  if (runtime?.initialPositions !== undefined && !runtimeEvent)
+    throw Error('INVALID_AWARENESS_INITIAL_POSITION');
   if (runtime?.departures !== undefined && !runtimeEvent)
     throw Error('INVALID_AWARENESS_DEPARTURE');
   if (runtime && runtimeEvent) {
@@ -486,6 +492,43 @@ export function committedAwarenessDelta(
         throw Error('INVALID_AWARENESS_RESULTS');
       reason('action_result', { kind: 'action_result', id: result.id, actorId });
     }
+    if (runtime.initialPositions !== undefined) {
+      if (!Array.isArray(runtime.initialPositions) || runtime.initialPositions.length !== 1)
+        throw Error('INVALID_AWARENESS_INITIAL_POSITION');
+      for (const value of runtime.initialPositions) {
+        const item = object(value);
+        const action = state.actions.find((a) => a.id === item?.actionId);
+        const proposed = Array.isArray(proposal.actions)
+          ? proposal.actions.map(object).filter((a) => a?.id === item?.actionId)
+          : [];
+        const result = runtime.results.map(object).filter((r) => r?.id === item?.resultId);
+        if (
+          !item ||
+          item.actorId !== actorId ||
+          item.policy !== INITIAL_POSITION_POLICY ||
+          item.sourceId !== initialPositionPolicySourceId(world.id, actorId) ||
+          typeof item.placeId !== 'string' ||
+          !placeIds.has(item.placeId) ||
+          !instant(event.storyAt) ||
+          !action ||
+          action.capability !== 'position.establish' ||
+          action.status !== 'succeeded' ||
+          action.resultId !== item.resultId ||
+          !same(action.parameters, { placeId: item.placeId }) ||
+          !action.sourceIds.includes(item.sourceId as string) ||
+          proposed.length !== 1 ||
+          proposed[0]?.capability !== 'position.establish' ||
+          !same(proposed[0]?.parameters, { placeId: item.placeId }) ||
+          result.length !== 1 ||
+          result[0]?.outcome !== 'succeeded' ||
+          result[0]?.actionId !== item.actionId ||
+          !same(result[0]?.outputRefs, [{ kind: 'place', id: item.placeId }])
+        )
+          throw Error('INVALID_AWARENESS_INITIAL_POSITION');
+        position({ kind: 'actor', actorId }, item.placeId, event.storyAt);
+        reason('new_condition', { kind: 'event', id: event.id });
+      }
+    }
     if (runtime.departures !== undefined) {
       if (!Array.isArray(runtime.departures) || runtime.departures.length > 1)
         throw Error('INVALID_AWARENESS_DEPARTURE');
@@ -543,6 +586,11 @@ export type AgentWorldContext = {
   time: { storyAt: string; timeZone: 'UTC+08:00'; localDateTime: string };
   boundary: Pick<WorldBoundary, 'actorIds' | 'placeIds' | 'capabilityIds' | 'extensionPermission'>;
   /** Existing map choices from this NPC's sourced actual origin; not other actors' locations. */
+  initialPlacement?: {
+    policy: 'fictional-unset-state-v1';
+    sourceId: string;
+    places: { id: string; name: string }[];
+  };
   travelRoutes?: {
     id: string;
     fromPlaceId: string;
