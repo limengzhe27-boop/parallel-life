@@ -41,7 +41,7 @@ import { authoredSourceExcerpt } from '../domain/authored-source-excerpt.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
-export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v30-unified-actor-task-budget';
+export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v31-fact-preserving-context';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
 const Output = z.strictObject({
@@ -313,6 +313,7 @@ export function parseDirectorDecision(
   };
 }
 const SYSTEM = `你是有明确边界的虚构世界导演，统筹动机、事件、节奏与因果。不是任何NPC本人，不替玩家答应/到场/执行，不代写人物最终台词、私人态度或私下决定。
+人物事项与事件按稳定id关联受保护原记录；概览可省略重复worldId、执行来源列表和本人的私聊绑定，不代表状态被清空或没有来源。玩家明确决定、问题文本与状态、计划条件及实际结果仍是判断依据；概览不是执行授权，原内核使用完整快照核验。
 消息中的speaker才是发言者；conversationActorId是私聊对象，triggerOrigin只是触发来源，均不能当作发言者。NPC原话中的“我”指该NPC，不能转述成玩家的提议、接受或分工。已发送且尚未获回应的问题不是新的互动理由，只有真实新信息或安排变化才建议再次联系，不用另建同主题机会重复确认。
 本轮若有openingInformationCatalog，先独立核对开场信息归属，再判断是否安排互动。这是两个不同判断：角色此刻不发言、已有未答问题或候选全部defer，都不是拒绝确认原稿已明确属于本人信息的理由。信息确认只给本人有来源的报告认知，不代表新台词、行动或结果；原稿中“某人让玩家来/邀请/发来”也不能当作该人物已经实际发送消息的凭据。核对真实消息与参与回执，区分尚未向玩家呈现的本人请求和已经提出、正在等答复的请求；前者可以交人物考虑如何开启，后者不能无新依据重复催问。仅当原文缺少归属依据、属于未来条件分支、身份无法绑定或涉及他人秘密时才暂缓归属，并在相应informationOwners条目的reason说明具体缺失；不能用“当前无需互动/等待玩家”代替来源判断。
 taskParticipants把任务执行者与主角分开：actorTasks每个键的任务主语必须是该键绑定的performer，私聊对象是intendedInterlocutor所指的玩家，不是让这个人物代替主角回答其他NPC。不要把作者以主角视角写的选择直接派给NPC；应从该NPC自身的诉求与合法知情出发，提出它愿意对玩家交流的具体机会。任务不赋予人物新知情，人物可重新考虑或拒绝。wireCatalog.actors的ref、actorId、name是同一人物，必须按此映射结合该performer紧邻的人设分配任务，不能按cast数组顺序或事件叙述顺序猜actor编号。作者及即兴机会都使用后述actorTasks键控的同一互动结构。每个合法人物键填null或本人的{topic,personalObjective,proposedInteraction}，至少一人非null；不要另填actors或stagingIntents，服务器从非null键机械派生参与人和本人future_task。这只是导演新创作的待考虑任务，不是已知事实、已完成动作、玩家同意或人物态度。可以建议本人向玩家询问、提出可拒绝的请求、承接本人已有安排；不得复制全局原稿、转述别人私聊/秘密或宣告未知行踪。人物缺少信息时应自行询问，而非假装已知。每人仅收到自己的task和来源，不收到其他人的任务或全局description/playerImpact。当前手机演绎以人物联系玩家为主；conversation任务应让本人带着自己的具体想法与玩家交流，不要只安排NPC彼此商谈或向玩家汇报以后再找别人谈。本轮没有获授权的NPC互聊执行能力时，不把这种计划当成已执行互动。因此task本身须自足：写明本次希望本人考虑的具体交流议题、本人可提出的想法或取舍以及参与目的；不要只写“考虑如何表达想法”而省掉议题。这是未来交流建议，不声称人物已知原稿秘密、他人决定或已经到场。无需紧急事故或玩家先发话才可提出与本人职责相关的交流。作者无需填写特殊提示语法。NPC结合本人设定和合法认知决定如何演绎、暂缓或拒绝。actorTopics是可选的本人旧目标引用。若选用，必须恰好覆盖本机会所有非null参与人物一次，每人均引用actorKnownTopics中本人真实主题；任何一个参与者没有可引用旧主题时，整项actorTopics用null，不可只填部分参与者，不为填空制造主题。即兴stagingIntents须恰好覆盖actors中每个人物一次；作者actorTasks从非null键机械生成对应关系，不输出预制台词或强制结局。
@@ -529,6 +530,74 @@ export function fitWithinBudget(payload: Payload): Payload {
             Object.entries(entry.modules).map(([key, value]) => [
               key,
               authoredSourceExcerpt(value as string, '', 150),
+            ]),
+          ),
+        }));
+    },
+    () => {
+      // The Director coordinates these records; it cannot execute or rewrite
+      // them. Their stable ids retain lookup into the full protected snapshot,
+      // so repeated execution-authorization source lists need not be copied.
+      if (Array.isArray(next.actorStates))
+        next.actorStates = (next.actorStates as Payload[]).map((state) => {
+          const view = { ...state };
+          for (const field of [
+            'goals',
+            'plans',
+            'actions',
+            'responsibilities',
+            'episodeParticipations',
+          ]) {
+            if (Array.isArray(state[field]))
+              view[field] = (state[field] as Payload[]).map((record) => {
+                if (typeof record.id !== 'string' || !record.id) return record;
+                const { sourceIds: _originalSnapshotSources, ...recordView } = record;
+                return recordView;
+              });
+          }
+          if (Array.isArray(state.questions))
+            view.questions = (state.questions as Payload[]).map((question) => {
+              if (question.channel !== 'private' || typeof question.id !== 'string' || !question.id)
+                return question;
+              const focus = state.focus as { questionSourceId?: string } | null;
+              if (focus?.questionSourceId === question.sourceId) return question;
+              const {
+                sourceId: _originalQuestionSource,
+                channel: _privateThread,
+                ...questionView
+              } = question;
+              return questionView;
+            });
+          return view;
+        });
+    },
+    () => {
+      if (typeof next.worldSetting === 'string')
+        next.worldSetting = next.worldSetting.slice(0, 600);
+      if (Array.isArray(next.episodes))
+        next.episodes = next.episodes.map((episode) => {
+          if (
+            !episode ||
+            typeof episode !== 'object' ||
+            Array.isArray(episode) ||
+            typeof episode.id !== 'string'
+          )
+            return episode;
+          const { worldId: _sameWorld, schemaVersion: _schema, ...view } = episode;
+          return {
+            ...view,
+            // The stable episode id resolves its immutable origin in the saved
+            // snapshot; execution sources and actual result ids stay explicit.
+            ...(view.origin?.kind === 'director' ? { origin: { kind: 'director' } } : {}),
+          };
+        });
+      if (Array.isArray(next.actorDirectionMaterials))
+        next.actorDirectionMaterials = next.actorDirectionMaterials.map((entry) => ({
+          ...entry,
+          modules: Object.fromEntries(
+            Object.entries(entry.modules).map(([key, value]) => [
+              key,
+              authoredSourceExcerpt(value as string, '', 60),
             ]),
           ),
         }));
