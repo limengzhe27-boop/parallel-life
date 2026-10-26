@@ -2,6 +2,7 @@ import { SELECTABLE_STICKERS } from '../domain/stickers.ts';
 import { isStickerOnlyMessage, stickerMessageMeaning } from '../domain/sticker-expression.ts';
 import { actorSelfAgendaContext } from '../domain/actor-self-agenda-context.ts';
 import { projectNpcConversationProgress } from './npc-conversation-progress.ts';
+import { playerReplyTargetCatalog } from '../domain/player-reply-target-catalog.ts';
 import { npcPresentationContext } from './npc-presentation-context.ts';
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
 import {
@@ -131,7 +132,7 @@ wireCatalog.sources是唯一来源目录，同时给出来源类型、时间及�
 制作数字图片用capability:"media.generate_image"，parameters使用对象{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence中一个"}，这两个字段均必填。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。仅在本轮实际需要新图片时生成。历史请求已完成、失败或仍在处理中，都不是新的索图授权；玩家转聊无关话题时不重复旧动作。没有新的动作需要时executions=[]。愿意发图时，同一次回复先输出一条符合本人性格和当前关系的简短准备消息，再提出这个能力。准备消息是正常聊天，例如整理造型、换个光线好的位置，但按本人处境表达，不照抄统一台词，不捏造已经拍好、已经发出。准备消息的dependsOnActionIds必须为空数组[]：它表达本人意愿，不依赖入队或生成成功；不得填action_1或execution:action_1。不需要追问玩家确认或回复；只有真实需要新信息才提问。禁止只输出图片动作而没有自然回应，也不要使用“这是我给你准备的一张照片”等交付模板。历史own_media_completion只证明那次旧请求的图片已完成，不代表本轮新照片已拍好；玩家再次要拍现在的照片时，按本人意愿提出新的真实动作，或明确拒绝，不能拿旧完成回执谎称新图已发。实际图片由后台完成后单独投递，不把图片标题、生成状态写进对白。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；入队不能结清实际交付责任。
 制作视频用capability:"media.generate_video"，parameters包括actionDescription和purpose（scene_moment或character_action），也用同样的{name,value}格式；视频执行能力是否可用仍由内核检查。不能用moment.publish冒充生成或私发图片：moment.publish是公开文字动态；item.deliver只交接本人持有的实体物品。现没有可分享的既有图片目录，不猜assetId或链接。计划增量原本就会事务保存，不使用plan.record代替实际工作。
 没有即时执行且确实改变持续安排时才使用planIntents；普通聊天不创建计划；executions 和 changes 都可省略，不输出 plans 或手写新 goalId。create:{kind:"create",ref:"本轮局部编号",goal:{kind:"new",summary,sourceIds}或{kind:"existing",id:"本人可见目标id"}（可省略，省略时由plan summary自动建立目标）,summary,sourceIds,nextStep}；replace:{kind:"replace",ref,planId:"本人已有计划id",summary,sourceIds,nextStep}，服务器保留原目标并记录替换；update:{kind:"update",planId,summary,sourceIds,nextStep}沿原计划；close:{kind:"close",planId,status:"finished|withdrawn",reason,sourceIds}只关闭计划，不代表目标或外部行动完成。nextStep可选；新建或替换时省略表示未完成active计划，update省略时保留原来的状态、等待条件和下一步。没有变化不输出更新。若写则只能wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[缺少的能力或证据]}。goals只修改本人可见已有非终态目标的summary/status/sourceIds/endReason，不创建局部goal_1或输出resultIds；新目标只能在create.goal或executions.goal中明确声明，代码分配真实ID。goals未变化时[]或null都表示无增量，planIntents未变化时[]（schema无可修改旧目标时goals填null）；不为填字段造目标。不同通道不得同时操作同一目标或替换同一计划；执行中/尚未结束的动作不能被update/close悄悄抹去，finished/withdrawn旧计划不可再改。来源包含当前input.sourceId；不输出伪造结果或期限。
-responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply包含schema授权的questionId/questionSourceId/responsibilityId/responsibilityRevision、relation和decision；空引用使用null，不自行拼接对象。
+responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply只选playerReplyTargets中的targetRef（其ref），给出relation和decision；代码按原快照绑定问题来源、责任和修订，不用抄写或猜测这些机械字段。
 consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时必须在同次changes.consideration给出选择，不相关用quiet而非null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。
 邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；responseContract.timeInput仅提供当地日期及偏移格式，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
 日常聊天默认把一次回复写成1–3条短 statements，每条像一次单独发送，而不是一条完整长文；自然想补充、改口、追问或只说半句时就拆成多条，但不要为了凑条数重复同义内容，也不要每条都写成完整标点句。单条通常不超过约50字。正式说明、长信息或必须完整引用事实时可以只发一条完整消息。
@@ -337,6 +338,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       }
     : viewState;
   const responseFormat = responseFormatFor(snapshot);
+  const responseFormatSize = JSON.stringify(responseFormat).length;
   const considerationRequired =
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest !== undefined;
   const payload = {
@@ -580,6 +582,16 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     conversationProgress: stickerOnly
       ? { questions: [], waitingOnPlayer: [] }
       : projectNpcConversationProgress(snapshot),
+    ...(snapshot.input.origin === 'player'
+      ? {
+          playerReplyTargets: playerReplyTargetCatalog({
+            state: viewState,
+            input: snapshot.input,
+            channel: snapshot.channel,
+            authorizedSourceIds: new Set(snapshot.sources.map((source) => source.id)),
+          }),
+        }
+      : {}),
     input: {
       speaker: snapshot.input.origin === 'player' ? 'player' : 'system',
       sourceId: snapshot.input.sourceId,
@@ -677,10 +689,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     // Budget the real transmitted envelope once, not an additional intermediate
     // JSON cap that can reject a request already within both transport limits.
     const size = JSON.stringify(messages()).length;
-    return (
-      size <= NPC_AGENT_MESSAGE_LIMIT &&
-      size + JSON.stringify(responseFormat).length <= NPC_AGENT_REQUEST_LIMIT
-    );
+    return size <= NPC_AGENT_MESSAGE_LIMIT && size + responseFormatSize <= NPC_AGENT_REQUEST_LIMIT;
   };
   if (!fits()) {
     payload.actor.persona = legacyPersonaExcerpt(snapshot.actor.persona, snapshot.input.text, 4000);
