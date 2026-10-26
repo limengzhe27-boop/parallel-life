@@ -8,7 +8,7 @@
 - 2026-10-26 22:08左右快照恢复至现有本地PG实例127.0.0.1:55432的全新数据库parallel_life_clone_20261026，不覆盖parallel_life_dev/test。
 - 113张业务表（parallel_life112+public迁移登记1）全部行数及顺序无关内容摘要匹配；标准归档118644993字节，保留函数、约束、索引、RLS、ACL、序列。所有私有归档/清单/候选环境均在主目录忽略的.local/local-runtime-clone-20261026，权限600，目录700。
 - 源数据包含173世界、13288消息、9182世界事件、11160 Agent attempts、410 tasks、89私人assets、200 publication media assets；上述均复制，不重建世界或生成假消息。
-- 源有117项迁移；主分支118及之后由root在切换前补齐。本任务不从旧分支部署。
+- 源有117项迁移，末项0117_publication_actor_stage_images.sql；606927b4与当前主目录也为117文件，未证实缺迁移，root按最终main实际清单/checksum核对，只有新增才补。本任务不从旧分支部署。
 - 克隆后tasks/outbox状态完全保留，worker-exclusions.json由恢复后的本地库列出所有历史task/outbox ID，不能领旧队列重新买模型；所有unknown保持原记录。152条world_clock原paused/active_until保存在world-clock-before-pause.json，再仅暂停clone；未改变源时钟。
 - pl_app真实连接RLS验证：自己的世界可见、其他owner不可见。候选env所有数据库均同一loopback新库，剔除Supabase/Blob/Vercel配置，保留原会话secret用于续原cookie。没有回源fallback。
 
@@ -29,6 +29,10 @@
 
 ## 验证及接续
 
-真实源快照/本地恢复与113表内容核对、队列排除、RLS均通过。专项2项测试通过。首次npm run check使用新工作树自动生成的55432密码，11个既有DB测试鉴权失败（4025通过），未误报全绿；已另起独立PG55661并准备dev/test迁移后重跑。build进行中，以后续记录为准。最终main统一check/build、补118+迁移、双本地入口切换和真实对话由root负责。
+真实源快照/本地恢复与113表内容核对、队列排除、RLS均通过。专项2项测试通过。首次npm run check使用新工作树自动生成的55432密码，11个既有DB测试鉴权失败（4025通过），未误报全绿；已另起独立PG55661并准备dev/test迁移后重跑。build进行中，以后续记录为准。最终main统一check/build、核对最终迁移清单、双本地入口切换和真实对话由root负责。
 
 交付状态为数据库子项待集成验收、素材受外部402阻断；不标整项完成。
+
+更正：此前消息中“需补118+”沿用了历史任务预期，已核实当前主目录没有0118文件；不应据此生成新迁移或宣称缺迁移。源实际117项与当前117文件匹配，最终以migrate校验checksum为准。
+
+最终独立验收：已在独立PG55661初始化并迁移dev/test，顺序重跑`npm run check`，4038/4038通过、0失败；`npm run build`通过（31静态页/动态路由生成）。新增专项2/2通过。首轮鉴权失败仅环境配置，未改既有业务测试。源码冻结cf0937c5，报告更正另提交；main集成与双端口真实运行由root执行。素材79个ready缺口仍真实存在，未将完整验收改为通过。
