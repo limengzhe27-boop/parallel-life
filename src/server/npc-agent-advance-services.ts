@@ -1102,7 +1102,7 @@ export function npcAgentAdvanceServices(
           retry: !!retryCommandId,
           handledActorCount: batch?.handledActorIds.size ?? 0,
         });
-      if (!scheduled.selected.length) {
+      if (!scheduled.selected.length && (directorDue || emptyDirectorRecovery)) {
         console.info(
           JSON.stringify({
             scope: 'director-review-state',

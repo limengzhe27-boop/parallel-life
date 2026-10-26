@@ -81,15 +81,19 @@ export async function dispatchPendingAgentEpisode(
     pending.attempts,
     options,
   );
-  console.info(
-    JSON.stringify({
-      scope: 'episode-dispatch-state',
-      worldId: world.id,
-      requests: pending.requests.map((r) => ({ id: r.id, actorId: r.actorId })),
-      eligible: dispatches.length,
-      attempts: pending.attempts.map((a) => ({ actorId: a.actorId, status: a.status })),
-    }),
-  );
+  if (dispatches.length)
+    console.info(
+      JSON.stringify({
+        scope: 'episode-dispatch-state',
+        worldId: world.id,
+        pendingCount: pending.requests.length,
+        eligible: dispatches.length,
+        attemptCounts: pending.attempts.reduce<Record<string, number>>((counts, attempt) => {
+          counts[attempt.status] = (counts[attempt.status] ?? 0) + 1;
+          return counts;
+        }, {}),
+      }),
+    );
   for (const { request, commandId, retiredCommandId } of dispatches) {
     if (batch?.handledActorIds.has(request.actorId)) continue;
     if (batch && !batch.canStartModel()) return null;
