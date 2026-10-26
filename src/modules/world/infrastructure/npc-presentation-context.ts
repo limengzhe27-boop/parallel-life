@@ -4,6 +4,7 @@ type Observation = AgentSnapshot['observations'][number];
 type Source = AgentSnapshot['sources'][number];
 
 export type NpcInternalContextRole =
+  | 'authored_initial_context'
   | 'director_future_suggestion'
   | 'authored_future_suggestion'
   | 'reported_plan'
@@ -30,7 +31,14 @@ export function npcPresentationContext<T extends Observation>(input: {
   for (const observation of input.observations) {
     const source = sources.get(observation.sourceId);
     let role: NpcInternalContextRole | undefined;
-    if (source?.kind === 'director_intent') role = 'director_future_suggestion';
+    if (
+      source?.kind === 'world_event' &&
+      source.usage === 'private_strategy' &&
+      source.id.startsWith('narrative:') &&
+      observation.evidenceKind === 'authored_context'
+    )
+      role = 'authored_initial_context';
+    else if (source?.kind === 'director_intent') role = 'director_future_suggestion';
     else if (observation.kind === 'plan')
       role = source?.kind === 'authored' ? 'authored_future_suggestion' : 'reported_plan';
     else if (

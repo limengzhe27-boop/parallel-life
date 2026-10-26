@@ -77,3 +77,36 @@ test('private inbox recalls do not become current group conversation or self-aut
   assert.deepEqual(group.presentationContext.internalContext, []);
   assert.ok(!JSON.stringify(recall).includes('speaker'));
 });
+
+test('authored opening knowledge remains distinct from delivered speech or general private evidence', () => {
+  const source: AgentSnapshot['sources'][number] = {
+    id: 'narrative:k',
+    kind: 'world_event',
+    usage: 'private_strategy',
+    recordId: 'k',
+    worldVersion: 1,
+    at: '2026-10-09T07:36:00Z',
+  };
+  const observation = {
+    sourceId: source.id,
+    kind: 'fact' as const,
+    evidenceKind: 'authored_context' as const,
+    text: '作者开场请求，并非已投递聊天',
+  };
+  const view = npcPresentationContext({
+    sources: [source],
+    observations: [observation],
+    channelKind: 'private',
+  });
+  assert.deepEqual(view.observations, []);
+  assert.deepEqual(view.presentationContext.internalContext, [
+    { role: 'authored_initial_context', observation },
+  ]);
+  assert.equal(view.presentationContext.internalContext[0]!.observation, observation);
+  const notProof = npcPresentationContext({
+    sources: [{ ...source, id: 'event:x' }],
+    observations: [{ ...observation, sourceId: 'event:x' }],
+    channelKind: 'private',
+  });
+  assert.equal(notProof.presentationContext.internalContext[0]!.role, 'private_evidence');
+});
