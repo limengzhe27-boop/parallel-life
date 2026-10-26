@@ -12,6 +12,27 @@ export type NpcInternalContextRole =
   | 'private_result'
   | 'private_evidence';
 
+/** Decode only the authenticated initial-context envelope for model presentation.
+ * Original facts, source hashes and the protected snapshot stay unchanged. */
+function initialContextText(text: string): string {
+  try {
+    const outer = JSON.parse(text);
+    const report =
+      outer?.method === 'authored_initial_context' && typeof outer.text === 'string'
+        ? JSON.parse(outer.text)
+        : null;
+    return report?.type === 'received_opening_information' &&
+      report.assertion === 'report' &&
+      report.executionEvidence === false &&
+      typeof report.content === 'string' &&
+      report.content.trim()
+      ? '本人获知的开场报告（不是已投递聊天或执行回执）：' + report.content
+      : text;
+  } catch {
+    return text;
+  }
+}
+
 /** Presentation only: no new knowledge, speaker attribution, or permission. */
 export function npcPresentationContext<T extends Observation>(input: {
   observations: readonly T[];
@@ -54,8 +75,16 @@ export function npcPresentationContext<T extends Observation>(input: {
             ? 'private_historical_recall'
             : 'private_evidence';
     }
-    if (role) internalContext.push({ role, observation });
-    else observations.push(observation);
+    if (role) {
+      const text =
+        role === 'authored_initial_context'
+          ? initialContextText(observation.text)
+          : observation.text;
+      internalContext.push({
+        role,
+        observation: text === observation.text ? observation : { ...observation, text },
+      });
+    } else observations.push(observation);
   }
   return { observations, presentationContext: { internalContext } };
 }

@@ -110,3 +110,49 @@ test('authored opening knowledge remains distinct from delivered speech or gener
   });
   assert.equal(notProof.presentationContext.internalContext[0]!.role, 'private_evidence');
 });
+
+test('authenticated opening reports are readable without nested JSON; underlying evidence remains immutable', () => {
+  const source: AgentSnapshot['sources'][number] = {
+    id: 'narrative:k',
+    kind: 'world_event',
+    usage: 'private_strategy',
+    recordId: 'k',
+    worldVersion: 1,
+    at: '2026-10-09T07:36:00Z',
+  };
+  const content = '医院那边需要你过来。';
+  const observation = {
+    sourceId: source.id,
+    kind: 'fact' as const,
+    evidenceKind: 'authored_context' as const,
+    text: JSON.stringify({
+      method: 'authored_initial_context',
+      text: JSON.stringify({
+        type: 'received_opening_information',
+        assertion: 'report',
+        content,
+        executionEvidence: false,
+      }),
+    }),
+  };
+  const before = structuredClone(observation);
+  const view = npcPresentationContext({
+    sources: [source],
+    observations: [observation],
+    channelKind: 'private',
+  });
+  assert.equal(
+    view.presentationContext.internalContext[0]!.observation.text,
+    '本人获知的开场报告（不是已投递聊天或执行回执）：' + content,
+  );
+  assert.deepEqual(observation, before);
+  const unrelated = npcPresentationContext({
+    sources: [{ ...source, kind: 'private_message' }],
+    observations: [observation],
+    channelKind: 'private',
+  });
+  assert.equal(
+    unrelated.presentationContext.internalContext[0]!.observation.text,
+    observation.text,
+  );
+});
