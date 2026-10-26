@@ -48,10 +48,10 @@ export class PostgresDatabase {
   async transaction<T>(ownerId: string, run: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
       // A slow archive must fail its own request, not queue every later request
       // behind a row lock until the connection pool is exhausted.
-      await client.query("SET LOCAL lock_timeout = '5000ms'");
+      // Fixed SQL only: keep identity parameterized in the next statement.
+      await client.query("BEGIN; SET LOCAL lock_timeout = '5000ms'");
       await client.query("SELECT set_config('app.user_id',$1,true)", [ownerId]);
       const result = await run(client);
       if (observePoolClientFailures(this.pool).has(client))
