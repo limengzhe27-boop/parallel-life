@@ -15,17 +15,16 @@ const messages = readFileSync(
   'utf8',
 );
 
-test('a private-chat banner sits below the chat header and keeps message width', () => {
-  const banner = css.match(/^\.banner \{[^}]*\}/m)?.[0] ?? '';
-  assert.match(banner, /position:\s*relative/);
-  assert.match(banner, /flex-shrink:\s*0/);
-  assert.doesNotMatch(banner, /position:\s*absolute|top:\s*calc\(100% \+ 8px\)/);
-  const chatBanner = css.match(/^\.bannerChat \{[^}]*\}/m)?.[0] ?? '';
-  assert.match(chatBanner, /width:\s*min\(100%, 340px\)/);
-  assert.match(chatBanner, /align-self:\s*flex-start/);
-  assert.match(shell, /bannerInChat/);
-  assert.match(shell, /banner:\s*bannerNode/);
-  assert.match(messages, /\{banner\}\s*\{\/\* 消息滚动流 \*\//);
+test('all phone banners share the top overlay without taking app layout space', () => {
+  const overlay = css.match(/^\.topOverlays \{[^}]*\}/m)?.[0] ?? '';
+  assert.match(overlay, /position:\s*absolute/);
+  assert.match(overlay, /top:\s*calc\(100% \+ 8px\)/);
+  assert.match(overlay, /pointer-events:\s*none/);
+  assert.match(css, /\.topOverlays > \*\s*\{[^}]*pointer-events:\s*auto/);
+  assert.match(shell, /<StatusBar[^]*?data-phone-top-overlays hidden=\{locked\}>\s*\{bannerNode\}/);
+  assert.doesNotMatch(shell, /bannerInChat|bannerChat/);
+  assert.doesNotMatch(messages, /\{banner\}/);
+  assert.match(messages, /<PhoneTopOverlay>[^]*?\{invitationBanner\}[^]*?<\/PhoneTopOverlay>/);
 });
 
 test('WeChat top bar keeps the plus action but drops the redundant search icon', () => {

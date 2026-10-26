@@ -59,8 +59,6 @@ export type PhoneAppContext = {
   app: PhoneApp;
   target?: string;
   open: (app: PhoneApp, target?: string) => void;
-  /** Rendered inside a private chat below its own header, not above it. */
-  banner?: ReactNode;
 };
 export type PhoneShellProps = {
   worldId: string;
@@ -387,21 +385,9 @@ function LifePhone({
     : route.app
       ? apps[route.app]
       : '手机桌面';
-  const bannerInChat = Boolean(
-    banner &&
-    !locked &&
-    route.app === 'messages' &&
-    route.target &&
-    !route.target.startsWith('group:'),
-  );
   const bannerNode =
     banner && !locked ? (
-      <div
-        className={`${styles.banner} ${bannerInChat ? styles.bannerChat : ''}`}
-        data-notification-banner
-        role="status"
-        key={banner.id}
-      >
+      <div className={styles.banner} data-notification-banner role="status" key={banner.id}>
         {notificationCard(banner)}
         <button
           className={styles.dismissBanner}
@@ -439,8 +425,10 @@ function LifePhone({
       {notice && <div className={styles.notice}>{notice}</div>}
       <div className={styles.statusLayer}>
         <StatusBar timeLabel={timeLabel} locked={locked} onLock={lock} />
+        <div className={styles.topOverlays} data-phone-top-overlays hidden={locked}>
+          {bannerNode}
+        </div>
       </div>
-      {bannerNode && !bannerInChat && bannerNode}
       <div className={styles.unlockedContent} hidden={locked} inert={locked}>
         {route.panel && (
           <header className={styles.header}>
@@ -502,7 +490,6 @@ function LifePhone({
                   app: route.app,
                   target: route.target,
                   open,
-                  ...(bannerInChat ? { banner: bannerNode } : {}),
                 })
               ) : (
                 <div className={styles.empty}>

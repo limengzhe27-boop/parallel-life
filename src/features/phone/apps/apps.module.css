@@ -773,11 +773,15 @@
   border-radius: 10px;
   font-size: 13px;
 }
+.chatOverlays {
+  min-height: 0;
+  background: transparent;
+  display: grid;
+  gap: 8px;
+}
 .chatInvitation {
   position: relative;
-  z-index: 2;
-  flex-shrink: 0;
-  margin: 8px 10px 0;
+  margin: 0;
   padding: 13px 40px 13px 14px;
   border: 1px solid #e3e5e8;
   border-radius: 14px;
@@ -785,8 +789,7 @@
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
 }
 .appointmentTopNotice {
-  flex-shrink: 0;
-  margin: 8px 10px 0;
+  margin: 0;
   padding: 9px 12px;
   border-radius: 10px;
   background: #e9f8ee;

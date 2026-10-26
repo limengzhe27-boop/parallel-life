@@ -10,6 +10,14 @@ import type { WorldPhone } from '../src/contracts/world-build.ts';
 
 registerHooks({
   load(url, ctx, next) {
+    // Card eligibility/actions are tested here; the real portal placement is
+    // checked in the browser because server rendering has no phone DOM host.
+    if (url.endsWith('/phone-top-overlay.tsx'))
+      return {
+        format: 'module',
+        shortCircuit: true,
+        source: 'export function PhoneTopOverlay({children}) { return children; }',
+      };
     if (url.endsWith('.module.css'))
       return {
         format: 'module',
@@ -76,7 +84,7 @@ function render(status: 'proposed' | 'confirmed') {
   );
 }
 
-test('a proposed invitation renders an actionable card inside the chat, not just a link chip', () => {
+test('a proposed invitation offers the existing accept, reschedule and reject actions', () => {
   const html = render('proposed');
   assert.match(html, /日程邀约/);
   assert.match(html, /今晚一起吃饭/);
@@ -85,7 +93,7 @@ test('a proposed invitation renders an actionable card inside the chat, not just
   assert.match(html, /拒绝/);
 });
 
-test('an accepted invitation no longer keeps an actionable card in the chat', () => {
+test('an accepted invitation no longer offers the pending invitation actions', () => {
   const html = render('confirmed');
   assert.doesNotMatch(html, /日程邀约/);
   assert.doesNotMatch(html, /今晚一起吃饭/);

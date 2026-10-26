@@ -562,6 +562,25 @@
 .statusLayer {
   position: relative;
   flex-shrink: 0;
+  z-index: 200;
+}
+/* A phone-wide overlay below the actual status bar, including any notice above it. */
+.topOverlays {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(60cqh, calc(100cqh - 100px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  pointer-events: none;
+}
+.topOverlays > * {
+  flex-shrink: 0;
+  pointer-events: auto;
 }
 .statusBar {
   height: 58px;
@@ -763,18 +782,9 @@
 }
 .banner {
   position: relative;
-  z-index: 200;
-  flex-shrink: 0;
-  margin: 0 12px 8px;
+  order: -1;
   animation: bannerEnter 0.3s ease-out;
   color: var(--phone-ink);
-}
-/* Inside a chat the banner sits below the chat header and keeps message width. */
-.bannerChat {
-  width: min(100%, 340px);
-  max-width: 340px;
-  align-self: flex-start;
-  margin: 8px 12px 4px;
 }
 .banner .notification {
   padding-right: 36px;

@@ -1,3 +1,4 @@
+import { PhoneTopOverlay } from '../phone-top-overlay.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { STICKER_LABELS, type StickerId } from '../stickers.ts';
 import { StickerImage, StickerPicker } from './sticker-ui.tsx';
@@ -63,7 +64,7 @@ const EMOJI_LIST = [
   '🆗',
 ];
 
-export function MessagesApp({ target, open, banner }: PhoneAppContext) {
+export function MessagesApp({ target, open }: PhoneAppContext) {
   const {
     worldId,
     transport,
@@ -1308,12 +1309,18 @@ export function MessagesApp({ target, open, banner }: PhoneAppContext) {
         position: 'relative',
       }}
     >
-      {invitationBanner}
-      {appointmentNotice && (
-        <div className={s.appointmentTopNotice} role="status">
-          {appointmentNotice}
-        </div>
-      )}
+      <PhoneTopOverlay>
+        {(invitationBanner || appointmentNotice) && (
+          <div className={`${s.surface} ${s.chatOverlays}`}>
+            {invitationBanner}
+            {appointmentNotice && (
+              <div className={s.appointmentTopNotice} role="status">
+                {appointmentNotice}
+              </div>
+            )}
+          </div>
+        )}
+      </PhoneTopOverlay>
       {/* 顶部单栏原生微信导航 */}
       <div
         style={{
@@ -1544,7 +1551,6 @@ export function MessagesApp({ target, open, banner }: PhoneAppContext) {
           </div>
         </div>
       )}
-      {banner}
       {/* 消息滚动流 */}
       <div
         ref={messageScroll}
