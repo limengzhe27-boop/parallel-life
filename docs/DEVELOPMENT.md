@@ -3211,4 +3211,4 @@ SCENE-CLOSURE-01收尾证据：主328d750e，实际运行全部src与build13逐�
 
 |SCENE-IMMERSIVE-01C|[x] 本地隔离UI样例验收（非真实剧情）|scene-ui-fixture-20261026；独立.local/worktrees/scene-immersive-fixture，codex/scene-immersive-fixture|仅stage-preview.tsx及专属报告|扩展开发专用现场UI样例，两名合成NPC、多轮对白/长旁白/真实类型动作结果、模拟追加消息供阅读位置验收；无DB/模型/生产写，root统一浏览器验收与构建。|
 
-SCENE-IMMERSIVE-01本地接续：check4023/4023、build通过，最终typecheck及stage授权展示11/11通过。Chrome真实页面390×844、390×500、1440×900无横向溢出，长旁白分段完整；读历史追加样例内容scrollTop11→11、显示有新内容，未发送草稿/height54/scroll11刷新恢复。原档4953现场读取200/2510ms，v292、task succeeded、仅玩家在场；真实Chrome已显示城市街边新布局，未手补人物/对白。3218 PID35361 build14与3219 PID35362主.next已加载，两个health200，build14全src哈希0差异。公网health402，未push/部署；暂无立绘制作绑定，原档未知位置NPC赴约仍归SCENE-CLOSURE-01。运行日志另见既有媒体查询503/DB慢读，不以UI样例冒充真实主动演绎通过。
+SCENE-IMMERSIVE-01本地接续：check4023/4023、build通过，最终typecheck及stage授权展示11/11通过。Chrome真实页面390×844、390×500、1440×900无横向溢出，长旁白分段完整；读历史追加样例内容scrollTop11→11、显示有新内容，未发送草稿/height54/scroll11刷新恢复。原档4953现场读取200/2510ms，v292、task succeeded、仅玩家在场；真实Chrome已显示城市街边新布局，未手补人物/对白。3218 PID35361 build14与3219 PID35274主.next已加载，两个health200，build14全src哈希0差异。公网health402，未push/部署；暂无立绘制作绑定，原档未知位置NPC赴约仍归SCENE-CLOSURE-01。运行日志另见既有媒体查询503/DB慢读，不以UI样例冒充真实主动演绎通过。

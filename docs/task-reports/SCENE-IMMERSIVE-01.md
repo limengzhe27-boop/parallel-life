@@ -27,7 +27,7 @@
 - 原Ego升级后仍提示更新，按已有Chrome授权继续，真实Chrome开发预览完成390×844、390×500、1440×900。均无横向溢出，短屏输入框可见；PC现场宽420px。
 - 只用明确标识UI样例验证长分段旁白、多人对白。读历史追加一条样例：scrollTop11→11，提示有新内容；刷新draft/height54/scroll11恢复。未发送样例草稿、未调用模型/修改真实剧情。
 - 原档4953 read200/2510ms，v292，城市街边现场8fe236dc，task4ebe succeeded，只有玩家在场。Chrome从原本地会话进入并解锁后显示新现场界面。没有用样例人物代替真实NPC。
-- 3218 `http://play.localhost:3218` PID35361、快照build14；3219 `http://127.0.0.1:3219` PID35362、根.next。两端health200，build14全src哈希0差异。真实原档截图`.local/local-play/immersive-original-pc.png`。
+- 3218 `http://play.localhost:3218` PID35361、快照build14；3219 `http://127.0.0.1:3219` PID35274、根.next。两端health200，build14全src哈希0差异。真实原档截图`.local/local-play/immersive-original-pc.png`。
 - 生产`https://parallel-world-eosin.vercel.app/api/health`仍402，本批未push/部署，避免重复消耗失败部署。无SQL/迁移。
 
 ## 不能标完成的内容
