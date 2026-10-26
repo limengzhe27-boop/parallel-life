@@ -1,0 +1,7 @@
+# DIRECTOR-INVALID-TRACE-02
+
+第四轮只读实际clone证据，基于root main9ba75a65已修catalog，0模型/DB写/公共改/端口。2fb最新e31efe44…expected v56：raw只有1项emergent，但2个authoredChoices均consider，decoder编译合计3项撞原总max2。4953最新483fd315…expected v340：raw1项emergent仅actors actor:2，却给全6人的stagingIntents，groupAuthoredOpportunities报DIRECTOR_GROUP_TASK_SCOPE。不是旧audit或新kernel失败，均在decode阶段阻断。
+
+仅私有诊断副本逐点去掉2fb额外emergent、或4953不属于actors的5条task后，原parser完整通过，用于隔离单因；绝不将这种删除当正式修复或写回已付费原响应。原记录不变，新DIRECTOR-WIRE-15修未来请求：统一actorTasks单一权威、前置共同预算，不提高总上限。
+
+4953日志unknown_attempt是旧d522ffe4…v99（对应actor4e4c72cb…），另54ac6d0f…v334也仍unknown，不能伪称第四轮新生unknown或重买。证据在独立树忽略目录.local/director-fourth-20261027/evidence.json（600）及read/analyze/isolate.mjs；报告不包含私人raw大段。本只读定位完成，root接正式修复/整包验收。

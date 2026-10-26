@@ -6,7 +6,9 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v14';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v15';
+const PREVIOUS_OWNER_PROTOCOL = 'director-wire-v14';
+export const DIRECTOR_OPPORTUNITY_LIMIT = 2;
 const PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL = 'director-wire-v13';
 const PREVIOUS_ATTRIBUTION_PROTOCOL = 'director-wire-v12';
 const PREVIOUS_REFERENCE_PROTOCOL = 'director-wire-v11';
@@ -88,7 +90,7 @@ const Wire = z.strictObject({
           .optional(),
       }),
     )
-    .max(2),
+    .max(DIRECTOR_OPPORTUNITY_LIMIT),
   audit: z.strictObject({ reason: Reason, sourceRefs: z.array(Ref).max(64) }),
 });
 
@@ -249,8 +251,8 @@ const PreviousActorAssignmentWire = PreviousInteractionWire.extend({
     })
     .nullable(),
 });
-const CurrentWire = PreviousInteractionWire.extend({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+const PreviousOwnerWire = PreviousInteractionWire.extend({
+  protocol: z.literal(PREVIOUS_OWNER_PROTOCOL),
   openingContext: z
     .strictObject({
       informationOwners: z.record(
@@ -260,6 +262,20 @@ const CurrentWire = PreviousInteractionWire.extend({
     })
     .nullable(),
 });
+/** Both authored and emergent opportunities use the same actor-owned interaction map. */
+const CurrentWire = PreviousOwnerWire.extend({
+  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+  opportunities: z
+    .array(
+      PreviousExclusiveWire.shape.opportunities.element
+        .omit({ actors: true, stagingIntents: true })
+        .extend({
+          actorTasks: z.record(Ref, ActorInteraction.nullable()),
+        }),
+    )
+    .max(DIRECTOR_OPPORTUNITY_LIMIT),
+});
+
 /** Exact source fragments only: no model summary or inferred fact is introduced. */
 function openingSourceFragments(text: string, limit: number, count: number): string[] {
   const result: string[] = [];
@@ -378,6 +394,15 @@ function compiledActorInteraction(value: z.infer<typeof ActorInteraction>): stri
   return task;
 }
 
+function selectedActorTaskRefs(actorTasks: Record<string, unknown>, actorRefs: string[]) {
+  const keys = Object.keys(actorTasks);
+  if (keys.length !== actorRefs.length || keys.some((key) => !actorRefs.includes(key)))
+    throw Error('DIRECTOR_ACTOR_TASK_PARTITION');
+  const selected = actorRefs.filter((ref) => actorTasks[ref] !== null);
+  if (!selected.length) throw Error('DIRECTOR_ACTOR_TASK_EMPTY');
+  return selected;
+}
+
 type Opportunity = z.infer<typeof PreviousGroupWire>['opportunities'][number];
 /** v6 only: multiple independent cast tasks can describe the same shared authored opportunity. */
 function groupAuthoredOpportunities(items: Opportunity[]): Opportunity[] {
@@ -494,6 +519,12 @@ export function directorDecisionSourceIds(snapshot: DirectorSnapshot): string[] 
   ];
 }
 
+/** Reserve the finite authored window before offering optional emergent slots. */
+export function directorEmergentOpportunityBudget(snapshot: DirectorSnapshot): number {
+  if (snapshot.nativeTurn || bootstrapOpeningEventRefs(snapshot).length) return 0;
+  return Math.max(0, DIRECTOR_OPPORTUNITY_LIMIT - directorWireCatalog(snapshot).events.length);
+}
+
 /** Fresh bootstrap opportunities must consider the eligible authored opening, not replace it. */
 export function bootstrapOpeningEventRefs(snapshot: DirectorSnapshot): string[] {
   if (snapshot.evaluationCause?.kind !== 'bootstrap') return [];
@@ -524,6 +555,7 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
   if (
     [
       DIRECTOR_WIRE_PROTOCOL,
+      PREVIOUS_OWNER_PROTOCOL,
       PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL,
       PREVIOUS_ATTRIBUTION_PROTOCOL,
       PREVIOUS_REFERENCE_PROTOCOL,
@@ -547,7 +579,29 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
       }
   }
   if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
-    const wire = CurrentWire.parse(normalized),
+    const current = CurrentWire.parse(normalized);
+    if (current.opportunities.length > directorEmergentOpportunityBudget(snapshot))
+      throw Error('DIRECTOR_EMERGENT_BUDGET_EXCEEDED');
+    const actorRefs = directorWireCatalog(snapshot).actors.map((a) => a.ref);
+    return decodeDirectorWire(snapshot, {
+      ...current,
+      protocol: PREVIOUS_OWNER_PROTOCOL,
+      opportunities: current.opportunities.map(({ actorTasks, ...opportunity }) => {
+        const selected = selectedActorTaskRefs(actorTasks, actorRefs);
+        return {
+          ...opportunity,
+          actors: selected,
+          stagingIntents: selected.map((actorRef) => ({
+            actorRef,
+            kind: 'future_task',
+            task: compiledActorInteraction(actorTasks[actorRef]!),
+          })),
+        };
+      }),
+    });
+  }
+  if (normalized.protocol === PREVIOUS_OWNER_PROTOCOL) {
+    const wire = PreviousOwnerWire.parse(normalized),
       { openingContext, ...rest } = wire,
       authority = snapshot.openingContextAuthority;
     if (!authority && openingContext !== null) throw Error('DIRECTOR_OPENING_CONTEXT_FORBIDDEN');
@@ -808,11 +862,7 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
         continue;
       }
       const { actorTasks, ...rest } = choice.opportunity;
-      const keys = Object.keys(actorTasks);
-      if (keys.length !== actorRefs.length || keys.some((key) => !actorRefs.includes(key)))
-        throw Error('DIRECTOR_ACTOR_TASK_PARTITION');
-      const selected = actorRefs.filter((ref) => actorTasks[ref] !== null);
-      if (!selected.length) throw Error('DIRECTOR_ACTOR_TASK_EMPTY');
+      const selected = selectedActorTaskRefs(actorTasks, actorRefs);
       authoredChoices[eventRef] = {
         kind: 'consider',
         opportunities: [
@@ -1224,10 +1274,20 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
           sourceRefs: array(refs(values(catalog.sources))),
         })
       : { type: 'null' };
-  properties.opportunities = array(
-    object({ ...(originalItem.properties as Record<string, Schema>), origin: emergentOrigin }),
-    !catalog.sources.length || !!openingRefs.length || !!snapshot.nativeTurn,
-  );
+  const emergentProperties: Record<string, Schema> = {
+    ...(originalItem.properties as Record<string, Schema>),
+    origin: emergentOrigin,
+  };
+  delete emergentProperties.actors;
+  delete emergentProperties.stagingIntents;
+  emergentProperties.actorTasks = authorProperties.actorTasks;
+  properties.opportunities = {
+    ...array(object(emergentProperties)),
+    maxItems:
+      !catalog.sources.length || !catalog.actors.length
+        ? 0
+        : directorEmergentOpportunityBudget(snapshot),
+  };
   properties.openingContext = { type: 'null' };
   if (snapshot.openingContextAuthority) {
     const openingCatalog = directorOpeningOwnerCatalog(snapshot),
@@ -1257,5 +1317,5 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v14', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v15', strict: true, schema };
 }

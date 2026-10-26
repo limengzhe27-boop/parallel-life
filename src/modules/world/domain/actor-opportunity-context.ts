@@ -14,6 +14,7 @@ export function actorOpportunityContext(originResponse: unknown, task: string) {
         'director-wire-v12',
         'director-wire-v13',
         'director-wire-v14',
+        'director-wire-v15',
       ].includes(origin?.protocol)
     )
       return null;

@@ -256,7 +256,7 @@ test('current provider uses single author opportunity and exact keyed nullable a
   );
   assert(consider.properties.opportunity.$ref);
   assert.equal(consider.properties.opportunities, undefined);
-  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v14']);
+  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v15']);
 });
 
 test('v9 typed handoff preserves actor binding and compiles only the selected personal proposal', () => {
@@ -351,7 +351,7 @@ test('v10 opening information binds actor refs and review identity while preserv
   const schema = directorResponseFormat(f.s);
   if (schema.format !== 'json_schema') throw Error('schema');
   const properties = (schema.schema as any).properties;
-  assert.equal(schema.name, 'director_response_v14');
+  assert.equal(schema.name, 'director_response_v15');
   assert.deepEqual(properties.openingContext.properties.informationOwners.required, [
     'opening-info:1',
   ]);
