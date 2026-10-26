@@ -29,9 +29,8 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v72-task-specific-wake';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v73-single-source-catalog';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
-export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
 export const NPC_AGENT_REQUEST_LIMIT = 80_000;
@@ -126,6 +125,7 @@ continuation仅在本人下一步确有变化时填写于changes，普通聊天�
 最终模型传输格式：protocol:"${NPC_WIRE_PROTOCOL}"，statements、executions、changes。所有状态判断字段放入changes；没有需要记录的变化时changes:null，不为闲聊填完整状态。明确玩家决定、待处理事件选择、本人持续计划改变时才提供changes对象。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
 只有服务器npc_agenda_review唤醒时agendaReview必须为{decision:"quiet|update_plan|contact",reason:"仅本人内部判断，不发给玩家",basisSourceIds:[本人合法来源]}。quiet不向玩家发消息且不改变本人实质议程，statements=[]；可保持安静，不要求造计划。update_plan在本轮实际调整本人目标/计划/责任，statements=[]，不能只复制旧状态冒充调整；contact才输出面向玩家的statements，至少一句具体内容，可不新增计划。内部复盘理由不要复述成“暂时无行动”等消息；不使用固定台词。普通玩家消息、事件考虑及其它输入agendaReview为null，不能借quiet逃避回复。持续安排的planIntents.sourceIds及其显式新goal.sourceIds、executions.plan/action/newgoal的sourceIds、精确本人可见非终态已有goals更新的sourceIds由服务端机械附加当前input.sourceId；你必须声明真实合法的语义来源，不能凭空写source。旧来源完整保留。
 所有sourceId/sourceIds/basisSourceIds/questionSourceId只写wireCatalog.sources中的短ref，例如source:1；当前输入使用wireCatalog.inputSourceRef，不复制hash、不拼definition前缀、不用长raw ID。source编号只在本次snapshot有效，代码精确解引用，不能猜编号。
+wireCatalog.sources是唯一来源目录，同时给出来源类型、时间及适用范围。usage省略时为channel_context；private_strategy仍是本人私有信息，不是群聊或现场披露许可。
 你是replyAs这一个人。input.speaker为player才是当前玩家发言，先回应玩家；system只是一项内部触发原因，由本人决定是否向conversationParticipants.recipient联系。参考conversationProgress，不重复索取已经给出的信息。当前消息确实回答未决问题时用related_reply记录相关问题和可选玩家决定；回答问题不等于责任完成，不能把换话题当答应。
 即时生图executions仅为{ref:"action_1",action:{capability:"media.generate_image",parameters:{sceneDescription,purpose}}}，不创建goal或plan，不输出机械来源、身份或目标ID。其它持续执行每项executions为{ref:"action_1等schema列出的本轮编号",goal:{kind:"existing",id:"本人可见目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许能力,parameters:[{name,value}],sourceIds:[]}（targetIds/preconditions/dependsOnActionIds/handlesResponsibilityIds 可省略，默认空）}。目标和计划按人物实际意图选择，代码只分配机械编号，并为本轮持续执行机械附加当前input来源；你声明的合法语义来源完整保留，不因系统附加来源而获得额外权限。media.generate_image使用专用parameters对象（见下）；appointment.reschedule也使用专用parameters对象：必须输出对象{appointmentId:本人可见的原约定id,at:新的ISO时刻,placeId:已有地点id或null,reason:改期说明或null}，不得写title，不猜约定id；其他能力仍用{name,value}数组。新执行不要在goals/planIntents重复写一遍，尤其不能再用planIntent替换同一个旧计划。wait/blocked必须明确缺失条件，reconsider必须有真实触发条件，不用空等待代替实际执行。可依赖成功的对白用statements.dependsOnActionIds:["execution:本轮ref"]；没有对应执行不得引用。
 制作数字图片用capability:"media.generate_image"，parameters使用对象{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence中一个"}，这两个字段均必填。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。仅在本轮实际需要新图片时生成。历史请求已完成、失败或仍在处理中，都不是新的索图授权；玩家转聊无关话题时不重复旧动作。没有新的动作需要时executions=[]。愿意发图时，同一次回复先输出一条符合本人性格和当前关系的简短准备消息，再提出这个能力。准备消息是正常聊天，例如整理造型、换个光线好的位置，但按本人处境表达，不照抄统一台词，不捏造已经拍好、已经发出。准备消息的dependsOnActionIds必须为空数组[]：它表达本人意愿，不依赖入队或生成成功；不得填action_1或execution:action_1。不需要追问玩家确认或回复；只有真实需要新信息才提问。禁止只输出图片动作而没有自然回应，也不要使用“这是我给你准备的一张照片”等交付模板。历史own_media_completion只证明那次旧请求的图片已完成，不代表本轮新照片已拍好；玩家再次要拍现在的照片时，按本人意愿提出新的真实动作，或明确拒绝，不能拿旧完成回执谎称新图已发。实际图片由后台完成后单独投递，不把图片标题、生成状态写进对白。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；入队不能结清实际交付责任。
@@ -642,14 +642,20 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     ) as typeof payload & {
       wireCatalog?: unknown;
     };
-    projected.sources = payload.sources.map((s) => ({
-      ...s,
-      id: npcSourceRef(sourceCatalog, s.id)!,
-    }));
+    // One source catalogue carries both handles and authorized metadata. The
+    // original snapshot remains the sole execution/knowledge authority.
+    delete (projected as unknown as Record<string, unknown>).sources;
     projected.actor.persona = npcPersonaSourceReferences(payload.actor.persona, sourceCatalog);
     projected.input.text = inputText;
     projected.wireCatalog = {
-      sources: snapshot.sources.map((s, i) => ({ ref: sourceCatalog[i]!.ref, kind: s.kind })),
+      sources: payload.sources.map((s) => {
+        const { id, usage, ...metadata } = s;
+        return {
+          ref: npcSourceRef(sourceCatalog, id)!,
+          ...metadata,
+          ...(usage === 'channel_context' ? {} : { usage }),
+        };
+      }),
       inputSourceRef,
     };
     return projected;
@@ -667,11 +673,15 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
             : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
     },
   ];
-  const fits = () =>
-    JSON.stringify(wirePayload()).length <= NPC_AGENT_PAYLOAD_LIMIT &&
-    JSON.stringify(messages()).length <= NPC_AGENT_MESSAGE_LIMIT &&
-    JSON.stringify(messages()).length + JSON.stringify(responseFormat).length <=
-      NPC_AGENT_REQUEST_LIMIT;
+  const fits = () => {
+    // Budget the real transmitted envelope once, not an additional intermediate
+    // JSON cap that can reject a request already within both transport limits.
+    const size = JSON.stringify(messages()).length;
+    return (
+      size <= NPC_AGENT_MESSAGE_LIMIT &&
+      size + JSON.stringify(responseFormat).length <= NPC_AGENT_REQUEST_LIMIT
+    );
+  };
   if (!fits()) {
     payload.actor.persona = legacyPersonaExcerpt(snapshot.actor.persona, snapshot.input.text, 4000);
     payload.contextSelection.personaExcerpt = payload.actor.persona !== snapshot.actor.persona;
@@ -726,19 +736,8 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   const optional = payload as unknown as Record<string, unknown>;
   if (!fits()) optional.episodeFollowUps = [];
   if (!fits()) optional.recentSelfMessages = [];
-  // A long-lived private thread can accumulate hundreds of duplicate asks. Keep
-  // only the questions already selected for conversationProgress, then drop the
-  // full ledger if even that does not fit; the current input still has priority.
-  if (!fits()) {
-    const state = optional.state as { questions?: { id?: string }[] } | null;
-    const keep = new Set(payload.conversationProgress.questions.map((question) => question.id));
-    if (state?.questions) state.questions = state.questions.filter((q) => q.id && keep.has(q.id));
-  }
-  if (!fits()) {
-    const state = optional.state as { questions?: unknown[] } | null;
-    if (state) state.questions = [];
-  }
-  if (!fits()) optional.conversationProgress = null;
+  // Keep all questions and assessed answers. Removing this ledger would turn a
+  // rejection into apparent silence on the next wake.
   if (!fits()) optional.stickerCatalog = (optional.stickerCatalog as unknown[]).slice(0, 12);
   // Long-lived actors accumulate terminal goals/plans/actions/responsibilities
   // and old decisions. They are history, not current authority; keep the active
