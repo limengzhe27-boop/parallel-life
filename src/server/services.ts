@@ -500,9 +500,16 @@ function createServices() {
         summary: null,
         actors: [],
       },
-    claimProactiveWorlds: async () => {
+    claimProactiveWorlds: async (
+      maxWorlds = 2,
+      timing: { cooldownSeconds?: number; leaseSeconds?: number } = {},
+    ) => {
+      const { proactiveClaimParameters } =
+        await import('../modules/world/application/run-proactive-scheduler.ts');
+      const parameters = proactiveClaimParameters(maxWorlds, timing);
       const result = await db.pool.query(
-        "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds(2, interval '30 minutes', interval '10 minutes')",
+        "SELECT claimed_owner_id, claimed_world_id FROM parallel_life.claim_proactive_worlds($1, $2 * interval '1 second', $3 * interval '1 second')",
+        [...parameters],
       );
       return result.rows.map((row) => ({
         ownerId: String(row.claimed_owner_id),
