@@ -4,14 +4,19 @@ import {
   CONTEXT_BUDGET,
   fitWithinBudget,
 } from '../src/modules/world/infrastructure/director-agent-model.ts';
+import { MODEL_TEXT_CHARACTER_LIMIT } from '../src/modules/ai/application/model-request-policy.ts';
 
 const big = (n: number, size: number) => Array.from({ length: n }, () => 'x'.repeat(size));
 
-test('大世界不再直接报错，而是裁到预算内', () => {
+test('large context trims optional prose while retaining execution state within the hard input bound', () => {
   const payload = {
     focus: 'keep-me',
     blockers: ['keep-blocker'],
-    observations: big(40, 2000),
+    observations: big(40, 2000).map((text, index) => ({
+      sourceId: `ambient:${index}`,
+      kind: 'belief',
+      text,
+    })),
     episodes: big(30, 2000),
     candidates: big(30, 2000),
     changes: big(30, 2000),
@@ -19,7 +24,8 @@ test('大世界不再直接报错，而是裁到预算内', () => {
     worldSetting: 'w'.repeat(4000),
   };
   const fitted = fitWithinBudget(payload);
-  assert.ok(JSON.stringify(fitted).length <= CONTEXT_BUDGET, '必须进入预算');
+  assert.ok(JSON.stringify(fitted).length <= MODEL_TEXT_CHARACTER_LIMIT, '必须进入实际输入上限');
+  assert.deepEqual(fitted.episodes, payload.episodes, '软预算不应把事件状态变为空');
   assert.equal(fitted.focus, 'keep-me');
   assert.deepEqual(fitted.blockers, ['keep-blocker']);
   assert.ok((fitted.observations as unknown[]).length >= 1, '保留最近观察');

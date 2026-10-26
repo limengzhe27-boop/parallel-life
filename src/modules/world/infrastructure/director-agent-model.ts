@@ -24,6 +24,7 @@ import {
 import { validActorTopicSelection, validActorStagingIntents } from '../domain/actor-known-topic.ts';
 import { z } from 'zod';
 import { actorStateContextPayload } from '../application/agent-state-context.ts';
+import { retainDirectorEvidence } from '../domain/director-context-evidence.ts';
 import type { TextModel } from '../../ai/application/ports.ts';
 import type { DirectorDecisionModel } from '../application/director-runtime-ports.ts';
 import type {
@@ -402,33 +403,16 @@ const trimStart = (value: unknown, keep: number) =>
 /** Bounded assembly: keep what the director cannot decide without, trim the rest oldest-first. */
 export function fitWithinBudget(payload: Payload): Payload {
   const next: Payload = { ...payload };
-  // An authored opening assessment must retain speech and confirmed opening reports. Trimming them
-  // away recreates an empty-world assessment even when the snapshot was complete.
-  const requiredEvidence =
-    (payload.evaluationCause as { kind?: string } | undefined)?.kind === 'authored_eligibility' &&
-    Array.isArray(payload.observations)
-      ? payload.observations.filter((o: { kind?: string; text?: string }) => {
-          if (o.kind === 'speech') return true;
-          if (o.kind !== 'fact' || typeof o.text !== 'string') return false;
-          try {
-            const report = JSON.parse(o.text);
-            return (
-              report?.type === 'received_opening_information' &&
-              report.assertion === 'report' &&
-              report.executionEvidence === false
-            );
-          } catch {
-            return false;
-          }
-        })
-      : [];
-  const trimObservations = (keep: number) => {
-    const tail = trimEnd(next.observations, keep);
-    if (!Array.isArray(tail) || !requiredEvidence.length) return tail;
-    return [...new Map([...requiredEvidence, ...tail].map((o) => [o.sourceId, o])).values()];
-  };
+  const observations = Array.isArray(payload.observations) ? payload.observations : [];
+  const trimObservations = (keep: number) => retainDirectorEvidence(observations, keep);
 
   const steps: Array<() => void> = [
+    () => {
+      // Free-form setting is a presentation excerpt. Current execution state is
+      // not: spend the budget on what actually happened before author prose.
+      if (typeof next.worldSetting === 'string')
+        next.worldSetting = next.worldSetting.slice(0, 2000);
+    },
     () => {
       if (next.authoredMaterials && typeof next.authoredMaterials === 'object') {
         const catalog = next.authoredMaterials as {
@@ -460,22 +444,13 @@ export function fitWithinBudget(payload: Payload): Payload {
       next.observations = trimObservations(6);
     },
     () => {
-      next.episodes = trimEnd(next.episodes, 4);
-    },
-    () => {
       next.candidates = trimStart(next.candidates, 6);
     },
     () => {
       next.changes = trimEnd(next.changes, 6);
     },
     () => {
-      next.actorKnownTopics = trimStart(next.actorKnownTopics, 10);
-    },
-    () => {
       next.observations = trimObservations(2);
-    },
-    () => {
-      next.episodes = trimEnd(next.episodes, 2);
     },
     () => {
       if (Array.isArray(next.actorDirectionMaterials))
@@ -507,24 +482,8 @@ export function fitWithinBudget(payload: Payload): Payload {
         });
     },
     () => {
-      if (typeof next.worldSetting === 'string')
-        next.worldSetting = next.worldSetting.slice(0, 2000);
-    },
-    () => {
       next.changes = trimEnd(next.changes, 2);
       next.candidates = trimStart(next.candidates, 3);
-    },
-    () => {
-      if (Array.isArray(next.actorStates))
-        next.actorStates = (next.actorStates as Payload[]).map((state) => ({
-          ...state,
-          questions: [],
-          focus: null,
-        }));
-    },
-    () => {
-      next.episodes = [];
-      next.actorKnownTopics = [];
     },
   ];
   for (const step of steps) {
