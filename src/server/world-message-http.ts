@@ -11,6 +11,8 @@ import {
   WorldMessageReceiptSchema,
   worldMessageClientReceipt,
   committedMessageEvents,
+  type CommittedStreamSegmentEventContract,
+  type CommittedTurnMessage,
 } from '../contracts/world-interaction.ts';
 import { toContractStreamSummary } from '../modules/world/domain/npc-stream-segment.ts';
 import { Id } from '../contracts/api.ts';
@@ -54,6 +56,14 @@ export async function worldMessageRoute(request: Request, worldId: string) {
             startedMedia.add(eventId);
             startCommittedMedia(s.db, s.ownerId, parsedWorldId.data, eventId);
           };
+          // The stream already carries every committed unit. Reuse those in-memory
+          // objects for the final receipt instead of re-reading the world projection
+          // after the turn has been paid for and committed.
+          const streamedMessages = new Map<string, CommittedTurnMessage>();
+          const streamedEvents = new Map<string, number>();
+          let lastCompletionStatus:
+            CommittedStreamSegmentEventContract['completionStatus'] | undefined;
+          let segmentCount = 0;
           try {
             const receipt = await s.npcAgents.sendMessageIfEnabled(
               s.ownerId,
@@ -67,6 +77,17 @@ export async function worldMessageRoute(request: Request, worldId: string) {
               {
                 onMediaCommitted: startMedia,
                 onSegment: (segment) => {
+                  segmentCount += 1;
+                  const completionStatus = (
+                    segment as {
+                      completionStatus?: CommittedStreamSegmentEventContract['completionStatus'];
+                    }
+                  ).completionStatus;
+                  if (completionStatus) lastCompletionStatus = completionStatus;
+                  streamedMessages.set(segment.message.id, segment.message);
+                  if (segment.userMessage)
+                    streamedMessages.set(segment.userMessage.id, segment.userMessage);
+                  streamedEvents.set(segment.eventId, segment.version);
                   controller.enqueue(
                     encoder.encode(JSON.stringify({ type: 'segment', segment }) + '\n'),
                   );
@@ -86,22 +107,40 @@ export async function worldMessageRoute(request: Request, worldId: string) {
               }
               let completeReceipt = receipt;
               if (projectionVersion === WORLD_MESSAGE_PROJECTION_VERSION) {
-                const messages = await s.npcAgents.readCommittedTurnMessages?.(s.ownerId, receipt);
                 const metrics = s.npcAgents.readTurnMetrics?.(input.commandId);
-                const streamData = await s.npcAgents.readStreamSegments?.(
-                  s.ownerId,
-                  parsedWorldId.data,
-                  input.commandId,
-                );
+                // One persistence read is still required for the authoritative
+                // partial/complete summary; the world projection is not.
+                let streamData:
+                  | Awaited<ReturnType<NonNullable<typeof s.npcAgents.readStreamSegments>>>
+                  | undefined;
+                try {
+                  streamData = await s.npcAgents.readStreamSegments?.(
+                    s.ownerId,
+                    parsedWorldId.data,
+                    input.commandId,
+                  );
+                } catch {
+                  streamData = undefined;
+                }
+                const messages = streamedMessages.size
+                  ? [...streamedMessages.values()]
+                  : (streamData?.messages ?? []);
+                const streamSummary = streamData?.summary
+                  ? toContractStreamSummary(streamData.summary)
+                  : segmentCount
+                    ? {
+                        completionStatus: lastCompletionStatus ?? 'completed',
+                        committedSegmentCount: segmentCount,
+                        totalSegmentCount: segmentCount,
+                      }
+                    : undefined;
                 completeReceipt = {
                   ...receipt,
-                  ...(messages
+                  ...(messages.length
                     ? { messages, messageEvents: committedMessageEvents(messages) }
                     : {}),
                   ...(metrics ? { metrics } : {}),
-                  ...(streamData?.summary
-                    ? { streamSummary: toContractStreamSummary(streamData.summary) }
-                    : {}),
+                  ...(streamSummary ? { streamSummary } : {}),
                 };
               }
               const clientReceipt = worldMessageClientReceipt(

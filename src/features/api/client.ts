@@ -288,9 +288,10 @@ export class LifeClient {
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
     let finalReceipt: WorldMessageReceipt | undefined;
+    let completed = false;
 
     try {
-      while (true) {
+      while (!completed) {
         const { done, value } = await reader.read();
         if (value) {
           buffer += decoder.decode(value, { stream: !done });
@@ -318,6 +319,8 @@ export class LifeClient {
               options.onSegment(seg);
             } else if (ev.type === 'complete') {
               finalReceipt = WorldMessageReceiptSchema.parse(ev.receipt);
+              completed = true;
+              break;
             } else if (ev.type === 'error') {
               const err = ev.error as
                 { code?: string; message?: string; requestId?: string } | undefined;
@@ -331,6 +334,7 @@ export class LifeClient {
         }
         if (done) break;
       }
+      if (completed) await reader.cancel().catch(() => {});
     } finally {
       reader.releaseLock();
     }

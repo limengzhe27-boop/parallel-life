@@ -485,34 +485,28 @@ export function WorldPhoneApp({
               await load();
               return;
             }
-          } catch {
-            /* Fall through: the exact command remains recoverable. */
-          }
-        }
-        // The receipt can be unconfirmed while the user message is already
-        // projected. Never ask the user to retry a message that is visibly sent.
-        for (let attempt = 0; attempt < 6; attempt++) {
-          try {
-            const latest = await client.world(worldId);
-            const known = new Set((data?.messages ?? []).map((message) => message.id));
-            const landed = latest.messages.some(
-              (message) =>
-                message.role === 'user' &&
-                message.actorId === actorId &&
-                message.text === text &&
-                !known.has(message.id),
-            );
-            if (landed) {
-              setData(latest);
-              setLocalMessages((current) => current.filter((message) => message.id !== commandId));
+            if (receipt.status === 'failed') {
               delete sendCommands.current[commandId];
-              return;
+              setLocalMessages((current) =>
+                current.map((message) =>
+                  message.id === commandId ? { ...message, status: 'failed' } : message,
+                ),
+              );
+              throw new ApiFailure(
+                receipt.code === 'VERSION_CONFLICT' ? 'VERSION_CONFLICT' : 'INVALID_AI_OUTPUT',
+                '这次回复没有保存，原消息仍保留，请核对后再决定是否重试。',
+              );
             }
-          } catch {
-            /* Keep polling the projection; never resend the old command. */
+          } catch (error) {
+            if (error instanceof ApiFailure && error.code === 'INVALID_AI_OUTPUT') throw error;
+            if (error instanceof ApiFailure && error.code === 'VERSION_CONFLICT') throw error;
+            /* Unconfirmed or unreadable: keep the exact command recoverable. */
           }
-          if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 1000));
         }
+        // One exact command identity is the only recovery key. Do not scan the
+        // world by matching text: identical messages are common and a projection
+        // read is not evidence for this request. The existing bounded receipt
+        // loop (5s backoff, 12 checks) owns reconciliation.
         restoredSends.current = [
           ...restoredSends.current.filter((m) => m.id !== commandId),
           { ...entry, status: 'unknown' },

@@ -141,3 +141,22 @@ test('long request deadlines remain finite and lost outcomes stay unknown withou
   await unknownAdvance;
   assert.equal(calls, 2);
 });
+
+test('a complete stream event ends the send without waiting for the socket to close', async () => {
+  let cancelled = false;
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        encoder.encode(JSON.stringify({ type: 'complete', receipt: committed }) + '\n'),
+      );
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const client = await connected(async () => new Response(body, { status: 200 }));
+  const result = await client.sendWorldMessage(worldId, message, { onSegment: () => {} });
+  assert.equal(result.commandId, commandId);
+  assert.equal(cancelled, true);
+});
