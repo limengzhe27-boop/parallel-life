@@ -30,7 +30,7 @@ import {
   readActorMediaCompletionContextInTransaction,
 } from './agent-source-resolver.ts';
 import { PostgresWorldAwarenessRepository } from './world-awareness-repository.ts';
-import { awarenessLocalTime } from '../domain/world-awareness.ts';
+import { selfPositionSourceId, awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
 import { NPC_AGENT_CAPABILITIES } from '../domain/agent-capabilities.ts';
 import { isEpisodeConsiderationInput } from './agent-episode-attention.ts';
@@ -746,9 +746,7 @@ async function attachAgentWorldContextInTransaction(
     Date.parse(own.occurredAt) <= Date.parse(snapshot.storyAt) &&
     (!own.placeId || allowed.has(own.placeId))
   ) {
-    const sourceId = own.sourceEventId
-      ? `self-position:${own.sourceEventId}`
-      : `self-position:genesis:${snapshot.state.worldId}`;
+    const sourceId = selfPositionSourceId(snapshot.state.worldId, own.sourceEventId);
     sources.push({
       id: sourceId,
       kind: own.sourceEventId ? 'world_event' : 'authored',

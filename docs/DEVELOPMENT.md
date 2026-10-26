@@ -3199,4 +3199,6 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 CHAT-TIME-01 / NOTIFY-OVERLAY-01 最终本地接续：2026-10-26 main c8884e6c含试聊无host兼容（原acacad5c）；统一check4020/4020、build09成功；3218 PID6434、3219 PID6433，两端health200。试聊fallback原真实SSR动作/定位13项通过；未做真实试聊页面/生产验收，不将其标线上完成。
 
-|SCENE-CLOSURE-01|[ ] 开发/PG/真实合成人物对话通过；原档读取实际503后轻量化已构建，待更新本地复验|root-scene-closure-20261026；主目录唯一集成；只读审查agent不写源码|scene-repository/scene-task-handler/原NPC现场入口、space必要接线、world-phone-app及scenes必要UI、必要聚焦测试与专属报告；端口3218/3219由root独占|核对并补齐地图前往→实际到达→现场进入→同一NPC接续演绎/保存/恢复；保留原档，不强插消息，不新增无必要字段。真实PG、必要真实原档验收、check/build后更新双端口；生产依额度恢复。|
+|SCENE-CLOSURE-01|[ ] 入场/恢复/无锁读取已本地实测；未知位置NPC首次空间确立/早到等待仍未完成|root-scene-closure-20261026；主目录唯一集成；只读审查agent不写源码|scene-repository/scene-task-handler/原NPC现场入口、space必要接线；追加world-awareness.ts位置来源helper、agent-snapshot-repository.ts及npc-agent-kernel.ts统一genesis位置ref、agent-travel-kernel真实PG；独占NEW db/migrations/0115_npc_journey_genesis_origin.sql、0116_npc_journey_genesis_guard.sql（仅现有起点列兼容版本0与NULL安全校验，无新增列）；run-agent已知冲突分类供npc-agent-services复用、world-phone-app及scenes必要UI、必要聚焦测试与专属报告；端口3218/3219由root独占|核对并补齐地图前往→实际到达→现场进入→同一NPC接续演绎/保存/恢复；保留原档，不强插消息，不新增无必要字段。真实PG、必要真实原档验收、check/build后更新双端口；生产依额度恢复。|
+
+SCENE-CLOSURE-01最终接续：main本批源码待此刻提交；check4023、现场PG17+8+2、travel8通过，SQL0115/0116已本地dev/test及远程应用（仅既有起点列约束/来源guard，0新增列，原档292/272运行消息不变）。实际3218 PID20394 build13、3219 PID20387主.next已加载当前代码，关键源码哈希匹配、两端health200；原档现场task4ebe…succeeded，GET200/969ms。NPC仍6个unknown，未伪造到场；完整自主赴约/早到现场等待与公网仍待完成。

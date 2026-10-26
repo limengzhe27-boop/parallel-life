@@ -159,22 +159,33 @@ export async function sceneWorld(
     paused: Boolean(effectiveClock?.paused),
   };
 }
-/** The scene viewer needs no private facts, invitation replay or author history. */
-async function sceneViewWorld(sql: SqlClient, ownerId: string, worldId: string) {
+/** One MVCC snapshot for the display: readers never wait for a writer's world/clock lock. */
+async function sceneViewWorld(sql: SqlClient, ownerId: string, worldId: string, sceneId?: string) {
   const row = (
     await sql.query(
       `SELECT w.version AS world_version,w.state->>'time' AS world_time,
-      w.state->'space' AS world_space,c.* FROM parallel_life.worlds w
-      LEFT JOIN parallel_life.world_clock c ON c.world_id=w.id AND c.owner_id=w.owner_id
-      WHERE w.id=$1 AND w.owner_id=$2 AND w.state->>'deletedAt' IS NULL FOR SHARE OF w`,
-      [worldId, ownerId],
+    w.state->'space' AS world_space,to_jsonb(c) AS clock,x.document AS experience,
+    ss.document AS scene,COALESCE(i.items,'[]'::jsonb) AS items,t.task
+    FROM parallel_life.worlds w
+    LEFT JOIN parallel_life.world_clock c ON c.world_id=w.id AND c.owner_id=w.owner_id
+    LEFT JOIN parallel_life.player_experiences x ON x.world_id=w.id AND x.owner_id=w.owner_id
+    LEFT JOIN parallel_life.scene_sessions ss ON ss.world_id=w.id AND ss.owner_id=w.owner_id
+      AND ss.id=COALESCE($3::text,x.current_scene_id)
+    LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('kind',kind,'document',document) ORDER BY ordinal) AS items
+      FROM parallel_life.scene_items WHERE world_id=w.id AND owner_id=w.owner_id AND scene_id=ss.id) i ON true
+    LEFT JOIN LATERAL (SELECT to_jsonb(q) AS task FROM parallel_life.tasks q
+      WHERE q.owner_id=w.owner_id AND q.scope_kind='world' AND q.scope_id=w.id
+        AND q.input->>'type'='scene' AND q.input->>'sceneId'=ss.id ORDER BY q.created_at DESC LIMIT 1) t ON true
+    WHERE w.id=$1 AND w.owner_id=$2 AND w.state->>'deletedAt' IS NULL`,
+      [worldId, ownerId, sceneId ?? null],
     )
   ).rows[0];
-  if (!row) throw new DomainError('NOT_FOUND');
+  if (!row || (sceneId && !row.scene)) throw new DomainError('NOT_FOUND');
   const now = new Date().toISOString();
-  const clock = row.world_id ? readableActivityClock(storedActivityClock(row), now) : null;
+  const clock = row.clock ? readableActivityClock(storedActivityClock(row.clock), now) : null;
   const storyAt = clock ? projectStoryTime(clock, now) : row.world_time;
   return {
+    ...row,
     version: row.world_version,
     space: row.world_space as WorldState['space'],
     storyAt: new Date(Math.max(Date.parse(storyAt), Date.parse(row.world_time))).toISOString(),
@@ -393,21 +404,25 @@ export class SceneRepository {
   }
   async read(ownerId: string, worldId: string, sceneId?: string): Promise<SceneRead> {
     return this.db.transaction(ownerId, async (sql) => {
-      const w = await sceneViewWorld(sql, ownerId, worldId),
-        x = await experience(sql, ownerId, worldId),
-        id = sceneId ?? x.currentSceneId;
-      const s = id
-        ? await loadScene(sql, worldId, id)
-        : { scene: null, actions: [], entries: [], matters: [] };
-      const task = (
-        await sql.query(
-          "SELECT * FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 ORDER BY created_at DESC LIMIT 1",
-          [worldId, id ?? ''],
-        )
-      ).rows[0];
+      const w = await sceneViewWorld(sql, ownerId, worldId, sceneId),
+        x = w.experience ?? { ownerId, worldId, view: { kind: 'phone' } },
+        items = w.items as { kind: string; document: unknown }[],
+        s = {
+          scene: w.scene ? SceneRuntimeSessionSchema.parse(w.scene) : null,
+          actions: items
+            .filter((r) => r.kind === 'action')
+            .map((r) => SceneRuntimeActionSchema.parse(r.document)),
+          entries: items
+            .filter((r) => r.kind === 'entry')
+            .map((r) => SceneRuntimeEntrySchema.parse(r.document)),
+          matters: items
+            .filter((r) => r.kind === 'matter')
+            .map((r) => CurrentMatterSchema.parse(r.document)),
+        },
+        task = w.task;
       const placeId = s.scene?.placeId;
       const images =
-        placeId && w.space?.places.some((place) => place.id === placeId)
+        placeId && w.space?.places.some((place: { id: string }) => place.id === placeId)
           ? await readPublicationSceneImages(sql, worldId, [placeId])
           : new Map<string, string>();
       return SceneReadSchema.parse({

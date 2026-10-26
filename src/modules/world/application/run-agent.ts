@@ -351,7 +351,7 @@ function isKnownInvalid(error: unknown) {
   );
 }
 
-function isKnownConflict(error: unknown) {
+export function isKnownConflict(error: unknown) {
   return (
     typeof error === 'object' &&
     error !== null &&

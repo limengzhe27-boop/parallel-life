@@ -597,7 +597,7 @@ test('deterministic scene environment: real owner SQL, actual entry/lease, atomi
       const read = await new SceneRepository(traced).read(f.owner, f.worldId, f.entered.sceneId);
       assert.equal(read.scene!.id, f.entered.sceneId);
       assert.equal(read.task!.status, 'running');
-      assert(queries.length <= 6, `scene projection made ${queries.length} queries`);
+      assert(queries.length <= 2, `scene projection made ${queries.length} queries`);
       assert(
         !queries.some(
           (q) =>
@@ -610,6 +610,24 @@ test('deterministic scene environment: real owner SQL, actual entry/lease, atomi
       await assert.rejects(
         new SceneRepository(traced).read(randomUUID(), f.worldId, f.entered.sceneId),
       );
+    },
+  );
+  await t.test(
+    'reading a saved scene does not wait for another transaction holding its world lock',
+    async () => {
+      const f = await fixture();
+      await admin.query('BEGIN');
+      try {
+        await admin.query('SELECT id FROM parallel_life.worlds WHERE id=$1 FOR UPDATE', [
+          f.worldId,
+        ]);
+        const read = await scenes.read(f.owner, f.worldId, f.entered.sceneId);
+        assert.equal(read.worldVersion, f.entered.version);
+        assert.equal(read.scene!.id, f.entered.sceneId);
+        assert.equal(read.entries.length, 0);
+      } finally {
+        await admin.query('ROLLBACK');
+      }
     },
   );
   await t.test(

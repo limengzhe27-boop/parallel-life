@@ -566,3 +566,8 @@ export type AgentWorldContext = {
     'worldId' | 'observerActorId' | 'sourceEventId' | 'worldVersion' | 'evidence'
   > & { sourceId: string; reportedQuote?: string })[];
 };
+
+/** The same authority reference is used in model context and at movement execution. */
+export function selfPositionSourceId(worldId: string, eventId: string | null): string {
+  return eventId ? `self-position:${eventId}` : `self-position:genesis:${worldId}`;
+}

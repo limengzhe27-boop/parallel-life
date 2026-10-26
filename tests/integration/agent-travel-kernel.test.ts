@@ -1,3 +1,4 @@
+import { mapNpcSourceFields } from '../../src/modules/world/infrastructure/npc-source-reference.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -119,7 +120,7 @@ test('actual native departure kernel keeps journey, own position and scene exit 
     }
   });
   type Fixture = { owner: string; worldId: string; a: string; b: string; sceneId: string };
-  async function fixture(): Promise<Fixture> {
+  async function fixture(genesis = false): Promise<Fixture> {
     const owner = randomUUID(),
       worldId = randomUUID(),
       a = randomUUID(),
@@ -170,6 +171,26 @@ test('actual native departure kernel keeps journey, own position and scene exit 
       },
     };
     await worlds.initialize({ userId: owner }, initial);
+    if (genesis)
+      await db.transaction(owner, (sql) =>
+        sql.query(
+          `INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document) VALUES($1,$2,$3,NULL,0,$4)`,
+          [
+            worldId,
+            owner,
+            `actor:${a}`,
+            {
+              worldId,
+              subject: { kind: 'actor', actorId: a },
+              status: 'at',
+              placeId: 'room',
+              sourceEventId: null,
+              worldVersion: 0,
+              occurredAt: initial.time,
+            },
+          ],
+        ),
+      );
     const historicalCommand = {
       id: randomUUID(),
       worldId,
@@ -223,7 +244,7 @@ test('actual native departure kernel keeps journey, own position and scene exit 
         {
           location: 'room',
           narration: 'Explicit synthetic historical scene.',
-          presentActorIds: [a],
+          presentActorIds: genesis ? [] : [a],
           outcome: null,
           observation: null,
           matterTitle: null,
@@ -273,11 +294,12 @@ test('actual native departure kernel keeps journey, own position and scene exit 
     );
     const historicalScene = (await scenes.read(owner, worldId, entered.sceneId)).scene;
     assert.ok(historicalScene);
-    assert.ok(
-      scenePresent(historicalScene, world.version).some(
-        (p) => p.kind === 'actor' && p.actorId === a,
-      ),
-    );
+    if (!genesis)
+      assert.ok(
+        scenePresent(historicalScene, world.version).some(
+          (p) => p.kind === 'actor' && p.actorId === a,
+        ),
+      );
     return f;
   }
   async function positions(
@@ -344,7 +366,31 @@ test('actual native departure kernel keeps journey, own position and scene exit 
         calls++;
         const payload = JSON.parse(messages.find((m) => m.role === 'user')!.content) as Payload;
         inputs.push(payload);
-        return JSON.stringify(await make(payload));
+        const proposal = await make(payload);
+        // Legacy fixture proposals use canonical IDs; current model input uses source aliases.
+        const accepted = (
+          await admin.query(
+            `SELECT r.id,p.source_event_id FROM parallel_life.agent_input_receipts r
+          LEFT JOIN parallel_life.world_authoritative_positions p ON p.world_id=r.world_id AND p.subject_key=$2
+          WHERE r.world_id=$1 ORDER BY r.created_at DESC LIMIT 1`,
+            [payload.state.worldId, `actor:${payload.state.actorId}`],
+          )
+        ).rows[0];
+        return JSON.stringify(
+          mapNpcSourceFields(
+            proposal,
+            [
+              { ref: payload.input.sourceId, sourceId: accepted.id },
+              {
+                ref: payload.worldContext.selfPosition.sourceId!,
+                sourceId: accepted.source_event_id
+                  ? `self-position:${accepted.source_event_id}`
+                  : `self-position:genesis:${payload.state.worldId}`,
+              },
+            ],
+            'decode',
+          ),
+        );
       },
     };
     return {
@@ -407,6 +453,68 @@ test('actual native departure kernel keeps journey, own position and scene exit 
     };
     return { claim, snapshot };
   }
+  await t.test(
+    'authored genesis position authorizes the first real departure with the same source reference',
+    async () => {
+      const f = await fixture(true),
+        m = model(departure),
+        command = await privateCommand(f);
+      const result = await npcAgentServices(db, () => m.value).sendMessageIfEnabled(
+        f.owner,
+        command,
+      );
+      assert.equal(result?.status, 'committed');
+      assert.equal(m.calls, 1);
+      const after = await physical(f);
+      assert.equal(
+        after.positions.find((p) => p.subject.kind === 'actor' && p.subject.actorId === f.a)!
+          .status,
+        'in_transit',
+      );
+      const rows = (
+        await admin.query(
+          'SELECT document FROM parallel_life.agent_action_results WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows;
+      assert(
+        rows.some(
+          (r) =>
+            r.document.outcome === 'succeeded' &&
+            r.document.evidenceSourceIds.includes(`self-position:genesis:${f.worldId}`),
+        ),
+      );
+      assert(!rows.some((r) => r.document.failureCode === 'TRAVEL_ORIGIN_NOT_AUTHORIZED'));
+      const journey = (
+        await admin.query('SELECT document FROM parallel_life.npc_journeys WHERE world_id=$1', [
+          f.worldId,
+        ])
+      ).rows[0].document;
+      assert.equal(journey.origin.worldVersion, 0);
+      assert.equal(journey.origin.sourceEventId, null);
+      const clock = await new PostgresClockStore(db).read(f.owner, f.worldId);
+      const realNow = new Date(
+        Date.parse(clock.lastTickAt) +
+          Math.ceil(
+            (Date.parse(journey.plannedArrivalAt) - Date.parse(clock.storyNow)) / clock.speed,
+          ),
+      ).toISOString();
+      const arrival = await commitDueAgentArrival(db, f.owner, {
+        worldId: f.worldId,
+        engineEpoch: 2,
+        expectedWorldVersion: after.world.version,
+        realNow,
+      });
+      assert.equal(arrival.status, 'arrived');
+      assert.equal(m.calls, 1);
+      const arrived = await physical(f);
+      assert.equal(
+        arrived.positions.find((p) => p.subject.kind === 'actor' && p.subject.actorId === f.a)!
+          .placeId,
+        'park',
+      );
+    },
+  );
   await t.test(
     'one actual private NPC call commits sourced departure, scene exit and own in-transit state without moving player',
     async () => {
@@ -675,7 +783,10 @@ test('actual native departure kernel keeps journey, own position and scene exit 
       let forgotten = false;
       const m = model(async (p) => {
         const proposal = departure(p);
-        const source = p.worldContext.selfPosition.sourceId!;
+        const position = before.positions.find(
+          (v) => v.subject.kind === 'actor' && v.subject.actorId === f.a,
+        )!;
+        const source = `self-position:${position.sourceEventId}`;
         // Existing forgotten-source metadata fixture, not a claim of testing a production forget API.
         await admin.query(
           "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Synthetic forgotten origin metadata',$5,'agent_inference',$6,'forgotten')",

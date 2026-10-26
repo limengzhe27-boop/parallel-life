@@ -3,7 +3,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { TextModel } from '../modules/ai/application/ports.ts';
 import type { PostgresDatabase, SqlClient } from '../modules/storage/infrastructure/postgres.ts';
 import type { TurnCommand } from '../modules/world/domain/types.ts';
-import { runNpcAgent, type AgentRunPhaseTimings } from '../modules/world/application/run-agent.ts';
+import {
+  isKnownConflict,
+  runNpcAgent,
+  type AgentRunPhaseTimings,
+} from '../modules/world/application/run-agent.ts';
 import {
   PostgresAgentRuntimeRepository,
   supersedeAutomaticActorAttemptsInTransaction,
@@ -1029,14 +1033,7 @@ function rethrowMessageError(error: unknown): never {
   if (error instanceof NpcMessageError || error instanceof DomainError) throw error;
   const code =
     error && typeof error === 'object' ? String((error as { code?: unknown }).code ?? '') : '';
-  if (
-    [
-      'VERSION_CONFLICT',
-      'AGENT_REVISION_CONFLICT',
-      'ENGINE_EPOCH_CONFLICT',
-      'ATTEMPT_STALE',
-    ].includes(code)
-  )
+  if (code !== 'INPUT_SCOPE_FORBIDDEN' && isKnownConflict(error))
     throw new DomainError('VERSION_CONFLICT');
   if (['COMMAND_CONFLICT', 'IDEMPOTENCY_CONFLICT'].includes(code))
     throw new DomainError('IDEMPOTENCY_CONFLICT');

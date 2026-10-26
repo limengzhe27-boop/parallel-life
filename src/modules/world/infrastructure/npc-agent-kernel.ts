@@ -67,7 +67,7 @@ import {
   commitAgentDeparture,
   type AgentJourney,
 } from '../domain/agent-travel.ts';
-import { worldBoundary } from '../domain/world-awareness.ts';
+import { selfPositionSourceId, worldBoundary } from '../domain/world-awareness.ts';
 import {
   readAgentJourneysInTransaction,
   recordAgentDepartureInTransaction,
@@ -1191,7 +1191,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             typeof action.parameters.routeId !== 'string'
           )
             throw new AgentValidationError('INVALID_TRAVEL_PARAMETERS');
-          const positionSource = ownActual && `self-position:${ownActual.sourceEventId}`;
+          const positionSource =
+            ownActual && selfPositionSourceId(attempt.worldId, ownActual.sourceEventId);
           if (
             !positionSource ||
             !action.sourceIds.includes(positionSource) ||
