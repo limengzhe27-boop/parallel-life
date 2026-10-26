@@ -31,6 +31,13 @@ export function authoredReconsiderationEvidence(
           ) {
             return true;
           }
+          if (
+            r.kind === 'cross_impact' &&
+            r.ref.kind === 'event' &&
+            r.actorId &&
+            actors.has(r.actorId)
+          )
+            return true;
           if (r.kind === 'new_condition' && r.placeId && places.has(r.placeId)) {
             if (r.subjectKind === 'player') return true;
             if (r.subjectKind === 'actor' && r.actorId && actors.has(r.actorId)) return true;

@@ -1,3 +1,5 @@
+import { questionProgressReason } from './question-progress-proof.ts';
+import type { AgentInputReceipt } from './agent-runtime.ts';
 import {
   INITIAL_POSITION_POLICY,
   initialPositionPolicySourceId,
@@ -116,6 +118,7 @@ export function committedAwarenessDelta(
   event: CommittedAwarenessEvent,
   context: {
     previousAgentState?: ActorAgentState;
+    questionInput?: AgentInputReceipt;
     /** Server-authenticated hearers of the exact original player input. */
     reportObserverActorIds?: readonly string[];
     scene?: SceneSession;
@@ -487,6 +490,8 @@ export function committedAwarenessDelta(
     if (previous && (previous.worldId !== world.id || previous.actorId !== actorId))
       throw Error('INVALID_AWARENESS_PREVIOUS_STATE');
     const settledRuntime = !data.stream || object(data.stream)?.unit === 'final';
+    if (settledRuntime && questionProgressReason(event, previous, context.questionInput))
+      reason('cross_impact', { kind: 'event', id: event.id });
     for (const next of settledRuntime ? state.plans : []) {
       const old = previous?.plans.find((plan) => plan.id === next.id);
       if (JSON.stringify(old) !== JSON.stringify(next))

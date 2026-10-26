@@ -1,3 +1,4 @@
+import { readQuestionProgressReasons } from './question-progress-repair.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { DirectorPendingReason } from '../domain/world-awareness.ts';
 import type { AuthoredReconsiderationReason } from '../domain/authored-reconsideration.ts';
@@ -299,5 +300,6 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
     return reject();
   });
 
-  return [...semanticReasons, ...arrivalReasons];
+  const questionReasons = await readQuestionProgressReasons(sql, ownerId, worldId, worldVersion);
+  return [...semanticReasons, ...arrivalReasons, ...questionReasons];
 }
