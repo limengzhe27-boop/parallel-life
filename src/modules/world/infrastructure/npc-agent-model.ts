@@ -132,7 +132,7 @@ wireCatalog.sources是唯一来源目录，同时给出来源类型、时间及�
 制作数字图片用capability:"media.generate_image"，parameters使用对象{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence中一个"}，这两个字段均必填。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。仅在本轮实际需要新图片时生成。历史请求已完成、失败或仍在处理中，都不是新的索图授权；玩家转聊无关话题时不重复旧动作。没有新的动作需要时executions=[]。愿意发图时，同一次回复先输出一条符合本人性格和当前关系的简短准备消息，再提出这个能力。准备消息是正常聊天，例如整理造型、换个光线好的位置，但按本人处境表达，不照抄统一台词，不捏造已经拍好、已经发出。准备消息的dependsOnActionIds必须为空数组[]：它表达本人意愿，不依赖入队或生成成功；不得填action_1或execution:action_1。不需要追问玩家确认或回复；只有真实需要新信息才提问。禁止只输出图片动作而没有自然回应，也不要使用“这是我给你准备的一张照片”等交付模板。历史own_media_completion只证明那次旧请求的图片已完成，不代表本轮新照片已拍好；玩家再次要拍现在的照片时，按本人意愿提出新的真实动作，或明确拒绝，不能拿旧完成回执谎称新图已发。实际图片由后台完成后单独投递，不把图片标题、生成状态写进对白。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；入队不能结清实际交付责任。
 制作视频用capability:"media.generate_video"，parameters包括actionDescription和purpose（scene_moment或character_action），也用同样的{name,value}格式；视频执行能力是否可用仍由内核检查。不能用moment.publish冒充生成或私发图片：moment.publish是公开文字动态；item.deliver只交接本人持有的实体物品。现没有可分享的既有图片目录，不猜assetId或链接。计划增量原本就会事务保存，不使用plan.record代替实际工作。
 没有即时执行且确实改变持续安排时才使用planIntents；普通聊天不创建计划；executions 和 changes 都可省略，不输出 plans 或手写新 goalId。create:{kind:"create",ref:"本轮局部编号",goal:{kind:"new",summary,sourceIds}或{kind:"existing",id:"本人可见目标id"}（可省略，省略时由plan summary自动建立目标）,summary,sourceIds,nextStep}；replace:{kind:"replace",ref,planId:"本人已有计划id",summary,sourceIds,nextStep}，服务器保留原目标并记录替换；update:{kind:"update",planId,summary,sourceIds,nextStep}沿原计划；close:{kind:"close",planId,status:"finished|withdrawn",reason,sourceIds}只关闭计划，不代表目标或外部行动完成。nextStep可选；新建或替换时省略表示未完成active计划，update省略时保留原来的状态、等待条件和下一步。没有变化不输出更新。若写则只能wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[缺少的能力或证据]}。goals只修改本人可见已有非终态目标的summary/status/sourceIds/endReason，不创建局部goal_1或输出resultIds；新目标只能在create.goal或executions.goal中明确声明，代码分配真实ID。goals未变化时[]或null都表示无增量，planIntents未变化时[]（schema无可修改旧目标时goals填null）；不为填字段造目标。不同通道不得同时操作同一目标或替换同一计划；执行中/尚未结束的动作不能被update/close悄悄抹去，finished/withdrawn旧计划不可再改。来源包含当前input.sourceId；不输出伪造结果或期限。
-responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply只选playerReplyTargets中的targetRef（其ref），给出relation和decision；代码按原快照绑定问题来源、责任和修订，不用抄写或猜测这些机械字段。
+responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply只选playerReplyTargets的一个键作为targetRef，例如reply:1；该键对应现有问题或责任id。给出relation和decision，代码按原快照绑定问题来源、责任和修订，不用抄写或猜测这些机械字段。
 consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时必须在同次changes.consideration给出选择，不相关用quiet而非null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。
 邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；responseContract.timeInput仅提供当地日期及偏移格式，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
 日常聊天默认把一次回复写成1–3条短 statements，每条像一次单独发送，而不是一条完整长文；自然想补充、改口、追问或只说半句时就拆成多条，但不要为了凑条数重复同义内容，也不要每条都写成完整标点句。单条通常不超过约50字。正式说明、长信息或必须完整引用事实时可以只发一条完整消息。
@@ -584,12 +584,19 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       : projectNpcConversationProgress(snapshot),
     ...(snapshot.input.origin === 'player'
       ? {
-          playerReplyTargets: playerReplyTargetCatalog({
-            state: viewState,
-            input: snapshot.input,
-            channel: snapshot.channel,
-            authorizedSourceIds: new Set(snapshot.sources.map((source) => source.id)),
-          }),
+          playerReplyTargets: Object.fromEntries(
+            playerReplyTargetCatalog({
+              state: viewState,
+              input: snapshot.input,
+              channel: snapshot.channel,
+              authorizedSourceIds: new Set(snapshot.sources.map((source) => source.id)),
+            }).map((target) => [
+              target.ref,
+              target.questionId
+                ? { questionId: target.questionId }
+                : { responsibilityId: target.responsibilityId },
+            ]),
+          ),
         }
       : {}),
     input: {
@@ -606,6 +613,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   };
   const sourceCatalog = npcSourceReferences(snapshot.sources);
   const inputSourceRef = npcSourceRef(sourceCatalog, snapshot.input.sourceId)!;
+  const hasReplyTargets = Object.keys(payload.playerReplyTargets ?? {}).length > 0;
   const inputText =
     snapshot.input.origin === 'player'
       ? snapshot.input.text
@@ -679,17 +687,17 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       role: 'user',
       content:
         snapshot.input.origin === 'player'
-          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。无状态变化时changes=null。`
+          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。${hasReplyTargets ? '当前有本人已提出的待答事项，changes必须是对象并给出inputInterpretation；无关话题可选new_request/topic_change，不确定可选uncertain，不要代替玩家答应。' : '无状态变化时changes=null。'}`
           : isActorEpisodeConsiderationInput(snapshot.input)
             ? `你是${snapshot.actor.name}。本次任务是考虑currentOpportunity所指、专门交给你的一项互动机会。根据对应来源中的具体议题、本人动机和可见事实，决定怎样参与、调整、拒绝、暂缓或保持安静。没有玩家新消息不等于没有新的机会；判断对象是这项机会，而不是是否收到玩家发言。参与时形成自己的具体说法或合法下一步，不复述任务说明；不适合时保留具体人物理由，不需要为了完成任务发消息。来源仍为${inputSourceRef}。\n${inputText}`
             : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
     },
   ];
-  const fits = () => {
+  const fits = (requestLimit = NPC_AGENT_REQUEST_LIMIT - 4000) => {
     // Budget the real transmitted envelope once, not an additional intermediate
     // JSON cap that can reject a request already within both transport limits.
     const size = JSON.stringify(messages()).length;
-    return size <= NPC_AGENT_MESSAGE_LIMIT && size + responseFormatSize <= NPC_AGENT_REQUEST_LIMIT;
+    return size <= NPC_AGENT_MESSAGE_LIMIT && size + responseFormatSize <= requestLimit;
   };
   if (!fits()) {
     payload.actor.persona = legacyPersonaExcerpt(snapshot.actor.persona, snapshot.input.text, 4000);
@@ -748,6 +756,29 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   // Keep all questions and assessed answers. Removing this ledger would turn a
   // rejection into apparent silence on the next wake.
   if (!fits()) optional.stickerCatalog = (optional.stickerCatalog as unknown[]).slice(0, 12);
+  if (!fits()) {
+    // Old quiet considerations are private deliberation history, not player
+    // decisions or active work. Keep every non-quiet stance and current state;
+    // the original ledger still owns deduplication and exact source recovery.
+    const state = optional.state as {
+      episodeParticipations?: { id: string; choice: string }[];
+    } | null;
+    if (state?.episodeParticipations) {
+      const recentQuiet = new Set(
+        state.episodeParticipations
+          .filter((p) => p.choice === 'quiet')
+          .slice(-6)
+          .map((p) => p.id),
+      );
+      const retained = state.episodeParticipations.filter(
+        (p) => p.choice !== 'quiet' || recentQuiet.has(p.id),
+      );
+      if (retained.length < state.episodeParticipations.length) {
+        state.episodeParticipations = retained;
+        payload.contextSelection.stateDetailsWithheld = true;
+      }
+    }
+  }
   // Long-lived actors accumulate terminal goals/plans/actions/responsibilities
   // and old decisions. They are history, not current authority; keep the active
   // plan graph and drop terminal records before failing the player's send.
@@ -789,15 +820,12 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       state.responsibilities = (state.responsibilities ?? []).filter(
         (responsibility) => !['fulfilled', 'withdrawn', 'expired'].includes(responsibility.status),
       );
-      const activeResponsibilityIds = new Set(
-        state.responsibilities.map((responsibility) => responsibility.id),
-      );
-      state.decisions = (state.decisions ?? [])
-        .filter((decision) => activeResponsibilityIds.has(decision.responsibilityId))
-        .slice(-8);
+      // Terminal requests still carry meaningful acceptances and refusals.
+      // Keep those choices; omission of history must not erase consent.
+      payload.contextSelection.stateDetailsWithheld = true;
     }
   }
-  if (!fits())
+  if (!fits(NPC_AGENT_REQUEST_LIMIT))
     throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {
       code: 'NPC_AGENT_SNAPSHOT_LIMIT',
       contextSizes: Object.fromEntries(
