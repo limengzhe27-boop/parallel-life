@@ -1063,3 +1063,26 @@
   padding: 0;
   overflow: hidden;
 }
+
+/* The live scene fills the phone behind its existing status/notification layers. */
+.phone[data-immersive-scene='true'] .statusLayer {
+  position: absolute;
+  inset: 0 0 auto;
+  color: #fff;
+  background: linear-gradient(#0005, transparent);
+}
+.phone[data-immersive-scene='true'] .unlockedContent {
+  position: absolute;
+  inset: 0;
+}
+.phone[data-immersive-scene='true'] .panelPage {
+  height: 100%;
+  min-height: 0;
+}
+.phone[data-immersive-scene='true'] .homeGesture {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 5;
+  min-height: 22px;
+  padding: 6px 0 8px;
+}

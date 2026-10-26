@@ -60,7 +60,7 @@ export async function composeSceneReference(input: {
     input.people.length
       ? `Below it are exactly ${input.people.length} different character identity references, read left to right then next row: ${input.people.map((p, i) => `${i + 1}: ${p.name}`).join('; ')}. Depict these same people once each, preserve each face, original age, hair and current opaque clothing. Place them naturally in the environment with unified lighting, perspective, scale and believable seated/standing posture justified by the scene. Do not show the player as an extra person; this is the player viewpoint.`
       : 'No other people are present. Depict the empty established location, not invented bystanders.',
-    'Keep the upper and middle image visually rich, faces fully visible, and leave a naturally darker uncluttered lower area for separately rendered conversation. Do not invent new actions, romantic contact, injuries, objects or completed outcomes absent from the observable scene.',
+    'Use a natural medium-close player viewpoint with the faces clearly visible in the upper third. Render the continuous physical environment edge to edge, including the entire lower half with real clothing, furniture, table or floor. No empty panels, blank space, black bars, artificial dark gradients, vignettes, fades or text-safe zones. Do not invent new actions, romantic contact, injuries, objects or completed outcomes absent from the observable scene.',
   ].join(' ');
   return {
     assetId: input.place?.assetId ?? input.people[0]!.assetId,

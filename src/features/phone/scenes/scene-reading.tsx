@@ -90,7 +90,9 @@ export function SceneReadingHandle({
       }}
     >
       <span aria-hidden="true" />
-      <small>{height < 39 ? '展开对话' : height > 71 ? '收起阅读' : '拖动调整对话'}</small>
+      <small className="sr-only">
+        {height < 39 ? '展开对话' : height > 71 ? '收起阅读' : '拖动调整对话'}
+      </small>
     </button>
   );
 }

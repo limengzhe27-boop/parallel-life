@@ -403,6 +403,7 @@ function LifePhone({
       ref={root}
       className={styles.phone}
       data-phone-content
+      data-immersive-scene={!locked && route.panel === 'scene' ? 'true' : undefined}
       data-screen={locked ? 'lock' : isHome ? 'home' : 'page'}
       aria-label={`${lifeName}的手机`}
       onKeyDown={(event) => {
@@ -430,7 +431,7 @@ function LifePhone({
         </div>
       </div>
       <div className={styles.unlockedContent} hidden={locked} inert={locked}>
-        {route.panel && (
+        {route.panel && route.panel !== 'scene' && (
           <header className={styles.header}>
             <button
               className={styles.headerButton}

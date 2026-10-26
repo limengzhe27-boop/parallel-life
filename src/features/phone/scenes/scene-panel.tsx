@@ -107,13 +107,28 @@ export function ScenePanel({
   const target =
     typeof window === 'undefined' ? undefined : readRoute(window.location.hash, worldId).target;
   const draftKey = `pl-scene-draft:${worldId}:${target ?? 'current'}`;
-  const refresh = useCallback(async () => {
-    const next = await client.read(worldId, target);
-    if (live.current) {
-      setData((d) => mergeScene(d, next));
-      setTask(next.task);
-    }
-    return next;
+  const readTarget = useRef(target);
+  readTarget.current = target;
+  const inFlightRead = useRef<{ target: string | undefined; promise: Promise<SceneRead> } | null>(
+    null,
+  );
+  const refresh = useCallback(() => {
+    if (inFlightRead.current && inFlightRead.current.target === target)
+      return inFlightRead.current.promise;
+    const pending = client.read(worldId, target).then((next) => {
+      if (live.current && readTarget.current === target) {
+        setData((d) => mergeScene(d, next));
+        setTask(next.task);
+      }
+      return next;
+    });
+    inFlightRead.current = { target, promise: pending };
+    void pending
+      .finally(() => {
+        if (inFlightRead.current?.promise === pending) inFlightRead.current = null;
+      })
+      .catch(() => {});
+    return pending;
   }, [client, worldId, target]);
   useEffect(() => {
     live.current = true;
@@ -133,6 +148,22 @@ export function ScenePanel({
     // Consume already committed world changes; this read does not wake a model.
     void refresh().catch(() => {});
   }, [phoneVersion, refresh]);
+  const photoRevision = useMemo(
+    () =>
+      photos
+        .map((p) => `${p.id}:${p.status}:${p.url ?? ''}`)
+        .sort()
+        .join('|'),
+    [photos],
+  );
+  const seenPhotos = useRef(photoRevision);
+  useEffect(() => {
+    if (!data?.scene || seenPhotos.current === photoRevision) return;
+    seenPhotos.current = photoRevision;
+    // A completed background may not advance world.version. Re-read its authorized
+    // scene projection once when the existing photo feed changes, never wake a model.
+    void refresh().catch(() => {});
+  }, [photoRevision, data?.scene?.id, refresh]);
   useEffect(() => {
     onBusy?.(busy || sceneBusy(task));
     // Shared observer continues polling a pending task after returning to phone.
@@ -189,7 +220,6 @@ export function ScenePanel({
     return () => observer.disconnect();
   }, [data?.scene?.id]);
   const overview = data ? sceneOverview(data) : undefined;
-  const latestAction = data?.actions.at(-1);
   const entries = data ? sceneTimelineEntries(visibleSceneEntries(data), data.actions) : [];
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
   async function run(action: () => Promise<void>) {
@@ -218,6 +248,17 @@ export function ScenePanel({
       running.current = false;
       if (live.current) setBusy(false);
     }
+  }
+  function returnToPhone() {
+    return run(async () => {
+      if (data?.scene && data.scene.status !== 'ended')
+        await client.navigate(worldId, data.scene.id, {
+          commandId: crypto.randomUUID(),
+          expectedVersion: data.worldVersion,
+          view: 'phone',
+        });
+      window.location.hash = routeHash(worldId, { app: null });
+    });
   }
   async function execute(t: SceneTask) {
     if (t.status !== 'queued') return;
@@ -312,7 +353,16 @@ export function ScenePanel({
               }
             }}
           />
-          <section className={s.sceneControls}>
+          <section className={s.sceneControls} aria-label="现场导航">
+            <button
+              type="button"
+              className={s.backBtn}
+              disabled={busy}
+              onClick={() => void returnToPhone()}
+              aria-label="返回手机"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
             <strong className={s.locationTitle}>
               {overview?.place?.kind === 'time_place' ? overview.place.location : data.scene.title}
             </strong>
@@ -320,20 +370,10 @@ export function ScenePanel({
               type="button"
               className={s.quickPhoneBtn}
               disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  if (data.scene!.status !== 'ended')
-                    await client.navigate(worldId, data.scene!.id, {
-                      commandId: crypto.randomUUID(),
-                      expectedVersion: data.worldVersion,
-                      view: 'phone',
-                    });
-                  window.location.hash = routeHash(worldId, { app: null });
-                })
-              }
+              onClick={() => void returnToPhone()}
               title="返回手机主界面"
             >
-              <span>📱</span> 回到手机
+              <span aria-hidden="true">▯</span> 手机
             </button>
             <time>
               {worldDateTimeLabel(
@@ -458,28 +498,6 @@ export function ScenePanel({
                   } catch {}
               }}
             >
-              {latestAction ? (
-                <details className={s.card} data-scene-latest-action>
-                  <summary>刚才的一幕</summary>
-                  <p className={s.savedInput}>{latestAction.text}</p>
-                  {latestAction.resolution ? (
-                    isSimpleSceneQuestion(latestAction, true) &&
-                    latestAction.resolution.observation === latestAction.text.trim() ? null : (
-                      <p>
-                        <strong>随后发生的事：</strong>
-                        {latestAction.resolution.observation}
-                      </p>
-                    )
-                  ) : (
-                    <p className={s.notice}>
-                      {latestAction.intent === 'attempt'
-                        ? '打算要做的事已记下，正等待展开。'
-                        : '心里的想法已记下。'}
-                    </p>
-                  )}
-                </details>
-              ) : null}
-
               <div className={s.stream} aria-label="现场对话与旁白">
                 {[
                   ...entries,
@@ -503,11 +521,13 @@ export function ScenePanel({
                         </div>
                       )
                     ) : e.kind === 'media_reference' ? (
-                      <SceneMedia
-                        key={e.id}
-                        url={scenePhotoUrl(data, e.media.assetId, photos)}
-                        reference={e.media.purpose !== 'scene_illustration'}
-                      />
+                      e.media.purpose === 'scene_illustration' ? null : (
+                        <SceneMedia
+                          key={e.id}
+                          url={scenePhotoUrl(data, e.media.assetId, photos)}
+                          reference
+                        />
+                      )
                     ) : (
                       <article
                         key={e.id}

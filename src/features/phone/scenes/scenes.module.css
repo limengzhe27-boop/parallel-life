@@ -100,7 +100,7 @@
   border: 0;
 }
 
-/* One continuous stage. Only the transcript scrolls; the image never moves with it. */
+/* Full-frame scene; the transcript itself has no panel surface. */
 .scenePanel {
   position: relative;
   isolation: isolate;
@@ -110,47 +110,67 @@
   container: scene-panel / size;
 }
 .scenePanel[data-immersive-scene='true'] {
-  padding: 0;
+  padding: 58px 0 0;
   gap: 0;
-  background: #17232b;
-  color: #f8f6f2;
-}
-.scenePanel[data-immersive-scene='true']::after {
-  content: '';
-  position: absolute;
-  inset: 20% 0 0;
-  z-index: 1;
-  background: linear-gradient(transparent, #060e1766 30%, #060c16c9);
-  pointer-events: none;
+  background: #26211d;
+  color: #fff;
 }
 .sceneControls {
   position: relative;
   z-index: 4;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
-  padding: 6px 12px;
-  background: linear-gradient(#081322a8, transparent);
-  font-size: 11px;
+  min-height: 46px;
+  gap: 4px;
+  padding: 0 12px;
+  background: #100c0829;
+  font-size: 12px;
 }
-.sceneControls time,
-.sceneControls > p {
+.sceneControls .locationTitle {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  color: #ffffffc9;
-  font-size: 11px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 5px #000a;
 }
-.scenePanel button.quickPhoneBtn,
-.scenePanel .sceneMenu button {
-  background: #152436a6;
-  border-color: #ffffff36;
-  color: #f5f7fb;
+.scenePanel .sceneControls > button,
+.scenePanel .sceneMenu > summary {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-shadow: 0 1px 4px #000;
+}
+.scenePanel .backBtn {
+  width: 38px;
+  font-size: 34px;
+  line-height: 1;
+}
+.scenePanel .quickPhoneBtn {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.sceneControls > time,
+.sceneControls > p {
+  display: none;
 }
 .sceneMenu {
-  margin-left: auto;
+  flex-shrink: 0;
 }
 .sceneMenu > summary {
+  list-style: none;
   font-size: 12px;
+  cursor: pointer;
+}
+.sceneMenu > summary::-webkit-details-marker {
+  display: none;
 }
 .sceneMenu[open] {
   position: relative;
@@ -160,34 +180,41 @@
   right: 0;
   top: 100%;
   width: min(280px, 75cqw);
-  padding: 10px;
-  background: #152436f5;
+  padding: 12px;
+  background: #171716f2;
+  border: 1px solid #ffffff30;
   border-radius: 14px;
-  box-shadow: 0 8px 32px #0005;
+  box-shadow: 0 6px 24px #0005;
+  backdrop-filter: blur(16px);
+}
+.scenePanel .sceneMenu button {
+  background: #ffffff0d;
+  border-color: #ffffff30;
+  color: #fff;
+  font-size: 13px;
 }
 .readingArea {
   position: relative;
   z-index: 2;
   flex: 0 1 auto;
   min-height: 96px;
-  max-height: calc(100% - 300px);
+  max-height: calc(100% - 230px);
   margin-top: auto;
   display: flex;
   flex-direction: column;
 }
 .scenePanel [data-scene-reading-handle] {
   align-self: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 0 0 44px;
-  min-height: 44px;
-  padding: 0 14px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  min-height: 28px;
+  width: 110px;
+  padding: 0;
   border: 0;
-  border-radius: 22px;
-  background: #101c2873;
-  color: #ffffffc7;
+  border-radius: 12px;
+  background: transparent;
+  color: #fff;
   touch-action: none;
   cursor: ns-resize;
   user-select: none;
@@ -196,10 +223,15 @@
   width: 28px;
   height: 3px;
   border-radius: 3px;
-  background: #ffffffb3;
+  background: #ffffff6b;
+  box-shadow: 0 1px 4px #0004;
 }
 .scenePanel [data-scene-reading-handle] small {
-  font-size: 10px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .reading {
   flex: 1;
@@ -207,22 +239,20 @@
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: #ffffff40 transparent;
+  scrollbar-color: #ffffff55 transparent;
   padding: 4px 14px 16px;
   overflow-anchor: none;
-}
-.reading > * {
-  flex-shrink: 0;
+  mask-image: linear-gradient(transparent, #000 10px, #000);
 }
 .stream {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .entry {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
   line-height: 1.75;
   font-size: 15px;
@@ -239,39 +269,38 @@
 .entry small {
   display: block;
   font-size: 11px;
-  color: #ffffffc2;
-  margin-bottom: 4px;
+  color: #fffffff0;
+  margin-bottom: 3px;
+  text-shadow: 0 1px 4px #0009;
 }
-.dialogue .entryCopy {
-  max-width: 86%;
+.dialogue .entryCopy,
+.user .entryCopy {
+  max-width: 84%;
 }
 .dialogue .entryCopy > p,
 .user .entryCopy > p {
-  background: #111b28b5;
-  border: 1px solid #ffffff36;
-  border-radius: 5px 14px 14px;
-  padding: 9px 12px;
-  backdrop-filter: blur(8px);
+  background: #17151191;
+  border: 1px solid #ffffff5c;
+  border-radius: 5px 13px 13px;
+  padding: 8px 12px;
+  backdrop-filter: blur(5px);
 }
 .user {
   justify-content: flex-end;
-}
-.user .entryCopy {
-  max-width: 86%;
 }
 .user small {
   text-align: right;
 }
 .user .entryCopy > p {
-  background: #385839c7;
-  border-color: #b8d2a369;
-  border-radius: 14px 5px 14px 14px;
+  background: #183c19a3;
+  border-color: #b8d2a37a;
+  border-radius: 13px 5px 13px 13px;
 }
 .result {
   display: block;
-  padding: 12px 8px;
-  color: #efede4;
-  text-shadow: 0 1px 5px #000;
+  padding: 9px 10px;
+  color: #fffaf1;
+  text-shadow: 0 1px 5px #000c;
 }
 .result small {
   display: none;
@@ -282,24 +311,24 @@
 }
 .longNarration {
   text-align: left;
-  font-size: 14px;
-  line-height: 1.85;
-  padding-inline: 10px;
+  font-size: 15px;
+  line-height: 1.95;
 }
 .stageDirection {
-  color: #d5dccf;
+  color: #eee9df;
   font-size: 0.94em;
 }
 .place {
   text-align: center;
   font-size: 11px;
-  color: #e1e5e9;
-  padding: 12px 0;
+  color: #eee6dc;
+  padding: 10px 0;
+  text-shadow: 0 1px 4px #000;
 }
 .scenePanel .card {
-  background: #111e2bbd;
-  color: #e4eaf0;
-  border-color: #ffffff26;
+  background: #171716ba;
+  color: #fff;
+  border-color: #ffffff25;
   margin: 8px 0 14px;
 }
 .scenePanel .card p {
@@ -307,15 +336,16 @@
 }
 .scenePanel .notice {
   position: relative;
-  z-index: 3;
-  color: #eee3c8;
+  z-index: 5;
+  color: #f5ead2;
   padding: 8px 12px;
   margin: 0;
-  background: #16212dbb;
+  background: #211b16ce;
+  font-size: 12px;
 }
 .scenePanel > [role='alert'] {
   position: relative;
-  z-index: 3;
+  z-index: 5;
   margin: 0;
   background: #361e28ef;
   color: #ffe1db;
@@ -326,22 +356,21 @@
 }
 .scenePanel .scrollToBottomBtn {
   position: absolute;
-  bottom: 10px;
-  right: 18px;
+  bottom: 8px;
+  right: 14px;
   z-index: 3;
-  color: #eef4ff;
+  color: #fff;
   border-color: #ffffff50;
   border-radius: 24px;
-  background: #1e3c60f0;
-  box-shadow: 0 4px 16px #0004;
+  background: #25231ff0;
   font-size: 12px;
 }
 .composer {
   position: relative;
   z-index: 3;
   flex-shrink: 0;
-  padding: 6px 12px max(10px, env(safe-area-inset-bottom));
-  background: linear-gradient(transparent, #09121bb0);
+  padding: 8px 12px max(28px, env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, #100c0870);
 }
 .composerInputRow {
   display: grid;
@@ -356,30 +385,33 @@
   height: 46px;
   min-height: 46px;
   max-height: 100px;
-  border: 1px solid #ffffff45;
-  border-radius: 16px;
-  padding: 11px 12px;
-  background: #14202dbf;
+  border: 1px solid #ffffff58;
+  border-radius: 24px;
+  padding: 11px 14px;
+  background: #27242188;
   color: #fff;
   font: inherit;
   font-size: 16px;
   line-height: 22px;
+  backdrop-filter: blur(8px);
 }
 .composer textarea::placeholder {
-  color: #d3d9dfb3;
+  color: #e5e0d5b3;
 }
 .scenePanel .composerInputRow > button {
-  background: #347bfa;
-  color: #fff;
-  border-color: #347bfa;
+  background: #007aff;
+  color: white;
+  border-color: #58a5ff;
+  border-radius: 14px;
   min-height: 46px;
+  padding-inline: 14px;
 }
 .suggestions {
   position: relative;
 }
 .suggestions > summary {
   font-size: 11px;
-  color: #d6e1ee;
+  color: #e7dfd1;
   width: max-content;
 }
 .suggestionRow {
@@ -393,53 +425,30 @@
 .scenePanel .suggestionPill {
   flex: 0 0 auto;
   font-size: 12px;
-  background: #18283ee8;
-  color: #e7eef9;
+  background: #272421d6;
+  color: #fff;
   border-color: #ffffff36;
   max-width: 270px;
 }
-@container scene-panel (max-height: 450px) {
-  .sceneControls {
-    padding-block: 0;
+.scenePanel[data-reading-mode='expanded'] .readingArea {
+  max-height: calc(100% - 140px);
+}
+@container scene-panel (max-height: 500px) {
+  .scenePanel[data-immersive-scene='true'] {
+    padding-top: 52px;
   }
-  .sceneControls time,
-  .sceneControls > p {
-    display: none;
+  .sceneControls {
+    min-height: 42px;
   }
   .suggestions {
     display: none;
   }
   .readingArea {
-    max-height: calc(100% - 205px);
+    max-height: calc(100% - 190px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .reading {
     scroll-behavior: auto;
   }
-}
-
-.scenePanel[data-reading-mode='expanded'] .readingArea {
-  max-height: calc(100% - 125px);
-}
-
-.locationTitle {
-  flex: 1;
-  min-width: 0;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.sceneControls > time,
-.sceneControls > p {
-  display: none;
-}
-.sceneControls {
-  flex-wrap: nowrap;
-  min-height: 44px;
-}
-.sceneMenu {
-  margin-left: 0;
-  flex-shrink: 0;
 }
