@@ -243,3 +243,36 @@ test('boundary defaults to none, preserves actual map IDs and uses UTC+08 local 
     localDateTime: '2026-10-16T03:10:00',
   });
 });
+
+test('quiet episode consideration remains observed without manufacturing a new global coordination cause', () => {
+  const { world, event } = awarenessFixture();
+  const state = emptyActorAgentState({ worldId: 'w', actorId: 'watcher' }, 'def', 1);
+  const decision = {
+    requestId: 'request',
+    choice: 'quiet',
+    reason: '没有本人需要采取的新做法',
+    sourceIds: ['own-source'],
+  };
+  event.type = 'agent.state_committed';
+  event.data = {
+    actorId: 'watcher',
+    agentRuntime: {
+      stateAfter: state,
+      episodeDecision: decision,
+      proposal: { episodeDecision: decision },
+      results: [],
+    },
+  };
+  assert.deepEqual(committedAwarenessDelta(world, event).reasons, []);
+  const engaged = { ...decision, choice: 'engage' };
+  event.data = {
+    actorId: 'watcher',
+    agentRuntime: {
+      stateAfter: state,
+      episodeDecision: engaged,
+      proposal: { episodeDecision: engaged },
+      results: [],
+    },
+  };
+  assert.equal(committedAwarenessDelta(world, event).reasons[0]?.kind, 'cross_impact');
+});

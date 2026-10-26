@@ -503,9 +503,10 @@ export function committedAwarenessDelta(
         )
       )
         throw Error('INVALID_AWARENESS_EPISODE_DECISION');
-      // A sourced participant response warrants later global coordination; it
-      // is not a canonical incident, a player decision or a completed event.
-      reason('cross_impact', { kind: 'event', id: event.id });
+      // Quiet is retained in the actor/episode receipt, but is not a new global
+      // story development. Otherwise Director -> quiet -> Director is a paid loop.
+      // The finite unassessed catalogue resumes from verified settled receipts.
+      if (decision.choice !== 'quiet') reason('cross_impact', { kind: 'event', id: event.id });
     }
     const proposedDecisionIds = new Set(
       Array.isArray(proposal.decisions) ? proposal.decisions.map((d) => object(d)?.id) : [],
