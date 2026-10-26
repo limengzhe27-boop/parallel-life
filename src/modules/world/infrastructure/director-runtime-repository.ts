@@ -1,3 +1,4 @@
+import { isReceivedModelTruncation } from '../../ai/application/model-output-truncation.ts';
 import { directorFrameRetirementEvidence } from '../domain/director-frame-retirement.ts';
 import { readAuthoredReconsiderationEvidence } from './authored-reconsideration-evidence.ts';
 import { ActorContinuationSchema } from './agent-proposal-schema.ts';
@@ -1186,7 +1187,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
   saveResponse(owner: string, expected: DirectorAttempt, response: unknown) {
     expected = { ...expected };
     let raw: string,
-      rejected = false;
+      rejected = isReceivedModelTruncation(response);
     try {
       raw = body(response, DIRECTOR_RESPONSE_MAX_BYTES);
     } catch {

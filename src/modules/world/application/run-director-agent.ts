@@ -1,3 +1,4 @@
+import { modelOutputTruncation } from '../../ai/application/model-output-truncation.ts';
 import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
 import type { DirectorAttempt, DirectorSnapshot } from '../domain/director-runtime.ts';
 import type {
@@ -96,14 +97,20 @@ export async function runDirectorAgent(
     } catch (error) {
       const rejection = modelRequestRejection(error);
       const notSent = modelRequestNotSent(error);
-      if (rejection || notSent) {
+      const truncated = modelOutputTruncation(error);
+      if (rejection || notSent || truncated) {
         try {
-          const saved = await deps.attempts.saveResponse(ownerId, attempt, {
-            kind: notSent ? 'model_preflight_rejection' : 'model_request_rejection',
-            schemaVersion: 1,
-            ...(rejection ?? {}),
-          });
-          await deps.attempts.mark(ownerId, saved, 'invalid_output');
+          const saved = await deps.attempts.saveResponse(
+            ownerId,
+            attempt,
+            truncated ?? {
+              kind: notSent ? 'model_preflight_rejection' : 'model_request_rejection',
+              schemaVersion: 1,
+              ...(rejection ?? {}),
+            },
+          );
+          if (saved.status === 'response_received')
+            await deps.attempts.mark(ownerId, saved, 'invalid_output');
         } catch {
           await deps.attempts.mark(ownerId, attempt, 'unknown_after_send').catch(() => {});
         }

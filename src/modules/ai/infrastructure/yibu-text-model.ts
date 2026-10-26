@@ -1,3 +1,7 @@
+import {
+  retainTruncatedModelResponse,
+  copyModelOutputTruncation,
+} from '../application/model-output-truncation.ts';
 import { abortable, callLifetime, cancelBody, manageReader } from './call-lifetime.ts';
 import {
   validateModelRequest,
@@ -160,8 +164,12 @@ export class YibuTextModel implements TextModel {
         } | null
       )?.choices?.[0];
       const content = choice?.message?.content;
-      /* A length-capped reply is a known, safe-to-retry failure — never reported as a bad answer. */
-      if (choice?.finish_reason === 'length') throw new GatewayError('TRUNCATED');
+      // A fully received truncated response is known evidence, not an executable proposal.
+      if (choice?.finish_reason === 'length') {
+        const error = new GatewayError('TRUNCATED');
+        retainTruncatedModelResponse(error, content, (data as { usage?: unknown } | null)?.usage);
+        throw error;
+      }
       if (typeof content !== 'string' || !content.trim() || content.length > 100000)
         throw new GatewayError('INVALID_RESPONSE');
       return content;
@@ -173,12 +181,15 @@ export class YibuTextModel implements TextModel {
       };
       if (signal?.aborted) throw new GatewayError('CANCELLED', details);
       if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
-      if (error instanceof GatewayError)
-        throw new GatewayError(error.code, {
+      if (error instanceof GatewayError) {
+        const wrapped = new GatewayError(error.code, {
           ...details,
           stage: error.stage ?? stage,
           httpStatus: error.httpStatus ?? response?.status,
         });
+        copyModelOutputTruncation(error, wrapped);
+        throw wrapped;
+      }
       throw new GatewayError('UPSTREAM_FAILED', details);
     } finally {
       lifetime.dispose();
