@@ -1,17 +1,12 @@
+import { getPublicationMediaStore } from './publication-media-store.ts';
+export { getPublicationMediaStore } from './publication-media-store.ts';
 import 'server-only';
 import { z } from 'zod';
-import path from 'node:path';
-import {
-  LocalFirstPublicationMediaStore,
-  publicationLocalStorageEnabled,
-} from '../modules/media/infrastructure/local-first-publication-media-store.ts';
 import { isPreviewOnly } from '../contracts/preview.ts';
 import { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
 import {
   PublicationMediaRepository,
-  SupabasePublicationMediaStore,
   publicationMediaMagic,
-  type PublicationMediaStore,
   type PublicationMediaMime,
 } from '../modules/settings/infrastructure/publication-media-repository.ts';
 import { authenticated, endpoint } from './http.ts';
@@ -31,26 +26,6 @@ const beginBody = z.strictObject({
 
 let publisherDb: PostgresDatabase | undefined;
 let publisherDatabaseUrl: string | undefined;
-
-export function getPublicationMediaStore(): PublicationMediaStore {
-  const url = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const remote =
-    url && serviceRoleKey ? new SupabasePublicationMediaStore({ url, serviceRoleKey }) : undefined;
-  if (
-    publicationLocalStorageEnabled({
-      vercel: process.env.VERCEL,
-      origin: process.env.APP_ORIGIN,
-      directory: process.env.PRIVATE_ASSET_DIR,
-    })
-  )
-    return new LocalFirstPublicationMediaStore(
-      path.join(process.env.PRIVATE_ASSET_DIR!, 'publication-media'),
-      remote,
-    );
-  if (!remote) throw new PublisherHttpError('UNAVAILABLE');
-  return remote;
-}
 
 export function getPublicationMediaRepository() {
   if (isPreviewOnly()) throw new PublisherHttpError('UNAVAILABLE');

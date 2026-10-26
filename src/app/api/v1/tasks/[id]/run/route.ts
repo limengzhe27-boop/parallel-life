@@ -1,3 +1,5 @@
+import { after } from 'next/server';
+import { runCommittedSceneMedia } from '../../../../../../server/scene-media-tasks.ts';
 import { authenticated, endpoint, HttpError, json } from '../../../../../../server/http.ts';
 import { requestLimit } from '../../../../../../server/limits.ts';
 import { runOwnedTask } from '../../../../../../server/run-task.ts';
@@ -10,9 +12,26 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       id = Id.safeParse((await context.params).id);
     if (!id.success) throw new HttpError('NOT_FOUND', 404);
     const task = await s.tasks.get(s.ownerId, id.data);
-    if (!['queued', 'running'].includes(task.status)) return json(task);
+    const resumeMedia = (result: typeof task) => {
+      if (result.status === 'succeeded' && result.scope.kind === 'world')
+        after(async () => {
+          try {
+            await runCommittedSceneMedia(s.db, s.ownerId, id.data);
+          } catch {
+            console.warn(
+              JSON.stringify({ scope: 'scene-media-task', code: 'EXECUTION_UNAVAILABLE' }),
+            );
+          }
+        });
+    };
+    if (!['queued', 'running'].includes(task.status)) {
+      resumeMedia(task);
+      return json(task);
+    }
     await requestLimit(s.db, s.ownerId);
     await runOwnedTask(s.ownerId, id.data);
-    return json(await s.tasks.get(s.ownerId, id.data));
+    const finished = await s.tasks.get(s.ownerId, id.data);
+    resumeMedia(finished);
+    return json(finished);
   });
 }

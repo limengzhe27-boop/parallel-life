@@ -78,6 +78,8 @@ export type MediaPipelineOptions = {
     assetId: string;
     bytes: Buffer;
     mimeType: string;
+    referenceAssetIds?: string[];
+    compositionPrompt?: string;
   } | null>;
   providerAdapter: MediaProviderAdapter;
   assetStore: AssetStore;
@@ -188,6 +190,7 @@ export class MediaPipelineService {
     let refBytes: Buffer | undefined;
     let refMime: string | undefined;
     let selectedReferenceAssetId = refResolution.referenceAssetId;
+    let sceneComposition: { referenceAssetIds?: string[]; compositionPrompt?: string } | undefined;
     if (
       refResolution.mode === 'reference_guided' &&
       refResolution.referenceAssetId &&
@@ -241,12 +244,20 @@ export class MediaPipelineService {
             responseOutcome: 'not_sent' as const,
           });
         selectedReferenceAssetId = reference.assetId;
+        sceneComposition = reference;
         refBytes = reference.bytes;
         refMime = reference.mimeType;
       }
     }
     const builtPrompt = this.promptBuilder.buildImagePrompt({
-      intent,
+      intent: sceneComposition?.compositionPrompt
+        ? {
+            ...intent,
+            aspectRatio: '9:16',
+            composition: 'wide_shot',
+            sceneDescription: intent.sceneDescription + ' ' + sceneComposition.compositionPrompt,
+          }
+        : intent,
       characterSnippet: refResolution.characterPromptSnippet,
       hasReferenceImage: Boolean(refBytes),
       referenceAssetId: selectedReferenceAssetId,
@@ -393,9 +404,9 @@ export class MediaPipelineService {
     }
 
     const referenceAssetIds: string[] = [];
-    if (selectedReferenceAssetId) {
-      referenceAssetIds.push(selectedReferenceAssetId);
-    }
+    if (sceneComposition?.referenceAssetIds)
+      referenceAssetIds.push(...sceneComposition.referenceAssetIds);
+    else if (selectedReferenceAssetId) referenceAssetIds.push(selectedReferenceAssetId);
 
     return {
       assetId,

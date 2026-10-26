@@ -33,9 +33,12 @@ import { ReplicateMediaProviderAdapter } from '../modules/media/infrastructure/r
 import { MediaPipelineService } from '../modules/media/infrastructure/media-pipeline-service.ts';
 import {
   publicationActorReference,
-  sourceSceneReference,
+  sourceSceneComposition,
+  publicationPlaceReference,
 } from '../modules/media/infrastructure/world-media-reference.ts';
 import { createHash } from 'node:crypto';
+import { composeSceneReference } from '../modules/media/infrastructure/scene-composition-reference.ts';
+import { getPublicationMediaStore } from './publication-media-store.ts';
 
 export function createWorker() {
   const url = process.env.WORKER_DATABASE_URL;
@@ -63,6 +66,21 @@ export function createWorker() {
         : new ReplicateMediaProviderAdapter({
             apiToken: process.env.REPLICATE_API_TOKEN,
           });
+      const readPublicationBytes = async (key: string) => {
+        const mediaStore = getPublicationMediaStore();
+        const local = await mediaStore.readStored?.(key);
+        if (local) return local;
+        const r = await fetch(await mediaStore.signRead(key), {
+          signal: AbortSignal.timeout(20000),
+          redirect: 'error',
+        });
+        if (!r.ok)
+          throw Object.assign(new Error('REFERENCE_IMAGE_UNAVAILABLE'), {
+            code: 'REFERENCE_IMAGE_UNAVAILABLE',
+            responseOutcome: 'not_sent',
+          });
+        return Buffer.from(await r.arrayBuffer());
+      };
       const referenceAssetReader = async (
         assetId: string,
         ownerId?: string,
@@ -102,7 +120,10 @@ export function createWorker() {
               ).rows[0],
           );
           return row
-            ? { bytes: await store.get(row.storage_key), mimeType: String(row.mime_type) }
+            ? {
+                bytes: await readPublicationBytes(row.storage_key),
+                mimeType: String(row.mime_type),
+              }
             : null;
         }
         let storageKey: string | undefined;
@@ -130,16 +151,72 @@ export function createWorker() {
         visualAnchorRepo,
         referenceAssetReader,
         sceneReferenceReader: async (worldId, ownerId, sourceEventId) => {
-          const reference = await db.transaction(ownerId, (sql) =>
-            sourceSceneReference(sql, worldId, ownerId, sourceEventId),
+          const context = await db.transaction(ownerId, (sql) =>
+            sourceSceneComposition(sql, worldId, ownerId, sourceEventId),
           );
-          return reference
+          if (!context) return null;
+          const material = await db.transaction(ownerId, async (sql) => ({
+            place: context.placeId
+              ? await publicationPlaceReference(sql, worldId, context.placeId)
+              : null,
+            stage: (
+              await sql.query(
+                'SELECT actor_id,asset_id FROM parallel_life.publication_actor_stage_images_for_world($1)',
+                [worldId],
+              )
+            ).rows,
+          }));
+          const place = material.place
             ? {
-                assetId: reference.assetId,
-                bytes: await store.get(reference.storageKey),
-                mimeType: reference.mimeType,
+                assetId: material.place.assetId,
+                bytes: await readPublicationBytes(material.place.storageKey),
+                mimeType: material.place.mimeType,
               }
             : null;
+          const people = [];
+          for (const actorId of context.actorIds) {
+            const anchor = await visualAnchorRepo.findActorVisualAnchor(worldId, actorId, ownerId);
+            const stage = material.stage.find((p: { actor_id: string }) => p.actor_id === actorId);
+            let picture;
+            if (stage) {
+              const row = await db.transaction(
+                ownerId,
+                async (sql) =>
+                  (
+                    await sql.query(
+                      'SELECT * FROM parallel_life.publication_actor_stage_image_for_world($1,$2)',
+                      [worldId, stage.asset_id],
+                    )
+                  ).rows[0],
+              );
+              if (row)
+                picture = {
+                  assetId: `publication-image:${stage.asset_id}`,
+                  bytes: await readPublicationBytes(row.storage_key),
+                  mimeType: String(row.mime_type),
+                };
+            }
+            if (!picture && anchor?.authorizedForWorld && anchor.referenceAssetId) {
+              const image = await referenceAssetReader(anchor.referenceAssetId, ownerId, {
+                worldId,
+                actorId,
+                revision: anchor.referenceAssetRevision,
+              });
+              if (image) picture = { assetId: anchor.referenceAssetId, ...image };
+            }
+            if (!picture)
+              throw Object.assign(new Error('Present character reference unavailable'), {
+                code: 'REFERENCE_IMAGE_UNAVAILABLE',
+                responseOutcome: 'not_sent',
+              });
+            people.push({ ...picture, actorId, name: anchor?.name ?? '在场人物' });
+          }
+          return composeSceneReference({
+            place,
+            people,
+            placeName: context.placeName,
+            storyAt: context.storyAt,
+          });
         },
       });
     }

@@ -19,6 +19,10 @@ import { SceneTaskInputSchema, loadScene, sceneWorld } from './scene-repository.
 import { withLeasedAgentDatabase } from './leased-agent-database.ts';
 import { compactWorldState } from './postgres-world-repository.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
+import {
+  publicationActorReference,
+  ownGeneratedPortraitReference,
+} from '../../media/infrastructure/world-media-reference.ts';
 
 const Id = z.string().uuid();
 const Place = z.string().regex(/^[a-z0-9_]{1,64}$/);
@@ -46,6 +50,14 @@ const Environment = z.strictObject({
   placeId: Place,
   presenceProofs: z.array(Position).min(1).max(101),
   entries: z.array(z.unknown()).length(1),
+  renderRequest: z
+    .strictObject({
+      id: Id,
+      prompt: z.string().min(1).max(6000),
+      title: z.string().min(1).max(200),
+      purpose: z.literal('scene'),
+    })
+    .optional(),
 });
 const Opened = z.strictObject({
   schemaVersion: z.literal(1),
@@ -69,6 +81,47 @@ function stableId(...parts: string[]) {
 }
 export function sceneEnvironmentCommandId(taskId: string, worldId: string, sceneId: string) {
   return stableId('scene-environment-command-v1', taskId, worldId, sceneId);
+}
+
+export function sceneEnvironmentRenderRequest(
+  eventId: string,
+  sceneId: string,
+  placeName: string,
+  people: readonly { actorId: string; name: string }[],
+) {
+  return {
+    id: stableId('scene-environment-render-v1', eventId, sceneId, ...people.map((p) => p.actorId)),
+    purpose: 'scene' as const,
+    title: '现场画面 · ' + placeName,
+    prompt: `Current established place: ${placeName}. Exactly the actual present characters: ${people.map((p) => p.name).join(', ')}. Depict the current ordinary observable setting from the player eye level, with natural shared lighting and perspective. Preserve recognizable identities and location. Do not depict actions, touching, injuries, achievements or outcomes not confirmed in the scene. This is a reusable immersive scene illustration, not a photograph someone sent or new evidence that an action happened.`,
+  };
+}
+async function canRenderScenePeople(
+  sql: SqlClient,
+  worldId: string,
+  ownerId: string,
+  actorIds: readonly string[],
+) {
+  if (!actorIds.length || actorIds.length > 6) return false;
+  const stage = (
+    await sql.query(
+      'SELECT actor_id FROM parallel_life.publication_actor_stage_images_for_world($1)',
+      [worldId],
+    )
+  ).rows;
+  for (const actorId of actorIds) {
+    if (stage.some((p: { actor_id: string }) => p.actor_id === actorId)) continue;
+    if (await publicationActorReference(sql, worldId, ownerId, actorId)) continue;
+    if (await ownGeneratedPortraitReference(sql, worldId, ownerId, actorId)) continue;
+    const bound = (
+      await sql.query(
+        `SELECT 1 FROM parallel_life.world_person_bindings b JOIN parallel_life.assets a ON a.id=b.asset_id AND a.owner_id=b.owner_id AND a.revision=b.asset_revision AND a.status='ready' WHERE b.world_id=$1 AND b.owner_id=$2 AND b.actor_id=$3 LIMIT 1`,
+        [worldId, ownerId, actorId],
+      )
+    ).rowCount;
+    if (!bound) return false;
+  }
+  return true;
 }
 
 /** Pure projection rebuild. The caller supplies committed history, never re-executes tasks. */
@@ -147,6 +200,28 @@ export function replaySceneEnvironment(
     }
   }
   if (!hasPlayer) reject('SCENE_ENVIRONMENT_PLAYER_POSITION');
+  if (environment.renderRequest) {
+    const people = scene.presence.flatMap((p) =>
+      p.participant.kind === 'actor'
+        ? [
+            {
+              actorId: p.participant.actorId,
+              name: world.actors.find(
+                (a) => p.participant.kind === 'actor' && a.id === p.participant.actorId,
+              )!.name,
+            },
+          ]
+        : [],
+    );
+    if (
+      !people.length ||
+      !isDeepStrictEqual(
+        environment.renderRequest,
+        sceneEnvironmentRenderRequest(event.id, before.id, place.name, people),
+      )
+    )
+      reject('SCENE_ENVIRONMENT_RENDER_MISMATCH');
+  }
   const entry: SceneEntry = {
     id: stableId('scene-environment-time-place-v1', event.id),
     ownerId: world.ownerId,
@@ -356,6 +431,26 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
         storyAt: world.time,
         location: place.name,
       };
+      const renderPeople = proofs.flatMap((p) =>
+        p.subject.kind === 'actor'
+          ? [
+              {
+                actorId: p.subject.actorId,
+                name: world.actors.find(
+                  (a) => p.subject.kind === 'actor' && a.id === p.subject.actorId,
+                )!.name,
+              },
+            ]
+          : [],
+      );
+      const renderRequest = (await canRenderScenePeople(
+        sql,
+        world.id,
+        lease.ownerId,
+        renderPeople.map((p) => p.actorId),
+      ))
+        ? sceneEnvironmentRenderRequest(eventId, input.sceneId, place.name, renderPeople)
+        : undefined;
       const event: NativeSceneEnvironmentEvent = {
         schemaVersion: 1,
         id: eventId,
@@ -376,6 +471,7 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
             placeId: place.id,
             presenceProofs: proofs,
             entries: [entry],
+            ...(renderRequest ? { renderRequest } : {}),
           },
         },
       };
@@ -412,6 +508,31 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
           "INSERT INTO parallel_life.scene_items(id,world_id,owner_id,scene_id,source_event_id,kind,document) VALUES($1,$2,$3,$4,$5,'entry',$6)",
           [item.id, world.id, lease.ownerId, input.sceneId, event.id, item],
         );
+      if (renderRequest) {
+        const document = {
+          ...renderRequest,
+          status: 'pending',
+          sourceEventId: event.id,
+          mediaType: 'image',
+          deliveryIntent: { channel: 'album' },
+        };
+        await sql.query(
+          'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+          [renderRequest.id, world.id, lease.ownerId, document],
+        );
+        const job = {
+          id: `${event.id}_${renderRequest.id}`,
+          eventId: event.id,
+          worldId: world.id,
+          type: 'image.generate',
+          requestId: renderRequest.id,
+          prompt: renderRequest.prompt,
+        };
+        await sql.query(
+          'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
+          [job.id, world.id, lease.ownerId, event.id, job],
+        );
+      }
       for (const job of jobs)
         await sql.query(
           'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',

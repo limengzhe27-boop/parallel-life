@@ -1,3 +1,4 @@
+import { readSceneMediaEntries } from './scene-media-projection.ts';
 import { readSceneWaitContext } from './scene-wait-context.ts';
 import { canWaitInAppointmentScene } from '../domain/appointment-wait.ts';
 import { acceptNativeAgentInput } from './accept-native-agent-input.ts';
@@ -423,6 +424,12 @@ export class SceneRepository {
             .map((r) => CurrentMatterSchema.parse(r.document)),
         },
         task = w.task;
+      if (
+        s.entries.some((entry) => entry.kind === 'time_place') &&
+        s.scene &&
+        scenePresent(s.scene, w.version).some((p) => p.kind === 'actor')
+      )
+        s.entries.push(...(await readSceneMediaEntries(sql, ownerId, worldId, s.scene, w.version)));
       const placeId = s.scene?.placeId;
       const images =
         placeId && w.space?.places.some((place: { id: string }) => place.id === placeId)

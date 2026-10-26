@@ -127,3 +127,79 @@ export async function sourceSceneReference(
   ).rows[0];
   return row?.place_id ? publicationPlaceReference(sql, worldId, String(row.place_id)) : null;
 }
+
+/** An exact saved scene source and its presence intervals, not an appointment guest list. */
+export async function sourceSceneComposition(
+  sql: SqlExecutor,
+  worldId: string,
+  ownerId: string,
+  sourceEventId: string,
+) {
+  const row = (
+    await sql.query(
+      `SELECT e.version,e.payload->>'storyAt' AS story_at,s.id AS scene_id,s.source_event_id,s.document,(SELECT p->>'name' FROM parallel_life.worlds w CROSS JOIN LATERAL jsonb_array_elements(w.state->'space'->'places') p WHERE w.id=e.world_id AND w.owner_id=e.owner_id AND p->>'id'=s.document->>'placeId') AS place_name FROM parallel_life.world_events e
+     LEFT JOIN parallel_life.agent_input_receipts r ON r.id=e.payload->'data'->'agentRuntime'->>'inputReceiptId' AND r.world_id=e.world_id AND r.owner_id=e.owner_id
+     JOIN parallel_life.scene_sessions s ON s.world_id=e.world_id AND s.owner_id=e.owner_id AND ((r.document->>'channel'='scene' AND s.id=r.document->>'threadId') OR (e.payload->>'type' IN ('scene.entered','scene.opened') AND s.id=e.payload->'data'->>'sceneId'))
+     JOIN parallel_life.commands c ON c.id=e.command_id AND c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.status='succeeded' AND c.result_event_id=e.id
+     WHERE e.id=$1 AND e.world_id=$2 AND e.owner_id=$3`,
+      [sourceEventId, worldId, ownerId],
+    )
+  ).rows[0];
+  if (!row) return null;
+  const scene = row.document;
+  if (
+    scene.id !== row.scene_id ||
+    scene.sourceEventId !== row.source_event_id ||
+    scene.sourceVersion > row.version ||
+    scene.worldId !== worldId ||
+    scene.ownerId !== ownerId
+  )
+    return null;
+  if (scene.status !== 'active')
+    throw Object.assign(new Error('SCENE_REFERENCE_STALE'), {
+      code: 'INVALID_STATE',
+      responseOutcome: 'not_sent',
+    });
+  const present = (scene.presence ?? []).filter(
+    (p: any) =>
+      p.joinedVersion <= row.version &&
+      (p.leftVersion === undefined || row.version < p.leftVersion),
+  );
+  if (!present.some((p: any) => p.participant?.kind === 'player')) return null;
+  const current = (scene.presence ?? [])
+    .filter((p: any) => p.leftVersion === undefined)
+    .map(
+      (p: any) =>
+        `${p.participant?.kind === 'player' ? 'player' : p.participant?.actorId}:${p.joinedVersion}`,
+    )
+    .sort();
+  const atSource = present
+    .map(
+      (p: any) =>
+        `${p.participant?.kind === 'player' ? 'player' : p.participant?.actorId}:${p.joinedVersion}`,
+    )
+    .sort();
+  if (
+    current.length !== atSource.length ||
+    current.some((id: string, i: number) => id !== atSource[i])
+  )
+    throw Object.assign(new Error('SCENE_REFERENCE_STALE'), {
+      code: 'INVALID_STATE',
+      responseOutcome: 'not_sent',
+    });
+  const actorIds = [
+    ...new Set<string>(
+      present
+        .filter((p: any) => p.participant?.kind === 'actor')
+        .map((p: any) => p.participant.actorId),
+    ),
+  ];
+  return {
+    sceneId: scene.id,
+    placeId: scene.placeId as string | undefined,
+    placeName: typeof row.place_name === 'string' ? row.place_name : undefined,
+    storyAt: typeof row.story_at === 'string' ? row.story_at : undefined,
+    version: Number(row.version),
+    actorIds,
+  };
+}
