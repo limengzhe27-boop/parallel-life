@@ -336,7 +336,15 @@ export class PublicationMediaRepository {
         'SELECT * FROM parallel_life.publication_scene_image_for_world($1,$2)',
         [worldId, assetId],
       );
-      return scene.rows[0] as
+      if (scene.rows[0])
+        return scene.rows[0] as { storage_key: string; mime_type: string; byte_length: string };
+      // A stage image is independently authorized by its exact owned, pinned
+      // character reference. It is never a generic fallback for all work media.
+      const actor = await sql.query(
+        'SELECT * FROM parallel_life.publication_actor_stage_image_for_world($1,$2)',
+        [worldId, assetId],
+      );
+      return actor.rows[0] as
         { storage_key: string; mime_type: string; byte_length: string } | undefined;
     });
     if (!row) throw new TaskError('NOT_FOUND');
