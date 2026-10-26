@@ -332,8 +332,18 @@ export async function persistAndCommitStreamSegment(
 
     const receiptRow = (
       await sql.query(
-        'SELECT document, created_at FROM parallel_life.agent_input_receipts WHERE id=$1 AND world_id=$2 AND owner_id=$3',
-        [attempt.inputReceiptId, attempt.worldId, ownerId],
+        `SELECT receipt.document, EXISTS (
+           SELECT 1 FROM parallel_life.agent_input_receipts newer
+           WHERE newer.world_id=receipt.world_id AND newer.owner_id=receipt.owner_id
+             AND newer.id<>receipt.id
+             AND newer.document->>'origin'='player'
+             AND newer.document->>'channel'='private'
+             AND newer.document->>'recipientActorId'=$4
+             AND newer.created_at >= receipt.created_at
+         ) AS newer_player_input
+         FROM parallel_life.agent_input_receipts receipt
+         WHERE receipt.id=$1 AND receipt.world_id=$2 AND receipt.owner_id=$3`,
+        [attempt.inputReceiptId, attempt.worldId, ownerId, attempt.actorId],
       )
     ).rows[0];
     const receivedInput = receiptRow?.document as AgentInputReceipt | undefined;
@@ -342,19 +352,9 @@ export async function persistAndCommitStreamSegment(
       return { outcome: 'superseded' as const, reason: 'INPUT_SCOPE_FORBIDDEN' };
     }
 
-    // Check if a newer player input receipt arrived for this actor thread (user interruption)
-    const newerPlayerInput = (
-      await sql.query(
-        `SELECT 1 FROM parallel_life.agent_input_receipts
-         WHERE world_id=$1 AND owner_id=$2 AND id<>$3
-           AND document->>'origin'='player'
-           AND document->>'channel'='private'
-           AND document->>'recipientActorId'=$4
-           AND created_at >= $5
-         LIMIT 1`,
-        [attempt.worldId, ownerId, attempt.inputReceiptId, attempt.actorId, receiptRow.created_at],
-      )
-    ).rowCount;
+    // Read the receipt and its interruption predicate together under the existing
+    // world/attempt/actor locks; keep authority and activity checks below unchanged.
+    const newerPlayerInput = receiptRow.newer_player_input;
     if (newerPlayerInput) {
       await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
       return { outcome: 'superseded' as const, reason: 'SUPERSEDED_BY_USER_INTERRUPT' };
