@@ -59,6 +59,7 @@ export function SceneStage({
         </div>
       </div>
       <div className={s.people} aria-label="在场人物">
+        {actors.length ? <span className={s.presenceCount}>{actors.length}人在场</span> : null}
         {actors.length ? (
           actors.map((participant) => {
             const person = contacts.find((contact) => contact.id === participant.actorId);
