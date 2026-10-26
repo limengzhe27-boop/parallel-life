@@ -24,8 +24,8 @@ export function isRequiredDirectorEvidence(observation: DirectorContextEvidence)
   if (observation.kind === 'plan' && observation.sourceId.startsWith('appointment:')) return true;
   if (observation.kind !== 'fact') return false;
   if (
-    ['actual-position:', 'calendar-response:', 'decision:', 'player-decision:', 'genesis:'].some(
-      (prefix) => observation.sourceId.startsWith(prefix),
+    ['actual-position:', 'calendar-response:', 'decision:', 'player-decision:'].some((prefix) =>
+      observation.sourceId.startsWith(prefix),
     )
   )
     return true;
@@ -37,6 +37,16 @@ export function isRequiredDirectorEvidence(observation: DirectorContextEvidence)
   }
   if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
   const value = record as Record<string, unknown>;
+  // Genesis-prefixed author setting can contain the entire screenplay. Only
+  // the authenticated, source-bound creation receipt is essential evidence.
+  if (value.kind === 'fictional_genesis')
+    return (
+      observation.sourceId.startsWith('genesis:') &&
+      value.sourceId === observation.sourceId &&
+      typeof value.title === 'string' &&
+      typeof value.time === 'string' &&
+      Number.isFinite(Date.parse(value.time))
+    );
   if (
     value.type === 'received_opening_information' &&
     value.assertion === 'report' &&

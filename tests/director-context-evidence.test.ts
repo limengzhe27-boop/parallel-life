@@ -149,3 +149,67 @@ test('optional tail selection remains bounded and cannot turn omitted material i
       message: 'INVALID_DIRECTOR_EVIDENCE_TAIL',
     });
 });
+
+test('only source-bound fictional genesis receipt is essential; genesis-prefixed author script remains optional', () => {
+  const receipt = evidence(
+    'genesis:world',
+    'fact',
+    JSON.stringify({
+      kind: 'fictional_genesis',
+      title: '原世界',
+      time: '2026-10-27T08:00:00.000Z',
+      sourceId: 'genesis:world',
+    }),
+  );
+  const author = evidence(
+    'genesis:author-fact',
+    'fact',
+    JSON.stringify({
+      tone: '生活',
+      setting: '原稿'.repeat(13000),
+      identity: '主角',
+      situation: '作者待演绎内容',
+      hiddenContext: '人物秘密',
+    }),
+  );
+  const report = evidence(
+    'fact:opening',
+    'fact',
+    JSON.stringify({
+      type: 'received_opening_information',
+      assertion: 'report',
+      executionEvidence: false,
+    }),
+  );
+  const position = evidence(
+    'actual-position:actor',
+    'fact',
+    JSON.stringify({ status: 'unknown', sourceEventId: null, worldVersion: 0 }),
+  );
+  const all = [receipt, author, report, position],
+    before = structuredClone(all);
+  assert.equal(isRequiredDirectorEvidence(receipt), true);
+  assert.equal(isRequiredDirectorEvidence(author), false);
+  assert.deepEqual(retainDirectorEvidence(all, 0), [receipt, report, position]);
+  assert.equal(retainDirectorEvidence(all, 0)[0], receipt);
+  assert.deepEqual(all, before);
+  assert.equal(receipt.contentHash, 'original-hash');
+  assert.equal(author.text, before[1]!.text);
+  assert.deepEqual(retainDirectorEvidence([receipt, author], 1), [receipt, author]);
+  for (const invalid of [
+    evidence('genesis:wrong', 'fact', receipt.text),
+    evidence('genesis:world', 'belief', receipt.text),
+    evidence('genesis:world', 'fact', '作者原稿并不因这个前缀成为执行证据'),
+    evidence(
+      'genesis:world',
+      'fact',
+      JSON.stringify({
+        kind: 'fictional_genesis',
+        sourceId: 'genesis:world',
+        time: 'invalid',
+        title: '世界',
+      }),
+    ),
+  ])
+    assert.equal(isRequiredDirectorEvidence(invalid), false);
+});
