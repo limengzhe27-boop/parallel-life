@@ -183,18 +183,19 @@ export async function projectCommittedWorldAwareness(
           throw Error('INVALID_AWARENESS_REPORT_AUDIENCE');
         reportObserverActorIds = audience.actorIds;
       }
-      const questionInput = Array.isArray((data.agentRuntime as any)?.questionChanges)
+      const questionEvidence = Array.isArray((data.agentRuntime as any)?.questionChanges)
         ? (
             await sql.query(
-              `SELECT i.document FROM parallel_life.agent_input_receipts i
+              `SELECT i.document,a.response->'snapshot'->>'storyAt' assessment_story_at FROM parallel_life.agent_input_receipts i
             JOIN parallel_life.agent_attempts a ON a.world_id=i.world_id AND a.owner_id=i.owner_id AND a.input_receipt_id=i.id
             WHERE a.world_id=$1 AND a.owner_id=$2 AND a.event_id=$3 AND a.status='committed'`,
               [world.id, owner, event.id],
             )
-          ).rows[0]?.document
+          ).rows[0]
         : undefined;
       const delta = committedAwarenessDelta(world, event, {
-        questionInput,
+        questionInput: questionEvidence?.document,
+        questionAssessmentStoryAt: questionEvidence?.assessment_story_at,
         previousAgentState,
         scene,
         journey,

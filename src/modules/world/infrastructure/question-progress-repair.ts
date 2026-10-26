@@ -12,7 +12,7 @@ export async function readQuestionProgressReasons(
 ): Promise<AuthoredReconsiderationReason[]> {
   const rows = (
     await sql.query(
-      `SELECT e.id,e.version,e.payload, a.response->'snapshot'->'state' previous_state, i.document input
+      `SELECT e.id,e.version,e.payload, a.response->'snapshot'->'state' previous_state, a.response->'snapshot'->>'storyAt' assessment_story_at, i.document input
     FROM parallel_life.world_events e
     JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     JOIN parallel_life.agent_attempts a ON a.world_id=e.world_id AND a.owner_id=e.owner_id AND a.event_id=e.id AND a.status='committed'
@@ -36,7 +36,12 @@ export async function readQuestionProgressReasons(
       event.version !== row.version
     )
       return [];
-    const reason = questionProgressReason(event, row.previous_state, row.input);
+    const reason = questionProgressReason(
+      event,
+      row.previous_state,
+      row.input,
+      row.assessment_story_at,
+    );
     return reason ? [reason] : [];
   });
 }

@@ -77,6 +77,7 @@ function fixture() {
       actorId: 'actor',
       agentRuntime: {
         inputReceiptId: 'input',
+        inputStoryAt: at,
         results: [],
         stateAfter: next,
         proposal: {
@@ -197,4 +198,15 @@ test('one event with question progress and episode participation keeps one reaso
       ['plan_changed', 'plan'],
     ],
   );
+});
+
+test('assessment retains original input anchor when final commit world time advances; forged time is rejected', () => {
+  const { event, previous, input } = fixture();
+  const at = input.storyAt;
+  event.storyAt = '2026-10-27T08:00:30.000Z';
+  assert.ok(questionProgressReason(event, previous, input, at));
+  assert.equal(questionProgressReason(event, previous, input, '2026-10-27T08:00:10.000Z'), null);
+  assert.equal(questionProgressReason(event, previous, input, '2026-10-27T08:01:00.000Z'), null);
+  assert.equal(questionProgressReason(event, previous, input, '2026-10-27T07:59:00.000Z'), null);
+  assert.equal(questionProgressReason(event, previous, input, 'bad'), null);
 });

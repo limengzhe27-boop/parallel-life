@@ -6,6 +6,7 @@ export function questionProgressReason(
   event: CommittedAwarenessEvent,
   previous: ActorAgentState | undefined,
   input: AgentInputReceipt | undefined,
+  assessmentStoryAt?: string,
 ): (DirectorPendingReason & { actorId: string }) | null {
   const data = event.data as any,
     runtime = data?.agentRuntime;
@@ -31,6 +32,21 @@ export function questionProgressReason(
     !Array.isArray(runtime.questionChanges)
   )
     return null;
+  // Questions are interpreted against the immutable model snapshot, while the
+  // final append may occur later as world time continues during generation.
+  const assessmentAt = assessmentStoryAt ?? input.storyAt;
+  const assessed = Date.parse(assessmentAt),
+    received = Date.parse(input.storyAt),
+    committed = Date.parse(event.storyAt ?? '');
+  if (
+    !Number.isFinite(assessed) ||
+    !Number.isFinite(received) ||
+    !Number.isFinite(committed) ||
+    assessed < received ||
+    assessed > committed ||
+    runtime.inputStoryAt !== input.storyAt
+  )
+    return null;
   const waitingPlan = previous.plans.some(
     (p) =>
       ['waiting', 'blocked'].includes(p.status) &&
@@ -47,7 +63,7 @@ export function questionProgressReason(
       typeof change.quote !== 'string' ||
       !change.quote.trim() ||
       !input.text.includes(change.quote) ||
-      change.at !== event.storyAt ||
+      change.at !== assessmentAt ||
       !Array.isArray(change.sourceIds) ||
       change.sourceIds.length !== 1 ||
       change.sourceIds[0] !== input.id
