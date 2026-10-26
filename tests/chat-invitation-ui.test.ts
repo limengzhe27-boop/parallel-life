@@ -10,14 +10,6 @@ import type { WorldPhone } from '../src/contracts/world-build.ts';
 
 registerHooks({
   load(url, ctx, next) {
-    // Card eligibility/actions are tested here; the real portal placement is
-    // checked in the browser because server rendering has no phone DOM host.
-    if (url.endsWith('/phone-top-overlay.tsx'))
-      return {
-        format: 'module',
-        shortCircuit: true,
-        source: 'export function PhoneTopOverlay({children}) { return children; }',
-      };
     if (url.endsWith('.module.css'))
       return {
         format: 'module',
@@ -40,6 +32,7 @@ registerHooks({
   },
 });
 const { MessagesApp } = await import('../src/features/phone/apps/messages.tsx');
+const { WechatCharacter } = await import('../src/features/phone/wechat-character.tsx');
 const { PhoneAppsProvider } = await import('../src/features/phone/apps/provider.tsx');
 
 const world = (status: 'proposed' | 'confirmed'): WorldPhone => ({
@@ -65,7 +58,7 @@ const world = (status: 'proposed' | 'confirmed'): WorldPhone => ({
   ],
 });
 
-function render(status: 'proposed' | 'confirmed') {
+function render(status: 'proposed' | 'confirmed', character = false) {
   const w = world(status);
   return renderToStaticMarkup(
     createElement(PhoneAppsProvider, {
@@ -75,17 +68,20 @@ function render(status: 'proposed' | 'confirmed') {
         changeInvitation: async () => ({ status: 'committed' as const }),
         enterScene: async () => ({ status: 'committed' as const }),
       },
-      children: createElement(MessagesApp, {
-        app: 'messages',
-        target: w.actors[0]!.id,
-        open: () => {},
-      }),
+      children: character
+        ? createElement(WechatCharacter, { actorId: w.actors[0]!.id })
+        : createElement(MessagesApp, {
+            app: 'messages',
+            target: w.actors[0]!.id,
+            open: () => {},
+          }),
     }),
   );
 }
 
 test('a proposed invitation offers the existing accept, reschedule and reject actions', () => {
   const html = render('proposed');
+  assert.match(html, /position:absolute;top:8px;inset-inline:12px/);
   assert.match(html, /日程邀约/);
   assert.match(html, /今晚一起吃饭/);
   assert.match(html, /接受/);
@@ -99,4 +95,16 @@ test('an accepted invitation no longer offers the pending invitation actions', (
   assert.doesNotMatch(html, /今晚一起吃饭/);
   assert.doesNotMatch(html, /接受/);
   assert.doesNotMatch(html, /改期/);
+});
+
+test('character trials keep invitation actions inside their positioned chat without a device host', () => {
+  const html = render('proposed', true);
+  assert.match(html, /aria-label="人物微信"/);
+  assert.match(html, /data-phone-thread="true"[^>]*style="[^"]*position:relative/);
+  assert.match(html, /position:absolute;top:8px;inset-inline:12px/);
+  assert.match(html, /日程邀约/);
+  assert.match(html, /接受/);
+  assert.match(html, /改期/);
+  assert.match(html, /拒绝/);
+  assert.doesNotMatch(render('confirmed', true), /日程邀约/);
 });

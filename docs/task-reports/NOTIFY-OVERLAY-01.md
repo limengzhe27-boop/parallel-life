@@ -31,3 +31,11 @@ Ego 专属空间 471，独立 HTTP3268，显式合成 UI 夹具使用真实 Phon
 集成人确认 UI 文件无冲突，Vercel团队仍暂停，明确要求先本地交付，不推送、不部署。完成本地检查后交冻结提交；主表保持待验收，不能宣称公网已生效。
 
 交付状态：独立树验证完成，交root统一合入；未推送、未部署，保持待验收。Ego工具提示可升级，本轮保持现版本，未执行升级。
+
+## 本地实际加载与试聊兼容补丁
+
+主分支已集成时间排列c7b07b4e与通知259d09c9，统一check4019/build08通过。实际3218、3219对新CSS dd825927bee47195.css读取均200，含topOverlays/chatTimeline、不含旧bannerChat。集成人重新打开play.localhost原档确认data-phone-content=1、data-phone-top-overlays=1；之前旧标签读到0的原因未确认，不按“无通知所以不渲染”解释。真实原档暂无通知卡，本轮不伪称实际有卡零位移，保留此前三尺寸夹具证据。
+
+额外核对发现WechatCharacter人物试聊不使用PhoneShell，无顶部host会使原日程卡丢失。补丁仅在无host时以绝对定位容器呈现，复用MessagesApp已有position:relative聊天根作为边界；试聊.content本来overflow:hidden，不挂body。完整手机仍走原portal；初始化的本地fallback留在原hidden/inert父级内，锁屏后host也保持hidden，卸载随React移除。
+
+已移除chat-invitation-ui的透明portal替代，让SSR直接测真实fallback，并新增WechatCharacter真实结构的proposed/confirmed动作与定位断言；相关13/13、typecheck通过，0模型/生产写。root明确追加授权仅此helper/SSR/报告，冻结后由root统一check/build及加载，不自行修改主目录或重启端口。
