@@ -953,7 +953,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v70-initial-spatial-origin');
+  assert.equal(payload.promptVersion, 'npc-agent-v71-opening-context-delivery');
   assert.match(system, /玩家明确说忙、晚点、想休息或暂时不想谈时/);
   assert.match(system, /之后的自动唤醒都不再提同一邀约、计划或问题/);
   assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
