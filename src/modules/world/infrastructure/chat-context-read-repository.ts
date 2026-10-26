@@ -247,9 +247,24 @@ export async function readChatContextWorld(
         Date.parse(message.at) <= Date.parse(state.time),
     );
 
-    const messageRows = (
+    const visibleMatters = (state.matters ?? []).filter(
+      (matter) =>
+        matter.worldId === state.id &&
+        matter.visibility === 'player_visible' &&
+        matter.relatedActorIds?.includes(input.actorId),
+    );
+    const actorChoices = (state.choices ?? []).filter((choice) => choice.actorId === input.actorId);
+    const linkedFactEventIds = matterEventIds(visibleMatters, actorChoices);
+    if (linkedFactEventIds.length > MAX_LINKED_EVENT_IDS)
+      throw new ChatContextFallbackError('linked-evidence-limit');
+    // These bounded projections share the already-locked world version but do
+    // not depend on each other. One statement avoids three network round trips
+    // without concurrent queries on this transaction's PoolClient.
+    const projections = (
       await sql.query(
-        `WITH recent AS (
+        `SELECT
+          COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY CASE WHEN p.bucket='recent' THEN 0 ELSE 1 END,p.ordinal DESC)
+            FROM (WITH recent AS (
            SELECT 'recent' AS bucket,p.id,p.document,e.version AS event_version,p.ordinal
            FROM parallel_life.world_messages p
            JOIN parallel_life.world_events e
@@ -267,10 +282,95 @@ export async function readChatContextWorld(
            WHERE p.world_id=$1 AND p.owner_id=$2 AND p.actor_id=$3 AND e.version<=$4
              AND p.id=ANY($6::text[])
          )
-         SELECT * FROM recent UNION ALL SELECT * FROM exact`,
-        [input.worldId, ownerId, input.actorId, worldVersion, runtimeWindowLimit + 1, messageRefs],
+         SELECT * FROM recent UNION ALL SELECT * FROM exact) p),'[]'::jsonb) AS messages,
+          COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY CASE WHEN p.bucket='recent' THEN 0 ELSE 1 END,p.ordinal DESC)
+            FROM (WITH recent AS (
+           SELECT 'recent' AS bucket,p.id,p.document,p.ordinal
+           FROM parallel_life.world_facts p
+           JOIN parallel_life.world_events e
+             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
+            AND e.id=p.document->>'sourceEventId'
+           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$4
+             AND (
+               p.document->'visibility'->>'kind'='world'
+               OR (p.document->'visibility'->>'kind'='actors'
+                 AND p.document->'visibility'->'actorIds' ? $3)
+             )
+             AND (NOT(p.document ? 'believedByActorId') OR p.document->>'believedByActorId'=$3)
+             AND NOT(p.document ? 'narrativeContext')
+           ORDER BY p.ordinal DESC
+           LIMIT $7
+         ), exact AS (
+           SELECT 'exact' AS bucket,p.id,p.document,p.ordinal
+           FROM parallel_life.world_facts p
+           JOIN parallel_life.world_events e
+             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
+            AND e.id=p.document->>'sourceEventId'
+           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$4
+             AND p.id=ANY($8::text[])
+             AND (
+               p.document->'visibility'->>'kind'='world'
+               OR (p.document->'visibility'->>'kind'='actors'
+                 AND p.document->'visibility'->'actorIds' ? $3)
+             )
+             AND (NOT(p.document ? 'believedByActorId') OR p.document->>'believedByActorId'=$3)
+             AND NOT(p.document ? 'narrativeContext')
+         ), linked AS (
+           SELECT 'linked' AS bucket,p.id,p.document,p.ordinal
+           FROM parallel_life.world_facts p
+           JOIN parallel_life.world_events e
+             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
+            AND e.id=p.document->>'sourceEventId'
+           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$4
+             AND e.id=ANY($9::text[])
+             AND (
+               p.document->'visibility'->>'kind'='world'
+               OR (p.document->'visibility'->>'kind'='actors'
+                 AND p.document->'visibility'->'actorIds' ? $3)
+             )
+             AND (NOT(p.document ? 'believedByActorId') OR p.document->>'believedByActorId'=$3)
+             AND NOT(p.document ? 'narrativeContext')
+           ORDER BY p.ordinal ASC,p.id ASC
+           LIMIT $10
+         )
+         SELECT * FROM recent UNION ALL SELECT * FROM exact UNION ALL SELECT * FROM linked) p),'[]'::jsonb) AS facts,
+          COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.event_version ASC,p.id ASC)
+            FROM (WITH base AS (
+           SELECT p.id,p.document,e.version AS event_version,
+             COALESCE(p.document->>'status',p.status,'proposed') AS status
+           FROM parallel_life.world_appointments p
+           JOIN parallel_life.world_events e
+             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
+            AND e.id=p.document->>'sourceEventId'
+           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$4
+             AND p.document->'participantIds' ? $3
+         ), typed AS (
+           SELECT *, (status IN ('proposed','confirmed')) AS active FROM base
+         ), ranked AS (
+           SELECT *, COUNT(*) OVER (PARTITION BY active) AS total,
+             ROW_NUMBER() OVER (PARTITION BY active ORDER BY event_version DESC,id DESC) AS rn
+           FROM typed
+         )
+         SELECT id,document,event_version,active,total,rn FROM ranked
+         WHERE active OR rn <= $11 OR id=ANY($12::text[])
+         ORDER BY event_version ASC,id ASC) p),'[]'::jsonb) AS appointments`,
+        [
+          input.worldId,
+          ownerId,
+          input.actorId,
+          worldVersion,
+          runtimeWindowLimit + 1,
+          messageRefs,
+          recentFactLimit + 1,
+          factRefs,
+          linkedFactEventIds,
+          LINKED_FACT_LIMIT + 1,
+          terminalAppointmentLimit + 1,
+          appointmentRefs,
+        ],
       )
-    ).rows as {
+    ).rows[0];
+    const messageRows = projections.messages as {
       bucket: 'recent' | 'exact';
       id: string;
       document: Message;
@@ -305,80 +405,7 @@ export async function readChatContextWorld(
     const legacyFacts = (state.facts ?? []).filter(
       (fact) => isFactVisible(fact, input.actorId) && factBelievedByActor(fact, input.actorId),
     );
-    const visibleMatters = (state.matters ?? []).filter(
-      (matter) =>
-        matter.worldId === state.id &&
-        matter.visibility === 'player_visible' &&
-        matter.relatedActorIds?.includes(input.actorId),
-    );
-    const actorChoices = (state.choices ?? []).filter((choice) => choice.actorId === input.actorId);
-    const linkedFactEventIds = matterEventIds(visibleMatters, actorChoices);
-    if (linkedFactEventIds.length > MAX_LINKED_EVENT_IDS)
-      throw new ChatContextFallbackError('linked-evidence-limit');
-    const factRows = (
-      await sql.query(
-        `WITH recent AS (
-           SELECT 'recent' AS bucket,p.id,p.document,p.ordinal
-           FROM parallel_life.world_facts p
-           JOIN parallel_life.world_events e
-             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
-            AND e.id=p.document->>'sourceEventId'
-           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$3
-             AND (
-               p.document->'visibility'->>'kind'='world'
-               OR (p.document->'visibility'->>'kind'='actors'
-                 AND p.document->'visibility'->'actorIds' ? $7)
-             )
-             AND (NOT(p.document ? 'believedByActorId') OR p.document->>'believedByActorId'=$7)
-             AND NOT(p.document ? 'narrativeContext')
-           ORDER BY p.ordinal DESC
-           LIMIT $4
-         ), exact AS (
-           SELECT 'exact' AS bucket,p.id,p.document,p.ordinal
-           FROM parallel_life.world_facts p
-           JOIN parallel_life.world_events e
-             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
-            AND e.id=p.document->>'sourceEventId'
-           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$3
-             AND p.id=ANY($5::text[])
-             AND (
-               p.document->'visibility'->>'kind'='world'
-               OR (p.document->'visibility'->>'kind'='actors'
-                 AND p.document->'visibility'->'actorIds' ? $7)
-             )
-             AND (NOT(p.document ? 'believedByActorId') OR p.document->>'believedByActorId'=$7)
-             AND NOT(p.document ? 'narrativeContext')
-         ), linked AS (
-           SELECT 'linked' AS bucket,p.id,p.document,p.ordinal
-           FROM parallel_life.world_facts p
-           JOIN parallel_life.world_events e
-             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
-            AND e.id=p.document->>'sourceEventId'
-           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$3
-             AND e.id=ANY($6::text[])
-             AND (
-               p.document->'visibility'->>'kind'='world'
-               OR (p.document->'visibility'->>'kind'='actors'
-                 AND p.document->'visibility'->'actorIds' ? $7)
-             )
-             AND (NOT(p.document ? 'believedByActorId') OR p.document->>'believedByActorId'=$7)
-             AND NOT(p.document ? 'narrativeContext')
-           ORDER BY p.ordinal ASC,p.id ASC
-           LIMIT $8
-         )
-         SELECT * FROM recent UNION ALL SELECT * FROM exact UNION ALL SELECT * FROM linked`,
-        [
-          input.worldId,
-          ownerId,
-          worldVersion,
-          recentFactLimit + 1,
-          factRefs,
-          linkedFactEventIds,
-          input.actorId,
-          LINKED_FACT_LIMIT + 1,
-        ],
-      )
-    ).rows as {
+    const factRows = projections.facts as {
       bucket: 'recent' | 'exact' | 'linked';
       id: string;
       document: Fact;
@@ -405,37 +432,7 @@ export async function readChatContextWorld(
     const initialAppointments = initialAppointmentsSource.filter((appointment) =>
       appointmentVisible(appointment, input.actorId),
     );
-    const appointmentRows = (
-      await sql.query(
-        `WITH base AS (
-           SELECT p.id,p.document,e.version AS event_version,
-             COALESCE(p.document->>'status',p.status,'proposed') AS status
-           FROM parallel_life.world_appointments p
-           JOIN parallel_life.world_events e
-             ON e.world_id=p.world_id AND e.owner_id=p.owner_id
-            AND e.id=p.document->>'sourceEventId'
-           WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$3
-             AND p.document->'participantIds' ? $4
-         ), typed AS (
-           SELECT *, (status IN ('proposed','confirmed')) AS active FROM base
-         ), ranked AS (
-           SELECT *, COUNT(*) OVER (PARTITION BY active) AS total,
-             ROW_NUMBER() OVER (PARTITION BY active ORDER BY event_version DESC,id DESC) AS rn
-           FROM typed
-         )
-         SELECT id,document,event_version,active,total,rn FROM ranked
-         WHERE active OR rn <= $5 OR id=ANY($6::text[])
-         ORDER BY event_version ASC,id ASC`,
-        [
-          input.worldId,
-          ownerId,
-          worldVersion,
-          input.actorId,
-          terminalAppointmentLimit + 1,
-          appointmentRefs,
-        ],
-      )
-    ).rows as {
+    const appointmentRows = projections.appointments as {
       id: string;
       document: Appointment;
       event_version: number;

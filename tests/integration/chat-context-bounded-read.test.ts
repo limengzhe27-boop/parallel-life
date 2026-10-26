@@ -218,6 +218,10 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     actorId,
   });
   const shortMs = performance.now() - shortStart;
+  assert.ok(
+    shortCounter.stats.queries <= 3,
+    'short private context must not reintroduce sequential projection reads',
+  );
   const shortBytes = Buffer.byteLength(JSON.stringify(short.world));
   const shortRows =
     short.world.messages.length + short.world.facts.length + short.world.appointments.length;
@@ -572,6 +576,10 @@ test('44-169 bounded chat context: recent window, complete active obligations, e
     actorId,
   });
   const boundedMs = performance.now() - boundedStart;
+  assert.ok(
+    boundedStats.queries <= 3,
+    'long private context must read independent projections in one bounded statement',
+  );
   const boundedBytes = Buffer.byteLength(JSON.stringify(bounded.world));
   const boundedRows =
     bounded.world.messages.length + bounded.world.facts.length + bounded.world.appointments.length;
