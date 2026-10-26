@@ -1,3 +1,4 @@
+import { acceptsTravelVersion } from './travel-version-admission-repository.ts';
 import { readSceneMediaEntries } from './scene-media-projection.ts';
 import { readSceneWaitContext } from './scene-wait-context.ts';
 import { canWaitInAppointmentScene } from '../domain/appointment-wait.ts';
@@ -941,6 +942,7 @@ export async function scenePlanning(
   ownerId: string,
   worldId: string,
   input: SceneTaskInput,
+  environmentOnly = false,
 ): Promise<ScenePlanningContext> {
   const { world, storyAt, paused } = await sceneWorld(sql, ownerId, worldId),
     x = await experience(sql, ownerId, worldId),
@@ -958,13 +960,32 @@ export async function scenePlanning(
       [worldId, input.expectedVersion],
     )
   ).rowCount;
-  if (world.version < input.expectedVersion || intervening)
+  if (
+    world.version < input.expectedVersion ||
+    (intervening &&
+      !(
+        environmentOnly &&
+        (await acceptsTravelVersion(sql, ownerId, worldId, input.expectedVersion, world.version))
+      ))
+  )
     throw new DomainError('VERSION_CONFLICT');
+  if (
+    environmentOnly &&
+    (!action ||
+      scenePresent(s.scene, world.version).some((p) => p.kind === 'actor') ||
+      s.entries.some(
+        (e) =>
+          e.kind === 'user_action' &&
+          e.actionId === action.id &&
+          e.observableTo.some((p) => p.kind === 'actor'),
+      ))
+  )
+    throw new DomainError('VERSION_CONFLICT', 'SCENE_AUDIENCE_CHANGED');
   if (action?.resolution || (!action && s.entries.some((e) => e.kind === 'time_place')))
     throw new DomainError('VERSION_CONFLICT');
   const memoriesByActor: NonNullable<ScenePlanningContext['memoriesByActor']> = {},
     blockedSourcesByActor: Record<string, string[]> = {};
-  for (const actor of world.actors) {
+  for (const actor of environmentOnly ? [] : world.actors) {
     const memory = await loadActorMemories(sql, ownerId, { actorId: actor.id, worldId });
     memoriesByActor[actor.id] = memory.records;
     blockedSourcesByActor[actor.id] = [...memory.blockedSources];
@@ -979,9 +1000,10 @@ export async function scenePlanning(
     matters: s.matters,
     action,
     appointmentTitle: s.scene.title,
-    currentOfferBrief: s.scene.appointmentId
-      ? await readPublicationSceneBrief(sql, ownerId, worldId, s.scene.appointmentId)
-      : null,
+    currentOfferBrief:
+      !environmentOnly && s.scene.appointmentId
+        ? await readPublicationSceneBrief(sql, ownerId, worldId, s.scene.appointmentId)
+        : null,
   };
 }
 export async function commitSceneProposal(
@@ -991,9 +1013,22 @@ export async function commitSceneProposal(
   input: SceneTaskInput,
   p: SceneProposal,
   commandId: string,
+  environmentOnly = false,
 ) {
   const locked = await sceneWorld(sql, ownerId, worldId, true),
-    c = await scenePlanning(sql, ownerId, worldId, input);
+    c = await scenePlanning(sql, ownerId, worldId, input, environmentOnly);
+  if (
+    environmentOnly &&
+    (p.presentActorIds.length ||
+      p.dialogues.length ||
+      p.matterUpdates.length ||
+      p.initialMatters?.length ||
+      p.matterTitle ||
+      p.stepProposals?.length ||
+      p.npcActions?.length ||
+      p.outcome === 'succeeded')
+  )
+    throw new DomainError('INVALID_PROPOSAL', 'ENVIRONMENT_CANNOT_EXECUTE_ACTIONS');
   if (c.scene.placeId) {
     const canonical = c.world.space?.places.find((p) => p.id === c.scene.placeId);
     if (!canonical || p.location !== canonical.name) throw new DomainError('INVALID_PROPOSAL');

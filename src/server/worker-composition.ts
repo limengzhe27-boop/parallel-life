@@ -229,7 +229,7 @@ export function createWorker() {
         agent: async (lease, signal) => {
           const db = getServices().db;
           if (await sceneEnvironmentTaskHandler(db)(lease, signal)) return true;
-          return nativeNpcTaskHandler(db, createTextModel)(lease, signal);
+          return nativeNpcTaskHandler(db, createTextModel, createSceneTextModel)(lease, signal);
         },
         scene: (lease, signal) => {
           if (!sceneHandler) {

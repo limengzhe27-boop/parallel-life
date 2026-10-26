@@ -1,0 +1,131 @@
+import { z } from 'zod';
+import type { TextModel } from '../modules/ai/application/ports.ts';
+import { extractJsonObject } from '../modules/ai/application/model-json.ts';
+import type { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
+import type { TaskLease } from '../modules/tasks/domain/types.ts';
+import type {
+  ScenePlanningContext,
+  SceneProposal,
+} from '../modules/world/application/scene-ports.ts';
+import { DomainError } from '../modules/world/domain/errors.ts';
+import { sceneContextEntries } from '../modules/world/domain/scene-runtime.ts';
+import { worldDateTimeLabel } from '../modules/world/domain/display-time.ts';
+import { declareWorldEngineContext } from '../modules/world/infrastructure/world-command-uow.ts';
+import { nativeAgentCommandId } from '../modules/world/infrastructure/agent-native-ids.ts';
+import {
+  SceneTaskInputSchema,
+  scenePlanning,
+  commitSceneProposal,
+} from '../modules/world/infrastructure/scene-repository.ts';
+
+export const EMPTY_SCENE_PROMPT_VERSION = 'scene-environment-response-v1';
+const Feedback = z.strictObject({ feedback: z.string().trim().min(1).max(1600) });
+/** No actor identities, private memory, authored future events or inferred NPC whereabouts. */
+export function emptySceneModelInput(c: ScenePlanningContext) {
+  const place = c.world.space?.places.find((p) => p.id === c.scene.placeId);
+  return {
+    localTime: worldDateTimeLabel(c.storyAt),
+    place: { name: place?.name ?? c.scene.title, description: place?.description ?? '' },
+    currentAction: c.action && {
+      text: c.action.text,
+      intent: c.action.intent,
+      kind: c.action.kind,
+    },
+    visibleHistory: sceneContextEntries(c.entries, { kind: 'player' })
+      .slice(-12)
+      .map((e) => ({
+        kind: e.kind,
+        ...('text' in e ? { text: e.text } : {}),
+        ...('location' in e ? { location: e.location } : {}),
+      })),
+  };
+}
+/** Feedback resolves the local input, but never establishes a material action/appointment result. */
+export function emptySceneProposal(c: ScenePlanningContext, raw: string): SceneProposal {
+  let feedback: string;
+  try {
+    feedback = Feedback.parse(extractJsonObject(raw)).feedback;
+  } catch {
+    throw Object.assign(new Error('INVALID_AI_OUTPUT'), { code: 'INVALID_AI_OUTPUT' });
+  }
+  const attempt = c.action?.intent === 'attempt';
+  return {
+    location: c.world.space?.places.find((p) => p.id === c.scene.placeId)?.name ?? c.scene.title,
+    narration: attempt ? '' : feedback,
+    presentActorIds: [],
+    outcome: attempt ? 'partial' : null,
+    observation: attempt ? feedback : null,
+    matterTitle: null,
+    initialMatters: [],
+    matterUpdates: [],
+    dialogues: [],
+    stepProposals: [],
+    npcActions: [],
+  };
+}
+
+/** The original scene task/lease is completed atomically through the existing scene writer. */
+export async function respondToEmptyScene(
+  db: PostgresDatabase,
+  lease: TaskLease,
+  modelFactory: () => TextModel,
+  signal: AbortSignal,
+) {
+  const started = performance.now(),
+    input = SceneTaskInputSchema.parse(lease.input);
+  const context = await db.transaction(lease.ownerId, (sql) =>
+    scenePlanning(sql, lease.ownerId, lease.scopeId, input, true),
+  );
+  const raw = await modelFactory().complete(
+    [
+      {
+        role: 'system',
+        content: `你是当前现场的环境叙述者，不是人物，也不是导演。只根据提供的地点设定、玩家可见历史与本次行动，用1至3句自然中文反馈玩家当下能够感知的情况。返回JSON {"feedback":"..."}。这里没有经核实可回应的正式NPC，但不能据此断言某人不在或建筑里空无一人。喊话无应答仅是当下观察。不能编造熟人到场、隐私、情绪、承诺或对话，不能确认陌生人知道任何剧情；只有设定或已保存观察明确存在的环境人员才可用简短间接引语，不建立人物关系。不得新增门锁状态、开放进入权限、拿走物品、付款、交易、移动到别处或任何操作已成功的结果；对需要执行能力或他人决定的请求，只描述尝试与当前尚未得到证实的反馈，必要时自然说明需等待或联系。不把计划/假设写成执行。已知场景不变时不为凑变化制造声响、事故、物品变化或人物。允许克制的平静感，避免系统报错语气。你只有叙述权，没有实际操作权。`,
+      },
+      { role: 'user', content: JSON.stringify(emptySceneModelInput(context)) },
+    ],
+    signal,
+    700,
+    {
+      format: 'json_schema',
+      name: 'scene_environment_feedback',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: { feedback: { type: 'string' } },
+        required: ['feedback'],
+        additionalProperties: false,
+      },
+    },
+  );
+  const proposal = emptySceneProposal(context, raw);
+  await db.transaction(lease.ownerId, async (sql) => {
+    await declareWorldEngineContext(sql, lease.scopeId, lease.ownerId);
+    const version = await commitSceneProposal(
+      sql,
+      lease.ownerId,
+      lease.scopeId,
+      input,
+      proposal,
+      nativeAgentCommandId(lease.id, 'environment'),
+      true,
+    );
+    const saved = await sql.query(
+      `UPDATE parallel_life.tasks SET status='succeeded',error_code=NULL,result_version=$5,
+       prompt_version=$6,duration_ms=$7,updated_at=now()
+       WHERE id=$1 AND owner_id=$2 AND scope_id=$3 AND lease_token=$4
+         AND status='running' AND lease_until>clock_timestamp()`,
+      [
+        lease.id,
+        lease.ownerId,
+        lease.scopeId,
+        lease.token,
+        version,
+        EMPTY_SCENE_PROMPT_VERSION,
+        Math.round(performance.now() - started),
+      ],
+    );
+    if (saved.rowCount !== 1)
+      throw new DomainError('INVALID_COMMAND', 'SCENE_TASK_RESULT_MISMATCH');
+  });
+}

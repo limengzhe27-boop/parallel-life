@@ -1,3 +1,4 @@
+import { respondToEmptyScene } from './empty-scene-environment.ts';
 import { canReadGroupMessage } from '../modules/world/domain/experience-rules.ts';
 import { coordinateNativeResponder } from './npc-agent-native-coordination.ts';
 import { readLocationReportAudience } from '../modules/world/infrastructure/location-report-audience.ts';
@@ -133,7 +134,11 @@ export async function finishNativeAgentTask(
 }
 
 /** Existing world-task lease, same NPC state/model/kernel; returns false only for an epoch-1 world. */
-export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => TextModel) {
+export function nativeNpcTaskHandler(
+  db: PostgresDatabase,
+  modelFactory: () => TextModel,
+  environmentModelFactory: () => TextModel = modelFactory,
+) {
   return async (lease: TaskLease, signal: AbortSignal): Promise<boolean> => {
     const started = performance.now();
     // A platform timeout cannot run a catch/finally block. Record bounded phase
@@ -396,7 +401,12 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
     });
     /* Never report a handled task while leaving its lease running forever: with
        no one present there is nothing this paid channel can commit. */
-    if (!native.actorIds.length) throw new DomainError('INVALID_COMMAND', 'NO_ACTOR_PRESENT');
+    if (!native.actorIds.length) {
+      if (native.receipt.channel !== 'scene')
+        throw new DomainError('INVALID_COMMAND', 'NO_ACTOR_PRESENT');
+      await respondToEmptyScene(scoped, lease, environmentModelFactory, signal);
+      return true;
+    }
     phase('responder');
     const selectedActorId =
       native.actorId ??
