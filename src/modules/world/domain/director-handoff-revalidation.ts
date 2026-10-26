@@ -172,7 +172,33 @@ function evaluate({
   )
     return deny('cast_changed');
   const authorSources = new Set(catalog.materials.map(authoredDirectorSourceHandle));
-  if (decision.audit.basisSourceIds.some((id) => !authorSources.has(id)))
+  // Persona definition citations are part of the model's original finite
+  // catalogue, but only an unchanged same-actor definition can support a replay.
+  // These authorize audit reasoning only, never an opportunity or world fact.
+  const unchangedDefinitions = new Set(
+    original.actorStates
+      .filter(
+        (state) =>
+          state.worldId === original.worldId &&
+          nonempty(state.definitionRef) &&
+          original.cast!.some((actor) => actor.id === state.actorId) &&
+          current.cast!.some((actor) => actor.id === state.actorId) &&
+          original.actorStates.filter((other) => other.actorId === state.actorId).length === 1 &&
+          current.actorStates.filter((other) => other.actorId === state.actorId).length === 1 &&
+          current.actorStates.some(
+            (other) =>
+              other.worldId === current.worldId &&
+              other.actorId === state.actorId &&
+              other.definitionRef === state.definitionRef,
+          ),
+      )
+      .map((state) => `definition:${state.definitionRef.replace(/^definition:/, '')}`),
+  );
+  if (
+    decision.audit.basisSourceIds.some(
+      (id) => !authorSources.has(id) && !unchangedDefinitions.has(id),
+    )
+  )
     return deny('non_author_basis');
   const opportunities: DirectorHandoffReadSet['opportunities'] = [];
   for (const opportunity of decision.opportunities) {

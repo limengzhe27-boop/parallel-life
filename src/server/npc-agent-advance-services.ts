@@ -474,7 +474,8 @@ export function npcAgentAdvanceServices(
             !!(
               await sql.query(
                 `SELECT 1 FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2
-             AND engine_epoch=$3 AND status IN ('stale_discarded','response_received')
+             AND engine_epoch=$3 AND (status IN ('stale_discarded','response_received')
+               OR (status='invalid_output' AND jsonb_typeof(response)='string'))
              AND response_hash IS NOT NULL LIMIT 1`,
                 [worldId, ownerId, engineEpoch],
               )

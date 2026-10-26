@@ -1370,7 +1370,8 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       const rows = (
         await sql.query(
           `SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2
-        AND engine_epoch=$3 AND status IN ('stale_discarded','response_received') AND response_hash IS NOT NULL
+        AND engine_epoch=$3 AND (status IN ('stale_discarded','response_received')
+          OR (status='invalid_output' AND jsonb_typeof(response)='string')) AND response_hash IS NOT NULL
         AND expected_world_version<=$4 ORDER BY created_at,id FOR UPDATE`,
           [world.id, owner, current.engineEpoch, current.worldVersion],
         )
@@ -1382,12 +1383,21 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
           fail('DIRECTOR_INPUT_CONFLICT');
         let decision: DirectorDecision;
         try {
+          // Only a fully saved response is reconsidered. No suffix repair, current
+          // source substitution, model retry, or transport-error object recovery.
+          if (
+            row.status === 'invalid_output' &&
+            (typeof row.response !== 'string' ||
+              !row.sent_at ||
+              digest(body(row.response, DIRECTOR_RESPONSE_MAX_BYTES)) !== row.response_hash)
+          )
+            continue;
           decision = parseDirectorDecision(original, row.response, originalAttempt);
+          this.validateDecision(original, originalAttempt, decision);
         } catch {
           continue;
-        } // Invalid historical output is never repaired or reinterpreted.
+        } // A still-invalid stored output remains invalid and cannot block another known handoff.
         if (decision.openingContext) continue; // New execution authority cannot rebase a paid fact-confirmation frame.
-        this.validateDecision(original, originalAttempt, decision);
         const proof = revalidateDirectorHandoff({ original, current, decision });
         if (!proof.allowed) continue;
         const active = (

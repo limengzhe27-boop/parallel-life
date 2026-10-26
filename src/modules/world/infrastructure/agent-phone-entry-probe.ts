@@ -36,10 +36,10 @@ export async function readAgentPhoneEntryProbe(
   // same rows, and every held lock turns a slow probe into a global queue.
   // Callers recheck world version, paid/unknown fences and authority before work.
   const row = (
-    await sql.query(
-      'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
-      [frame.worldId, ownerId],
-    )
+    await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
+      frame.worldId,
+      ownerId,
+    ])
   ).rows[0];
   const now = Date.now();
   // Wait for an actual activity acknowledgement, including fresh worlds without a clock row.
@@ -157,7 +157,9 @@ export async function readAgentPhoneEntryProbe(
   const knownHandoff = (
     await sql.query(
       `SELECT a.id FROM parallel_life.director_runtime_attempts a WHERE a.world_id=$1 AND a.owner_id=$2
-     AND a.engine_epoch=$3 AND a.status='stale_discarded' AND a.response_hash IS NOT NULL
+     AND a.engine_epoch=$3 AND (a.status='stale_discarded'
+       OR (a.status='invalid_output' AND jsonb_typeof(a.response)='string' AND a.sent_at IS NOT NULL))
+     AND a.response_hash IS NOT NULL
      AND a.snapshot->'authoredMaterials' IS NOT NULL AND a.snapshot->'nativeTurn' IS NULL
      AND NOT EXISTS(SELECT 1 FROM parallel_life.director_handoff_revalidations r
        WHERE r.world_id=a.world_id AND r.attempt_id=a.id) ORDER BY a.created_at,a.id LIMIT 1`,

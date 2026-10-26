@@ -1,3 +1,4 @@
+import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { revalidateDirectorHandoff } from '../src/modules/world/domain/director-handoff-revalidation.ts';
@@ -408,5 +409,43 @@ test('duplicate references and malformed runtime input fail closed', () => {
   assert.deepEqual(revalidateDirectorHandoff(null as never), {
     allowed: false,
     reason: 'invalid_input',
+  });
+});
+
+test('known definition audit citations require the same actor definition in both protected frames', () => {
+  const input = fixture();
+  input.original.actorStates = [
+    emptyActorAgentState({ worldId: 'w', actorId: 'a' }, 'a'.repeat(64), 0),
+  ];
+  input.current.actorStates = structuredClone(input.original.actorStates);
+  input.current.actorStates[0]!.revision = 4;
+  input.current.actorStates[0]!.projectedWorldVersion = 5;
+  input.decision.audit.basisSourceIds = ['definition:' + 'a'.repeat(64)];
+  assert.equal(revalidateDirectorHandoff(input).allowed, true);
+  const changed = structuredClone(input);
+  changed.current.actorStates[0]!.definitionRef = 'f'.repeat(64);
+  assert.deepEqual(revalidateDirectorHandoff(changed), {
+    allowed: false,
+    reason: 'non_author_basis',
+  });
+  const swapped = structuredClone(input);
+  swapped.current.actorStates[0]!.actorId = 'b';
+  assert.equal(revalidateDirectorHandoff(swapped).allowed, false);
+  const missing = structuredClone(input);
+  missing.current.actorStates = [];
+  assert.equal(revalidateDirectorHandoff(missing).allowed, false);
+  const foreign = structuredClone(input);
+  foreign.current.actorStates[0]!.worldId = 'elsewhere';
+  assert.equal(revalidateDirectorHandoff(foreign).allowed, false);
+  const forged = structuredClone(input);
+  forged.decision.audit.basisSourceIds = ['definition:invented'];
+  assert.equal(revalidateDirectorHandoff(forged).allowed, false);
+  const opportunity = structuredClone(input);
+  opportunity.decision.opportunities[0]!.basisSourceIds.push(
+    input.decision.audit.basisSourceIds[0]!,
+  );
+  assert.deepEqual(revalidateDirectorHandoff(opportunity), {
+    allowed: false,
+    reason: 'non_author_basis',
   });
 });
