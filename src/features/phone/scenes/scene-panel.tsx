@@ -22,6 +22,7 @@ import s from './scenes.module.css';
 import { SceneStage, SceneFace, SceneMedia } from './scene-stage.tsx';
 import { visibleSceneEntries, scenePhotoUrl } from './stage-presentation.ts';
 import { SceneWorldSync } from './world-sync.ts';
+import { SceneReadingHandle } from './scene-reading.tsx';
 const states = {
   not_started: '还未开始',
   in_progress: '正在进行',
@@ -78,10 +79,14 @@ export function ScenePanel({
     [retryConfirm, setRetryConfirm] = useState(false),
     [leaveConfirm, setLeaveConfirm] = useState(false),
     [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const [readingHeight, setReadingHeight] = useState(54);
   const reading = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const restoredScene = useRef<string | undefined>(undefined);
-  const followEnd = useRef(false);
+  const followEnd = useRef(true);
+  const lastEntry = useRef<string | undefined>(undefined);
+  const [hasNewEntries, setHasNewEntries] = useState(false);
   const scrollToBottom = useCallback(() => {
     if (reading.current) {
       reading.current.scrollTo({
@@ -90,6 +95,7 @@ export function ScenePanel({
       });
       followEnd.current = true;
       setShowScrollToBottom(false);
+      setHasNewEntries(false);
     }
   }, []);
   const live = useRef(true),
@@ -123,6 +129,11 @@ export function ScenePanel({
     };
   }, [refresh, draftKey]);
   useEffect(() => {
+    if (!data || phoneVersion <= data.worldVersion) return;
+    // Consume already committed world changes; this read does not wake a model.
+    void refresh().catch(() => {});
+  }, [phoneVersion, refresh]);
+  useEffect(() => {
     onBusy?.(busy || sceneBusy(task));
     // Shared observer continues polling a pending task after returning to phone.
   }, [busy, task?.status, onBusy]);
@@ -153,14 +164,30 @@ export function ScenePanel({
     const element = reading.current;
     const id = data?.scene?.id;
     if (!element || !id) return;
+    const latest = data.entries.at(-1)?.id;
     if (restoredScene.current !== id) {
       restoredScene.current = id;
+      let saved: string | null = null;
       try {
-        const saved = Number(sessionStorage.getItem('pl-scene-scroll:' + worldId + ':' + id));
-        if (Number.isFinite(saved) && saved >= 0) element.scrollTop = saved;
+        saved = sessionStorage.getItem('pl-scene-scroll:' + worldId + ':' + id);
       } catch {}
+      element.scrollTop =
+        saved !== null && Number.isFinite(Number(saved)) ? Number(saved) : element.scrollHeight;
+      followEnd.current = element.scrollHeight - element.scrollTop - element.clientHeight < 90;
+      setHasNewEntries(false);
     } else if (followEnd.current) element.scrollTop = element.scrollHeight;
-  }, [data?.scene?.id, data?.worldVersion, worldId]);
+    else if (latest && lastEntry.current && latest !== lastEntry.current) setHasNewEntries(true);
+    lastEntry.current = latest;
+  }, [data, worldId]);
+  useEffect(() => {
+    const element = reading.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      if (followEnd.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [data?.scene?.id]);
   const overview = data ? sceneOverview(data) : undefined;
   const latestAction = data?.actions.at(-1);
   const entries = data ? sceneTimelineEntries(visibleSceneEntries(data), data.actions) : [];
@@ -213,7 +240,12 @@ export function ScenePanel({
   const disabled =
     busy || sceneBusy(task) || !data?.scene || data.paused || data.scene.status !== 'active';
   return (
-    <div className={`${s.panel} ${s.scenePanel}`}>
+    <div
+      ref={panel}
+      className={`${s.panel} ${s.scenePanel}`}
+      data-immersive-scene={Boolean(data?.scene)}
+      data-reading-mode={readingHeight > 71 ? 'expanded' : 'default'}
+    >
       {!data ? (
         <div>
           <ProgressState
@@ -264,45 +296,60 @@ export function ScenePanel({
               {syncError}
             </p>
           ) : null}
-          <div className={s.readingArea}>
-            <div
-              className={s.reading}
-              data-scene-records
-              ref={reading}
-              onScroll={(event) => {
-                const element = event.currentTarget;
-                const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
-                followEnd.current = distance < 90;
-                setShowScrollToBottom(distance > 160);
-                if (data.scene)
-                  try {
-                    sessionStorage.setItem(
-                      'pl-scene-scroll:' + worldId + ':' + data.scene.id,
-                      String(element.scrollTop),
-                    );
-                  } catch {}
-              }}
+          <SceneStage
+            read={data}
+            contacts={contacts}
+            photos={photos}
+            onSelectPerson={(person) => {
+              const prefix = `对${person.name}说：`;
+              setText(prefix);
+              try {
+                sessionStorage.setItem(draftKey, prefix);
+              } catch {}
+              if (inputRef.current) {
+                inputRef.current.focus();
+                inputRef.current.setSelectionRange(prefix.length, prefix.length);
+              }
+            }}
+          />
+          <section className={s.sceneControls}>
+            <button
+              type="button"
+              className={s.quickPhoneBtn}
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  if (data.scene!.status !== 'ended')
+                    await client.navigate(worldId, data.scene!.id, {
+                      commandId: crypto.randomUUID(),
+                      expectedVersion: data.worldVersion,
+                      view: 'phone',
+                    });
+                  window.location.hash = routeHash(worldId, { app: null });
+                })
+              }
+              title="返回手机主界面"
             >
-              <SceneStage
-                read={data}
-                contacts={contacts}
-                photos={photos}
-                onSelectPerson={(person) => {
-                  const prefix = `对${person.name}说：`;
-                  setText(prefix);
-                  try {
-                    sessionStorage.setItem(draftKey, prefix);
-                  } catch {}
-                  if (inputRef.current) {
-                    inputRef.current.focus();
-                    inputRef.current.setSelectionRange(prefix.length, prefix.length);
-                  }
-                }}
-              />
-              <section className={s.sceneControls}>
+              <span>📱</span> 回到手机
+            </button>
+            <time>
+              {worldDateTimeLabel(
+                overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
+              )}
+            </time>
+            <p>
+              {data.scene.status === 'ended'
+                ? '已离场 · 可以回看'
+                : data.paused
+                  ? '世界已暂停'
+                  : data.scene.status === 'paused'
+                    ? '现场已暂停'
+                    : '正在现场'}
+            </p>
+            <details className={s.sceneMenu}>
+              <summary>更多</summary>
+              <div className={s.buttons}>
                 <button
-                  type="button"
-                  className={s.quickPhoneBtn}
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
@@ -315,108 +362,99 @@ export function ScenePanel({
                       window.location.hash = routeHash(worldId, { app: null });
                     })
                   }
-                  title="返回手机主界面"
                 >
-                  <span>📱</span> 回到手机
+                  回到手机
                 </button>
-                <time>
-                  {worldDateTimeLabel(
-                    overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
-                  )}
-                </time>
-                <p>
-                  {data.scene.status === 'ended'
-                    ? '已离场 · 可以回看'
-                    : data.paused
-                      ? '世界已暂停'
-                      : data.scene.status === 'paused'
-                        ? '现场已暂停'
-                        : '正在现场'}
-                </p>
-                <details className={s.sceneMenu}>
-                  <summary>更多</summary>
-                  <div className={s.buttons}>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          if (data.scene!.status !== 'ended')
-                            await client.navigate(worldId, data.scene!.id, {
-                              commandId: crypto.randomUUID(),
-                              expectedVersion: data.worldVersion,
-                              view: 'phone',
-                            });
-                          window.location.hash = routeHash(worldId, { app: null });
-                        })
-                      }
-                    >
-                      回到手机
-                    </button>
-                    {data.scene.status === 'paused' ? (
-                      <button
-                        disabled={busy || data.paused}
-                        onClick={() =>
-                          void run(async () => {
-                            await client.navigate(worldId, data.scene!.id, {
-                              commandId: crypto.randomUUID(),
-                              expectedVersion: data.worldVersion,
-                              view: 'scene',
-                            });
-                          })
-                        }
-                      >
-                        返回现场
-                      </button>
-                    ) : null}
-                    {data.scene.status !== 'ended' ? (
-                      <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
-                        离开现场
-                      </button>
-                    ) : null}
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          await refresh();
-                        })
-                      }
-                    >
-                      重新读取现场
-                    </button>
-                  </div>
-                </details>
-                {leaveConfirm ? (
-                  <div>
-                    <p>离场会停止尚未完成的现场回应，记录仍可回看。</p>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          await client.navigate(
-                            worldId,
-                            data.scene!.id,
-                            {
-                              commandId: crypto.randomUUID(),
-                              expectedVersion: data.worldVersion,
-                              view: 'phone',
-                            },
-                            true,
-                          );
-                          window.location.hash = routeHash(worldId, {
-                            app: null,
-                            panel: 'scene',
-                            target: data.scene!.id,
-                          });
-                          setLeaveConfirm(false);
-                        })
-                      }
-                    >
-                      确认离场
-                    </button>
-                    <button onClick={() => setLeaveConfirm(false)}>留下</button>
-                  </div>
+                {data.scene.status === 'paused' ? (
+                  <button
+                    disabled={busy || data.paused}
+                    onClick={() =>
+                      void run(async () => {
+                        await client.navigate(worldId, data.scene!.id, {
+                          commandId: crypto.randomUUID(),
+                          expectedVersion: data.worldVersion,
+                          view: 'scene',
+                        });
+                      })
+                    }
+                  >
+                    返回现场
+                  </button>
                 ) : null}
-              </section>
+                {data.scene.status !== 'ended' ? (
+                  <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
+                    离开现场
+                  </button>
+                ) : null}
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await refresh();
+                    })
+                  }
+                >
+                  重新读取现场
+                </button>
+              </div>
+            </details>
+            {leaveConfirm ? (
+              <div>
+                <p>离场会停止尚未完成的现场回应，记录仍可回看。</p>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await client.navigate(
+                        worldId,
+                        data.scene!.id,
+                        {
+                          commandId: crypto.randomUUID(),
+                          expectedVersion: data.worldVersion,
+                          view: 'phone',
+                        },
+                        true,
+                      );
+                      window.location.hash = routeHash(worldId, {
+                        app: null,
+                        panel: 'scene',
+                        target: data.scene!.id,
+                      });
+                      setLeaveConfirm(false);
+                    })
+                  }
+                >
+                  确认离场
+                </button>
+                <button onClick={() => setLeaveConfirm(false)}>留下</button>
+              </div>
+            ) : null}
+          </section>
+          <div className={s.readingArea} style={{ height: `${readingHeight}%` }}>
+            <SceneReadingHandle
+              sceneKey={worldId + ':' + data.scene.id}
+              container={panel}
+              onHeight={setReadingHeight}
+            />
+            <div
+              className={s.reading}
+              data-scene-records
+              ref={reading}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+                followEnd.current = distance < 90;
+                setShowScrollToBottom(distance > 160);
+                if (distance < 90) setHasNewEntries(false);
+                if (data.scene)
+                  try {
+                    sessionStorage.setItem(
+                      'pl-scene-scroll:' + worldId + ':' + data.scene.id,
+                      String(element.scrollTop),
+                    );
+                  } catch {}
+              }}
+            >
               {latestAction ? (
                 <details className={s.card} data-scene-latest-action>
                   <summary>刚才的一幕</summary>
@@ -439,7 +477,7 @@ export function ScenePanel({
                 </details>
               ) : null}
 
-              <div className={s.stream}>
+              <div className={s.stream} aria-label="现场对话与旁白">
                 {[
                   ...entries,
                   ...data.actions
@@ -470,7 +508,7 @@ export function ScenePanel({
                     ) : (
                       <article
                         key={e.id}
-                        className={`${s.entry} ${e.kind === 'dialogue' ? s.dialogue : e.kind === 'user_action' || e.kind === 'private_input' ? s.user : e.kind === 'adjudicated_result' ? s.result : ''}`}
+                        className={`${s.entry} ${e.kind === 'dialogue' ? (e.speaker.kind === 'player' ? `${s.dialogue} ${s.user}` : s.dialogue) : e.kind === 'user_action' || e.kind === 'private_input' ? s.user : `${s.result} ${e.text.length > 44 || e.text.includes('\n') ? s.longNarration : s.shortNarration}`}`}
                       >
                         {e.kind === 'dialogue' && e.speaker.kind === 'actor' ? (
                           <SceneFace
@@ -504,13 +542,7 @@ export function ScenePanel({
                   <ProgressState
                     label={sceneStatus(task)}
                     busy={sceneBusy(task)}
-                    detail={
-                      sceneBusy(task)
-                        ? data.actions.some((a) => a.status === 'pending')
-                          ? '大家正看着你，听你把话说完……'
-                          : '故事正在继续展开……'
-                        : undefined
-                    }
+                    detail={sceneBusy(task) ? '正在保存现场的后续回应……' : undefined}
                   />
                   {task.status === 'queued' ? (
                     <button
@@ -550,14 +582,14 @@ export function ScenePanel({
                 </div>
               ) : null}
             </div>
-            {showScrollToBottom && (
+            {(showScrollToBottom || hasNewEntries) && (
               <button
                 type="button"
                 className={s.scrollToBottomBtn}
                 onClick={scrollToBottom}
                 aria-label="回到底部最新剧情"
               >
-                <span>↓</span> 回到最新
+                <span>↓</span> {hasNewEntries ? '有新内容' : '回到最新'}
               </button>
             )}
           </div>
@@ -594,6 +626,7 @@ export function ScenePanel({
                     text: cmd.text,
                     relatedMatterIds: cmd.relatedMatterIds ?? [],
                   });
+                  followEnd.current = true;
                   setText('');
                   try {
                     sessionStorage.removeItem(draftKey);
@@ -648,31 +681,33 @@ export function ScenePanel({
                   suggestions.push('静下心来，想想接下来该做点什么');
                 }
                 return (
-                  <div className={s.suggestionRow} aria-label="行动灵感">
-                    <span className={s.suggestionLabel}>试试：</span>
-                    {suggestions.map((sug, idx) => (
-                      <button
-                        type="button"
-                        key={idx}
-                        className={s.suggestionPill}
-                        disabled={disabled}
-                        onClick={() => {
-                          setText(sug);
-                          try {
-                            sessionStorage.setItem(draftKey, sug);
-                          } catch {}
-                          if (inputRef.current) {
-                            inputRef.current.focus();
-                            inputRef.current.style.height = '46px';
-                            inputRef.current.style.height =
-                              Math.min(inputRef.current.scrollHeight, 100) + 'px';
-                          }
-                        }}
-                      >
-                        {sug}
-                      </button>
-                    ))}
-                  </div>
+                  <details className={s.suggestions}>
+                    <summary>行动灵感</summary>
+                    <div className={s.suggestionRow} aria-label="行动灵感">
+                      {suggestions.map((sug, idx) => (
+                        <button
+                          type="button"
+                          key={idx}
+                          className={s.suggestionPill}
+                          disabled={disabled}
+                          onClick={() => {
+                            setText(sug);
+                            try {
+                              sessionStorage.setItem(draftKey, sug);
+                            } catch {}
+                            if (inputRef.current) {
+                              inputRef.current.focus();
+                              inputRef.current.style.height = '46px';
+                              inputRef.current.style.height =
+                                Math.min(inputRef.current.scrollHeight, 100) + 'px';
+                            }
+                          }}
+                        >
+                          {sug}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
                 );
               })()}
 
@@ -693,7 +728,7 @@ export function ScenePanel({
                     }, 250);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                       e.preventDefault();
                       if (!disabled && text.trim()) {
                         e.currentTarget.form?.requestSubmit();

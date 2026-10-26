@@ -23,9 +23,8 @@
   opacity: 0.5;
   cursor: default;
 }
-.panel button:focus-visible,
-.panel textarea:focus-visible {
-  outline: 2px solid #287866;
+.panel :is(button, textarea, summary):focus-visible {
+  outline: 2px solid #70a7ff;
   outline-offset: 2px;
 }
 .card {
@@ -45,64 +44,6 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-.stream {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.entry {
-  border-left: 3px solid #b3c8bc;
-  padding: 4px 12px;
-  white-space: pre-wrap;
-  line-height: 1.8;
-  font-size: 14px;
-}
-.entry small {
-  display: block;
-  color: #66736b;
-  font-size: 12px;
-}
-.dialogue {
-  border-left-color: #d3ad78;
-  background: #fffcf5;
-  border-radius: 4px;
-}
-.user {
-  border-left-color: #6489c0;
-  background: #edf3fa;
-  border-radius: 4px;
-}
-.result {
-  border-left-color: #588978;
-  background: #edf4ee;
-  border-radius: 4px;
-}
-.place {
-  text-align: center;
-  color: #627165;
-  font-size: 12px;
-}
-.composer {
-  flex-shrink: 0;
-  background: #f5f4f0;
-  padding: 10px 0 max(10px, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.composer textarea {
-  resize: vertical;
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 66px;
-  max-height: 130px;
-  border: 1px solid #c9d3cc;
-  border-radius: 12px;
-  padding: 12px;
-  background: white;
-  color: #17212f;
-  font: inherit;
 }
 .notice {
   font-size: 13px;
@@ -128,69 +69,6 @@
 .panel li {
   padding: 6px 0;
 }
-
-.scenePanel {
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-.readingArea {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.reading {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-right: 2px;
-}
-/* The scrolling column must not compress earlier content into overlapping hit targets. */
-.reading > * {
-  flex-shrink: 0;
-}
-.scrollToBottomBtn {
-  position: absolute;
-  bottom: 12px;
-  right: 14px;
-  z-index: 10;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 32px !important;
-  height: 32px;
-  padding: 0 12px !important;
-  font-size: 12px !important;
-  font-weight: 500;
-  color: #1e3a5f !important;
-  background: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(8px);
-  border: 1px solid #c8d9e6 !important;
-  border-radius: 16px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.scrollToBottomBtn:hover {
-  background: #ffffff !important;
-  border-color: #347bfa !important;
-  color: #0b4f8a !important;
-  transform: translateY(-1px);
-}
-.scenePanel > button {
-  flex-shrink: 0;
-}
-@media (max-height: 620px) {
-  .composer textarea {
-    min-height: 44px;
-  }
-}
-
 .indexRow {
   display: flex;
   flex-direction: column;
@@ -205,210 +83,10 @@
 .indexRow button {
   align-self: flex-start;
 }
-
 .savedInput {
   white-space: pre-wrap;
   border-left: 3px solid #6489c0;
   padding-left: 10px;
-}
-.card details summary {
-  cursor: pointer;
-  min-height: 32px;
-}
-
-.scenePanel .card p {
-  margin: 6px 0;
-}
-
-/* Scene stage: content, people and narration retain distinct visual roles. */
-.scenePanel {
-  padding: 12px;
-  background: #f2f3f0;
-  gap: 8px;
-}
-.sceneControls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  padding: 2px 3px;
-  color: #67757e;
-  font-size: 11px;
-}
-.sceneControls > h3 {
-  width: 100%;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: #283c46;
-}
-.sceneControls > p {
-  margin: 0;
-}
-.sceneMenu {
-  width: 100%;
-}
-.sceneMenu > summary {
-  font-size: 12px;
-  color: #596d7b;
-}
-.sceneMenu .buttons {
-  padding-bottom: 10px;
-}
-@keyframes sceneFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.scenePanel .entry {
-  display: flex;
-  gap: 10px;
-  border: 0;
-  padding: 12px 8px;
-  border-radius: 16px;
-  color: #50606a;
-  line-height: 1.75;
-  background: none;
-  animation: sceneFadeIn 0.2s ease-out;
-}
-.scenePanel .entryCopy {
-  min-width: 0;
-  flex: 1;
-}
-.scenePanel .entryCopy > p {
-  margin: 3px 0 0;
-  white-space: pre-wrap;
-}
-.scenePanel .entry small {
-  font-size: 11px;
-  color: #819098;
-}
-.scenePanel .dialogue {
-  background: #ffffff;
-  box-shadow: none;
-  color: #26343a;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 0;
-}
-.scenePanel .dialogue small {
-  color: #324d58;
-  font-weight: 600;
-  font-size: 12px;
-}
-.scenePanel .user {
-  margin: 14px 0 4px;
-  padding: 10px 14px;
-  background: #edf1f0;
-  color: #34454a;
-  border-radius: 10px;
-  border: 0;
-}
-.scenePanel .user small {
-  color: #607278;
-  font-weight: 500;
-  font-size: 11px;
-}
-.scenePanel .result {
-  background: none;
-  color: #607278;
-  border: 0;
-  border-radius: 0;
-  padding: 4px 10px 10px;
-}
-.stageDirection {
-  display: inline;
-  color: #64748b;
-  font-size: 0.93em;
-  opacity: 0.92;
-  margin: 0 1px;
-}
-.scenePanel .reading {
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  padding-bottom: 6px;
-}
-.scenePanel .composer {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 0 max(5px, env(safe-area-inset-bottom));
-  border-top: 1px solid #dce3e1;
-  background: #f2f3f0;
-}
-.suggestionRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 2px 0 4px;
-  -webkit-overflow-scrolling: touch;
-}
-.suggestionRow::-webkit-scrollbar {
-  display: none;
-}
-.suggestionLabel {
-  flex: 0 0 auto;
-  font-size: 11px;
-  color: #728490;
-  font-weight: 600;
-  padding-left: 2px;
-}
-.suggestionPill {
-  flex: 0 0 auto;
-  max-width: 220px;
-  min-height: 28px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  color: #245285;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #c8d9e6;
-  border-radius: 14px;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  line-height: 1.4;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-.suggestionPill:hover,
-.suggestionPill:focus-visible {
-  background: #eaf3fb;
-  border-color: #347bfa;
-  color: #174271;
-  transform: translateY(-1px);
-}
-.composerInputRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: end;
-  width: 100%;
-}
-.scenePanel .composer textarea {
-  min-height: 46px;
-  height: 46px;
-  max-height: 100px;
-  resize: none;
-  border-radius: 16px;
-  font-size: 16px;
-  padding: 12px;
-  line-height: 22px;
-}
-.scenePanel .composer button {
-  min-height: 46px;
-  background: #347bfa;
-  border-color: #347bfa;
-  color: #fff;
-  border-radius: 15px;
 }
 .srOnly {
   position: absolute;
@@ -422,43 +100,325 @@
   border: 0;
 }
 
+/* One continuous stage. Only the transcript scrolls; the image never moves with it. */
 .scenePanel {
-  container-name: scene-panel;
-  container-type: size;
+  position: relative;
+  isolation: isolate;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  container: scene-panel / size;
 }
-
+.scenePanel[data-immersive-scene='true'] {
+  padding: 0;
+  gap: 0;
+  background: #17232b;
+  color: #f8f6f2;
+}
+.scenePanel[data-immersive-scene='true']::after {
+  content: '';
+  position: absolute;
+  inset: 20% 0 0;
+  z-index: 1;
+  background: linear-gradient(transparent, #060e1766 30%, #060c16c9);
+  pointer-events: none;
+}
+.sceneControls {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 12px;
+  background: linear-gradient(#081322a8, transparent);
+  font-size: 11px;
+}
+.sceneControls time,
+.sceneControls > p {
+  margin: 0;
+  color: #ffffffc9;
+  font-size: 11px;
+}
+.scenePanel button.quickPhoneBtn,
+.scenePanel .sceneMenu button {
+  background: #152436a6;
+  border-color: #ffffff36;
+  color: #f5f7fb;
+}
 .sceneMenu {
-  width: auto;
   margin-left: auto;
 }
 .sceneMenu > summary {
-  min-height: 36px;
+  font-size: 12px;
 }
 .sceneMenu[open] {
-  width: 100%;
+  position: relative;
 }
-.sceneControls {
-  min-height: 36px;
+.sceneMenu[open] .buttons {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: min(280px, 75cqw);
+  padding: 10px;
+  background: #152436f5;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px #0005;
+}
+.readingArea {
+  position: relative;
+  z-index: 2;
+  flex: 0 1 auto;
+  min-height: 96px;
+  max-height: calc(100% - 245px);
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+}
+.scenePanel [data-scene-reading-handle] {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 22px;
+  background: #101c2873;
+  color: #ffffffc7;
+  touch-action: none;
+  cursor: ns-resize;
+  user-select: none;
+}
+.scenePanel [data-scene-reading-handle] > span {
+  width: 28px;
+  height: 3px;
+  border-radius: 3px;
+  background: #ffffffb3;
+}
+.scenePanel [data-scene-reading-handle] small {
+  font-size: 10px;
+}
+.reading {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff40 transparent;
+  padding: 4px 14px 16px;
+  overflow-anchor: none;
+}
+.reading > * {
+  flex-shrink: 0;
+}
+.stream {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  line-height: 1.75;
+  font-size: 15px;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.entryCopy {
+  min-width: 0;
+}
+.entryCopy > p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.entry small {
+  display: block;
+  font-size: 11px;
+  color: #ffffffc2;
+  margin-bottom: 4px;
+}
+.dialogue .entryCopy {
+  max-width: 86%;
+}
+.dialogue .entryCopy > p,
+.user .entryCopy > p {
+  background: #111b28b5;
+  border: 1px solid #ffffff36;
+  border-radius: 5px 14px 14px;
+  padding: 9px 12px;
+  backdrop-filter: blur(8px);
+}
+.user {
+  justify-content: flex-end;
+}
+.user .entryCopy {
+  max-width: 86%;
+}
+.user small {
+  text-align: right;
+}
+.user .entryCopy > p {
+  background: #385839c7;
+  border-color: #b8d2a369;
+  border-radius: 14px 5px 14px 14px;
+}
+.result {
+  display: block;
+  padding: 12px 8px;
+  color: #efede4;
+  text-shadow: 0 1px 5px #000;
+}
+.result small {
+  display: none;
+}
+.shortNarration {
+  text-align: center;
+  font-size: 14px;
+}
+.longNarration {
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.85;
+  padding-inline: 10px;
+}
+.stageDirection {
+  color: #d5dccf;
+  font-size: 0.94em;
+}
+.place {
+  text-align: center;
+  font-size: 11px;
+  color: #e1e5e9;
+  padding: 12px 0;
+}
+.scenePanel .card {
+  background: #111e2bbd;
+  color: #e4eaf0;
+  border-color: #ffffff26;
+  margin: 8px 0 14px;
+}
+.scenePanel .card p {
+  margin: 6px 0;
+}
+.scenePanel .notice {
+  position: relative;
+  z-index: 3;
+  color: #eee3c8;
+  padding: 8px 12px;
+  margin: 0;
+  background: #16212dbb;
+}
+.scenePanel > [role='alert'] {
+  position: relative;
+  z-index: 3;
+  margin: 0;
+  background: #361e28ef;
+  color: #ffe1db;
+  padding: 8px 12px;
+  max-height: 22%;
+  overflow: auto;
+  font-size: 13px;
+}
+.scenePanel .scrollToBottomBtn {
+  position: absolute;
+  bottom: 10px;
+  right: 18px;
+  z-index: 3;
+  color: #eef4ff;
+  border-color: #ffffff50;
+  border-radius: 24px;
+  background: #1e3c60f0;
+  box-shadow: 0 4px 16px #0004;
+  font-size: 12px;
+}
+.composer {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+  padding: 6px 12px max(10px, env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, #09121bb0);
+}
+.composerInputRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.scenePanel .composer textarea {
+  resize: none;
+  width: 100%;
+  box-sizing: border-box;
+  height: 46px;
+  min-height: 46px;
+  max-height: 100px;
+  border: 1px solid #ffffff45;
+  border-radius: 16px;
+  padding: 11px 12px;
+  background: #14202dbf;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  line-height: 22px;
+}
+.composer textarea::placeholder {
+  color: #d3d9dfb3;
+}
+.scenePanel .composerInputRow > button {
+  background: #347bfa;
+  color: #fff;
+  border-color: #347bfa;
+  min-height: 46px;
+}
+.suggestions {
+  position: relative;
+}
+.suggestions > summary {
+  font-size: 11px;
+  color: #d6e1ee;
+  width: max-content;
+}
+.suggestionRow {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  max-height: 48px;
+  padding-bottom: 6px;
+  scrollbar-width: none;
+}
+.scenePanel .suggestionPill {
+  flex: 0 0 auto;
+  font-size: 12px;
+  background: #18283ee8;
+  color: #e7eef9;
+  border-color: #ffffff36;
+  max-width: 270px;
+}
+@container scene-panel (max-height: 450px) {
+  .sceneControls {
+    padding-block: 0;
+  }
+  .sceneControls time,
+  .sceneControls > p {
+    display: none;
+  }
+  .suggestions {
+    display: none;
+  }
+  .readingArea {
+    max-height: calc(100% - 108px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading {
+    scroll-behavior: auto;
+  }
 }
 
-.quickPhoneBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 28px !important;
-  height: 28px;
-  padding: 0 10px !important;
-  font-size: 12px !important;
-  font-weight: 500;
-  border-radius: 14px !important;
-  border: 1px solid #cbd5e1 !important;
-  background: #ffffff !important;
-  color: #334155 !important;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  line-height: 1;
-}
-.quickPhoneBtn:hover {
-  background: #f1f5f9 !important;
-  border-color: #94a3b8 !important;
+.scenePanel[data-reading-mode='expanded'] .readingArea {
+  max-height: calc(100% - 125px);
 }

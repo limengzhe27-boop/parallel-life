@@ -33,7 +33,7 @@
 .imageLabel {
   position: absolute;
   right: 12px;
-  top: 48px;
+  top: 64px;
   color: #ffffffc9;
   background: #11212b61;
   padding: 4px 8px;
@@ -44,7 +44,7 @@
   position: absolute;
   left: 16px;
   right: 100px;
-  top: 10px;
+  top: 56px;
   color: #fff;
   text-shadow: 0 1px 6px #0009;
 }
@@ -60,7 +60,7 @@
 }
 .people {
   position: absolute;
-  top: 64px;
+  top: 112px;
   left: 14px;
   right: 14px;
   display: flex;
@@ -199,10 +199,10 @@
     display: none;
   }
   .imageLabel {
-    top: 48px;
+    top: 64px;
   }
   .people {
-    top: 64px;
+    top: 112px;
   }
   .presenceCount {
     display: none;
@@ -212,5 +212,16 @@
   }
   .personInfo {
     max-height: 110px;
+  }
+}
+
+@container scene-panel (max-height: 450px) {
+  .caption,
+  .imageLabel,
+  .presenceCount {
+    display: none;
+  }
+  .people {
+    top: 44px;
   }
 }

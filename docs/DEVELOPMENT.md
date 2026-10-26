@@ -3204,3 +3204,11 @@ CHAT-TIME-01 / NOTIFY-OVERLAY-01 最终本地接续：2026-10-26 main c8884e6c�
 SCENE-CLOSURE-01最终接续：main本批源码待此刻提交；check4023、现场PG17+8+2、travel8通过，SQL0115/0116已本地dev/test及远程应用（仅既有起点列约束/来源guard，0新增列，原档292/272运行消息不变）。实际3218 PID20394 build13、3219 PID20387主.next已加载当前代码，关键源码哈希匹配、两端health200；原档现场task4ebe…succeeded，GET200/969ms。NPC仍6个unknown，未伪造到场；完整自主赴约/早到现场等待与公网仍待完成。
 
 SCENE-CLOSURE-01收尾证据：主328d750e，实际运行全部src与build13逐文件hash0差异；最终check4023/4023。原档Chrome现场已显示城市街边、无错误提示，390×844无横向溢出；PC/手机截图在忽略目录。任务保持未全部完成：原档人物首次空间确立、早到现场等待/后续自主赴约及公网仍在清单，不以合成模型成功冒充原档NPC成功。
+
+|SCENE-IMMERSIVE-01|[ ] 本地界面已集成运行；立绘制作绑定与公网未完成|root-scene-immersive-20261026；主目录唯一集成|scene-panel.tsx、scenes.module.css；NEW scene-reading.tsx/css；scene-stage.tsx、stage.module.css由独立执行者交付；stage-presentation及测试/preview只读审查后指定；DESIGN.md及专属报告；3218/3219 root独占|用户批准全屏场景/人物、半透明多轮对白、短居中长左对齐旁白、三档可拖阅读区、草稿/滚动/微信返回。复用原现场内核与类型，不新增SQL/业务字段，不用假现场图片或把头像当立绘；check/build、手机/短屏/PC验收，本地双端口更新，生产受Vercel额度待核。|
+
+|SCENE-IMMERSIVE-01B|[x] 本地集成验收（生产待恢复）|scene-backdrop-20261026；独立.local/worktrees/scene-immersive-backdrop/codex/scene-immersive-backdrop；root唯一集成|仅scene-stage.tsx、stage.module.css、专属报告|全屏授权场景层、在场头像与公开资料；不硬编码人物立绘映射、不扩业务协议、不调用模型。聚焦类型检查，交root统一界面验收/构建/本地运行。|
+
+|SCENE-IMMERSIVE-01C|[x] 本地隔离UI样例验收（非真实剧情）|scene-ui-fixture-20261026；独立.local/worktrees/scene-immersive-fixture，codex/scene-immersive-fixture|仅stage-preview.tsx及专属报告|扩展开发专用现场UI样例，两名合成NPC、多轮对白/长旁白/真实类型动作结果、模拟追加消息供阅读位置验收；无DB/模型/生产写，root统一浏览器验收与构建。|
+
+SCENE-IMMERSIVE-01本地接续：check4023/4023、build通过，最终typecheck及stage授权展示11/11通过。Chrome真实页面390×844、390×500、1440×900无横向溢出，长旁白分段完整；读历史追加样例内容scrollTop11→11、显示有新内容，未发送草稿/height54/scroll11刷新恢复。原档4953现场读取200/2510ms，v292、task succeeded、仅玩家在场；真实Chrome已显示城市街边新布局，未手补人物/对白。3218 PID35361 build14与3219 PID35362主.next已加载，两个health200，build14全src哈希0差异。公网health402，未push/部署；暂无立绘制作绑定，原档未知位置NPC赴约仍归SCENE-CLOSURE-01。运行日志另见既有媒体查询503/DB慢读，不以UI样例冒充真实主动演绎通过。
