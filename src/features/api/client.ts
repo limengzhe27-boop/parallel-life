@@ -106,10 +106,13 @@ const WORLD_ADVANCE_TIMEOUT_MS = 185_000;
 export class ApiFailure extends Error {
   readonly code: ApiErrorBody['error']['code'];
   readonly requestId?: string;
-  constructor(code: ApiFailure['code'], message: string, requestId?: string) {
+  /** HTTP status when the transport produced a response; absent for network failures. */
+  readonly status?: number;
+  constructor(code: ApiFailure['code'], message: string, requestId?: string, status?: number) {
     super(message);
     this.code = code;
     this.requestId = requestId;
+    this.status = status;
   }
 }
 export type Loadable<T> =
@@ -146,6 +149,15 @@ export class LifeClient {
     try {
       body = response.status === 204 ? undefined : await response.json();
     } catch {
+      // Proxies can answer 402/503 with plain text. Keep the status so background
+      // polling can back off instead of retrying an unavailable service.
+      if (!response.ok)
+        throw new ApiFailure(
+          'UNAVAILABLE',
+          '暂时无法完成，请稍后再试。',
+          undefined,
+          response.status,
+        );
       throw new ApiFailure('UNAVAILABLE', '暂时没有收到完整结果，请重试。');
     }
     if (!response.ok) {
@@ -155,8 +167,9 @@ export class LifeClient {
           parsed.data.error.code,
           parsed.data.error.message,
           parsed.data.error.requestId,
+          response.status,
         );
-      throw new ApiFailure('UNAVAILABLE', '暂时无法完成，请稍后再试。');
+      throw new ApiFailure('UNAVAILABLE', '暂时无法完成，请稍后再试。', undefined, response.status);
     }
     const parsed = schema.safeParse(body);
     if (!parsed.success)
@@ -307,8 +320,7 @@ export class LifeClient {
               finalReceipt = WorldMessageReceiptSchema.parse(ev.receipt);
             } else if (ev.type === 'error') {
               const err = ev.error as
-                | { code?: string; message?: string; requestId?: string }
-                | undefined;
+                { code?: string; message?: string; requestId?: string } | undefined;
               throw new ApiFailure(
                 (err?.code as ApiErrorBody['error']['code']) || 'UNAVAILABLE',
                 err?.message || '暂时无法完成，请稍后再试。',

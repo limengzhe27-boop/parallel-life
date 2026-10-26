@@ -6,7 +6,7 @@ import {
 import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { verifiedGenesisLinks } from '../domain/genesis-links.ts';
 import { projectPlayerActors, type SelectedPlayerPerson } from '../domain/player-projection.ts';
-import { albumPhotos, historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
+import { albumPhotosWithPersonBindings } from '../../media/infrastructure/album-projection.ts';
 import { randomUUID } from 'node:crypto';
 import {
   WorldBuildRequestSchema,
@@ -141,7 +141,9 @@ export class BuildRepository {
       if (!row) throw new TaskError('NOT_FOUND');
       return row;
     });
-    const state = await new PostgresWorldRepository(this.db).get({ userId: ownerId }, worldId);
+    const state = await new PostgresWorldRepository(this.db).get({ userId: ownerId }, worldId, {
+      includeFacts: false,
+    });
     const choiceEventIds = (state.choices ?? []).flatMap((choice) => [
       choice.sourceEventId,
       ...(choice.nextStep ? [choice.nextStep.sourceEventId] : []),
@@ -278,10 +280,20 @@ export class BuildRepository {
         Date.parse(projectStoryTime(clock, new Date().toISOString())),
       ),
     ).toISOString();
-    const photos = await this.db.transaction(ownerId, (sql) => albumPhotos(sql, worldId));
-    const personPhotos = await this.db.transaction(ownerId, (sql) =>
-      historyPersonPhotos(sql, worldId),
+    const album = await this.db.transaction(ownerId, (sql) =>
+      albumPhotosWithPersonBindings(sql, worldId),
     );
+    const photos = album.photos;
+    // The album projection already read these immutable bindings; reuse them
+    // instead of joining the same rows again for the history links.
+    const personPhotos = new Map<string, string[]>();
+    for (const row of [...album.bindings].sort(
+      (a, b) =>
+        String(a.actor_id).localeCompare(String(b.actor_id)) ||
+        String(a.asset_id).localeCompare(String(b.asset_id)),
+    ))
+      if (row.origin === 'upload' && row.asset_world_id === null)
+        personPhotos.set(String(row.actor_id), [String(row.asset_id)]);
     if (state.genesisLinks && state.genesisLinks.seedId !== metadata.seed_id)
       throw Error('INVALID_GENESIS_LINKS');
     const history = verifiedGenesisLinks(state);

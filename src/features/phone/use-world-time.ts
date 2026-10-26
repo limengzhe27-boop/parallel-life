@@ -6,6 +6,7 @@ import { StoryWaitRequestSchema, type StoryWaitRequest } from '../../contracts/s
 import { projectStoryTime } from '../../modules/world/domain/clock.ts';
 import { readableActivityClock } from '../../modules/world/domain/clock-activity.ts';
 import { readRoute } from './navigation.ts';
+import { notePollFailure, notePollSuccess, pollingAllowed } from './poll-guard.ts';
 import {
   idleCheckDue,
   phoneTimeMode,
@@ -148,9 +149,12 @@ export function useWorldTime(
         pendingWaitRef.current
       )
         return;
-      void sync(mode(), s.resumeRequired).catch(() => {
-        if (s.active) setNotice('时间暂时未同步，稍后重试。');
-      });
+      void sync(mode(), s.resumeRequired)
+        .then(() => notePollSuccess())
+        .catch((error) => {
+          notePollFailure(error);
+          if (s.active) setNotice('时间暂时未同步，稍后重试。');
+        });
     };
     const leave = () => {
       if (s.returning) return;
@@ -186,7 +190,9 @@ export function useWorldTime(
       }
     };
     update();
-    const heartbeat = setInterval(update, 15_000);
+    const heartbeat = setInterval(() => {
+      if (pollingAllowed()) update();
+    }, 15_000);
     const display = setInterval(() => {
       setNow(Date.now());
       if (!s.returning && mode() !== s.mode) update();

@@ -39,6 +39,7 @@ import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { MessageReceiptClient } from '../api/message-receipt-client.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
+import { notePollFailure, notePollSuccess, pollingAllowed } from './poll-guard.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import { CharacterPhoneShell as PhoneShell } from './character-phone-shell.tsx';
@@ -569,6 +570,7 @@ export function WorldPhoneApp({
     setStatusMessage('正在打开你的手机…');
     try {
       const next = await client.world(worldId);
+      notePollSuccess();
       if (currentRequest === request.current) {
         setData((current) =>
           current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
@@ -577,6 +579,7 @@ export function WorldPhoneApp({
       }
       return;
     } catch (e) {
+      notePollFailure(e);
       if (currentRequest !== request.current) return;
       try {
         const resolved = await resolveInterruptedBuild(currentRequest);
@@ -740,15 +743,18 @@ export function WorldPhoneApp({
     const timer = window.setInterval(
       async () => {
         if (!active || reading || document.visibilityState !== 'visible') return;
+        if (!pollingAllowed()) return;
         reading = true;
         try {
           const next = await client.world(worldId);
+          notePollSuccess();
           if (active)
             setData((current) =>
               current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
             );
-        } catch {
+        } catch (error) {
           // A transient read failure never changes a committed message into a failed send.
+          notePollFailure(error);
         } finally {
           reading = false;
         }
@@ -943,7 +949,8 @@ export function WorldPhoneApp({
         // Reading the committed world lets the phone's existing message notification
         // and banner show the real incoming reply while this screen stays open.
         if (active && (result.changed || result.played > 0)) await load();
-      } catch {
+      } catch (error) {
+        notePollFailure(error);
         // Operation failures retain their original queryable identity. Read failures
         // do not imply that a Director/NPC operation failed or authorize a resend.
         if (active && advancing) void advanceRecoveryRef.current.reconcile();
@@ -955,6 +962,7 @@ export function WorldPhoneApp({
       }
     }
     directorCheck.current = () => {
+      if (!pollingAllowed()) return;
       // Same-origin tabs share a cheap-check/execution transport lock. A lost lock never
       // authorizes a new paid attempt: all source and unknown fences remain server-side.
       if (navigator.locks) {

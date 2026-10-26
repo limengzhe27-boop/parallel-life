@@ -8,6 +8,37 @@ import { readableActivityClock } from '../domain/clock-activity.ts';
 import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
 import { createHash, randomUUID } from 'node:crypto';
 
+/** Reuse an already-open transaction so a caller does not pay a second round trip for the clock. */
+export async function readClockInTransaction(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+  realNow = new Date().toISOString(),
+): Promise<WorldClock> {
+  const row = (
+    await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
+      worldId,
+      ownerId,
+    ])
+  ).rows[0];
+  if (row) return readableActivityClock(storedActivityClock(row), realNow);
+  /* A world created before the clock existed starts from its own story time. */
+  const world = (
+    await sql.query('SELECT state->>$$time$$ AS time FROM parallel_life.worlds WHERE id=$1', [
+      worldId,
+    ])
+  ).rows[0];
+  if (!world) throw new DomainError('NOT_FOUND');
+  return {
+    storyNow: new Date(String(world.time)).toISOString(),
+    speed: DEFAULT_SPEED,
+    paused: false,
+    lastTickAt: realNow,
+    missedBeats: 0,
+    summary: null,
+  };
+}
+
 export class PostgresClockStore implements ClockStore {
   private db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
@@ -57,30 +88,9 @@ export class PostgresClockStore implements ClockStore {
     worldId: string,
     realNow = new Date().toISOString(),
   ): Promise<WorldClock> {
-    return this.db.transaction(ownerId, async (sql) => {
-      const row = (
-        await sql.query(
-          'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
-          [worldId, ownerId],
-        )
-      ).rows[0];
-      if (row) return readableActivityClock(storedActivityClock(row), realNow);
-      /* A world created before the clock existed starts from its own story time. */
-      const world = (
-        await sql.query('SELECT state->>$$time$$ AS time FROM parallel_life.worlds WHERE id=$1', [
-          worldId,
-        ])
-      ).rows[0];
-      if (!world) throw new DomainError('NOT_FOUND');
-      return {
-        storyNow: new Date(String(world.time)).toISOString(),
-        speed: DEFAULT_SPEED,
-        paused: false,
-        lastTickAt: realNow,
-        missedBeats: 0,
-        summary: null,
-      };
-    });
+    return this.db.transaction(ownerId, (sql) =>
+      readClockInTransaction(sql, ownerId, worldId, realNow),
+    );
   }
   async ensureAnchor(ownerId: string, worldId: string, clock: WorldClock): Promise<void> {
     await this.db.transaction(ownerId, (sql) =>

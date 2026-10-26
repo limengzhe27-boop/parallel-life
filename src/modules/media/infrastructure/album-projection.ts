@@ -16,6 +16,11 @@ export function albumPhoto(row: Record<string, unknown>) {
   });
 }
 export async function albumPhotos(sql: SqlClient, worldId: string) {
+  return (await albumPhotosWithPersonBindings(sql, worldId)).photos;
+}
+
+/** One projection for the album and the immutable person-binding history it already reads. */
+export async function albumPhotosWithPersonBindings(sql: SqlClient, worldId: string) {
   const rows = await sql.query(
     "SELECT p.*,a.origin,a.width,a.height,a.revision,a.mime_type FROM parallel_life.world_album p JOIN parallel_life.assets a ON a.id=p.asset_id AND a.owner_id=p.owner_id AND a.world_id=p.world_id WHERE p.world_id=$1 AND a.status='ready' ORDER BY p.created_at DESC,p.asset_id LIMIT 100",
     [worldId],
@@ -45,7 +50,7 @@ export async function albumPhotos(sql: SqlClient, worldId: string) {
     [worldId],
   );
   const imported = await sql.query(
-    "SELECT b.asset_id,b.world_id,b.person_id,b.person_snapshot,a.created_at AS story_at,b.created_at,a.origin,a.width,a.height,a.revision FROM parallel_life.world_person_bindings b JOIN parallel_life.assets a ON a.id=b.asset_id AND a.owner_id=b.owner_id AND a.revision=b.asset_revision WHERE b.world_id=$1 AND a.status='ready' ORDER BY b.created_at DESC,b.asset_id LIMIT 100",
+    "SELECT b.asset_id,b.world_id,b.actor_id,b.person_id,b.person_snapshot,a.world_id AS asset_world_id,a.created_at AS story_at,b.created_at,a.origin,a.width,a.height,a.revision FROM parallel_life.world_person_bindings b JOIN parallel_life.assets a ON a.id=b.asset_id AND a.owner_id=b.owner_id AND a.revision=b.asset_revision WHERE b.world_id=$1 AND a.status='ready' ORDER BY b.created_at DESC,b.asset_id LIMIT 100",
     [worldId],
   );
   const references = imported.rows.map((row) =>
@@ -60,7 +65,10 @@ export async function albumPhotos(sql: SqlClient, worldId: string) {
     ...generated.rows.map(albumPhoto),
     ...references,
   ];
-  return allPhotos.filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i);
+  return {
+    photos: allPhotos.filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i),
+    bindings: imported.rows,
+  };
 }
 
 /** Only original immutable person bindings; a current avatar is not a history photo. */

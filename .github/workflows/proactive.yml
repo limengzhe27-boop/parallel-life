@@ -1,7 +1,8 @@
 name: proactive-worlds
+# Scheduled ticks are owned by the Supabase cron job (every 5 minutes); this
+# workflow stays as the manual break-glass entry so two schedulers never fan out
+# the same world in the same minute.
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 permissions:
   contents: read

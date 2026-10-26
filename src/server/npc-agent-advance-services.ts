@@ -76,7 +76,15 @@ import {
   parseDirectorDecision,
 } from '../modules/world/infrastructure/director-agent-model.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
-import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
+import {
+  PostgresClockStore,
+  readClockInTransaction,
+} from '../modules/world/infrastructure/clock-repository.ts';
+import {
+  advancePreflightMode,
+  advancePreflightReason,
+  shouldLogAdvancePreflight,
+} from '../modules/world/application/advance-preflight.ts';
 import { PostgresPlanReviewRepository } from '../modules/world/infrastructure/plan-review-repository.ts';
 import { PostgresDirectorReviewRepository } from '../modules/world/infrastructure/director-review-repository.ts';
 import {
@@ -213,29 +221,40 @@ export function npcAgentAdvanceServices(
       batch?: AgentAdvanceBatchContext,
       options?: { forceDirectorReview?: boolean },
     ): Promise<AdvanceResult | null> {
-      const control = await db.transaction(
-        ownerId,
-        async (sql) =>
-          (
-            await sql.query(
-              `SELECT COALESCE(c.engine_epoch,1) engine_epoch,
-                      EXISTS (
-                        SELECT 1 FROM parallel_life.agent_attempts a
-                         WHERE a.world_id=w.id AND a.owner_id=w.owner_id
-                           AND a.status='invalid_output'
-                           AND a.response->>'kind'='model_request_rejection'
-                           AND (a.response->>'httpStatus') IN ('401','403','429')
-                           AND a.created_at > now() - interval '10 minutes'
-                      ) AS model_cooldown
-                 FROM parallel_life.worlds w
-         LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
-         WHERE w.id=$1 AND w.owner_id=$2`,
-              [worldId, ownerId],
-            )
-          ).rows[0],
-      );
-      if (!control) throw new DomainError('NOT_FOUND');
-      const engineEpoch = Number(control.engine_epoch);
+      const now = new Date().toISOString();
+      // One small read covers everything that can make an advance definitively
+      // quiet before the expensive world projection is hydrated.
+      const control = await db.transaction(ownerId, async (sql) => {
+        const row = (
+          await sql.query(
+            `SELECT COALESCE(c.engine_epoch,1) engine_epoch,
+                    w.state->>'time' AS world_time,
+                    w.state->>'deletedAt' AS deleted_at,
+                    EXISTS (
+                      SELECT 1 FROM parallel_life.agent_attempts a
+                       WHERE a.world_id=w.id AND a.owner_id=w.owner_id
+                         AND a.status='invalid_output'
+                         AND a.response->>'kind'='model_request_rejection'
+                         AND (a.response->>'httpStatus') IN ('401','403','429')
+                         AND a.created_at > now() - interval '10 minutes'
+                    ) AS model_cooldown
+               FROM parallel_life.worlds w
+       LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
+       WHERE w.id=$1 AND w.owner_id=$2`,
+            [worldId, ownerId],
+          )
+        ).rows[0];
+        if (!row || row.deleted_at) throw new DomainError('NOT_FOUND');
+        const engineEpoch = Number(row.engine_epoch);
+        return {
+          engineEpoch,
+          worldTime: String(row.world_time),
+          modelCooldown: row.model_cooldown === true,
+          // Legacy worlds return before using a clock; do not add a read for them.
+          clock: engineEpoch < 2 ? null : await readClockInTransaction(sql, ownerId, worldId, now),
+        };
+      });
+      const engineEpoch = control.engineEpoch;
       if (engineEpoch < 2) {
         if (retryDirectorAttemptId) throw new DomainError('INVALID_COMMAND');
         return null;
@@ -264,12 +283,27 @@ export function npcAgentAdvanceServices(
             '请先核对这次重新生成的结果，不能再次发送同一请求。',
           );
       }
-      const world = await worlds.get({ userId: ownerId }, worldId),
-        now = new Date().toISOString();
-      const clock = await new PostgresClockStore(db).read(ownerId, worldId, now);
+      const clock = control.clock!;
       const storyAt = new Date(
-        Math.max(Date.parse(world.time), Date.parse(projectStoryTime(clock, now))),
+        Math.max(Date.parse(control.worldTime), Date.parse(projectStoryTime(clock, now))),
       ).toISOString();
+      // Only a definitive negative may skip; retries and every other state keep
+      // the complete path (and its exact error semantics).
+      const preflight = retryCommandId
+        ? null
+        : advancePreflightReason({
+            paused: clock.paused,
+            modelCooldown: control.modelCooldown,
+          });
+      if (preflight) {
+        const mode = advancePreflightMode(process.env.ADVANCE_PREFLIGHT);
+        if (shouldLogAdvancePreflight(worldId, preflight))
+          console.info(
+            JSON.stringify({ scope: 'advance-preflight', worldId, reason: preflight, mode }),
+          );
+        if (mode === 'on') return quiet(storyAt);
+      }
+      const world = await worlds.get({ userId: ownerId }, worldId);
       // A cheap check may be quiet. Do not invent folded events or spend a model call offline.
       if (clock.paused) {
         if (retryCommandId) throw new DomainError('INVALID_COMMAND', '请先开始试演。');
@@ -278,7 +312,7 @@ export function npcAgentAdvanceServices(
       // A provider auth/rate-limit rejection is not a fresh character decision.
       // Back off this world's autonomous model work instead of buying a new
       // candidate every scheduler tick; a player-initiated message has its own path.
-      if (control.model_cooldown === true) return quiet(storyAt);
+      if (control.modelCooldown) return quiet(storyAt);
       const read = await db.transaction(ownerId, async (sql) => {
         const current = (
           await sql.query('SELECT version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [

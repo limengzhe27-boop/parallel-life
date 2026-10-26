@@ -173,7 +173,11 @@ export class PostgresWorldRepository implements WorldRepository {
     if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
     return { ...row.state, version: row.version } as WorldState;
   }
-  static async hydrateInTransaction(sql: SqlClient, state: WorldState): Promise<WorldState> {
+  static async hydrateInTransaction(
+    sql: SqlClient,
+    state: WorldState,
+    options: { includeFacts?: boolean } = {},
+  ): Promise<WorldState> {
     // One read-only statement preserves the same per-projection ordering and
     // version visibility, avoiding six sequential network round trips per hydrate.
     const tables = [
@@ -181,7 +185,7 @@ export class PostgresWorldRepository implements WorldRepository {
       'world_appointments',
       'world_media_requests',
       'world_notes',
-      'world_facts',
+      ...(options.includeFacts === false ? [] : ['world_facts']),
     ];
     const projections = await sql.query(
       `SELECT -1 AS projection_index,state AS document,-1 AS event_version,0::bigint AS ordinal,world_id AS projection_id
@@ -219,15 +223,17 @@ export class PostgresWorldRepository implements WorldRepository {
       ...(initial?.genesisLinks ? { genesisLinks: initial.genesisLinks } : {}),
       mediaRequests: [...(initial?.mediaRequests ?? []), ...results[2]!],
       notes: results[3]!,
-      facts: retainFacts(
-        dedupeFacts([
-          /* Genesis facts live in the immutable build snapshot. */
-          ...(initial?.facts ?? []),
-          /* Worlds created before the projection existed still carry facts in their snapshot. */
-          ...(state.facts ?? []),
-          ...results[4]!,
-        ]),
-      ),
+      facts: tables.includes('world_facts')
+        ? retainFacts(
+            dedupeFacts([
+              /* Genesis facts live in the immutable build snapshot. */
+              ...(initial?.facts ?? []),
+              /* Worlds created before the projection existed still carry facts in their snapshot. */
+              ...(state.facts ?? []),
+              ...results[4]!,
+            ]),
+          )
+        : (state.facts ?? []),
     };
     hydrated = await publicationPlaceLinks(sql, hydrated);
     // Scene attendance retains the invitation's original immutable message source.
@@ -504,9 +510,9 @@ export class PostgresWorldRepository implements WorldRepository {
       return { worldId: state.id, version: state.version, note };
     });
   }
-  async get(session: Session, id: string) {
+  async get(session: Session, id: string, options: { includeFacts?: boolean } = {}) {
     return this.db.transaction(session.userId, async (sql) =>
-      PostgresWorldRepository.hydrateInTransaction(sql, await this.owned(sql, id)),
+      PostgresWorldRepository.hydrateInTransaction(sql, await this.owned(sql, id), options),
     );
   }
   private async saved(sql: SqlClient, command: TurnCommand): Promise<CommitResult | null> {

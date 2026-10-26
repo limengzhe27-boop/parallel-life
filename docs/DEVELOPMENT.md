@@ -3172,3 +3172,19 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |LOCAL-PLAY-02|[ ] 本地已接通并验证真实生成/读写；回云与完整人物旅程待验收|root-local-play|主目录串行；src/server/private-asset-store.ts、NEW local-first-asset-store.ts、tests/local-first-asset-store.test.ts、scripts/sync-local-assets.mjs、LOCAL-PLAY-02报告；本地配置|复用AssetStore实现本地新图保存、云端旧图读取与显式校验同步；不新增业务字段、不清空数据；本地验收优先，外部额度阻断如实记录。|
 
 |TEST-WORLD-CLEANUP-01|[x] 已完成：47份原入口删除并暂停，数据库复核47/47；非物理清库|root-local-play|只读清单与原world删除入口、专属报告、忽略的清理脚本|按用户授权清理可确认验收世界，保留真实存档/草稿/发布内容；记录实际删除语义与结果。|
+
+### 2026-10-26 · CPU 治理（不改变用户体验的四项）
+
+用户 2026-10-26 确认按已讨论方案执行；明确暂缓“世界 GET 快速返回”“客户端轮询/可见性策略”两项以延迟换 CPU 的改动。本轮只做零体验影响项，且因 Vercel 团队仍暂停，只本地实现/验证，不 push、不部署。
+
+|任务ID|状态|负责人/工作目录|范围与验收|
+|---|---|---|---|
+|CPU-GUARD-01I|[ ] 待验收|dsh-cpu-guard-01-20261026；主目录 `/Users/limengzhe/Desktop/projects/demo/人生剧本`|基线 `0f563f59`。仅改：`src/server/npc-agent-advance-services.ts` 及必要新接入文件（advance 轻量预检，默认 shadow，异常回退完整读取）；world 读取链路的请求内去重（不改响应字节/顺序）；`src/features/phone/world-phone-app.tsx`（402/503 退避，正常轮询不变）；`.github/workflows/proactive.yml`（转 workflow_dispatch，保留 Supabase 5 分钟）；相关 tests 与新 `docs/task-reports/CPU-GUARD-01.md`。不新增迁移、不改契约、不改 Supabase cron。验收：`npm run check`、`npm run build`、真实 PG 专项、串行 CPU 前后对比；证据写入报告。部署依赖：Vercel 恢复 + 生产迁移 0113/0114 先应用；未部署前状态只能到“待验收”。 已交付本地：预检默认 shadow、定时去重、402/503 门闩、phone 请求内去重；`npm run check` 4015/4015、build 通过；暂停大世界 advance 21.0→4.0ms CPU，构建世界 GET 26.0→22.0ms 且 565472 字节逐字节一致；事务 9.20→8.05。另修复相册上传读取不存在 `world_clock.clock` 列的既有 42703。未 push/未部署，证据见 `docs/task-reports/CPU-GUARD-01.md`。|
+
+任务目标与边界：
+
+- **advance 预检**：只做否定判断（暂停/冷却/在途可明确判定才跳过），任何不确定回退完整路径；先 shadow 记录“本可跳过”，对比一致后再启用跳过开关。
+- **定时去重**：保留已核实的 Supabase 每 5 分钟任务，GitHub Actions 改为手动触发；接口幂等不变，保留手动入口。
+- **402/503 退避**：仅对明确 402 或连续 503 停止自动轮询并给出手动重试，恢复后立即刷新；正常路径不改变。
+- **请求内去重**：只做同一请求内 memoize，不做跨请求缓存；改造前后对同一世界响应做快照 diff，确保字节一致。
+- 不做：世界 GET 快速返回/change token、客户端轮询间隔或可见性策略、跨请求缓存、任何用户体验变化。
