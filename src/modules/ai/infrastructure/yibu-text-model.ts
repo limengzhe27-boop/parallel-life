@@ -5,7 +5,14 @@ import {
 } from '../application/model-request-policy.ts';
 import type { ModelMessage, TextModel, ModelOutputOptions } from '../application/ports.ts';
 
-export type GatewayConfig = { apiKey: string; model: string; baseUrl: string; timeoutMs: number };
+export type GatewayConfig = {
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+  timeoutMs: number;
+  /** Transport setting only; never stored in a world's business state. */
+  reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+};
 /** Chat-shaped calls keep the conservative default; structured builders ask for their own cap. */
 export const DEFAULT_MAX_TOKENS = DEFAULT_MODEL_OUTPUT_TOKENS;
 export class GatewayError extends Error {
@@ -54,7 +61,9 @@ export class YibuTextModel implements TextModel {
       !/^[\w.-]+$/.test(config.model) ||
       !Number.isFinite(config.timeoutMs) ||
       config.timeoutMs < 1 ||
-      config.timeoutMs > 120000
+      config.timeoutMs > 120000 ||
+      (config.reasoningEffort !== undefined &&
+        !['none', 'low', 'medium', 'high', 'xhigh'].includes(config.reasoningEffort))
     )
       throw new GatewayError('INVALID_CONFIG');
     this.config = { ...config };
@@ -85,6 +94,9 @@ export class YibuTextModel implements TextModel {
           },
           body: JSON.stringify({
             model: this.config.model,
+            ...(this.config.reasoningEffort
+              ? { reasoning_effort: this.config.reasoningEffort }
+              : {}),
             messages: preparedMessages,
             stream: false,
             max_tokens: outputCap,
@@ -201,6 +213,9 @@ export class YibuTextModel implements TextModel {
           },
           body: JSON.stringify({
             model: this.config.model,
+            ...(this.config.reasoningEffort
+              ? { reasoning_effort: this.config.reasoningEffort }
+              : {}),
             messages: preparedMessages,
             stream: true,
             max_tokens: maxTokens,

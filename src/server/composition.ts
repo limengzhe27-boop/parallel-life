@@ -13,10 +13,14 @@ export function createTextModel() {
   return npcModel || directorModel
     ? roleTextModel(
         base,
-        npcModel ? new YibuTextModel({ ...config, model: npcModel }) : base,
+        npcModel ? new YibuTextModel(npcGatewayConfig({ ...config, model: npcModel })) : base,
         directorModel ? new YibuTextModel({ ...config, model: directorModel }) : undefined,
       )
     : base;
+}
+/** Explicit non-reasoning for the selected fast NPC model; other roles keep their configuration. */
+function npcGatewayConfig(config: GatewayConfig): GatewayConfig {
+  return config.model === 'grok-4.3' ? { ...config, reasoningEffort: 'none' } : config;
 }
 /** Authoring compiles a whole screenplay; its model can be configured independently of chat. */
 export function createManuscriptTextModel() {
@@ -30,5 +34,5 @@ export { sameOrigin as sessionOriginAllowed } from '../modules/identity/infrastr
 
 /** The scene director and independent scene speakers share this isolated selection. */
 export function createSceneTextModel(config: GatewayConfig = sceneGatewayConfig()) {
-  return new YibuTextModel(config);
+  return new YibuTextModel(npcGatewayConfig(config));
 }
