@@ -8,6 +8,8 @@ import type {
 export type ActorStateContextOptions = {
   privateStrategySourceIds?: ReadonlySet<string>;
   includeRequestRevisions?: boolean;
+  /** Global Director observation only; NPC strategy uses its source-filtered view. */
+  includeContinuation?: boolean;
 };
 function defaultInvalid(): never {
   throw Object.assign(new Error('INVALID_AGENT_CONTEXT'), { code: 'INVALID_AGENT_CONTEXT' });
@@ -142,6 +144,41 @@ export function actorStateContextPayload(
       };
     });
   };
+  const continuationDescriptor = options.includeContinuation
+    ? Object.getOwnPropertyDescriptor(state, 'continuation')
+    : undefined;
+  const continuation = continuationDescriptor
+    ? 'value' in continuationDescriptor
+      ? continuationDescriptor.value
+      : invalid()
+    : undefined;
+  const continuationView = (): NonNullable<ActorAgentState['continuation']> => {
+    object(continuation);
+    const record = continuation as object;
+    const decision = data(record, 'decision');
+    if (
+      data(record, 'version') !== 1 ||
+      !['act', 'await_response', 'await_condition', 'no_current_intent'].includes(
+        decision as string,
+      )
+    )
+      return invalid();
+    const sourceIds = strings(data(record, 'sourceIds') as string[]);
+    return {
+      version: 1,
+      decision: decision as NonNullable<ActorAgentState['continuation']>['decision'],
+      reason: sourceIds.some((id) => options.privateStrategySourceIds?.has(id))
+        ? ''
+        : text(data(record, 'reason') as string),
+      sourceIds,
+      planIds: strings(data(record, 'planIds') as string[]),
+      questionIds: strings(data(record, 'questionIds') as string[]),
+      conditions: objects(data(record, 'conditions') as AgentCondition[]).map(condition),
+      decidedAt: text(data(record, 'decidedAt') as string),
+      sourceInputId: text(data(record, 'sourceInputId') as string),
+      basisHash: text(data(record, 'basisHash') as string),
+    };
+  };
   return {
     schemaVersion: state.schemaVersion,
     worldId: text(state.worldId),
@@ -214,6 +251,7 @@ export function actorStateContextPayload(
         : {}),
     })),
     focus: focus(state.focus),
+    ...(continuation === undefined ? {} : { continuation: continuationView() }),
     ...(participations === undefined ? {} : { episodeParticipations: episodeParticipations() }),
     ...(state.questions === undefined
       ? {}
