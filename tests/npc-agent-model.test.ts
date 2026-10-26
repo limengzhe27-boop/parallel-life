@@ -9,7 +9,7 @@ import type { AgentSnapshot } from '../src/modules/world/application/agent-runti
 import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
 import {
   NpcAgentModel,
-  NPC_AGENT_PAYLOAD_LIMIT,
+  NPC_AGENT_MESSAGE_LIMIT,
   NPC_AGENT_REQUEST_LIMIT,
   NPC_AGENT_OUTPUT_TOKENS,
 } from '../src/modules/world/infrastructure/npc-agent-model.ts';
@@ -19,6 +19,16 @@ import {
   npcSourceReferences,
   npcSourceRef,
 } from '../src/modules/world/infrastructure/npc-source-reference.ts';
+function assertRequestBudget(call: { messages: ModelMessage[]; output?: ModelOutputOptions }) {
+  const messagesSize = JSON.stringify(call.messages).length;
+  assert(messagesSize <= NPC_AGENT_MESSAGE_LIMIT, 'actual transmitted messages stay within 64k');
+  assert(
+    messagesSize + JSON.stringify(call.output).length <= NPC_AGENT_REQUEST_LIMIT,
+    'actual messages plus response schema stay within 80k',
+  );
+  const payload = JSON.parse(call.messages[1]!.content);
+  assert.equal('sources' in payload, false, 'source metadata has one catalog only');
+}
 const wireExpected = (input: AgentSnapshot, value: unknown) =>
   mapNpcSourceFields(value, npcSourceReferences(input.sources), 'encode');
 const sourceRef = (input: AgentSnapshot, id: string) =>
@@ -170,8 +180,14 @@ test('unknown server/director properties and source record pointers are not seri
   assert(!prompt.includes('TOP_SECRET'));
   assert(!prompt.includes('DB-POINTER-NOT-FOR-PROMPT'));
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.sources[0].id, sourceRef(input, input.sources[0]!.id));
-  assert(!('recordId' in payload.sources[0]));
+  assert.equal(payload.wireCatalog.sources[0].ref, sourceRef(input, input.sources[0]!.id));
+  assert(!('recordId' in payload.wireCatalog.sources[0]));
+  assert.equal('sources' in payload, false);
+  assert.equal(
+    payload.wireCatalog.sources[0].usage,
+    undefined,
+    'channel_context is the implicit default',
+  );
 });
 
 test('forgotten canonical summary and decision quote never enter prompt or budget through full state', async () => {
@@ -338,9 +354,12 @@ test('only explicit server deadline is carried as source data, without exposing 
   const { adapter, calls } = capture();
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.sources[0].deadlineAt, input.sources[0]!.deadlineAt);
+  assert.equal(payload.wireCatalog.sources[0].deadlineAt, input.sources[0]!.deadlineAt);
+  assert.equal(payload.wireCatalog.sources[0].deadlineLocalDateTime, '2026-10-15T18:00:00');
+  assert.equal(payload.wireCatalog.sources[0].at, input.sources[0]!.at);
+  assert.equal(payload.wireCatalog.sources[0].worldVersion, input.sources[0]!.worldVersion);
   assert.equal(payload.state.responsibilities[0].deadline, undefined);
-  assert(!('recordId' in payload.sources[0]));
+  assert(!('recordId' in payload.wireCatalog.sources[0]));
 });
 
 test('code provides separate local occurrence and learning time plus the exact unverified position claim', async () => {
@@ -381,7 +400,7 @@ test('code provides separate local occurrence and learning time plus the exact u
   assert.equal(knowledge.learnedAtLocal, '2026-10-15T15:40:00');
   assert.equal(knowledge.sourceKind, 'player_report');
   assert.equal(knowledge.reportedQuote, '我上周在咖啡馆见过他。');
-  assert.equal(payload.sources[0].localDateTime, '2026-10-15T16:00:00');
+  assert.equal(payload.wireCatalog.sources[0].localDateTime, '2026-10-15T16:00:00');
   assert(!calls[0]!.messages[1]!.content.includes('INTERNAL_RECEIPT_DO_NOT_SEND'));
 });
 
@@ -395,8 +414,8 @@ test('accepted input receipt is an opaque source, not relabelled as a committed 
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal(payload.input.sourceId, sourceRef(input, 'input-receipt-1'));
-  assert.equal(payload.sources[0].kind, 'accepted_input');
-  assert(!('recordId' in payload.sources[0]));
+  assert.equal(payload.wireCatalog.sources[0].kind, 'accepted_input');
+  assert(!('recordId' in payload.wireCatalog.sources[0]));
 });
 
 test('persona pressure keeps legacy JSON valid with protected identity and boundaries', async () => {
@@ -405,7 +424,7 @@ test('persona pressure keeps legacy JSON valid with protected identity and bound
     name: '林白语',
     identity: '大学同学',
     boundaries: '不替玩家同意。',
-    background: '字'.repeat(30000),
+    background: '字'.repeat(90000),
   };
   input.actor.persona = JSON.stringify(persona);
   const { adapter, calls } = capture();
@@ -416,6 +435,7 @@ test('persona pressure keeps legacy JSON valid with protected identity and bound
   assert.equal(selected.identity, persona.identity);
   assert.equal(selected.boundaries, persona.boundaries);
   assert(payload.contextSelection.personaExcerpt);
+  assertRequestBudget(calls[0]!);
 });
 
 test('budget selects bounded persona and whole older observations without truncating current player text', async () => {
@@ -439,7 +459,7 @@ test('budget selects bounded persona and whole older observations without trunca
   await adapter.decide(input);
   const messages = calls[0]!.messages,
     payload = JSON.parse(messages[1]!.content);
-  assert(messages[1]!.content.length <= NPC_AGENT_PAYLOAD_LIMIT);
+  assertRequestBudget(calls[0]!);
   assert(JSON.stringify(messages).length <= NPC_AGENT_REQUEST_LIMIT);
   assert.equal(payload.input.text, input.input.text);
   assert.deepEqual(payload.state, wireExpected(input, input.state));
@@ -456,7 +476,7 @@ test('budget selects bounded persona and whole older observations without trunca
   assert.deepEqual(input, original);
 });
 
-test('a long duplicate question ledger is degraded before preflight fails the send', async () => {
+test('oversized active questions fail free preflight rather than silently losing reply evidence', () => {
   const input = snapshot();
   const questions = Array.from({ length: 100 }, (_, index) => ({
     id: `q-${index}`,
@@ -469,12 +489,11 @@ test('a long duplicate question ledger is degraded before preflight fails the se
   }));
   input.state.questions = questions;
   input.viewState.questions = structuredClone(questions);
-  const { adapter, calls } = capture();
-  adapter.validateInput(input);
-  await adapter.decide(input);
-  const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert(calls[0]!.messages[1]!.content.length <= NPC_AGENT_PAYLOAD_LIMIT);
-  assert((payload.state.questions ?? []).length <= 8);
+  const before = structuredClone(input),
+    { adapter, calls } = capture();
+  assert.throws(() => adapter.validateInput(input), { code: 'NPC_AGENT_SNAPSHOT_LIMIT' });
+  assert.equal(calls.length, 0, 'oversized protected evidence must not buy a model call');
+  assert.deepEqual(input, before, 'preflight must not clear active questions to fit');
 });
 
 test('long-lived terminal history is compacted before preflight fails the send', async () => {
@@ -535,7 +554,7 @@ test('long-lived terminal history is compacted before preflight fails the send',
   await adapter.decide(input);
   assert.equal(calls.length, 1);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert(calls[0]!.messages[1]!.content.length <= NPC_AGENT_PAYLOAD_LIMIT);
+  assertRequestBudget(calls[0]!);
   assert.deepEqual(
     payload.state.goals.map((goal: { id: string }) => goal.id),
     ['g1'],
@@ -640,7 +659,7 @@ test('group keeps this NPC structured private decision without serializing the p
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal(payload.state.decisions[0].kind, 'declined');
   assert.equal(payload.state.goals[0].id, 'g1');
-  assert.equal(payload.sources[0].usage, 'private_strategy');
+  assert.equal(payload.wireCatalog.sources[0].usage, 'private_strategy');
   assert.equal(s.viewState.decisions[0]!.quote, 'PRIVATE-QUOTE-DO-NOT-REPEAT');
   const bad = structuredClone(s);
   bad.observations = [{ sourceId: 'source-1', text: 'PRIVATE-TRANSCRIPT', kind: 'speech' }];
@@ -953,7 +972,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v72-task-specific-wake');
+  assert.equal(payload.promptVersion, 'npc-agent-v73-single-source-catalog');
   assert.match(system, /玩家明确说忙、晚点、想休息或暂时不想谈时/);
   assert.match(system, /之后的自动唤醒都不再提同一邀约、计划或问题/);
   assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
@@ -1128,7 +1147,7 @@ test('v8 source projection preserves canonical inbox manifests and exact player 
   const { adapter, calls } = capture();
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.sources[0].id, 'source:1');
+  assert.equal(payload.wireCatalog.sources[0].ref, 'source:1');
   assert.equal(payload.wireCatalog.inputSourceRef, 'source:1');
   assert.equal(JSON.parse(payload.input.text).basisSourceIds[0], sourceRef(input, definition));
   assert.equal(
@@ -1281,7 +1300,7 @@ test('internal private recall uses the same bounded pool and final supplied-cont
     const payload = JSON.parse(calls[0]!.messages[1]!.content);
     assert.equal(payload.presentationContext.internalContext.length, oversized ? 0 : 1);
     assert.equal(manifest.observations.length, oversized ? 0 : 1);
-    assert.equal(JSON.stringify(payload).length <= NPC_AGENT_PAYLOAD_LIMIT, true);
+    assertRequestBudget(calls[0]!);
     assert.equal(
       payload.observations.some(
         (o: { sourceId: string }) => o.sourceId === sourceRef(input, 'recall'),
