@@ -543,9 +543,9 @@ test('long-lived terminal history is compacted before preflight fails the send',
     input.state.decisions.push({
       id: `d-old-${index}`,
       responsibilityId: `r-old-${index}`,
-      kind: 'accepted',
+      kind: index % 2 === 0 ? 'accepted' : 'declined',
       sourceId: 'source-1',
-      quote: '好',
+      quote: index % 2 === 0 ? '好' : '不用了',
     });
   }
   input.viewState = structuredClone(input.state);
@@ -568,7 +568,12 @@ test('long-lived terminal history is compacted before preflight fails the send',
     payload.state.responsibilities.map((responsibility: { id: string }) => responsibility.id),
     ['r1'],
   );
-  assert.deepEqual(payload.state.decisions, []);
+  assert.deepEqual(payload.state.decisions, wireExpected(input, input.viewState.decisions));
+  assert.equal(
+    payload.state.decisions.length,
+    120,
+    'accepted and declined choices survive terminal graph compaction',
+  );
 });
 
 test('protected state or current input over budget fails in deterministic preflight with zero calls', async () => {

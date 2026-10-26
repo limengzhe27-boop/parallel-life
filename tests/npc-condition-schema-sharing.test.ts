@@ -176,7 +176,7 @@ test('current NPC response schema shares common conditions and preserves scoped 
   });
   if (format.format !== 'json_schema') throw Error('schema');
   const schema: any = format.schema;
-  assert.deepEqual(schema.properties.protocol.enum, ['npc-wire-v15']);
+  assert.deepEqual(schema.properties.protocol.enum, ['npc-wire-v16']);
   assert(schema.$defs.npc_condition);
   const expanded: any = inline(schema);
   const nodes = (v: any): any[] =>
