@@ -70,6 +70,7 @@ import {
   type WorldSettingsForm,
 } from './publisher-editor.ts';
 import s from './publisher-workbench.module.css';
+import { PublisherActorImageEditor } from './publisher-actor-image-editor.tsx';
 
 type MainTab = 'settings' | 'actors' | 'plot';
 
@@ -1263,6 +1264,20 @@ export function PublisherWorkbench(
                             </div>
                           </div>
                         </div>
+
+                        <PublisherActorImageEditor
+                          key={work.id + ':' + currentActorForm.key}
+                          content={draftContent}
+                          actorKey={currentActorForm.key}
+                          workId={work.id}
+                          disabled={busy || !session.canEdit}
+                          onChange={setDraftContent}
+                          uploadImage={
+                            props.preparationClient
+                              ? (file) => props.preparationClient!.uploadWorkMedia(work.id, file)
+                              : undefined
+                          }
+                        />
 
                         <div className={s.formFieldFull}>
                           <label className={s.fieldLabel} htmlFor="actor-identity-input">

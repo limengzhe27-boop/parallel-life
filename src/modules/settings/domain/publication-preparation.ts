@@ -26,7 +26,15 @@ const fields: Record<string, string[]> = {
   world: ['publicSetting', 'tone', 'startAt', 'startPlaceKey', 'hiddenContext'],
   protagonist: ['identity', 'situation', 'knownFactKeys'],
   actors: ['key', 'name', 'knownAtStart', 'publicCard', 'privatePersona', 'lifeModules'],
-  'actors.publicCard': ['identity', 'traits', 'appearance', 'avatarMediaKey', 'introduction'],
+  'actors.publicCard': [
+    'identity',
+    'traits',
+    'appearance',
+    'avatarMediaKey',
+    'stageImage',
+    'introduction',
+  ],
+  'actors.publicCard.stageImage': ['assetId'],
   'actors.lifeModules': ['lifeContext', 'traits', 'drives', 'behavior', 'relationships'],
   'actors.privatePersona': ['background', 'motivation', 'voice', 'boundaries'],
   relationships: ['key', 'fr\u006fm', 'to', 'description', 'visibility'],
@@ -81,6 +89,7 @@ const immutable = new Set([
   'phone.album',
   'work.coverMediaKey',
   'actors.publicCard.avatarMediaKey',
+  'actors.publicCard.stageImage',
   'places.sceneMediaKey',
 ]);
 const keyed = new Set([

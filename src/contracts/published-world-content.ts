@@ -106,6 +106,7 @@ const shape = z
             traits: z.array(text(60)).max(3),
             appearance: text(240).optional(),
             avatarMediaKey: key.optional(),
+            stageImage: z.strictObject({ assetId: Id }).optional(),
             momentsVisibility: z.enum(['all', 'three_days']).optional(),
           }),
           privatePersona: z.strictObject({

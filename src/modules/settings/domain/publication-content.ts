@@ -85,6 +85,7 @@ export type PublicationContent = {
       traits: string[];
       appearance?: string;
       avatarMediaKey?: string;
+      stageImage?: { assetId: string };
       momentsVisibility?: 'all' | 'three_days';
     };
     privatePersona: { background: string; motivation: string; voice: string; boundaries: string };
@@ -995,6 +996,9 @@ export function publicationPlayerPreview(c: PublicationContent) {
           traits: [...a.publicCard.traits],
           ...(a.publicCard.appearance ? { appearance: a.publicCard.appearance } : {}),
           ...(a.publicCard.avatarMediaKey ? { avatar: picture(a.publicCard.avatarMediaKey) } : {}),
+          ...(a.publicCard.stageImage
+            ? { stageImage: { assetId: a.publicCard.stageImage.assetId } }
+            : {}),
         },
       })),
     relationships: c.relationships
