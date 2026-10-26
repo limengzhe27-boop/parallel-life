@@ -45,6 +45,19 @@ export function formatChatTime(iso: string, referenceTime?: string): string {
   if (delta === 1) return `昨天 ${time}`;
   return `${Number(day.slice(5, 7))}月${Number(day.slice(8, 10))}日`;
 }
+/** Full labels belong to the conversation timeline; list previews keep their compact dates. */
+export function formatChatTimestamp(iso: string, referenceTime?: string): string {
+  const time = worldTimeLabel(iso),
+    day = dayKey(iso);
+  if (!time || !day) return '';
+  if (!referenceTime || day === dayKey(referenceTime)) return time;
+  const delta =
+    (Date.parse(dayKey(referenceTime) + 'T00:00:00Z') - Date.parse(day + 'T00:00:00Z')) / 86400000;
+  if (delta === 1) return `昨天 ${time}`;
+  const year = day.slice(0, 4) !== dayKey(referenceTime).slice(0, 4) ? `${day.slice(0, 4)}年` : '';
+  return `${year}${Number(day.slice(5, 7))}月${Number(day.slice(8, 10))}日 ${time}`;
+}
+
 export function errorText(error: unknown): string {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : '';
   switch (code) {
@@ -73,4 +86,16 @@ export function dialogueText(text: string, role?: string): string {
     return '这条历史回复格式异常，请重新询问。';
   }
   return text;
+}
+
+/** Display-only: compare adjacent messages, never the previous displayed label. */
+export function chatMessageLayout(
+  current: { at: string; role: string },
+  previous?: { at: string; role: string },
+): { showTime: boolean; gap: number } {
+  const showTime =
+    !previous ||
+    dayKey(current.at) !== dayKey(previous.at) ||
+    Date.parse(current.at) - Date.parse(previous.at) >= 5 * 60_000;
+  return { showTime, gap: showTime ? 0 : current.role === previous?.role ? 6 : 12 };
 }

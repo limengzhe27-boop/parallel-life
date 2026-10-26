@@ -1119,3 +1119,22 @@
     transform: translateY(-2px);
   }
 }
+
+/* Chat spacing is owned here; no parent gap + article margin + time margin stacking. */
+.messages.chatTimeline {
+  gap: 0;
+}
+.message.chatMessage {
+  gap: 0;
+  margin-bottom: 0;
+}
+.message .chatTimestamp {
+  align-self: center;
+  font-size: 11px;
+  line-height: 16px;
+  color: #94a3b8;
+  margin: 12px 0;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+}

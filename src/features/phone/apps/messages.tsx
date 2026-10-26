@@ -8,7 +8,14 @@ import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { findRelatedInvitation } from './appointment-link.ts';
 import { PersonCard } from './person-card.tsx';
-import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
+import {
+  chatMessageLayout,
+  formatChatTimestamp,
+  formatChatTime,
+  searchable,
+  timeText,
+  dayKey,
+} from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
 import { hasInFlightLocalSend, hasLocalSendFailure } from '../chat-send-state.ts';
@@ -1548,7 +1555,7 @@ export function MessagesApp({ target, open, banner }: PhoneAppContext) {
           wasNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
           setDraft(`scroll:${target}`, String(el.scrollTop));
         }}
-        className={s.messages}
+        className={`${s.messages} ${s.chatTimeline}`}
         style={{
           background: '#ebebeb',
           padding: '12px 10px',
@@ -1561,336 +1568,327 @@ export function MessagesApp({ target, open, banner }: PhoneAppContext) {
         aria-relevant="additions"
       >
         {!messages.length && <Empty title="还没有聊天记录" text={`和${actor.name}说句话吧。`} />}
-        {messages.map((m) => (
-          <article
-            key={m.id}
-            className={`${s.message} ${m.role === 'user' ? s.mine : ''}`}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              margin: '6px 0',
-            }}
-          >
-            <time
-              style={{
-                alignSelf: 'center',
-                fontSize: '11px',
-                color: '#94a3b8',
-                marginBottom: '6px',
-                background: 'rgba(0,0,0,0.04)',
-                padding: '2px 8px',
-                borderRadius: '10px',
-              }}
+        {messages.map((m, index) => {
+          const layout = chatMessageLayout(m, messages[index - 1]);
+          return (
+            <article
+              key={m.id}
+              className={`${s.message} ${s.chatMessage} ${m.role === 'user' ? s.mine : ''}`}
+              style={{ marginTop: layout.gap }}
             >
-              {formatChatTime(m.at, data.referenceTime)}
-            </time>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
-                alignItems: 'flex-start',
-                gap: '8px',
-                padding: '0 4px',
-              }}
-            >
-              {m.role === 'user' ? (
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '4px',
-                    background: '#07c160',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    flexShrink: 0,
-                  }}
-                >
-                  我
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowPerson(true)}
-                  aria-label={`查看${actor.name}的好友资料`}
-                  className={profile.messageAvatar}
-                  style={{ flexShrink: 0 }}
-                >
-                  <Avatar
-                    url={actor.avatarUrl}
-                    name={actor.name}
-                    kind={actor.avatarKind}
-                    label={actor.avatarLabel}
-                  />
-                </button>
+              {layout.showTime && (
+                <time className={s.chatTimestamp} dateTime={m.at}>
+                  {formatChatTimestamp(m.at, data.referenceTime)}
+                </time>
               )}
               <div
                 style={{
-                  maxWidth: '74%',
-                  padding:
-                    (m.photo?.url && !m.text) ||
-                    stickerMessageContent(m.text, m.stickerId).imageOnly
-                      ? 0
-                      : '9px 12px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  lineHeight: '1.5',
-                  wordBreak: 'break-word',
-                  background:
-                    (m.photo?.url && !m.text) ||
-                    stickerMessageContent(m.text, m.stickerId).imageOnly
-                      ? 'transparent'
-                      : m.role === 'user'
-                        ? '#95ec69'
-                        : '#ffffff',
-                  color: '#0f172a',
-                  boxShadow: stickerMessageContent(m.text, m.stickerId).imageOnly
-                    ? 'none'
-                    : '0 1px 2px rgba(0,0,0,0.05)',
-                  border:
-                    (m.photo?.url && !m.text) ||
-                    stickerMessageContent(m.text, m.stickerId).imageOnly
-                      ? 'none'
-                      : m.role === 'user'
-                        ? '1px solid #82d857'
-                        : '1px solid #dcdcdc',
-                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                  padding: '0 4px',
                 }}
               >
-                {m.role === 'assistant' && m.initialRead === true && (
-                  <small className={s.genesisOrigin}>虚构起点来信</small>
-                )}
-                {(() => {
-                  const content = stickerMessageContent(m.text, m.stickerId);
-                  return (
-                    <>
-                      {content.text && (
-                        <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{content.text}</p>
-                      )}
-                      {content.sticker && <StickerImage sticker={content.sticker} />}
-                    </>
-                  );
-                })()}
-                {m.photo && m.photo.status === 'failed' && (
+                {m.role === 'user' ? (
                   <div
                     style={{
-                      marginTop: '8px',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid rgba(239, 68, 68, 0.2)',
-                      background: '#fef2f2',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '4px',
+                      background: '#07c160',
+                      color: '#ffffff',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      flexShrink: 0,
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '12px' }}>⚠️</span>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#b91c1c' }}>
-                        {m.photo.title || '画面记录未完成'}
+                    我
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowPerson(true)}
+                    aria-label={`查看${actor.name}的好友资料`}
+                    className={profile.messageAvatar}
+                    style={{ flexShrink: 0 }}
+                  >
+                    <Avatar
+                      url={actor.avatarUrl}
+                      name={actor.name}
+                      kind={actor.avatarKind}
+                      label={actor.avatarLabel}
+                    />
+                  </button>
+                )}
+                <div
+                  style={{
+                    maxWidth: '74%',
+                    padding:
+                      (m.photo?.url && !m.text) ||
+                      stickerMessageContent(m.text, m.stickerId).imageOnly
+                        ? 0
+                        : '9px 12px',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                    wordBreak: 'break-word',
+                    background:
+                      (m.photo?.url && !m.text) ||
+                      stickerMessageContent(m.text, m.stickerId).imageOnly
+                        ? 'transparent'
+                        : m.role === 'user'
+                          ? '#95ec69'
+                          : '#ffffff',
+                    color: '#0f172a',
+                    boxShadow: stickerMessageContent(m.text, m.stickerId).imageOnly
+                      ? 'none'
+                      : '0 1px 2px rgba(0,0,0,0.05)',
+                    border:
+                      (m.photo?.url && !m.text) ||
+                      stickerMessageContent(m.text, m.stickerId).imageOnly
+                        ? 'none'
+                        : m.role === 'user'
+                          ? '1px solid #82d857'
+                          : '1px solid #dcdcdc',
+                    position: 'relative',
+                  }}
+                >
+                  {m.role === 'assistant' && m.initialRead === true && (
+                    <small className={s.genesisOrigin}>虚构起点来信</small>
+                  )}
+                  {(() => {
+                    const content = stickerMessageContent(m.text, m.stickerId);
+                    return (
+                      <>
+                        {content.text && (
+                          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{content.text}</p>
+                        )}
+                        {content.sticker && <StickerImage sticker={content.sticker} />}
+                      </>
+                    );
+                  })()}
+                  {m.photo && m.photo.status === 'failed' && (
+                    <div
+                      style={{
+                        marginTop: '8px',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        background: '#fef2f2',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '12px' }}>⚠️</span>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#b91c1c' }}>
+                          {m.photo.title || '画面记录未完成'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#ef4444' }}>
+                        {m.photo.description || '生成未成功或已取消'}
                       </span>
                     </div>
-                    <span style={{ fontSize: '11px', color: '#ef4444' }}>
-                      {m.photo.description || '生成未成功或已取消'}
-                    </span>
-                  </div>
-                )}
-                {m.attachment && (
-                  <div
-                    style={{
-                      marginTop: m.text ? 8 : 0,
-                      maxWidth: 250,
-                      borderRadius: 7,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {m.attachment.kind === 'image' ? (
-                      <button
-                        type="button"
-                        style={{
-                          display: 'block',
-                          border: 0,
-                          padding: 0,
-                          background: 'transparent',
-                          cursor: 'pointer',
-                        }}
-                        aria-label={`查看${m.attachment.label || '历史聊天图片'}`}
-                        onClick={() =>
-                          setPreviewModalPhoto({
-                            id: m.attachment!.assetId,
-                            date: m.at,
-                            title: m.attachment!.label || '历史聊天图片',
-                            description: '这段关系中的历史聊天图片',
-                            url: m.attachment!.url,
-                            status: 'ready',
-                            tag: 'memory',
-                          })
-                        }
-                      >
-                        <img
-                          src={m.attachment.url}
-                          alt={m.attachment.label || '历史聊天图片'}
-                          style={{
-                            display: 'block',
-                            width: '100%',
-                            maxHeight: 260,
-                            objectFit: 'contain',
-                          }}
-                        />
-                      </button>
-                    ) : (
-                      <video
-                        src={m.attachment.url}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        aria-label={m.attachment.label || '历史聊天视频'}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          maxHeight: 300,
-                          background: '#111827',
-                        }}
-                      >
-                        当前浏览器无法播放这段视频。
-                      </video>
-                    )}
-                    {m.attachment.label && (
-                      <small
-                        style={{ display: 'block', padding: '4px 2px', overflowWrap: 'anywhere' }}
-                      >
-                        {m.attachment.label}
-                      </small>
-                    )}
-                  </div>
-                )}
-                {m.photo &&
-                  (m.photo.status === 'ready' || !m.photo.status) &&
-                  m.photo.url &&
-                  (m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? (
-                    <video
-                      src={m.photo.url}
-                      controls
-                      playsInline
-                      preload="metadata"
-                      aria-label="收到的视频"
+                  )}
+                  {m.attachment && (
+                    <div
                       style={{
-                        display: 'block',
-                        width: '100%',
+                        marginTop: m.text ? 8 : 0,
                         maxWidth: 250,
-                        maxHeight: 300,
-                        borderRadius: 7,
-                      }}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      aria-label="查看图片"
-                      onClick={() => {
-                        playTapSound();
-                        setPreviewModalPhoto(m.photo!);
-                      }}
-                      style={{
-                        display: 'block',
-                        padding: 0,
-                        border: 0,
-                        background: 'transparent',
-                        cursor: 'pointer',
                         borderRadius: 7,
                         overflow: 'hidden',
                       }}
                     >
-                      <img
+                      {m.attachment.kind === 'image' ? (
+                        <button
+                          type="button"
+                          style={{
+                            display: 'block',
+                            border: 0,
+                            padding: 0,
+                            background: 'transparent',
+                            cursor: 'pointer',
+                          }}
+                          aria-label={`查看${m.attachment.label || '历史聊天图片'}`}
+                          onClick={() =>
+                            setPreviewModalPhoto({
+                              id: m.attachment!.assetId,
+                              date: m.at,
+                              title: m.attachment!.label || '历史聊天图片',
+                              description: '这段关系中的历史聊天图片',
+                              url: m.attachment!.url,
+                              status: 'ready',
+                              tag: 'memory',
+                            })
+                          }
+                        >
+                          <img
+                            src={m.attachment.url}
+                            alt={m.attachment.label || '历史聊天图片'}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              maxHeight: 260,
+                              objectFit: 'contain',
+                            }}
+                          />
+                        </button>
+                      ) : (
+                        <video
+                          src={m.attachment.url}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          aria-label={m.attachment.label || '历史聊天视频'}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            maxHeight: 300,
+                            background: '#111827',
+                          }}
+                        >
+                          当前浏览器无法播放这段视频。
+                        </video>
+                      )}
+                      {m.attachment.label && (
+                        <small
+                          style={{ display: 'block', padding: '4px 2px', overflowWrap: 'anywhere' }}
+                        >
+                          {m.attachment.label}
+                        </small>
+                      )}
+                    </div>
+                  )}
+                  {m.photo &&
+                    (m.photo.status === 'ready' || !m.photo.status) &&
+                    m.photo.url &&
+                    (m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? (
+                      <video
                         src={m.photo.url}
-                        alt="收到的图片"
+                        controls
+                        playsInline
+                        preload="metadata"
+                        aria-label="收到的视频"
                         style={{
                           display: 'block',
                           width: '100%',
                           maxWidth: 250,
                           maxHeight: 300,
-                          objectFit: 'contain',
+                          borderRadius: 7,
                         }}
                       />
-                    </button>
-                  ))}
-                <Links links={m.links} open={open} />
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label="查看图片"
+                        onClick={() => {
+                          playTapSound();
+                          setPreviewModalPhoto(m.photo!);
+                        }}
+                        style={{
+                          display: 'block',
+                          padding: 0,
+                          border: 0,
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          borderRadius: 7,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <img
+                          src={m.photo.url}
+                          alt="收到的图片"
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            maxWidth: 250,
+                            maxHeight: 300,
+                            objectFit: 'contain',
+                          }}
+                        />
+                      </button>
+                    ))}
+                  <Links links={m.links} open={open} />
+                </div>
               </div>
-            </div>
-            {m.replyInterrupted && (
-              <small
-                style={{
-                  alignSelf: 'flex-start',
-                  marginLeft: 48,
-                  color: '#64748b',
-                  fontSize: 12,
-                }}
-              >
-                这次回复中途结束，已收到的消息已保存。
-              </small>
-            )}
-            {m.status === 'pending' && (
-              <small
-                style={{
-                  alignSelf: 'flex-end',
-                  marginRight: '48px',
-                  color: '#94a3b8',
-                  fontSize: '10px',
-                  marginTop: '2px',
-                }}
-              >
-                ◌
-              </small>
-            )}
-            {(m.status === 'failed' || m.status === 'unknown') && (
-              <button
-                type="button"
-                className={s.messageFailure}
-                aria-label={
-                  m.status === 'unknown' ? '发送结果待确认，点按核对' : '发送失败，点按重试'
-                }
-                title={m.status === 'unknown' ? '发送结果待确认，点按核对' : '发送失败，点按重试'}
-                disabled={!actions.retryMessage || operations[`retry:${m.id}`]?.busy}
-                style={{
-                  alignSelf: 'flex-end',
-                  marginRight: '48px',
-                  marginTop: '2px',
-                  background: 'none',
-                  border: 'none',
-                  color: '#ef4444',
-                  fontSize: '18px',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  if (
-                    m.status === 'unknown' &&
-                    !window.confirm(
-                      '先核对上次是否已经发送。核对不会重新生成回复；原消息会继续保留，你也可以先继续聊天。',
+              {m.replyInterrupted && (
+                <small
+                  style={{
+                    alignSelf: 'flex-start',
+                    marginLeft: 48,
+                    color: '#64748b',
+                    fontSize: 12,
+                  }}
+                >
+                  这次回复中途结束，已收到的消息已保存。
+                </small>
+              )}
+              {m.status === 'pending' && (
+                <small
+                  style={{
+                    alignSelf: 'flex-end',
+                    marginRight: '48px',
+                    color: '#94a3b8',
+                    fontSize: '10px',
+                    marginTop: '2px',
+                  }}
+                >
+                  ◌
+                </small>
+              )}
+              {(m.status === 'failed' || m.status === 'unknown') && (
+                <button
+                  type="button"
+                  className={s.messageFailure}
+                  aria-label={
+                    m.status === 'unknown' ? '发送结果待确认，点按核对' : '发送失败，点按重试'
+                  }
+                  title={m.status === 'unknown' ? '发送结果待确认，点按核对' : '发送失败，点按重试'}
+                  disabled={!actions.retryMessage || operations[`retry:${m.id}`]?.busy}
+                  style={{
+                    alignSelf: 'flex-end',
+                    marginRight: '48px',
+                    marginTop: '2px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#ef4444',
+                    fontSize: '18px',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    if (
+                      m.status === 'unknown' &&
+                      !window.confirm(
+                        '先核对上次是否已经发送。核对不会重新生成回复；原消息会继续保留，你也可以先继续聊天。',
+                      )
                     )
-                  )
-                    return;
-                  void run(`retry:${m.id}`, m.id, async (id) => {
-                    const signature = hasLocalSendFailure(operation, [m], operations)
-                      ? operation?.signature
-                      : m.text;
-                    const receipt = await actions.retryMessage!(
-                      m.id,
-                      m.status === 'unknown' ? m.id : id,
-                    );
-                    if (receipt.status === 'committed' && draftsRef.current[key] === signature)
-                      setDraft(key, '');
-                    return receipt;
-                  });
-                }}
-              >
-                ❗
-              </button>
-            )}
-          </article>
-        ))}
+                      return;
+                    void run(`retry:${m.id}`, m.id, async (id) => {
+                      const signature = hasLocalSendFailure(operation, [m], operations)
+                        ? operation?.signature
+                        : m.text;
+                      const receipt = await actions.retryMessage!(
+                        m.id,
+                        m.status === 'unknown' ? m.id : id,
+                      );
+                      if (receipt.status === 'committed' && draftsRef.current[key] === signature)
+                        setDraft(key, '');
+                      return receipt;
+                    });
+                  }}
+                >
+                  ❗
+                </button>
+              )}
+            </article>
+          );
+        })}
         {messages.at(-1)?.role === 'user' &&
           operation?.busy &&
           messages.at(-1)?.status !== 'failed' &&
