@@ -1,4 +1,5 @@
 import { readAgentObservationScheduleCandidatesInTransaction } from '../modules/world/infrastructure/agent-observation-schedule-read.ts';
+import { repairQuestionProgressReasonsInTransaction } from '../modules/world/infrastructure/question-progress-repair.ts';
 import { independentObservationWork } from '../modules/world/domain/independent-observation-work.ts';
 import {
   agentWakeRecovery,
@@ -321,6 +322,10 @@ export function npcAgentAdvanceServices(
           ])
         ).rows[0];
         if (current?.version !== world.version) throw advanceReadStale();
+        // Rebuild only authenticated, previously omitted semantic projections.
+        // This explicit execution boundary never invents dialogue or a decision,
+        // and ordinary snapshot/context reads remain read-only.
+        await repairQuestionProgressReasonsInTransaction(sql, ownerId, worldId, world.version);
         const states = (
           await sql.query(
             'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 ORDER BY actor_id',
