@@ -93,7 +93,12 @@ export function useWorldTime(
           if (session.current === s && s.active && mode !== 'away' && !s.returning) {
             if (!clock.paused) {
               if (resume) s.resumeRequired = false;
-              if (resume || s.acknowledgedMode === undefined) setEntryKey(crypto.randomUUID());
+              if (resume || s.acknowledgedMode === undefined) {
+                // A fresh mount/confirmed return inspects existing due work now;
+                // ordinary heartbeats and app navigation do not restart this gate.
+                immediateCheck.current = true;
+                setEntryKey(crypto.randomUUID());
+              }
               s.acknowledgedMode = mode;
             }
             s.mode = mode;

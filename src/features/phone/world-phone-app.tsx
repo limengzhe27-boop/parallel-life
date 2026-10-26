@@ -422,9 +422,11 @@ export function WorldPhoneApp({
               version: Math.max(confirmedSendVersion.current.version, segment.version),
             };
             setLocalMessages((current) =>
-              current.map((message) =>
-                message.id === commandId ? { ...message, status: 'sent' } : message,
-              ),
+              segment.userMessage
+                ? current.filter((message) => message.id !== commandId)
+                : current.map((message) =>
+                    message.id === commandId ? { ...message, status: 'sent' } : message,
+                  ),
             );
             updateOp?.({ canInterrupt: true });
             setData((current) =>

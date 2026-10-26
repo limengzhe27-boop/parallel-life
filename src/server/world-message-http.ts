@@ -14,7 +14,10 @@ import {
   type CommittedStreamSegmentEventContract,
   type CommittedTurnMessage,
 } from '../contracts/world-interaction.ts';
-import { toContractStreamSummary } from '../modules/world/domain/npc-stream-segment.ts';
+import {
+  toContractStreamSummary,
+  type CommittedStreamSegmentEvent,
+} from '../modules/world/domain/npc-stream-segment.ts';
 import { Id } from '../contracts/api.ts';
 import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import {
@@ -25,6 +28,14 @@ import {
   json,
   parseBody,
 } from './http.ts';
+
+/** A committed unit is not a completed turn. Translate the internal kernel event
+ * once at the HTTP boundary; never send its internal status to the strict client. */
+export function committedStreamSegmentForClient(
+  segment: CommittedStreamSegmentEvent,
+): CommittedStreamSegmentEventContract {
+  return { ...segment, status: 'committed', completionStatus: 'streaming' };
+}
 
 /** Start durable media while the receipt is projected/sent; after retains the same
  * promise for the platform lifetime, rather than starting a second job later. */
@@ -77,19 +88,15 @@ export async function worldMessageRoute(request: Request, worldId: string) {
               {
                 onMediaCommitted: startMedia,
                 onSegment: (segment) => {
+                  const committed = committedStreamSegmentForClient(segment);
                   segmentCount += 1;
-                  const completionStatus = (
-                    segment as {
-                      completionStatus?: CommittedStreamSegmentEventContract['completionStatus'];
-                    }
-                  ).completionStatus;
-                  if (completionStatus) lastCompletionStatus = completionStatus;
-                  streamedMessages.set(segment.message.id, segment.message);
-                  if (segment.userMessage)
-                    streamedMessages.set(segment.userMessage.id, segment.userMessage);
-                  streamedEvents.set(segment.eventId, segment.version);
+                  lastCompletionStatus = committed.completionStatus;
+                  streamedMessages.set(committed.message.id, committed.message);
+                  if (committed.userMessage)
+                    streamedMessages.set(committed.userMessage.id, committed.userMessage);
+                  streamedEvents.set(committed.eventId, committed.version);
                   controller.enqueue(
-                    encoder.encode(JSON.stringify({ type: 'segment', segment }) + '\n'),
+                    encoder.encode(JSON.stringify({ type: 'segment', segment: committed }) + '\n'),
                   );
                 },
               },
