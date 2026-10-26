@@ -16,7 +16,7 @@
 - 独立真实PostgreSQL55682，原scene environment与新旅程共18/18。
 - 新旅程：两名有独立历史位置的NPC→真实epoch2进入与开场→pending render/outbox→原dispatch→原media task lease→受控provider一次→原worker保存ready→scene read media_reference→原albumPhotos→worldAppData运行图URL→scenePhotoUrl→AssetRepository.readForWorld字节读取。匿名其他owner不可读，离场/重入旧图被过滤，重复读取不新增请求/购买。
 - 原media pipeline与local store相关13/13；新contact-sheet规则单元1/1；原media handler真实DB单元3/3。类型检查通过，boundaries744通过；生产build通过。
-- 首轮全量check因独立PG的dev数据库尚未迁移，旧media-pipeline-handler测试报缺表且清理未关闭pool而挂起；停止本人进程，迁移本人dev后该文件3/3，最终全量check重新运行。未放宽断言。
+- 首轮全量check因独立PG的dev数据库尚未迁移，旧media-pipeline-handler测试报缺表且清理未关闭pool而挂起；停止本人进程，迁移本人dev后该文件3/3，最终全量check 4037/4037通过。未放宽断言。
 - 以上受控provider不证明真实图生图画面质量。最终真实provider与手机/PC页面由root集成后验收。
 
 ## root真实图验收最小替换
