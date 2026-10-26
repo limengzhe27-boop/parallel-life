@@ -59,6 +59,11 @@ export const SceneRuntimeEntrySchema = z.discriminatedUnion('kind', [
 ]);
 export const SceneReadSchema = z.strictObject({
   sceneImageUrl: SceneImageUrlSchema.optional(),
+  /** Authorized display assets only, never evidence that an actor has arrived. */
+  actorImages: z
+    .array(z.strictObject({ actorId: Id, url: SceneImageUrlSchema }))
+    .max(12)
+    .optional(),
   worldVersion: Version,
   storyNow: Timestamp,
   paused: z.boolean(),

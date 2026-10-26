@@ -6,6 +6,7 @@ import { readableActivityClock } from '../domain/clock-activity.ts';
 import { sceneConversationMemory } from '../domain/scene-conversation-memory.ts';
 import { assertSceneDialogueConsistency, sceneDeliveryText } from '../domain/scene-delivery.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
+import { readPublicationActorImages } from '../../settings/infrastructure/publication-actor-image-repository.ts';
 import { readPublicationSceneImages } from '../../settings/infrastructure/publication-scene-image-repository.ts';
 import { readPublicationSceneBrief } from '../../settings/infrastructure/publication-story-repository.ts';
 import { resolveSceneStepProgress, sceneStepRule } from '../domain/scene-step-progress.ts';
@@ -425,7 +426,14 @@ export class SceneRepository {
         placeId && w.space?.places.some((place: { id: string }) => place.id === placeId)
           ? await readPublicationSceneImages(sql, worldId, [placeId])
           : new Map<string, string>();
+      const presentActors = s.scene
+        ? scenePresent(s.scene, w.version)
+            .filter((p) => p.kind === 'actor')
+            .map((p) => p.actorId)
+        : [];
+      const actorImages = await readPublicationActorImages(sql, worldId, presentActors);
       return SceneReadSchema.parse({
+        actorImages: [...actorImages].map(([actorId, url]) => ({ actorId, url })),
         worldVersion: w.version,
         storyNow: w.storyAt,
         paused: w.paused,

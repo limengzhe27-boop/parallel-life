@@ -1,3 +1,7 @@
+import { PUBLICATION_ART } from '../../../contracts/publication-assets.ts';
+import { SceneImageUrlSchema } from '../../../contracts/world-space.ts';
+import { sceneOverview } from './index-state.ts';
+import type { PhoneContact } from '../apps/types.ts';
 import type { SceneRead } from '../../../contracts/scenes.ts';
 import type { PhonePhoto } from '../apps/types.ts';
 /** Require an already authorized world/revision URL; never use the owner-only image endpoint. */
@@ -65,4 +69,28 @@ export function sceneArtwork(read: SceneRead, photos: readonly PhonePhoto[] = []
     authored: Boolean(imageUrl && !eventImageUrl),
     location: place?.kind === 'time_place' ? place.location : (read.scene?.title ?? '现场'),
   };
+}
+
+/** Match explicit visual identity, never the character's name or the world's title. */
+export function scenePortraits(read: SceneRead, contacts: readonly PhoneContact[]) {
+  const present = sceneOverview(read).people;
+  return present.flatMap((participant) => {
+    if (participant.kind !== 'actor') return [];
+    const person = contacts.find((p) => p.id === participant.actorId);
+    if (!person) return [];
+    const uploaded = read.actorImages?.find((image) => image.actorId === person.id);
+    const validUpload =
+      uploaded &&
+      SceneImageUrlSchema.safeParse(uploaded.url).success &&
+      (uploaded.url.startsWith(`/api/v1/worlds/${read.scene!.worldId}/media/`) ||
+        /^\/api\/v1\/publisher\/trials\/[0-9a-f-]{36}\/world\/media\/[0-9a-f-]{36}$/.test(
+          uploaded.url,
+        ));
+    const original =
+      person.avatarKind === 'publication-art'
+        ? PUBLICATION_ART.find((art) => art.uses.includes('avatar') && art.url === person.avatarUrl)
+        : undefined;
+    const url = validUpload ? uploaded.url : original?.scenePortrait?.url;
+    return url ? [{ actorId: person.id, name: person.name, url }] : [];
+  });
 }

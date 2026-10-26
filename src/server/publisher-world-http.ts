@@ -304,6 +304,14 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
         ...(scene.sceneImageUrl
           ? { sceneImageUrl: trialSceneImageUrl(scene.sceneImageUrl, trial.worldId, trialId) }
           : {}),
+        ...(scene.actorImages
+          ? {
+              actorImages: scene.actorImages.map((image) => ({
+                ...image,
+                url: trialSceneImageUrl(image.url, trial.worldId, trialId),
+              })),
+            }
+          : {}),
       };
     }
     return publisherJson(result, response.status);

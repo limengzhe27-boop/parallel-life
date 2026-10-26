@@ -48,7 +48,7 @@ const initialRead = SceneReadSchema.parse({
       ...base,
       id: id(9),
       kind: 'time_place',
-      location: '林悦家 · 客厅',
+      location: '青青家 · 客厅',
       storyAt: '2026-10-12T11:15:00.000Z',
     },
     {
@@ -70,7 +70,7 @@ const initialRead = SceneReadSchema.parse({
       id: id(12),
       kind: 'narration',
       perspective: 'observable',
-      text: '林悦把围裙搭在椅背上，转身将窗户关小了一些。楼下传来自行车的铃声，随后又被细密的雨声盖住。她看向桌上的两副碗筷，停了片刻，才把第三副也摆到你面前。\n\n陈宁将带来的纸袋放在门边，低头擦去外套上的水滴。她没有立刻加入谈话，而是走到窗边，把被风吹乱的窗帘整理好。桌上那盏暖黄色的小灯照着热水杯，玻璃上凝出一层薄薄的水汽。\n\n厨房里还留着刚煮好饭菜的香气。林悦端着汤碗出来，陈宁随手移开了挡在桌边的椅子，两人的动作碰巧接在一起，又各自笑了一下。你能听见汤勺轻碰瓷碗的声音。她们没有催促，只是等你放下手里的东西。',
+      text: '青青把围裙搭在椅背上，转身将窗户关小了一些。楼下传来自行车的铃声，随后又被细密的雨声盖住。她看向桌上的两副碗筷，停了片刻，才把第三副也摆到你面前。\n\n林白语将带来的纸袋放在门边，低头擦去外套上的水滴。她没有立刻加入谈话，而是走到窗边，把被风吹乱的窗帘整理好。桌上那盏暖黄色的小灯照着热水杯，玻璃上凝出一层薄薄的水汽。\n\n厨房里还留着刚煮好饭菜的香气。青青端着汤碗出来，林白语随手移开了挡在桌边的椅子，两人的动作碰巧接在一起，又各自笑了一下。你能听见汤勺轻碰瓷碗的声音。她们没有催促，只是等你放下手里的东西。',
     },
     {
       ...base,
@@ -113,7 +113,7 @@ const initialRead = SceneReadSchema.parse({
       id: id(18),
       kind: 'narration',
       perspective: 'observable',
-      text: '陈宁侧身让出座位，顺手把菜单往你这边推了推。',
+      text: '林白语侧身让出座位，顺手把菜单往你这边推了推。',
     },
     {
       ...base,
@@ -279,16 +279,18 @@ export function SceneStagePreview() {
             contacts={[
               {
                 id: actorId,
-                name: '林悦',
+                name: '青青',
                 relationship: '合成人物样例',
-                avatarUrl: '/art/lives/avatar-rose.svg',
+                avatarUrl: '/publication-art/qingqing.dd41bd29cf2c8168.webp',
+                avatarKind: 'publication-art',
                 unread: 0,
               },
               {
                 id: otherActorId,
-                name: '陈宁',
+                name: '林白语',
                 relationship: '合成人物样例',
-                avatarUrl: '/art/lives/avatar-amber.svg',
+                avatarUrl: '/publication-art/lin_baiyu.f9c65c7b07c290f7.webp',
+                avatarKind: 'publication-art',
                 unread: 0,
               },
             ]}

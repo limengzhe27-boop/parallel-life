@@ -313,6 +313,9 @@ export function ScenePanel({
             }}
           />
           <section className={s.sceneControls}>
+            <strong className={s.locationTitle}>
+              {overview?.place?.kind === 'time_place' ? overview.place.location : data.scene.title}
+            </strong>
             <button
               type="button"
               className={s.quickPhoneBtn}

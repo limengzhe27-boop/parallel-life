@@ -9,12 +9,18 @@ export type PublicationArt = {
   label: string;
   url: string;
   sha256: string;
+  /** Reusable scene cutout derived from this exact original avatar revision. */
+  scenePortrait?: { url: string; sha256: string };
   uses: readonly ('avatar' | 'cover')[];
 };
 /** Curated original fictional art only. Private user assets can never enter this registry. */
 export const PUBLICATION_ART: readonly PublicationArt[] = [
   {
     key: 'qingqing',
+    scenePortrait: {
+      url: '/publication-art/scene-qingqing.666fc3926a5cee81.png',
+      sha256: '666fc3926a5cee817d212f71533c6e5c721874a948bd8654772c182fe43c5ed4',
+    },
     revision: 1,
     label: '青青',
     url: '/publication-art/qingqing.dd41bd29cf2c8168.webp',
@@ -23,6 +29,10 @@ export const PUBLICATION_ART: readonly PublicationArt[] = [
   },
   {
     key: 'lin_baiyu',
+    scenePortrait: {
+      url: '/publication-art/scene-lin_baiyu.869df6fb07904241.png',
+      sha256: '869df6fb079042412395cc1709a509539d2f018bd0bb8626a9e6021e76e3287b',
+    },
     revision: 1,
     label: '林白语',
     url: '/publication-art/lin_baiyu.f9c65c7b07c290f7.webp',
@@ -31,6 +41,10 @@ export const PUBLICATION_ART: readonly PublicationArt[] = [
   },
   {
     key: 'liu_shengnan',
+    scenePortrait: {
+      url: '/publication-art/scene-liu_shengnan.45468d413d186db9.png',
+      sha256: '45468d413d186db966faef92f642a728cad1b498868b74a064482e8af06e757d',
+    },
     revision: 1,
     label: '刘胜男',
     url: '/publication-art/liu_shengnan.a0a542b1741810c5.webp',
@@ -39,6 +53,10 @@ export const PUBLICATION_ART: readonly PublicationArt[] = [
   },
   {
     key: 'li_zhizhi',
+    scenePortrait: {
+      url: '/publication-art/scene-li_zhizhi.13c1c1974d5044c9.png',
+      sha256: '13c1c1974d5044c9d729620da7439196b12dc342c78b4b35eb99f54889d41c84',
+    },
     revision: 1,
     label: '李之之',
     url: '/publication-art/li_zhizhi.ac24f546f928edb2.webp',
@@ -47,6 +65,10 @@ export const PUBLICATION_ART: readonly PublicationArt[] = [
   },
   {
     key: 'shu_yating',
+    scenePortrait: {
+      url: '/publication-art/scene-shu_yating.3c10ff0e265ee299.png',
+      sha256: '3c10ff0e265ee29976ff2b650f3fde0dbf04b33a3f20468127938d4852c42eff',
+    },
     revision: 1,
     label: '舒雅婷',
     url: '/publication-art/shu_yating.0c1380e8cc45cd7a.webp',
@@ -55,6 +77,10 @@ export const PUBLICATION_ART: readonly PublicationArt[] = [
   },
   {
     key: 'xinxin',
+    scenePortrait: {
+      url: '/publication-art/scene-xinxin.ab0f08e16b6c00f1.png',
+      sha256: 'ab0f08e16b6c00f179d013f319fb80ea9d44c94a8b0b53c3a65a41e447de36e9',
+    },
     revision: 1,
     label: '欣欣',
     url: '/publication-art/xinxin.bbddc2d7dcc9e726.webp',

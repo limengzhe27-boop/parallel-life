@@ -170,7 +170,7 @@
   z-index: 2;
   flex: 0 1 auto;
   min-height: 96px;
-  max-height: calc(100% - 245px);
+  max-height: calc(100% - 300px);
   margin-top: auto;
   display: flex;
   flex-direction: column;
@@ -410,7 +410,7 @@
     display: none;
   }
   .readingArea {
-    max-height: calc(100% - 108px);
+    max-height: calc(100% - 205px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -421,4 +421,25 @@
 
 .scenePanel[data-reading-mode='expanded'] .readingArea {
   max-height: calc(100% - 125px);
+}
+
+.locationTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.sceneControls > time,
+.sceneControls > p {
+  display: none;
+}
+.sceneControls {
+  flex-wrap: nowrap;
+  min-height: 44px;
+}
+.sceneMenu {
+  margin-left: 0;
+  flex-shrink: 0;
 }
