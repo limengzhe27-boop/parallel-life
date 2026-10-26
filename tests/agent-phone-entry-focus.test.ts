@@ -82,6 +82,31 @@ function fixture(options: {
         return { rows: [{ owner, app: true, worker: false }] };
       if (query.startsWith('SELECT version,state')) return { rows: [{ version: 3, state: {} }] };
       if (query.includes('SELECT engine_epoch')) return { rows: [{ engine_epoch: 2 }] };
+      // Scope certification joins stored episode/Director metadata. It is not
+      // the pending-request SELECT below, even though it contains a request
+      // subquery. This legacy fixture is emergent, with no authored cast scope.
+      if (
+        query.includes('FROM parallel_life.shared_episodes ep') &&
+        query.includes('a.id AS attempt_id')
+      )
+        return {
+          rows: options.requestActor
+            ? [
+                {
+                  id: 'episode',
+                  document: {
+                    opportunities: [
+                      {
+                        id: 'episode',
+                        participantActorIds: [options.requestActor],
+                        activity: 'conversation',
+                      },
+                    ],
+                  },
+                },
+              ]
+            : [],
+        };
       if (query.includes('FROM parallel_life.agent_episode_requests'))
         return {
           rows: options.requestActor
