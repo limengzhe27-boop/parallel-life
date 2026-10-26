@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { localConfig } from '../../scripts/local-config.mjs';
@@ -31,7 +31,7 @@ import {
 } from '../../src/modules/world/domain/agent-initial-position.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
-test('one-time unset fictional origin uses original snapshot/kernel/current event without arrival or disclosure', async (t) => {
+async function checkInitialPositionScene(t: TestContext, sceneMode: string) {
   const cfg = await localConfig();
   assert.equal(cfg.port, 55673);
   const admin = await adminClient('parallel_life_test');
@@ -204,6 +204,80 @@ test('one-time unset fictional origin uses original snapshot/kernel/current even
     ).rows[0].document.status,
     'unknown',
   );
+  let sceneId: string | undefined;
+  if (sceneMode !== 'no_scene') {
+    // Controlled fixture with a previously opened scene; this is not a claim
+    // that position.establish travels or that its source records earlier presence.
+    sceneId = randomUUID();
+    const placeId = sceneMode === 'other_place' ? 'cafe' : 'home';
+    const scene = {
+      id: sceneId,
+      ownerId: owner,
+      worldId,
+      title: placeId,
+      placeId,
+      status: 'active',
+      sourceEventId: bad.eventId,
+      sourceVersion: bad.state.projectedWorldVersion,
+      presence: [
+        {
+          participant: { kind: 'player' },
+          sourceEventId: bad.eventId,
+          sourceVersion: bad.state.projectedWorldVersion,
+          joinedVersion: bad.state.projectedWorldVersion,
+        },
+      ],
+    };
+    await admin.query(
+      'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
+      [sceneId, worldId, owner, bad.eventId, scene],
+    );
+    await admin.query(
+      'INSERT INTO parallel_life.player_experiences(world_id,owner_id,current_scene_id,document) VALUES($1,$2,$3,$4)',
+      [
+        worldId,
+        owner,
+        sceneId,
+        { worldId, ownerId: owner, currentSceneId: sceneId, view: { kind: 'scene', sceneId } },
+      ],
+    );
+    await admin.query(
+      "INSERT INTO parallel_life.scene_items(id,world_id,owner_id,scene_id,source_event_id,kind,document) VALUES($1,$2,$3,$4,$5,'entry',$6)",
+      [
+        randomUUID(),
+        worldId,
+        owner,
+        sceneId,
+        bad.eventId,
+        {
+          id: randomUUID(),
+          ownerId: owner,
+          worldId,
+          sourceEventId: bad.eventId,
+          sourceVersion: bad.state.projectedWorldVersion,
+          observableTo: [{ kind: 'player' }],
+          kind: 'time_place',
+          sceneId,
+          storyAt: at,
+          location: placeId,
+        },
+      ],
+    );
+    const position = {
+      worldId,
+      subject: { kind: 'player' },
+      status: sceneMode === 'unknown_player' ? 'unknown' : 'at',
+      placeId:
+        sceneMode === 'unknown_player' ? null : sceneMode === 'player_away' ? 'cafe' : placeId,
+      sourceEventId: bad.eventId,
+      worldVersion: bad.state.projectedWorldVersion,
+      occurredAt: at,
+    };
+    await admin.query(
+      "INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document) VALUES($1,$2,'player',$3,$4,$5) ON CONFLICT(world_id,subject_key) DO UPDATE SET document=excluded.document,source_event_id=excluded.source_event_id,source_version=excluded.source_version",
+      [worldId, owner, bad.eventId, bad.state.projectedWorldVersion, position],
+    );
+  }
   first = await admission();
 
   const p: AgentProposal = parseAgentProposal(
@@ -256,14 +330,54 @@ test('one-time unset fictional origin uses original snapshot/kernel/current even
   const saved = await worlds.get({ userId: owner }, worldId);
   assert.equal(saved.messages.length, 0);
   assert.equal(saved.appointments.length, 0);
-  for (const table of ['npc_journeys', 'actor_position_knowledge', 'scene_sessions'])
-    assert.equal(
-      (await admin.query(`SELECT 1 FROM parallel_life.${table} WHERE world_id=$1`, [worldId]))
-        .rowCount,
-      0,
-    );
+  assert.equal(
+    (await admin.query('SELECT 1 FROM parallel_life.npc_journeys WHERE world_id=$1', [worldId]))
+      .rowCount,
+    0,
+  );
+  assert.equal(
+    (
+      await admin.query('SELECT 1 FROM parallel_life.actor_position_knowledge WHERE world_id=$1', [
+        worldId,
+      ])
+    ).rowCount,
+    sceneMode === 'same_place' ? 1 : 0,
+  );
+  if (sceneId) {
+    const scene = (
+      await admin.query('SELECT document FROM parallel_life.scene_sessions WHERE id=$1', [sceneId])
+    ).rows[0].document;
+    assert.equal(scene.presence.length, sceneMode === 'same_place' ? 2 : 1);
+    if (sceneMode === 'same_place') {
+      assert.deepEqual(scene.presence[1], {
+        participant: { kind: 'actor', actorId },
+        sourceEventId: out.eventId,
+        sourceVersion: out.state.projectedWorldVersion,
+        joinedVersion: out.state.projectedWorldVersion,
+      });
+      const knowledge = (
+        await admin.query(
+          'SELECT document FROM parallel_life.actor_position_knowledge WHERE world_id=$1',
+          [worldId],
+        )
+      ).rows[0].document;
+      assert.equal(knowledge.sourceKind, 'direct');
+      assert.equal(knowledge.learnedAt, row.document.occurredAt);
+      assert.equal(knowledge.sourceEventId, out.eventId);
+      assert.deepEqual(knowledge.subject, { kind: 'player' });
+    }
+  }
   await execute();
   assert.equal(calls, 1);
+  if (sceneId)
+    assert.equal(
+      (
+        await admin.query('SELECT document FROM parallel_life.scene_sessions WHERE id=$1', [
+          sceneId,
+        ])
+      ).rows[0].document.presence.length,
+      sceneMode === 'same_place' ? 2 : 1,
+    );
   assert.equal(
     (
       await admin.query('SELECT 1 FROM parallel_life.agent_action_results WHERE world_id=$1', [
@@ -322,4 +436,8 @@ test('one-time unset fictional origin uses original snapshot/kernel/current even
     { allowedSourceIds: [] },
   ])
     assert.equal(planInitialPosition({ ...base, ...bad }).status, 'blocked');
-});
+}
+
+for (const sceneMode of ['no_scene', 'same_place', 'other_place', 'player_away', 'unknown_player'])
+  test(`one-time unset fictional origin uses original kernel and current scene guards: ${sceneMode}`, (t) =>
+    checkInitialPositionScene(t, sceneMode));

@@ -522,6 +522,116 @@ test('actual server arrival continuation authenticates clock, due journey and at
     },
   );
   await t.test(
+    'actual arrival joins the existing player scene and grants only direct scene knowledge once',
+    async () => {
+      const f = await ready();
+      const sceneId = randomUUID();
+      // Controlled fixture: player is already at the destination before this real
+      // server arrival executes. No model or original user data is involved.
+      const scene = {
+        id: sceneId,
+        ownerId: f.owner,
+        worldId: f.worldId,
+        title: '公园',
+        placeId: 'park',
+        status: 'active',
+        sourceEventId: f.position.sourceEventId,
+        sourceVersion: 1,
+        presence: [
+          {
+            participant: { kind: 'player' },
+            sourceEventId: f.position.sourceEventId,
+            sourceVersion: 1,
+            joinedVersion: 1,
+          },
+        ],
+      };
+      await admin.query(
+        'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
+        [sceneId, f.worldId, f.owner, f.position.sourceEventId, scene],
+      );
+      await admin.query(
+        'INSERT INTO parallel_life.player_experiences(world_id,owner_id,current_scene_id,document) VALUES($1,$2,$3,$4)',
+        [
+          f.worldId,
+          f.owner,
+          sceneId,
+          {
+            ownerId: f.owner,
+            worldId: f.worldId,
+            currentSceneId: sceneId,
+            view: { kind: 'scene', sceneId },
+          },
+        ],
+      );
+      await admin.query(
+        "INSERT INTO parallel_life.scene_items(id,world_id,owner_id,scene_id,source_event_id,kind,document) VALUES($1,$2,$3,$4,$5,'entry',$6)",
+        [
+          randomUUID(),
+          f.worldId,
+          f.owner,
+          sceneId,
+          f.position.sourceEventId,
+          {
+            id: randomUUID(),
+            ownerId: f.owner,
+            worldId: f.worldId,
+            sourceEventId: f.position.sourceEventId,
+            sourceVersion: 1,
+            observableTo: [{ kind: 'player' }],
+            kind: 'time_place',
+            sceneId,
+            storyAt: at,
+            location: '公园',
+          },
+        ],
+      );
+      const playerPosition = { ...f.position, subject: { kind: 'player' }, placeId: 'park' };
+      await admin.query(
+        "INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document) VALUES($1,$2,'player',$3,1,$4) ON CONFLICT(world_id,subject_key) DO UPDATE SET document=excluded.document,source_event_id=excluded.source_event_id,source_version=excluded.source_version",
+        [f.worldId, f.owner, f.position.sourceEventId, playerPosition],
+      );
+      const result = await call(f);
+      assert.equal(result.status, 'arrived');
+      if (result.status !== 'arrived') throw Error('Expected arrival');
+      const joined = (
+        await admin.query('SELECT document FROM parallel_life.scene_sessions WHERE id=$1', [
+          sceneId,
+        ])
+      ).rows[0].document;
+      assert.equal(joined.presence.length, 2);
+      assert.deepEqual(joined.presence[0], scene.presence[0]);
+      assert.deepEqual(joined.presence[1], {
+        participant: { kind: 'actor', actorId: f.actor },
+        joinedVersion: 3,
+        sourceVersion: 3,
+        sourceEventId: result.eventId,
+      });
+      const knowledge = (
+        await admin.query(
+          'SELECT document FROM parallel_life.actor_position_knowledge WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows.map((r) => r.document);
+      assert.equal(knowledge.length, 1);
+      assert.equal(knowledge[0].observerActorId, f.actor);
+      assert.deepEqual(knowledge[0].subject, { kind: 'player' });
+      assert.equal(knowledge[0].sourceKind, 'direct');
+      assert.equal(knowledge[0].learnedAt, due);
+      assert.equal(knowledge[0].sourceEventId, result.eventId);
+      assert.equal((await call(f, due, 3)).status, 'quiet');
+      assert.deepEqual(
+        (
+          await admin.query('SELECT document FROM parallel_life.scene_sessions WHERE id=$1', [
+            sceneId,
+          ])
+        ).rows[0].document,
+        joined,
+      );
+      assert.equal((await rows(f)).knowledge, 1);
+    },
+  );
+  await t.test(
     'too early, absent clock and zero due journeys are quiet and never invent world events',
     async () => {
       const empty = await fixture(),

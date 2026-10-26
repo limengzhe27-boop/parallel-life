@@ -1,3 +1,4 @@
+import { joinCurrentAgentSceneInTransaction } from './agent-scene-presence-repository.ts';
 import {
   planInitialPosition,
   type InitialPositionCommit,
@@ -2098,6 +2099,16 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         eventId,
         state: accepted.state,
       });
+      for (const initial of initialPositions)
+        await joinCurrentAgentSceneInTransaction(sql, ownerId, {
+          worldId: attempt.worldId,
+          subject: { kind: 'actor', actorId: initial.actorId },
+          status: 'at',
+          placeId: initial.placeId,
+          sourceEventId: eventId,
+          worldVersion: frame.commitVersion,
+          occurredAt: at,
+        });
       await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       await this.afterCommit?.(sql, { attempt, eventId });
       await requireActiveAgentDeliveryInTransaction(

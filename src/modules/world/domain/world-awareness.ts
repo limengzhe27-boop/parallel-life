@@ -251,6 +251,64 @@ export function committedAwarenessDelta(
       occurredAt: new Date(at).toISOString(),
     });
   };
+  const observeCurrentScene = (actorId: string, placeId: string) => {
+    // Only the scene interval established by this validated position grants
+    // direct perception. Merely sharing a map place or calendar does not.
+    const scene = context.scene;
+    if (
+      scene?.worldId === world.id &&
+      scene.ownerId === world.ownerId &&
+      scene.placeId === placeId &&
+      scene.sourceVersion < event.version &&
+      scene.presence.some(
+        (p) =>
+          p.participant.kind === 'actor' &&
+          p.participant.actorId === actorId &&
+          p.sourceEventId === event.id &&
+          p.joinedVersion === event.version &&
+          p.sourceVersion === event.version,
+      )
+    ) {
+      const present = [
+        ...new Map(
+          scene.presence
+            .filter(
+              (p) =>
+                p.joinedVersion <= event.version &&
+                (p.leftVersion === undefined || p.leftVersion > event.version) &&
+                (p.participant.kind === 'player' || actorIds.has(p.participant.actorId)),
+            )
+            .map((p) => [awarenessSubjectKey(p.participant), p.participant]),
+        ).values(),
+      ];
+      for (const observer of present) {
+        if (observer.kind !== 'actor') continue;
+        for (const subject of present) {
+          if (awarenessSubjectKey(subject) === awarenessSubjectKey(observer)) continue;
+          // Existing occupants see the person now present; that person sees current
+          // occupants. Existing occupants do not acquire unrelated new knowledge.
+          if (
+            observer.actorId !== actorId &&
+            !(subject.kind === 'actor' && subject.actorId === actorId)
+          )
+            continue;
+          delta.knowledge.push({
+            worldId: world.id,
+            observerActorId: observer.actorId,
+            subject,
+            kind: 'at',
+            placeId: placeId,
+            sourceKind: 'direct',
+            occurredAt: event.storyAt!,
+            learnedAt: event.storyAt!,
+            sourceEventId: event.id,
+            worldVersion: event.version,
+            possiblyStale: true,
+          });
+        }
+      }
+    }
+  };
   if (event.type === 'travel.completed') {
     if (
       typeof data.fromPlaceId !== 'string' ||
@@ -341,7 +399,7 @@ export function committedAwarenessDelta(
       journey.route.toPlaceId,
       String(arrival.at),
     );
-    // No observer packet exists in this protocol. Co-location alone grants no knowledge.
+    observeCurrentScene(journey.actorId, journey.route.toPlaceId);
     reason('new_condition', { kind: 'event', id: event.id });
   }
   // Presence comes from the matching actual scene and its versioned intervals, never a contact roster.
@@ -526,6 +584,7 @@ export function committedAwarenessDelta(
         )
           throw Error('INVALID_AWARENESS_INITIAL_POSITION');
         position({ kind: 'actor', actorId }, item.placeId, event.storyAt);
+        observeCurrentScene(actorId, item.placeId);
         reason('new_condition', { kind: 'event', id: event.id });
       }
     }

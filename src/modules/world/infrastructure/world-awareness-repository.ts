@@ -120,6 +120,28 @@ export async function projectCommittedWorldAwareness(
           )
         ).rows[0]?.document;
       }
+      if (
+        data?.actorId &&
+        (event.type === 'agent.arrival_committed' ||
+          !!(data.agentRuntime as { initialPositions?: unknown } | undefined)?.initialPositions)
+      ) {
+        // Position projections retain their exact source interval even after the
+        // scene is left/ended. Replaying awareness must not use today's roster.
+        scene = (
+          await sql.query(
+            `SELECT document FROM parallel_life.scene_sessions
+             WHERE world_id=$1 AND owner_id=$2 AND EXISTS(
+               SELECT 1 FROM jsonb_array_elements(document->'presence') p
+               WHERE p->'participant'->>'kind'='actor'
+                 AND p->'participant'->>'actorId'=$3
+                 AND p->>'sourceEventId'=$4
+                 AND (p->>'joinedVersion')::int=$5
+                 AND (p->>'sourceVersion')::int=$5)
+             ORDER BY id LIMIT 1`,
+            [world.id, owner, data.actorId, event.id, event.version],
+          )
+        ).rows[0]?.document;
+      }
       const journey =
         event.type === 'agent.arrival_committed' && data?.actorId
           ? (

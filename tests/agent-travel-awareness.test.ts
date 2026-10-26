@@ -652,3 +652,78 @@ test('inputs remain immutable and a claimed watcher roster grants no NPC movemen
   assert.equal(JSON.stringify(f), before);
   assert.deepEqual(delta.knowledge, []);
 });
+
+test('actual scene arrival grants direct knowledge only to its actual participants, with historical intervals', () => {
+  const f = arrivalFixture();
+  f.world.actors.push({ id: 'absent', name: 'absent', persona: '不在场' });
+  const s = scene();
+  s.placeId = 'park';
+  s.presence = [
+    {
+      participant: { kind: 'player' },
+      joinedVersion: 1,
+      sourceVersion: 1,
+      sourceEventId: 'scene_open',
+    },
+    {
+      participant: { kind: 'actor', actorId: 'b' },
+      joinedVersion: 1,
+      sourceVersion: 1,
+      sourceEventId: 'scene_open',
+    },
+    {
+      participant: { kind: 'actor', actorId: 'a' },
+      joinedVersion: 7,
+      sourceVersion: 7,
+      sourceEventId: f.event.id,
+    },
+  ];
+  const delta = committedAwarenessDelta(f.world, f.event, { journey: f.journey, scene: s });
+  assert.equal(delta.knowledge.length, 3);
+  assert.deepEqual(
+    delta.knowledge
+      .map((k) => [k.observerActorId, k.subject.kind === 'player' ? 'player' : k.subject.actorId])
+      .sort(),
+    [
+      ['a', 'b'],
+      ['a', 'player'],
+      ['b', 'a'],
+    ],
+  );
+  assert(
+    delta.knowledge.every(
+      (k) =>
+        k.sourceKind === 'direct' &&
+        k.learnedAt === dueAt &&
+        k.occurredAt === dueAt &&
+        k.sourceEventId === f.event.id,
+    ),
+  );
+  assert(!delta.knowledge.some((k) => k.observerActorId === 'absent'));
+  const ended = {
+    ...s,
+    status: 'ended' as const,
+    presence: s.presence.map((p) => ({ ...p, leftVersion: 8 })),
+  };
+  assert.deepEqual(
+    committedAwarenessDelta(f.world, f.event, { journey: f.journey, scene: ended }).knowledge,
+    delta.knowledge,
+  );
+  for (const invalid of [
+    { ...s, ownerId: 'other' },
+    { ...s, placeId: 'shop' },
+    {
+      ...s,
+      presence: s.presence.map((p) =>
+        p.participant.kind === 'actor' && p.participant.actorId === 'a'
+          ? { ...p, sourceEventId: 'claim' }
+          : p,
+      ),
+    },
+  ])
+    assert.equal(
+      committedAwarenessDelta(f.world, f.event, { journey: f.journey, scene: invalid }).knowledge
+        .length,
+      0,
+    );
+});

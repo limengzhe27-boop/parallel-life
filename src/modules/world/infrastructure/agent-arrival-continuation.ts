@@ -1,3 +1,4 @@
+import { joinCurrentAgentSceneInTransaction } from './agent-scene-presence-repository.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import { DomainError } from '../domain/errors.ts';
@@ -220,6 +221,15 @@ export async function commitDueAgentArrival(
       [world.id, commandId, event.id, next],
     );
     await recordAgentArrivalInTransaction(sql, ownerId, { journey: committed.journey });
+    await joinCurrentAgentSceneInTransaction(sql, ownerId, {
+      worldId: world.id,
+      subject: { kind: 'actor', actorId: journey.actorId },
+      status: 'at',
+      placeId: journey.route.toPlaceId,
+      sourceEventId: event.id,
+      worldVersion: event.version,
+      occurredAt: event.storyAt,
+    });
     await projectAgentWorldChange(sql, ownerId, world.id, event.id);
     return {
       status: 'arrived',
