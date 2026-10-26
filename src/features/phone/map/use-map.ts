@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorldSpace, TravelRequest, TravelReceipt } from '../../../contracts/world-space.ts';
 import type { PhoneMapContext, TravelOperation } from './context.ts';
 import { SpaceClient, SpaceFailure } from './client.ts';
-import { restoreTravel, storeTravel } from './operation.ts';
+import { restoreTravel, storeTravel, obsoleteFailedTravel } from './operation.ts';
 import { routeHash } from '../navigation.ts';
 import { restoreSceneEntry } from '../scenes/state.ts';
 export function useWorldMap(
@@ -64,9 +64,13 @@ export function useWorldMap(
     setError(null);
     try {
       const next = await client.read(worldId);
-      if (live.current && id === sequence.current) setData(next);
+      if (live.current && id === sequence.current) {
+        setData(next);
+        if (obsoleteFailedTravel(op.current, next)) publish(null);
+      }
       // The map read is authoritative even if another phone projection cannot refresh.
       await Promise.allSettled([reloadRef.current?.()]);
+      return next;
     } catch (e) {
       if (live.current && id === sequence.current)
         setError(
@@ -75,7 +79,7 @@ export function useWorldMap(
     } finally {
       if (live.current && id === sequence.current) setLoading(false);
     }
-  }, [client, worldId, enabled, version]);
+  }, [client, worldId, enabled, version, publish]);
   useEffect(() => {
     void refresh();
   }, [version, refresh]);
@@ -98,13 +102,7 @@ export function useWorldMap(
           false,
         );
       const route = data?.routes.find((r) => r.id === request.routeId);
-      if (
-        !data ||
-        !route ||
-        data.paused ||
-        data.busy ||
-        data.worldVersion !== request.expectedVersion
-      )
+      if (!data || !route || route.fromPlaceId !== data.currentPlaceId || data.paused || data.busy)
         throw new SpaceFailure(
           'INVALID_COMMAND',
           '\u8bf7\u5237\u65b0\u540e\u518d\u9009\u62e9\u8def\u7ebf\u3002',
@@ -177,13 +175,25 @@ export function useWorldMap(
     guard.current = true;
     setWorking(true);
     setChecking(true);
-    let retry = false;
+    let retry: TravelRequest | null = null;
     try {
       const r = await recover(pending.request);
       if (r.status === 'committed') await accept(r, pending);
       else {
-        await refresh();
-        retry = true;
+        const latest = await refresh();
+        const route = latest?.routes.find((r) => r.id === pending.request.routeId);
+        if (
+          latest &&
+          route?.fromPlaceId === latest.currentPlaceId &&
+          !latest.paused &&
+          !latest.busy
+        )
+          retry = {
+            commandId: crypto.randomUUID(),
+            expectedVersion: latest.worldVersion,
+            routeId: route.id,
+          };
+        else publish({ ...pending, message: '当前位置或路线已经变化，请在地图重新选择。' });
       }
     } catch (e) {
       publish({
@@ -198,7 +208,7 @@ export function useWorldMap(
     }
     if (retry) {
       try {
-        await travel(pending.request);
+        await travel(retry);
       } catch {
         /* The persisted operation owns the visible error. */
       }
@@ -331,11 +341,14 @@ export function useWorldMap(
       setWorking(false);
     }
   }, [data, client, worldId, after, refresh]);
+  const refreshMap = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
   return {
     data: data?.worldId === worldId && data.worldVersion >= version && !error ? data : null,
     loading,
     error,
-    refresh,
+    refresh: refreshMap,
     // A failed or lagging read must never hide the original command recovery controls.
     operation,
     checking,

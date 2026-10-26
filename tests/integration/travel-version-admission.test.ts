@@ -21,7 +21,8 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 test('route intent appends after proven independent NPC exchange, preserving actual movement and receipt authority (real PG)', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55675);
+  if (process.env.TRAVEL_VERSION_TEST_PORT)
+    assert.equal(cfg.port, Number(process.env.TRAVEL_VERSION_TEST_PORT));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(

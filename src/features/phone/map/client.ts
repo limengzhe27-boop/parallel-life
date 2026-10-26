@@ -128,7 +128,9 @@ export class SpaceClient {
       r.worldId !== worldId ||
       r.commandId !== input.commandId ||
       (r.status === 'committed' &&
-        (r.routeId !== input.routeId || r.version !== input.expectedVersion + 1))
+        (r.routeId !== input.routeId ||
+          r.version === undefined ||
+          r.version < input.expectedVersion + 1))
     )
       throw new SpaceFailure(
         'UNAVAILABLE',
@@ -174,7 +176,7 @@ export class SpaceClient {
     if (
       r.worldId !== worldId ||
       r.commandId !== input.commandId ||
-      r.version !== input.expectedVersion + 1
+      r.version < input.expectedVersion + 1
     )
       throw new SpaceFailure(
         'UNAVAILABLE',

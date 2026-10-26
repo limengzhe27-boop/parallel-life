@@ -6,7 +6,7 @@ const worldId = randomUUID(),
   commandId = randomUUID(),
   request = { commandId, expectedVersion: 2, routeId: 'a_to_b' },
   receipt = {
-    status: 'committed',
+    status: 'committed' as const,
     commandId,
     worldId,
     version: 3,
@@ -70,4 +70,68 @@ test('network and 503 travel stay unknown; known 422 rejection stays failed; no 
     );
     assert.equal(writes, 1);
   }
+});
+test('map receipts accept the actual append version while preserving command, route and lower-bound checks', async () => {
+  let actual = 7;
+  const client = new SpaceClient((async (url) =>
+    String(url).endsWith('/session')
+      ? response(session)
+      : response({ ...receipt, version: actual })) as typeof fetch);
+  assert.equal((await client.travel(worldId, request)).version, 7);
+  const recovered = await client.recover(worldId, request);
+  assert.equal(recovered.status, 'committed');
+  if (recovered.status === 'committed') assert.equal(recovered.version, 7);
+  actual = 2;
+  await assert.rejects(
+    client.travel(worldId, request),
+    (e: unknown) => e instanceof SpaceFailure && e.unknown,
+  );
+});
+test('scene entry accepts a later certified save after unrelated NPC appends', async () => {
+  let actual = 8;
+  const entry = {
+    commandId,
+    worldId,
+    sceneId: randomUUID(),
+    version: actual,
+    task: null,
+  };
+  const client = new SpaceClient((async (url) =>
+    String(url).endsWith('/session')
+      ? response(session)
+      : response({ ...entry, version: actual })) as typeof fetch);
+  assert.equal(
+    (await client.enter(worldId, { commandId, expectedVersion: 2, placeId: 'office' })).version,
+    8,
+  );
+  actual = 2;
+  await assert.rejects(
+    client.enter(worldId, { commandId, expectedVersion: 2, placeId: 'office' }),
+    (e: unknown) => e instanceof SpaceFailure && e.unknown,
+  );
+});
+test('later append receipts survive refresh; only definitively failed stale routes can be dismissed', async () => {
+  const { restoreTravel, storeTravel, obsoleteFailedTravel } =
+    await import('../src/features/phone/map/operation.ts');
+  const op = {
+    request,
+    fromLabel: 'A',
+    destinationLabel: 'B',
+    status: 'committed' as const,
+    receipt: { ...receipt, version: 8 },
+  };
+  assert.equal(restoreTravel(storeTravel(worldId, op), worldId)?.receipt?.version, 8);
+  const space = {
+    currentPlaceId: 'b',
+    routes: [
+      { id: 'a_to_b', fromPlaceId: 'a', toPlaceId: 'b', modeLabel: '步行', durationMinutes: 12 },
+    ],
+  };
+  assert.equal(obsoleteFailedTravel({ ...op, status: 'failed' }, space), true);
+  for (const status of ['pending', 'unknown', 'committed'] as const)
+    assert.equal(obsoleteFailedTravel({ ...op, status }, space), false);
+  assert.equal(
+    obsoleteFailedTravel({ ...op, status: 'failed' }, { ...space, currentPlaceId: 'a' }),
+    false,
+  );
 });
