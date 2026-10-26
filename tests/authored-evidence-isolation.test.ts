@@ -32,12 +32,35 @@ test('one stale legacy source cannot suppress a separately authenticated kernel 
     },
   };
   const stale = { ...row, id: 'bad', document: { ...reason, id: 'wrong' } };
-  let n = 0;
+  const queries: string[] = [];
   const sql = {
-    query: async () => ({ rows: n++ === 0 ? [stale, row] : [] }),
+    query: async (statement: string, values: unknown[]) => {
+      if (statement.includes("SELECT DISTINCT ON (r.document->'ref'->>'actorId'")) {
+        queries.push('semantic');
+        assert.deepEqual(values, ['w', 'owner', 4]);
+        return { rows: [stale, row] };
+      }
+      if (statement.includes('j.document AS journey_document')) {
+        queries.push('arrival');
+        return { rows: [] };
+      }
+      if (
+        statement.includes('a.response') &&
+        statement.includes('questionChanges') &&
+        statement.includes('LIMIT 64')
+      ) {
+        queries.push('question-progress');
+        assert.deepEqual(values, ['w', 'owner', 4, false]);
+        assert.ok(statement.includes("a.status='committed'"));
+        assert.ok(statement.includes("c.status='succeeded'"));
+        assert.ok(statement.includes('i.id=a.input_receipt_id'));
+        return { rows: [] };
+      }
+      throw Error('UNEXPECTED_EVIDENCE_QUERY');
+    },
   } as unknown as SqlClient;
   assert.deepEqual(await readAuthoredReconsiderationEvidence(sql, 'owner', 'w', 4), [reason]);
-  assert.equal(n, 2);
+  assert.deepEqual(queries, ['semantic', 'arrival', 'question-progress']);
 });
 
 test('an unproven result is omitted, infrastructure errors still propagate', async () => {

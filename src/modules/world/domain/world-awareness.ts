@@ -234,9 +234,13 @@ export function committedAwarenessDelta(
       throw Error('INVALID_AWARENESS_JOURNEY');
     return value as AgentJourney;
   };
+  const reasonIds = new Set<string>();
   const reason = (kind: DirectorPendingReason['kind'], ref: DirectorPendingReason['ref']) => {
+    const id = `${event.id}:${kind}:${ref.id}`;
+    if (reasonIds.has(id)) return;
+    reasonIds.add(id);
     delta.reasons.push({
-      id: `${event.id}:${kind}:${ref.id}`,
+      id,
       eventId: event.id,
       worldVersion: event.version,
       kind,

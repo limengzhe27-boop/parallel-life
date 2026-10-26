@@ -166,3 +166,35 @@ test('quiet, ordinary greeting, uncertain, stale/replayed, forged input or unsav
     assert.equal(questionProgressReason(f.event, f.previous, f.input), null);
   }
 });
+
+test('one event with question progress and episode participation keeps one reason while retaining other refs in order', () => {
+  const { event, previous, input } = fixture();
+  const runtime = (event.data as any).agentRuntime;
+  runtime.episodeDecision = { requestId: 'request', choice: 'engage' };
+  runtime.proposal.episodeDecision = runtime.episodeDecision;
+  runtime.stateAfter.plans[0].summary = '根据新信息调整';
+  const world = {
+    schemaVersion: 1 as const,
+    id: 'world',
+    ownerId: 'owner',
+    title: 'test',
+    version: 1,
+    time: event.storyAt!,
+    actors: [{ id: 'actor', name: '甲', persona: '独立' }],
+    facts: [],
+    messages: [],
+    appointments: [],
+    mediaRequests: [],
+  };
+  const delta = committedAwarenessDelta(world, event, {
+    previousAgentState: previous,
+    questionInput: input,
+  });
+  assert.deepEqual(
+    delta.reasons.map((r) => [r.kind, r.ref.id]),
+    [
+      ['cross_impact', 'event'],
+      ['plan_changed', 'plan'],
+    ],
+  );
+});
