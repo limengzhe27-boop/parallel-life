@@ -4,6 +4,41 @@ import { isoInstant, validateEventId } from './validation.ts';
 import { validateSpace } from './space.ts';
 import type { WorldState } from './types.ts';
 
+/** Certified by the scene repository; never accepted from a browser/model. */
+export type AppointmentWaitScene = {
+  id: string;
+  worldId: string;
+  ownerId: string;
+  status: 'active' | 'paused' | 'ended';
+  placeId: string | null;
+  appointmentId: string | null;
+  playerPresent: boolean;
+  pending: boolean;
+};
+export function canWaitInAppointmentScene(
+  world: WorldState,
+  invitationId: string,
+  currentSceneId: string,
+  scene: AppointmentWaitScene | null | undefined,
+): boolean {
+  const appointment = world.appointments.find((a) => a.id === invitationId);
+  const places = world.space?.places.filter((p) => p.appointmentIds.includes(invitationId)) ?? [];
+  return (
+    !!scene &&
+    scene.id === currentSceneId &&
+    scene.worldId === world.id &&
+    scene.ownerId === world.ownerId &&
+    scene.status === 'active' &&
+    scene.playerPresent &&
+    !scene.pending &&
+    (!scene.appointmentId || scene.appointmentId === invitationId) &&
+    appointment?.status === 'confirmed' &&
+    places.length === 1 &&
+    places[0]!.id === scene.placeId &&
+    world.space?.currentPlaceId === scene.placeId
+  );
+}
+
 export type AppointmentWaitInput = {
   commandId: string;
   expectedVersion: number;
@@ -44,7 +79,8 @@ export const appointmentWaitMessages = {
   UNCONFIRMED: '请先确认这个邀约，再等到约定时间。',
   ALREADY_DUE: '约定时间已经到了，请查看最新日程并进入现场。',
   NOT_AT_PLACE: '请先前往这个约定的地点，抵达后再等待。',
-  ACTIVE_SCENE: '请先明确离开当前现场，再等待下一次约定。',
+  ACTIVE_SCENE: '当前现场还有待处理内容，或不是这个约定的地点，暂时不能等待。',
+  IMPORTANT_CHANGE: '这段时间还有值得先处理的变化，请先查看后再等待。',
   EARLIER_APPOINTMENT: '更早还有一个未过去的已确认约定，请先处理它。',
 } as const;
 export class AppointmentWaitError extends DomainError {
@@ -104,7 +140,12 @@ function target(world: WorldState, id: string, fromStoryAt: string) {
 export function planAppointmentWait(
   world: WorldState,
   command: AppointmentWaitCommand,
-  context: { clock: WorldClock; realNow: string; currentSceneId?: string | null },
+  context: {
+    clock: WorldClock;
+    realNow: string;
+    currentSceneId?: string | null;
+    scene?: AppointmentWaitScene | null;
+  },
 ): AppointmentWaitEvent['data'] {
   if (world.schemaVersion !== 1) throw new DomainError('INVALID_COMMAND');
   validateEventId(command.commandId);
@@ -119,7 +160,11 @@ export function planAppointmentWait(
     throw new DomainError('VERSION_CONFLICT');
   isoInstant(context.realNow);
   if (context.clock.paused) throw new AppointmentWaitError('PAUSED');
-  if (context.currentSceneId != null) throw new AppointmentWaitError('ACTIVE_SCENE');
+  if (
+    context.currentSceneId != null &&
+    !canWaitInAppointmentScene(world, command.invitationId, context.currentSceneId, context.scene)
+  )
+    throw new AppointmentWaitError('ACTIVE_SCENE');
   const fromStoryAt = new Date(
     Math.max(
       Date.parse(canonicalWaitInstant(world.time)),

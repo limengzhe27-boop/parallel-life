@@ -1,3 +1,4 @@
+import { readSceneWaitContext } from './scene-wait-context.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { randomUUID } from 'node:crypto';
@@ -191,7 +192,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
         state.progressResolution = { resolution: p.resolution, sourceEventId: p.lastSourceEventId };
     }
   }
-  private async context(
+  async protectedContext(
     sql: SqlClient,
     ownerId: string,
     world: WorldState,
@@ -382,7 +383,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
           [worldId, ownerId],
         )
       ).rows[0]?.current_scene_id;
-      if (active) throw new StoryWaitError('ACTIVE_SCENE');
+
       const rawClock = (
         await sql.query(
           'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
@@ -415,14 +416,15 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
       const base: StoryWaitContext = {
         clock,
         realNow: now,
-        activeScene: false,
+        activeScene: !!active,
+        ...(active ? { scene: await readSceneWaitContext(sql, ownerId, world, active) } : {}),
         inflight: false,
         openingPending: false,
         importantMessage: false,
         boundaries: [],
       };
       const target = planStoryWait(world, input, base).targetAt;
-      const context = await this.context(sql, ownerId, world, base, target, engineEpoch);
+      const context = await this.protectedContext(sql, ownerId, world, base, target, engineEpoch);
       const plan = planStoryWait(world, input, context);
       const event: StoryWaitEvent = {
         schemaVersion: 1,

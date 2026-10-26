@@ -1654,11 +1654,12 @@ export function WorldPhoneSurface({
             !m ||
             m.paused ||
             m.busy ||
-            m.currentSceneId ||
             map.working ||
             (map.operation && map.operation.status !== 'committed')
           )
             return false;
+          // Being in a scene is not itself a blocker. The existing wait command
+          // authenticates the same-place scene, actual presence and unresolved work.
           const places = m.places.filter((p) => p.appointmentIds.includes(id));
           return (
             places.length === 1 &&

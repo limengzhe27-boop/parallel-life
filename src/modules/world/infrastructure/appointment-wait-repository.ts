@@ -1,3 +1,5 @@
+import { readSceneWaitContext } from './scene-wait-context.ts';
+import { PostgresStoryWaitRepository } from './story-wait-repository.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
@@ -92,7 +94,7 @@ export class PostgresAppointmentWaitRepository implements AppointmentWaitPort {
       if (replay) return replay;
       if (Number(row.version) !== input.expectedVersion || snapshot.version !== Number(row.version))
         throw new DomainError('VERSION_CONFLICT');
-      await authorizeWorldCommandInTransaction(sql, ownerId, {
+      const { engineEpoch } = await authorizeWorldCommandInTransaction(sql, ownerId, {
         worldId,
         commandId: input.commandId,
         expectedWorldVersion: input.expectedVersion,
@@ -105,7 +107,7 @@ export class PostgresAppointmentWaitRepository implements AppointmentWaitPort {
           [worldId, ownerId],
         )
       ).rows[0]?.current_scene_id;
-      if (active != null) throw new AppointmentWaitError('ACTIVE_SCENE');
+
       const lockedSnapshot = { ...snapshot, time: row.state.time, version: Number(row.version) };
       const now = this.now(),
         storedClock = (
@@ -127,8 +129,41 @@ export class PostgresAppointmentWaitRepository implements AppointmentWaitPort {
       const data = planAppointmentWait(
         lockedSnapshot,
         { ...input, worldId },
-        { clock, realNow: now, currentSceneId: null },
+        {
+          clock,
+          realNow: now,
+          currentSceneId: active,
+          scene: active ? await readSceneWaitContext(sql, ownerId, lockedSnapshot, active) : null,
+        },
       );
+      if (active) {
+        const protection = await new PostgresStoryWaitRepository(this.db).protectedContext(
+          sql,
+          ownerId,
+          lockedSnapshot,
+          {
+            clock,
+            realNow: now,
+            activeScene: false,
+            inflight: false,
+            openingPending: false,
+            importantMessage: false,
+            boundaries: [],
+          },
+          data.toStoryAt,
+          engineEpoch,
+        );
+        if (
+          protection.openingPending ||
+          protection.importantMessage ||
+          protection.boundaries.some(
+            (b) =>
+              Date.parse(b.at) >= Date.parse(data.fromStoryAt) &&
+              Date.parse(b.at) < Date.parse(data.toStoryAt),
+          )
+        )
+          throw new AppointmentWaitError('IMPORTANT_CHANGE');
+      }
       const event: AppointmentWaitEvent = {
         schemaVersion: 1,
         type: 'appointment.waited',

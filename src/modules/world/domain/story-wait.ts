@@ -1,5 +1,9 @@
 import { DomainError } from './errors.ts';
-import { canonicalWaitInstant } from './appointment-wait.ts';
+import {
+  canWaitInAppointmentScene,
+  type AppointmentWaitScene,
+  canonicalWaitInstant,
+} from './appointment-wait.ts';
 import { projectStoryTime, type WorldClock } from './clock.ts';
 import type { WorldState } from './types.ts';
 import { validateEventId } from './validation.ts';
@@ -22,6 +26,7 @@ export type StoryWaitContext = {
   clock: WorldClock & { managed?: boolean; activeUntil?: string | null };
   realNow: string;
   activeScene: boolean;
+  scene?: AppointmentWaitScene | null;
   inflight: boolean;
   openingPending: boolean;
   importantMessage: boolean;
@@ -130,7 +135,19 @@ export function planStoryWait(world: WorldState, input: StoryWaitInput, context:
   validateStoryWaitInput(input);
   if (world.schemaVersion !== 1 || world.version !== input.expectedVersion)
     throw new DomainError('VERSION_CONFLICT');
-  if (context.activeScene) throw new StoryWaitError('ACTIVE_SCENE');
+  if (context.activeScene) {
+    const from = storyWaitFrom(world, context);
+    const next = world.appointments
+      .filter((a) => a.status === 'confirmed' && Date.parse(a.at) > Date.parse(from))
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0];
+    if (
+      input.target !== 'next_appointment' ||
+      !next ||
+      !context.scene ||
+      !canWaitInAppointmentScene(world, next.id, context.scene.id, context.scene)
+    )
+      throw new StoryWaitError('ACTIVE_SCENE');
+  }
   if (context.inflight) throw new StoryWaitError('INFLIGHT');
   const fromStoryAt = storyWaitFrom(world, context);
   const targetAt = targetTime(world, fromStoryAt, input.target);

@@ -1,3 +1,5 @@
+import { readSceneWaitContext } from './scene-wait-context.ts';
+import { canWaitInAppointmentScene } from '../domain/appointment-wait.ts';
 import { acceptNativeAgentInput } from './accept-native-agent-input.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
@@ -543,8 +545,6 @@ export class SceneRepository {
       });
       if (paused) throw new DomainError('INVALID_COMMAND');
       const x = await experience(sql, ownerId, worldId);
-      if (x.currentSceneId)
-        throw new DomainError('INVALID_COMMAND', 'Explicitly leave the current scene');
       const ap = world.appointments.find((a) => a.id === input.appointmentId);
       if (!ap) throw new DomainError('NOT_FOUND');
       if (world.space) {
@@ -554,6 +554,51 @@ export class SceneRepository {
       }
       if (ap.status !== 'confirmed' || Date.parse(ap.at) > Date.parse(storyAt))
         throw new DomainError('INVALID_COMMAND', 'Appointment is not confirmed or has not started');
+      if (x.currentSceneId) {
+        await assertSpaceIdle(sql, worldId);
+        const certified = await readSceneWaitContext(sql, ownerId, world, x.currentSceneId);
+        if (!canWaitInAppointmentScene(world, ap.id, x.currentSceneId, certified))
+          throw new DomainError('INVALID_COMMAND', '当前现场不能接续这个约定');
+        const current = await loadScene(sql, worldId, x.currentSceneId);
+        if (current.scene.appointmentId)
+          throw new DomainError('INVALID_COMMAND', '这个约定已经在当前现场接续');
+        const source = await event(
+          sql,
+          world,
+          input.commandId,
+          hash,
+          'scene.entered',
+          {
+            sceneId: current.scene.id,
+            appointmentId: ap.id,
+            placeId: current.scene.placeId,
+          },
+          storyAt,
+        );
+        await saveScene(sql, { ...current.scene, appointmentId: ap.id, title: ap.title });
+        const task = await enqueue(
+          sql,
+          ownerId,
+          'world',
+          worldId,
+          input.commandId,
+          {
+            type: 'scene',
+            sceneId: current.scene.id,
+            actionId: null,
+            expectedVersion: source.sourceVersion,
+          },
+          hash,
+        );
+        await projectAgentWorldChange(sql, ownerId, worldId, source.sourceEventId);
+        return receipt(sql, ownerId, {
+          commandId: input.commandId,
+          worldId,
+          version: source.sourceVersion,
+          sceneId: current.scene.id,
+          task,
+        });
+      }
       const sceneId = randomUUID(),
         source = await event(
           sql,
