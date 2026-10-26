@@ -52,7 +52,7 @@
 - `npm run check`：**4015/4015 通过**，boundaries + typecheck 通过。
 - `npm run build`：通过。
 - `tests/integration/album.test.ts`：1/1；`tests/integration/advance-preflight.test.ts`：1/1（真实 PG 时钟读取）；`tests/poll-guard.test.ts`：5/5；`tests/advance-preflight.test.ts`：3/3。
-- `tests/integration/person-avatar-update.test.ts` 子测试 9/9 通过，父级收尾仍失败/挂起（基线同样存在，非本批引入）。
+- `tests/integration/person-avatar-update.test.ts` 子测试 9/9 通过，但父级收尾失败并挂起；该文件不调用本批新增/修改的函数，未作为本批阻断，也未在干净基线上单独复现。
 - `tests/integration/world-build.test.ts` 仍失败（`AI_FAILED INVALID_BUILD` / cancel 期望 `queued`），与本批文件无调用关系，未在基线隔离环境中复现（基线工作树缺 `.local/runtime.json`），保留为既有失败。
 
 ## 顺带修复的既有阻断
