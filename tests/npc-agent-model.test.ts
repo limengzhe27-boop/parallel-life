@@ -1526,7 +1526,11 @@ test('protected opening-information wake fits the unchanged budget with nineteen
     ...payload.observations,
     ...payload.presentationContext.internalContext.map((v: any) => v.observation),
   ];
-  assert.equal(retained.find((o: any) => o.sourceId === sourceRef(input, sourceId)).text, report);
+  assert.equal(
+    retained.find((o: any) => o.sourceId === sourceRef(input, sourceId)).text,
+    '本人获知的开场报告（不是已投递聊天或执行回执）：' +
+      JSON.parse(JSON.parse(report).text).content,
+  );
   assert.equal(
     payload.input.text,
     JSON.stringify(wireExpected(input, JSON.parse(input.input.text))),
