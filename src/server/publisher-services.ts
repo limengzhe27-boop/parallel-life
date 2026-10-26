@@ -65,7 +65,13 @@ export function publisherServices(request: Request, options?: { characterTrial?:
     trustedOrigins: [new URL(origin).origin],
     bucketSecret: secret,
   });
-  return { http, worlds, repo, preparations: new PublisherPreparationRepository(database) };
+  return {
+    database,
+    http,
+    worlds,
+    repo,
+    preparations: new PublisherPreparationRepository(database),
+  };
 }
 export function publisherRoute(request: Request, operation: PublisherOperation, workId?: string) {
   return publisherEndpoint(() =>

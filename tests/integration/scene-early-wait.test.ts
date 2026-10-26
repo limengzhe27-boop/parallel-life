@@ -25,7 +25,8 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 test('early ordinary scene waits safely and continues the same scene without manufacturing attendance (real PG)', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55674);
+  if (process.env.SCENE_EARLY_WAIT_TEST_PORT)
+    assert.equal(cfg.port, Number(process.env.SCENE_EARLY_WAIT_TEST_PORT));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(

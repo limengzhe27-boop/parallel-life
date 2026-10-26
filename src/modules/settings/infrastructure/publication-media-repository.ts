@@ -80,6 +80,9 @@ export function publicationMediaMagic(mimeType: PublicationMediaMime, header: Ui
 }
 
 export interface PublicationMediaStore {
+  /** Optional loopback storage; callers must authorize the exact asset first. */
+  put?(key: string, bytes: Buffer): Promise<void>;
+  readStored?(key: string): Promise<Buffer | undefined>;
   signUpload(key: string): Promise<{ uploadUrl: string; uploadToken: string }>;
   inspect(key: string): Promise<{ byteLength: number; mimeType: string; header: Uint8Array }>;
   signRead(key: string): Promise<string>;
@@ -262,6 +265,97 @@ export class PublicationMediaRepository {
     });
     const signed = await this.store.signUpload(storageKey);
     return { assetId, kind, mimeType, byteLength: input.byteLength, ...signed };
+  }
+
+  /** Preallocated ID belongs to the immutable generation admission. No storage/network call. */
+  async beginGenerated(
+    principal: string,
+    workId: string,
+    assetId: string,
+    byteLength: number,
+    mimeType: string = 'image/png',
+  ) {
+    assertId(workId);
+    assertId(assetId);
+    const spec = publicationMediaKind(mimeType, byteLength);
+    if (spec.kind !== 'image') throw new TaskError('INVALID_INPUT');
+    const storageKey = `works/${workId}/${assetId}.${spec.extension}`;
+    return this.publisherTx(principal, 'edit', async (sql) => {
+      await sql.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [
+        `publication-media:${workId}`,
+      ]);
+      if (
+        !(await sql.query('SELECT 1 FROM parallel_life.publication_works WHERE id=$1', [workId]))
+          .rowCount
+      )
+        throw new TaskError('NOT_FOUND');
+      const old = (
+        await sql.query('SELECT * FROM parallel_life.publication_media_assets WHERE id=$1', [
+          assetId,
+        ])
+      ).rows[0] as MediaRow | undefined;
+      if (old) {
+        if (
+          old.work_id !== workId ||
+          old.mime_type !== mimeType ||
+          Number(old.declared_bytes) !== byteLength ||
+          old.storage_key !== storageKey
+        )
+          throw new TaskError('IDEMPOTENCY_CONFLICT');
+        return {
+          assetId,
+          storageKey,
+          status: old.status,
+          kind: spec.kind,
+          mimeType: spec.mimeType,
+          byteLength,
+        };
+      }
+      const usage = (
+        await sql.query(
+          'SELECT count(*)::integer count,coalesce(sum(declared_bytes),0)::bigint bytes FROM parallel_life.publication_media_assets WHERE work_id=$1',
+          [workId],
+        )
+      ).rows[0] as { count: number; bytes: string };
+      if (usage.count >= 100 || Number(usage.bytes) + byteLength > 500_000_000)
+        throw new TaskError('RATE_LIMITED');
+      await sql.query(
+        'INSERT INTO parallel_life.publication_media_assets(id,work_id,created_by,storage_key,kind,mime_type,declared_bytes) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [assetId, workId, principal, storageKey, spec.kind, spec.mimeType, byteLength],
+      );
+      return {
+        assetId,
+        storageKey,
+        status: 'pending' as const,
+        kind: spec.kind,
+        mimeType: spec.mimeType,
+        byteLength,
+      };
+    });
+  }
+
+  /** Exact edit-scoped pending row, used before accepting any local bytes. */
+  async pendingAsset(principal: string, workId: string, assetId: string) {
+    assertId(workId);
+    assertId(assetId);
+    return this.publisherTx(principal, 'edit', async (sql) => {
+      const row = (
+        await sql.query(
+          'SELECT storage_key,mime_type,declared_bytes,status FROM parallel_life.publication_media_assets WHERE work_id=$1 AND id=$2',
+          [workId, assetId],
+        )
+      ).rows[0] as
+        | {
+            storage_key: string;
+            mime_type: PublicationMediaMime;
+            declared_bytes: string | number;
+            status: string;
+          }
+        | undefined;
+      if (!row) throw new TaskError('NOT_FOUND');
+      if (row.status !== 'pending') throw new TaskError('INVALID_STATE');
+      return row;
+    });
   }
 
   async finalize(principal: string, workId: string, assetId: string) {

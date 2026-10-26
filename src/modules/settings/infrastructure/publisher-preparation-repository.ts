@@ -35,6 +35,17 @@ function record(row: Record<string, any>): PublisherPreparationRecord {
     updatedAt: new Date(row.updated_at).toISOString(),
   });
 }
+
+/** Shared admission expiry; an abandoned image operation cannot block author tools forever. */
+export function expirePublisherPreparations(sql: SqlClient, principal: string) {
+  return sql.query(
+    `UPDATE parallel_life.publisher_preparations SET status='unknown',error_code='TIMEOUT',updated_at=now()
+     WHERE principal_id=$1 AND status='running' AND created_at<now()-
+       CASE WHEN material->>'kind'='actor_stage_image' THEN interval '10 minutes' ELSE interval '3 minutes' END`,
+    [principal],
+  );
+}
+
 export class PublisherPreparationRepository implements PublisherPreparationStore {
   private readonly db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
@@ -54,10 +65,7 @@ export class PublisherPreparationRepository implements PublisherPreparationStore
     }
   }
   private expire(sql: SqlClient, principal: string) {
-    return sql.query(
-      "UPDATE parallel_life.publisher_preparations SET status='unknown',error_code='TIMEOUT',updated_at=now() WHERE principal_id=$1 AND status='running' AND created_at<now()-interval '3 minutes'",
-      [principal],
-    );
+    return expirePublisherPreparations(sql, principal);
   }
   async begin(principal: string, workId: string, raw: PublisherPreparationInput) {
     const parsed = PublisherPreparationInputSchema.safeParse(raw);
@@ -87,6 +95,8 @@ export class PublisherPreparationRepository implements PublisherPreparationStore
         )
       ).rows[0];
       if (existing) {
+        if (existing.material?.kind === 'actor_stage_image')
+          throw new TaskError('IDEMPOTENCY_CONFLICT');
         if (existing.request_hash !== hash) throw new TaskError('IDEMPOTENCY_CONFLICT');
         return { record: record(existing), claimed: false };
       }
@@ -133,7 +143,7 @@ export class PublisherPreparationRepository implements PublisherPreparationStore
       await this.expire(sql, principal);
       const row = (
         await sql.query(
-          'SELECT * FROM parallel_life.publisher_preparations WHERE principal_id=$1 AND work_id=$2' +
+          "SELECT * FROM parallel_life.publisher_preparations WHERE principal_id=$1 AND work_id=$2 AND material->>'kind' IS DISTINCT FROM 'actor_stage_image'" +
             (commandId ? ' AND command_id=$3' : '') +
             ' ORDER BY created_at DESC LIMIT 1',
           commandId ? [principal, workId, commandId] : [principal, workId],

@@ -1,4 +1,9 @@
 import {
+  PublisherStageImageInputSchema,
+  PublisherStageImageRecordSchema,
+  type PublisherStageImageInput,
+} from '../../contracts/publisher-stage-image.ts';
+import {
   PublisherPreparationInputSchema,
   PublisherPreparationRecordSchema,
   PublisherPreparationLatestSchema,
@@ -51,7 +56,10 @@ const MediaUploadStartSchema = z.strictObject({
   kind: z.enum(['image', 'video']),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4']),
   byteLength: z.number().int().positive(),
-  uploadUrl: z.url(),
+  uploadUrl: z.union([
+    z.url(),
+    z.string().regex(/^\/api\/v1\/publisher\/works\/[0-9a-f-]{36}\/media\/[0-9a-f-]{36}\/content$/),
+  ]),
   uploadToken: z.string().min(1),
 });
 const MediaUploadDoneSchema = MediaUploadStartSchema.pick({
@@ -137,6 +145,27 @@ export class PublisherClient {
   get(id: string) {
     return this.request('/works/' + encodeURIComponent(id), PublisherWorkSchema);
   }
+  makeStageImage(workId: string, input: PublisherStageImageInput) {
+    return this.request(
+      '/works/' + encodeURIComponent(workId) + '/stage-image',
+      PublisherStageImageRecordSchema,
+      'POST',
+      PublisherStageImageInputSchema.parse(input),
+      240000,
+    );
+  }
+  readStageImage(workId: string, commandId: string) {
+    return this.request(
+      '/works/' +
+        encodeURIComponent(workId) +
+        '/stage-image?commandId=' +
+        encodeURIComponent(commandId),
+      PublisherStageImageRecordSchema,
+      'GET',
+      undefined,
+      200000,
+    );
+  }
   async uploadWorkMedia(workId: string, file: File) {
     const mimeType =
       file.type ||
@@ -159,19 +188,25 @@ export class PublisherClient {
       mimeType,
       byteLength: file.size,
     });
+    const localPath = `/api/v1/publisher/works/${encodeURIComponent(workId)}/media/${encodeURIComponent(start.assetId)}/content`;
+    const localUpload = start.uploadUrl === localPath;
     if (
       start.mimeType !== mimeType ||
       start.byteLength !== file.size ||
-      !start.uploadUrl.startsWith('https://')
+      (!localUpload && !start.uploadUrl.startsWith('https://'))
     )
       throw new PublisherClientError('UNAVAILABLE');
     let uploaded: Response;
     try {
       uploaded = await this.transport(start.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': mimeType, 'x-upsert': 'false' },
+        headers: {
+          'Content-Type': mimeType,
+          'x-upsert': 'false',
+          ...(localUpload && this.csrf ? { 'X-Publisher-CSRF': this.csrf } : {}),
+        },
         body: file,
-        credentials: 'omit',
+        credentials: localUpload ? 'same-origin' : 'omit',
         signal: AbortSignal.timeout(180000),
       });
     } catch {

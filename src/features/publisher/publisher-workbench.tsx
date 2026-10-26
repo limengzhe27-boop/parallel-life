@@ -1270,6 +1270,8 @@ export function PublisherWorkbench(
                           content={draftContent}
                           actorKey={currentActorForm.key}
                           workId={work.id}
+                          draftVersion={work.draftVersion}
+                          generationClient={props.preparationClient}
                           disabled={busy || !session.canEdit}
                           onChange={setDraftContent}
                           uploadImage={
