@@ -3,6 +3,22 @@ import type { DirectorPendingReason } from '../domain/world-awareness.ts';
 import type { AuthoredReconsiderationReason } from '../domain/authored-reconsideration.ts';
 import { DomainError } from '../domain/errors.ts';
 
+/** Authenticate independently: one stale legacy source must not erase unrelated real results. */
+function authenticatedRows<T>(rows: any[], authenticate: (row: any) => T): T[] {
+  return rows.flatMap((row) => {
+    try {
+      return [authenticate(row)];
+    } catch (error) {
+      if (
+        (error as { code?: string })?.code === 'INVALID_PROPOSAL' &&
+        (error as Error).message === 'INVALID_AUTHORED_RECONSIDERATION_EVIDENCE'
+      )
+        return [];
+      throw error;
+    }
+  });
+}
+
 /** Stale evidence must not block an otherwise valid wake; losing it is safer than 503. */
 export async function readAuthoredReconsiderationEvidence(
   sql: SqlClient,
@@ -51,7 +67,7 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
       [worldId, ownerId, worldVersion],
     )
   ).rows;
-  const semanticReasons: AuthoredReconsiderationReason[] = rows.map((row) => {
+  const semanticReasons: AuthoredReconsiderationReason[] = authenticatedRows(rows, (row) => {
     const r = row.document as DirectorPendingReason,
       e = row.payload;
     const reject = (): never => {
@@ -100,9 +116,8 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
       runtime?.stateAfter?.actorId !== ref.actorId ||
       runtime.stateAfter.worldId !== worldId ||
       runtime.stateAfter.projectedWorldVersion !== e.version ||
-      !previous ||
-      previous.actorId !== ref.actorId ||
-      previous.worldId !== worldId
+      (r.kind !== 'action_result' &&
+        (!previous || previous.actorId !== ref.actorId || previous.worldId !== worldId))
     )
       return reject();
     if (r.kind === 'plan_changed' && ref.kind === 'plan') {
@@ -185,7 +200,7 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
     )
   ).rows;
 
-  const arrivalReasons: AuthoredReconsiderationReason[] = arrivalRows.map((row) => {
+  const arrivalReasons: AuthoredReconsiderationReason[] = authenticatedRows(arrivalRows, (row) => {
     const r = row.document as DirectorPendingReason,
       e = row.payload,
       data = e?.data;

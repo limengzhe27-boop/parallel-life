@@ -1,3 +1,4 @@
+import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
 import { hasPendingEpisodeWork } from './episode-pending-work-repository.ts';
 import { admitDirectorOpportunity } from '../domain/director-opportunity-admission.ts';
 import { readOpeningContextAuthority } from './opening-context-repository.ts';
@@ -155,6 +156,7 @@ export async function readDirectorNarrativeWakeInTransaction(
       .filter((e) => e.worldVersion <= through && actors.has(e.actorId))
       .map((e) => e.sourceId);
   };
+  const settledHandoffs = await readSettledUnpresentedHandoffs(sql, ownerId, input);
   const contextToken = (q: AuthoredWakeQualification, through: number) =>
     JSON.stringify([
       token(q),
@@ -262,6 +264,7 @@ export async function readDirectorNarrativeWakeInTransaction(
       return admitDirectorOpportunity({
         previouslyAssessed: assessedAt !== undefined,
         hasPriorPaidAssessment: true,
+        hasSettledUnpresentedHandoff: settledHandoffs.length > 0,
         hasOutstandingWork: outstanding,
         hasRelatedNewEvidence: newSpeech || newEvidence.length > 0,
         hasIndependentNewEvidence: independent,
@@ -315,6 +318,7 @@ export async function readDirectorNarrativeWakeInTransaction(
           admission.genesis_hash,
           view.catalog.source.sourceHash,
           unseen,
+          ...(settledHandoffs.length ? [{ settledHandoffs }] : []),
           ...(unseen.some((q) => speechFor(q, input.worldVersion).length)
             ? [{ openingSpeech: unseen.map((q) => speechFor(q, input.worldVersion)) }]
             : []),

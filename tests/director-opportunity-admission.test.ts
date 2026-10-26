@@ -38,3 +38,11 @@ test('an actual newly satisfied author condition permits assessment while anothe
   assert.equal(admit({ ...base, hasNewlyQualifiedEpisode: true }), true);
   assert.equal(admit({ ...base, previouslyAssessed: true, hasNewlyQualifiedEpisode: true }), false);
 });
+
+test('settled unpresented handoff permits other finite entries without retrying the old entry', () => {
+  assert.equal(admit({ ...base, hasSettledUnpresentedHandoff: true }), true);
+  assert.equal(
+    admit({ ...base, hasSettledUnpresentedHandoff: true, previouslyAssessed: true }),
+    false,
+  );
+});

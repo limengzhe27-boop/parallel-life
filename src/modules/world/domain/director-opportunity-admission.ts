@@ -6,6 +6,8 @@ export function admitDirectorOpportunity(input: {
   hasRelatedNewEvidence: boolean;
   hasIndependentNewEvidence: boolean;
   hasNewlyReleasedEpisode: boolean;
+  /** All addressed actors considered an earlier opportunity without presenting it. */
+  hasSettledUnpresentedHandoff?: boolean;
   /** A confirmed quiet review can continue its finite, unassessed catalogue. */
   hasConfirmedQuietPredecessor?: boolean;
   /** Existing authored conditions became eligible since the previous assessment. */
@@ -15,6 +17,7 @@ export function admitDirectorOpportunity(input: {
   // A changed context for an already assessed event remains eligible even while
   // another event is active. This is not permission to retry a paid context.
   if (input.previouslyAssessed) return input.hasRelatedNewEvidence;
+  if (input.hasSettledUnpresentedHandoff) return true;
   if (input.hasNewlyQualifiedEpisode) return true;
   if (input.hasIndependentNewEvidence || input.hasNewlyReleasedEpisode) return true;
   if (!input.hasOutstandingWork && input.hasConfirmedQuietPredecessor) return true;

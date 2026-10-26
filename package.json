@@ -20,7 +20,8 @@
     "test:db": "node --experimental-strip-types --test --test-concurrency=1 tests/integration/*.test.ts",
     "worker": "node --env-file=.env.local --conditions=react-server --experimental-strip-types src/workers/main.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,mjs}\" \"scripts/*.mjs\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,mjs}\" \"scripts/*.mjs\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,mjs}\" \"scripts/*.mjs\"",
+    "worker:proactive": "node --env-file=.env.local --conditions=react-server --experimental-strip-types src/workers/proactive.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.1",
