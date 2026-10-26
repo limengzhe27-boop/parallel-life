@@ -25,3 +25,9 @@
 - 所有合成世界cleanup暂停；没有读写真实clone记录。首轮测试曾错误从NPC payload不存在的actor.id取身份导致assert失败，已改按原private channel.threadId与director catalog精确映射；不按数组顺序或名字猜人物。失败为隔离stub测试，无真实调用。
 
 最终日志：忽略目录.local/director-fourth-20261027/wire15-unit.log、wire15-regression.log、wire15-pg-final.log、wire15-type.log。新协议验证不代表真实模型一定遵循/不会再空白跑满输出；真实首次进入及主动来信仍由root专属存档完整验收，未称上线。
+
+## f59e0d0f quiet自激修复后复验
+
+独立分支codex/quiet-crossimpact-verify-20261027直接基于root f59e0d0f，无源码/测试改动。只复跑settled-handoff-continuity及director-wire15-handoff两个必要PG旅程，4/4通过（5.1秒），未重复全量门禁、未调用真实模型或操作原档/端口。原有限目录耗尽后仍cause=null，owner隔离和双NPC本人task/hash/回执读取保持。
+
+仅对本轮3个合成test world做BEGIN READ ONLY连接：quiet共5个真实内核事件/cross_impact=0；engage共2事件/cross_impact=2；defer共1事件/cross_impact=1。证明quiet收据照存且不再制造cross-impact，非quiet全局反馈保留。全部fixture cleanup暂停。日志位于忽略目录.local/director-fourth-20261027/quiet-crossimpact-pg.log，read-crossimpact.mjs为专属只读查询；本次不新增测试/运行配置。
