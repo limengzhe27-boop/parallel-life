@@ -14,3 +14,5 @@
 最终同步：main c7b07b4e 时间排列，259d09c9 合入通知浮层；check4019/4019，build08通过。3218 PID2380、3219 PID2378，两端health200。3218原后台此前因DB不可用已退出，按原范围重启PID2432，不重发旧unknown。Chrome刷新后原未发送检查草稿保留，随后清空检查草稿，未发送消息；刷新会回锁屏，解锁后仍同一人物聊天。群聊详情未改。失败重试仍走原链路，本次未真实制造新失败。
 
 补充更正：此前旧tab读取通知容器0，不能解释为无通知时条件渲染（PhoneShell容器始终存在）。重新打开实际play.localhost:3218原档页面，DOM确认data-phone-content=1、data-phone-top-overlays=1、无iframe；新手机壳已加载。旧tab跨构建刷新出现差异的缓存机制未定位，不冒称证明。
+
+最终兼容收口：c8884e6c集成人物试聊无phone host时的绝对定位fallback，普通手机继续portal。check4020/4020、build09成功；3218 PID6434与3219 PID6433实际更新build09，两端health200。试聊真实页面尚未验收，已有原结构SSR定位和动作回归。无模型调用或数据修改。
