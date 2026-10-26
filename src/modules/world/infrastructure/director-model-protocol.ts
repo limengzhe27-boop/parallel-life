@@ -480,6 +480,20 @@ export function directorWireCatalog(snapshot: DirectorSnapshot) {
   };
 }
 
+/** Canonical validation uses the same finite source directory exposed to the model. */
+export function directorDecisionSourceIds(snapshot: DirectorSnapshot): string[] {
+  return [
+    ...new Set([
+      ...directorWireCatalog(snapshot).sources.map((source) => source.sourceId),
+      ...(snapshot.authoredMaterials
+        ? projectAuthoredDirectorModelView(snapshot.authoredMaterials).materials.map(
+            (m) => m.sourceId,
+          )
+        : []),
+    ]),
+  ];
+}
+
 /** Fresh bootstrap opportunities must consider the eligible authored opening, not replace it. */
 export function bootstrapOpeningEventRefs(snapshot: DirectorSnapshot): string[] {
   if (snapshot.evaluationCause?.kind !== 'bootstrap') return [];

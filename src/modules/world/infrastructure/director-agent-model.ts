@@ -14,6 +14,7 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   decodeDirectorWire,
   directorWireCatalog,
+  directorDecisionSourceIds,
   directorOpeningOwnerCatalog,
   DIRECTOR_WIRE_PROTOCOL,
   directorResponseFormat,
@@ -225,12 +226,7 @@ export function parseDirectorDecision(
   const candidates = new Map(snapshot.candidates.map((c) => [c.id, c]));
   const selected = new Set(value.selectedCandidateIds);
   if (selected.size !== value.selectedCandidateIds.length) invalid();
-  const sources = new Set([
-    ...snapshot.observations.map((o) => o.sourceId).filter((id) => !id.startsWith('authored:')),
-    ...snapshot.episodes.map((e) => e.origin.sourceId).filter((id) => !id.startsWith('authored:')),
-    ...snapshot.candidates.flatMap((c) => c.sourceIds).filter((id) => !id.startsWith('authored:')),
-    ...(authored?.materials.map((m) => m.sourceId) ?? []),
-  ]);
+  const sources = new Set(directorDecisionSourceIds(snapshot));
   const accounted = new Set(selected);
   if ([...selected].some((id) => !candidates.has(id))) invalid();
   if (

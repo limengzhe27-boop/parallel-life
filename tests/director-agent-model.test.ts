@@ -1133,3 +1133,17 @@ test('director budget retains actor-scoped confirmed opening reports while trimm
   );
   assert.deepEqual(payload.observations.slice(0, 2), reports);
 });
+
+test('canonical Director audit accepts only definition sources from the same exposed snapshot catalogue', () => {
+  const f = fixture();
+  const source = 'definition:fictional-definition';
+  const accepted = f.parse({
+    ...f.quiet,
+    audit: { reason: '人物设定支持本轮判断', basisSourceIds: [source] },
+  });
+  assert.deepEqual(accepted.audit.basisSourceIds, [source]);
+  rejected(f, {
+    ...f.quiet,
+    audit: { reason: '伪造其它人物来源', basisSourceIds: ['definition:foreign-persona'] },
+  });
+});

@@ -1,3 +1,4 @@
+import { directorDecisionSourceIds } from './director-model-protocol.ts';
 import { isReceivedModelTruncation } from '../../ai/application/model-output-truncation.ts';
 import { directorFrameRetirementEvidence } from '../domain/director-frame-retirement.ts';
 import { readAuthoredReconsiderationEvidence } from './authored-reconsideration-evidence.ts';
@@ -851,13 +852,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       // Same PoolClient: never issue these reads concurrently.
       for (const state of states)
         topics.push(
-          ...(await readActorKnownTopicsInTransaction(
-            sql,
-            owner,
-            state,
-            world.version,
-            s.storyAt,
-          )),
+          ...(await readActorKnownTopicsInTransaction(sql, owner, state, world.version, s.storyAt)),
         );
       if (!equal(topics, s.actorKnownTopics)) fail('DIRECTOR_ACTOR_TOPIC_CONFLICT');
     }
@@ -1535,12 +1530,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     const authored = s.authoredMaterials
       ? projectAuthoredDirectorModelView(s.authoredMaterials)
       : undefined;
-    const sources = new Set([
-      ...s.observations.map((o) => o.sourceId).filter((id) => !id.startsWith('authored:')),
-      ...s.candidates.flatMap((c) => c.sourceIds).filter((id) => !id.startsWith('authored:')),
-      ...s.episodes.map((e) => e.origin.sourceId).filter((id) => !id.startsWith('authored:')),
-      ...(authored?.materials.map((m) => m.sourceId) ?? []),
-    ]);
+    const sources = new Set(directorDecisionSourceIds(s));
     if (d.audit.basisSourceIds.some((id) => !sources.has(id))) fail('DIRECTOR_SOURCE_FORBIDDEN');
     if (new Set(d.nudges.map((n) => n.candidateId)).size !== d.nudges.length)
       fail('INVALID_DIRECTOR_NUDGE');
