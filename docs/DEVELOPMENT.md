@@ -3167,7 +3167,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
   另三个 publication-story-* 测试硬编码 55478，当前集群未覆盖。epoch-2 与出版故事的
   交叉仍未验证，继续保持待确认，不据此改代码。
 
-|LOCAL-PLAY-01|[ ] 本地原档读取已接通；模型余额/存储流量阻断完整体验|root-local-play|主目录；忽略的.local/local-play配置/启动器及报告；不改业务协议|本地正式运行接现有渣男体验，保留数据进度；核对真实模型、图片存储、原后台执行与权限，不用桩，不部署。|
+|LOCAL-PLAY-01|[ ] 当前IAB原档登录已恢复且手机桌面可见；完整聊天/推进/发图与偶发503待验收|root-local-play|主目录；忽略的.local/local-play配置/启动器及报告；不改业务协议|本地正式运行接现有渣男体验，保留数据进度；核对真实模型、图片存储、原后台执行与权限，不用桩，不部署。|
 
 |LOCAL-PLAY-02|[ ] 本地已接通并验证真实生成/读写；回云与完整人物旅程待验收|root-local-play|主目录串行；src/server/private-asset-store.ts、NEW local-first-asset-store.ts、tests/local-first-asset-store.test.ts、scripts/sync-local-assets.mjs、LOCAL-PLAY-02报告；本地配置|复用AssetStore实现本地新图保存、云端旧图读取与显式校验同步；不新增业务字段、不清空数据；本地验收优先，外部额度阻断如实记录。|
 
