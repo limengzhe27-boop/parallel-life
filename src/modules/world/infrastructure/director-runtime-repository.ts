@@ -1,3 +1,4 @@
+import { validAuthoredOpportunityCast } from '../domain/authored-opportunity-cast.ts';
 import { directorDecisionSourceIds } from './director-model-protocol.ts';
 import { isReceivedModelTruncation } from '../../ai/application/model-output-truncation.ts';
 import { directorFrameRetirementEvidence } from '../domain/director-frame-retirement.ts';
@@ -1560,6 +1561,11 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       if (
         !validActorTopicSelection(o, s.actorKnownTopics ?? []) ||
         !validActorStagingIntents(o) ||
+        !validAuthoredOpportunityCast(
+          s.authoredMaterials?.materials ?? [],
+          s.boundary.actorIds,
+          o,
+        ) ||
         o.participantActorIds.some((id) => !s.boundary.actorIds.includes(id)) ||
         o.placeIds.some((id) => !s.boundary.placeIds.includes(id)) ||
         o.basisSourceIds.some((id) => !sources.has(id)) ||

@@ -1,3 +1,4 @@
+import { authoredOpportunityActorIds } from '../domain/authored-opportunity-cast.ts';
 import { OpeningModule } from './opening-context-schema.ts';
 import { isDirectorDeliberationEvent } from '../domain/director-runtime.ts';
 import { z } from 'zod';
@@ -1258,13 +1259,59 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     director_author_defer: deferChoice,
   };
   const choices: Record<string, Schema> = {};
-  for (const event of catalog.events)
-    choices[event.ref] = {
-      $ref:
-        !snapshot.nativeTurn && (!openingRefs.length || openingRefs.includes(event.ref))
-          ? '#/$defs/director_author_choice'
-          : '#/$defs/director_author_defer',
-    };
+  const scopedChoices = new Map<string, string>();
+  for (const event of catalog.events) {
+    if (snapshot.nativeTurn || (openingRefs.length && !openingRefs.includes(event.ref))) {
+      choices[event.ref] = { $ref: '#/$defs/director_author_defer' };
+      continue;
+    }
+    const material = snapshot.authoredMaterials?.materials.find(
+      (m) => m.ref.nodeKey === event.authoredEventKey,
+    );
+    const allowed = new Set(
+      material ? authoredOpportunityActorIds(material, snapshot.boundary.actorIds) : [],
+    );
+    if (!allowed.size) {
+      choices[event.ref] = { $ref: '#/$defs/director_author_defer' };
+      continue;
+    }
+    const key = [...allowed].sort().join('|');
+    let choiceRef = scopedChoices.get(key);
+    if (!choiceRef) {
+      const suffix = scopedChoices.size === 0 ? '' : '_' + (scopedChoices.size + 1);
+      const opportunityKey = 'director_author_opportunity' + suffix;
+      const choiceKey = 'director_author_choice' + suffix;
+      const taskProperties = (authorProperties.actorTasks!.properties ?? {}) as Record<
+        string,
+        Schema
+      >;
+      (schema.$defs as Record<string, Schema>)[opportunityKey] = object({
+        ...authorProperties,
+        actorTasks: object(
+          Object.fromEntries(
+            catalog.actors.map((a) => [
+              a.ref,
+              allowed.has(a.actorId)
+                ? taskProperties[a.ref]!
+                : { type: 'null', description: '此作者事件未绑定该人物，本项只能为null。' },
+            ]),
+          ),
+        ),
+      });
+      (schema.$defs as Record<string, Schema>)[choiceKey] = {
+        anyOf: [
+          deferChoice,
+          object({
+            kind: { type: 'string', enum: ['consider'] },
+            opportunity: { $ref: '#/$defs/' + opportunityKey },
+          }),
+        ],
+      };
+      choiceRef = '#/$defs/' + choiceKey;
+      scopedChoices.set(key, choiceRef);
+    }
+    choices[event.ref] = { $ref: choiceRef };
+  }
   delete properties.events;
   properties.authoredChoices = object(choices);
   const emergentOrigin =

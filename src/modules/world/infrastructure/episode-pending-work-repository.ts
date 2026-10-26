@@ -1,3 +1,4 @@
+import { readInvalidAuthoredEpisodeIds } from './authored-episode-scope-read.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import {
   episodeDispatchAttempt,
@@ -13,12 +14,20 @@ export async function hasPendingEpisodeWork(
   actorId?: string,
 ): Promise<boolean> {
   const requests = await sql.query(
-    `SELECT id FROM parallel_life.agent_episode_requests
+    `SELECT id,episode_id FROM parallel_life.agent_episode_requests
      WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3 AND status='pending'
      AND ($4::text IS NULL OR actor_id=$4::text)`,
     [worldId, ownerId, engineEpoch, actorId ?? null],
   );
   if (!requests.rowCount) return false;
+  const invalid = await readInvalidAuthoredEpisodeIds(
+    sql,
+    ownerId,
+    { worldId, engineEpoch },
+    requests.rows.map((r) => String(r.episode_id)),
+  );
+  const eligible = requests.rows.filter((r) => !invalid.has(String(r.episode_id)));
+  if (!eligible.length) return false;
   const rows = await sql.query(
     `SELECT a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,b.request_id AS bound_request_id,r.document
      FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
@@ -29,5 +38,5 @@ export async function hasPendingEpisodeWork(
     [worldId, ownerId, engineEpoch, actorId ?? null],
   );
   const attempts = rows.rows.map(episodeDispatchAttempt);
-  return requests.rows.some((r) => episodeRequestWorkState(r.id, attempts) !== 'paid_terminal');
+  return eligible.some((r) => episodeRequestWorkState(r.id, attempts) !== 'paid_terminal');
 }

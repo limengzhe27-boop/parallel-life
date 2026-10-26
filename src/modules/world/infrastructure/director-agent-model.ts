@@ -1,3 +1,4 @@
+import { validAuthoredOpportunityCast } from '../domain/authored-opportunity-cast.ts';
 import { OpeningContextReviewSchema } from './opening-context-schema.ts';
 import { validateOpeningContextReview } from '../domain/narrative-opening-context.ts';
 import {
@@ -263,6 +264,11 @@ export function parseDirectorDecision(
       (o) =>
         !validActorTopicSelection(o, snapshot.actorKnownTopics ?? []) ||
         !validActorStagingIntents(o) ||
+        !validAuthoredOpportunityCast(
+          snapshot.authoredMaterials?.materials ?? [],
+          snapshot.boundary.actorIds,
+          o,
+        ) ||
         o.participantActorIds.some((id) => !snapshot.boundary.actorIds.includes(id)) ||
         o.placeIds.some((id) => !snapshot.boundary.placeIds.includes(id)) ||
         o.basisSourceIds.some((id) => !sources.has(id)) ||

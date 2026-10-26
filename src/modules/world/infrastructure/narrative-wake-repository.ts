@@ -1,3 +1,4 @@
+import { readInvalidAuthoredEpisodeIds } from './authored-episode-scope-read.ts';
 import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
 import { hasPendingEpisodeWork } from './episode-pending-work-repository.ts';
 import { admitDirectorOpportunity } from '../domain/director-opportunity-admission.ts';
@@ -156,7 +157,16 @@ export async function readDirectorNarrativeWakeInTransaction(
       .filter((e) => e.worldVersion <= through && actors.has(e.actorId))
       .map((e) => e.sourceId);
   };
-  const settledHandoffs = await readSettledUnpresentedHandoffs(sql, ownerId, input);
+  const invalidAuthoredEpisodes = await readInvalidAuthoredEpisodeIds(
+    sql,
+    ownerId,
+    input,
+    undefined,
+    true,
+  );
+  const settledHandoffs = (await readSettledUnpresentedHandoffs(sql, ownerId, input)).filter(
+    (e) => !invalidAuthoredEpisodes.has(e.episodeId),
+  );
   const contextToken = (q: AuthoredWakeQualification, through: number) =>
     JSON.stringify([
       token(q),
@@ -243,13 +253,24 @@ export async function readDirectorNarrativeWakeInTransaction(
     const previousEpisodes = latestPaid.snapshot.episodes ?? [];
     const released = episodes.some(
       (e: { id: string; status: string }) =>
-        terminal(e) &&
-        !previousEpisodes.some((p: { id: string; status: string }) => p.id === e.id && terminal(p)),
+        (terminal(e) &&
+          !previousEpisodes.some(
+            (p: { id: string; status: string }) => p.id === e.id && terminal(p),
+          )) ||
+        // Rejecting an authenticated, unperformed old misassignment releases one
+        // finite new window; it is not quiet, completion or a player's decision.
+        // The next assessed snapshot contains the id, so this cause cannot recur.
+        (e.status === 'proposed' &&
+          invalidAuthoredEpisodes.has(e.id) &&
+          !previousEpisodes.some((p: { id: string }) => p.id === e.id)),
     );
     const outstanding =
       (await hasPendingEpisodeWork(sql, ownerId, input.worldId, input.engineEpoch)) ||
       !!load?.pending_player_work ||
-      episodes.some((e: { status: string }) => ['proposed', 'active'].includes(e.status));
+      episodes.some(
+        (e: { id: string; status: string }) =>
+          e.status === 'active' || (e.status === 'proposed' && !invalidAuthoredEpisodes.has(e.id)),
+      );
     unseen = unseen.filter((q) => {
       const assessedAt = lastAssessedVersion.get(token(q));
       const baseline = assessedAt ?? latestPaid.snapshot.worldVersion;

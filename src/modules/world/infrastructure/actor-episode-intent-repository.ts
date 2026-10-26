@@ -1,3 +1,4 @@
+import { validAuthoredOpportunityCast } from '../domain/authored-opportunity-cast.ts';
 import { isAdmittedAgentCommitHead } from './agent-commit-version.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -83,7 +84,7 @@ export async function readActorEpisodeIntentsInTransaction(
       [frame.worldId, ownerId, frame.actorId, ids, worldRow.engine_epoch, frame.worldVersion],
     )
   ).rows;
-  const addressed = requests.map((request) => {
+  const addressed = requests.flatMap((request) => {
     const decision = request.decision as DirectorDecision;
     const opportunities = decision.opportunities.filter(
       (opportunity) =>
@@ -92,12 +93,17 @@ export async function readActorEpisodeIntentsInTransaction(
         opportunity.activity === request.activity,
     );
     if (opportunities.length !== 1) return conflict();
+    const saved = request.director_snapshot as DirectorSnapshot;
+    if (
+      !validAuthoredOpportunityCast(
+        saved.authoredMaterials?.materials ?? [],
+        world.actors.map((a) => a.id),
+        opportunities[0]!,
+      )
+    )
+      return []; // Legacy bad assignments are not new knowledge or retry permission.
     result.set(request.id, null);
-    return {
-      request,
-      opportunity: opportunities[0]!,
-      saved: request.director_snapshot as DirectorSnapshot,
-    };
+    return [{ request, opportunity: opportunities[0]!, saved }];
   });
   const blocked = await forgottenAgentSourceIds(sql, ownerId, frame.worldId, frame.actorId);
   // A committed Director opportunity may carry a newly created future task for
@@ -156,6 +162,16 @@ export async function readActorEpisodeIntentsInTransaction(
         !isDeepStrictEqual(original[0]!.ref, actual[0]!.ref)
       )
         return conflict();
+      if (
+        !validAuthoredOpportunityCast(
+          actual,
+          world.actors.map((a) => a.id),
+          opportunity,
+        )
+      ) {
+        result.delete(request.id);
+        continue;
+      }
       authoredNodeHash = actual[0]!.ref.nodeHash;
     }
     const id = ACTOR_EPISODE_INTENT_PREFIX + request.id;
@@ -321,6 +337,16 @@ export async function readActorEpisodeIntentsInTransaction(
       !isDeepStrictEqual(original[0]!.ref, actual[0]!.ref)
     )
       return conflict();
+    if (
+      !validAuthoredOpportunityCast(
+        actual,
+        world.actors.map((a) => a.id),
+        opportunity,
+      )
+    ) {
+      result.delete(request.id);
+      continue;
+    }
     const material = actual[0]!;
     const manuscriptHint = projectActorManuscriptHint(
       material,

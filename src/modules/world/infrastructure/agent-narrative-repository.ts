@@ -1,3 +1,4 @@
+import { readInvalidAuthoredEpisodeIds } from './authored-episode-scope-read.ts';
 import { shouldWithdrawDeclinedEpisode } from '../domain/episode-participation-lifecycle.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import {
@@ -336,13 +337,20 @@ export async function readPendingEpisodeRequestsInTransaction(
 ): Promise<AgentEpisodeRequest[]> {
   const w = await frame(sql, owner, input.worldId);
   epoch(w.epoch, input.engineEpoch);
-  return (
+  const rows = (
     await sql.query(
       `SELECT * FROM parallel_life.agent_episode_requests
-    WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3 AND status='pending' ORDER BY created_at_version,id`,
+     WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3 AND status='pending' ORDER BY created_at_version,id`,
       [input.worldId, owner, input.engineEpoch],
     )
-  ).rows.map(request);
+  ).rows;
+  const invalid = await readInvalidAuthoredEpisodeIds(
+    sql,
+    owner,
+    input,
+    rows.map((r) => String(r.episode_id)),
+  );
+  return rows.filter((r) => !invalid.has(String(r.episode_id))).map(request);
 }
 export function parseEpisodeConsiderationIntent(text: string) {
   try {
