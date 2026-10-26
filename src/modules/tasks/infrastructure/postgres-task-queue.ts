@@ -1,4 +1,5 @@
 import pg, { type PoolClient } from 'pg';
+import { observePoolClientFailures } from '../../storage/infrastructure/postgres.ts';
 import type { TaskLease, TaskOutcome } from '../domain/types.ts';
 export type { TaskLease, TaskOutcome } from '../domain/types.ts';
 export class LeaseLost extends Error {
@@ -22,6 +23,7 @@ export class PostgresTaskQueue {
       /* Fallback to raw connection string if parsing fails. */
     }
     this.pool = new pg.Pool({ connectionString, ssl, max: 4, connectionTimeoutMillis: 10000 });
+    observePoolClientFailures(this.pool);
     this.pool.on('error', () => {});
   }
   async claim(kinds: string[]): Promise<TaskLease | null> {
@@ -102,7 +104,7 @@ export class PostgresTaskQueue {
       await sql.query('ROLLBACK').catch(() => {});
       throw error;
     } finally {
-      sql.release();
+      sql.release(observePoolClientFailures(this.pool).has(sql));
     }
   }
   async finish(lease: TaskLease, outcome: TaskOutcome) {
@@ -123,7 +125,7 @@ export class PostgresTaskQueue {
       await sql.query('ROLLBACK').catch(() => {});
       throw e;
     } finally {
-      sql.release();
+      sql.release(observePoolClientFailures(this.pool).has(sql));
     }
   }
   async close() {

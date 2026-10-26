@@ -40,3 +40,9 @@ local-asset-host + local-first共3/3；npm run check4017/4017，build04生产构
 真实PG kernel14/14，新增并发隐藏否定来源变化回滚，原raw response仍保留，模型1次、world版本不变，认证集合首次/最终2读。npm check4017/4017、build05通过。本地另两组旧PG有6个子项失败（包括父项共8），隔离build04基线复跑同名失败一致；本次未关闭它们或放松校验，最终活动中途到期测试两边均通过。未在改动后重新购买整轮模型来夸大速度收益；真实195秒是改动前这一轮证据，减掉多少时间尚未量化。
 
 用户正在Ego另一标签测试3219，界面控制多次提示用户变更，故停止抢占该标签；以play.localhost独立一次性登录入口交付，旧localhost待确认草稿不清除。原消息实际文本已在原档新验收command上得到3条回复，v290。限定原世界后台重新启动（原scheduler/kernel，非强制消息），仍需观察有合法工作时的表现，不宣称持续推进通过。
+
+## 借出连接异步断开导致后台退出：已修
+
+真实日志出现pg Client的未处理error事件，Connection terminated unexpectedly；Pool自身error监听只覆盖空闲连接，不能保护借出的连接。PostgresDatabase与PostgresTaskQueue复用observePoolClientFailures：每个连接安装一次observer，失败状态放WeakMap/WeakSet，不增加仓储实例必填字段，保留结构化适配器兼容；事务回调返回后若已断开则以08006失败，回滚并丢弃坏连接，不伪造提交、不自动重试模型。工作队列释放连接同样丢弃已坏连接。
+
+真实本地PG主动pg_terminate_backend验证：写入全部回滚、错误能返回调用方、进程不退出、后续事务能使用新连接、worker借出连接也有监听。1/1通过；tasks真实PG1/1覆盖exclusive claim、租约、取消、unknown不自动重试、RLS；npm check4017/4017与隔离build06通过，3218已加载build06，限定原世界后台重启。尚未用新代码重新付费跑一轮原档，不能声称195秒已经降到某个数值；已提交的3条回复仍可通过原receipt读取。云端网络断连本身不能靠observer消除，但现在应返回失败并安全恢复，不能再让整个后台因未处理事件退出。

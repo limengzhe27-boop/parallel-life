@@ -1,5 +1,18 @@
 import pg, { type PoolClient } from 'pg';
 export type SqlClient = PoolClient;
+/** pg-pool only installs its own error listener while a client is idle. Checked-out
+ * connections can fail between queries too; keep the process alive and discard them. */
+const poolFailures = new WeakMap<pg.Pool, WeakSet<pg.Client>>();
+export function observePoolClientFailures(pool: pg.Pool): WeakSet<pg.Client> {
+  const existing = poolFailures.get(pool);
+  if (existing) return existing;
+  const failed = new WeakSet<pg.Client>();
+  poolFailures.set(pool, failed);
+  pool.on('connect', (client) => {
+    client.on('error', () => failed.add(client));
+  });
+  return failed;
+}
 /** A transaction-local identity cannot leak when pooled connections change owners. */
 export class PostgresDatabase {
   readonly pool: pg.Pool;
@@ -27,6 +40,7 @@ export class PostgresDatabase {
       idleTimeoutMillis: 1000,
       allowExitOnIdle: true,
     });
+    observePoolClientFailures(this.pool);
     this.pool.on('error', () => {
       /* Request errors are surfaced without query text or secrets. */
     });
@@ -40,13 +54,15 @@ export class PostgresDatabase {
       await client.query("SET LOCAL lock_timeout = '5000ms'");
       await client.query("SELECT set_config('app.user_id',$1,true)", [ownerId]);
       const result = await run(client);
+      if (observePoolClientFailures(this.pool).has(client))
+        throw Object.assign(Error('DATABASE_CONNECTION_LOST'), { code: '08006' });
       await client.query('COMMIT');
       return result;
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;
     } finally {
-      client.release();
+      client.release(observePoolClientFailures(this.pool).has(client));
     }
   }
   async close() {
