@@ -798,7 +798,10 @@ export function npcAgentAdvanceServices(
       const directorNow = new Date().toISOString();
       const forceDirectorReview = options?.forceDirectorReview === true;
       const forceNonce = forceDirectorReview ? randomUUID() : undefined;
-      const directorDue = forceDirectorReview || directorReviewDue(directorReview, directorNow);
+      const directorDue =
+        forceDirectorReview ||
+        (directorReview?.lastStatus !== 'invalid_output' &&
+          directorReviewDue(directorReview, directorNow));
       // A due review must reach the Director even though every idle private actor
       // has a local-initiative candidate; otherwise the cadence is starved forever.
       const registrations = createAgentScheduleSources({
@@ -983,9 +986,10 @@ export function npcAgentAdvanceServices(
                 };
               // Continue original eligible actor work even while a different
               // Director call is unknown. Never rerun that paid call or borrow its intent.
-              const independent = wake.hasPendingDirector
-                ? independentActorWork(input.candidates)
-                : null;
+              const independent =
+                wake.hasPendingDirector || (!wake.cause && !directorDue)
+                  ? independentActorWork(input.candidates)
+                  : null;
               if (independent)
                 return {
                   candidateIds: [independent.id],
@@ -996,7 +1000,7 @@ export function npcAgentAdvanceServices(
                       candidateId: c.id,
                       reason: '其他人物工作保留，后续按新快照核对。',
                     })),
-                  reason: '独立人物工作不依赖尚未确认的导演结果。',
+                  reason: '无共享资源的人物工作由本人决策；全局新证据仍交导演评估。',
                 };
               let decision: DirectorDecision | null;
               try {
@@ -1081,7 +1085,8 @@ export function npcAgentAdvanceServices(
       // candidate exists; the Director can still decline or defer that opportunity.
       const emptyDirectorDue = forceDirectorReview
         ? !retryCommandId && !batch?.handledActorIds.size
-        : emptyDirectorReviewDue({
+        : directorReview?.lastStatus !== 'invalid_output' &&
+          emptyDirectorReviewDue({
             state: directorReview,
             storyAt: directorNow,
             selectedCount: scheduled.selected.length,

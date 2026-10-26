@@ -680,11 +680,7 @@ test('player defer or deferred responsibility suppresses the same appointment wa
       });
       sync(a);
     }
-    assert.equal(
-      (await collect(viewAt(storyAt, [a]), 'appointment')).candidates.length,
-      0,
-      mode,
-    );
+    assert.equal((await collect(viewAt(storyAt, [a]), 'appointment')).candidates.length, 0, mode);
     assert.equal(
       (await collect(viewAt(storyAt, [a]), 'responsibility')).candidates.length,
       0,
@@ -1247,7 +1243,7 @@ test('all independent actors may consider contact even just after speaking, with
   );
 });
 
-test('contact work is stable across refresh and story speed, renewed by real window only', async () => {
+test('contact work is stable across refresh, story speed and real windows without new evidence', async () => {
   const v = view([localActor()]);
   const first = (await localCollect(v, 120_000))[0]!;
   assert.equal((await localCollect(v, 179_999))[0]!.id, first.id);
@@ -1258,7 +1254,7 @@ test('contact work is stable across refresh and story speed, renewed by real win
   assert.equal((await localCollect(accelerated, 179_999))[0]!.id, first.id);
   v.consumedCandidateIds = [first.id];
   assert.equal((await localCollect(v, 179_999)).length, 0);
-  assert.notEqual((await localCollect(v, 180_000))[0]!.id, first.id);
+  assert.equal((await localCollect(v, 180_000)).length, 0);
 });
 
 test('unknown actor stays fenced across contact windows while another actor remains selectable', async () => {

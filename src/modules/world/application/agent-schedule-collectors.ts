@@ -1,3 +1,8 @@
+import { actorContinuationBasis } from '../domain/actor-continuation.ts';
+import {
+  localInitiativeContext,
+  localContinuationSettled,
+} from '../domain/local-initiative-context.ts';
 import type { ActorAgendaInitializeGrant } from '../domain/actor-agenda-initialization.ts';
 import { worldDateTimeLabel } from '../domain/display-time.ts';
 import { collectPendingSceneObservationCandidates } from '../domain/actor-observation-candidate.ts';
@@ -998,10 +1003,27 @@ async function observations(view: SchedulingView, context: ActorContext) {
 }
 
 /** A bounded contact opportunity, not a task or a requirement to send a message. */
-async function localInitiative(view: SchedulingView, context: ActorContext, realNow: number) {
+async function localInitiative(view: SchedulingView, context: ActorContext, actor: ActorRead) {
   if (view.suppressLocalInitiative) return [];
   const snapshot = context.snapshot;
   if (snapshot.channel.kind !== 'private') return [];
+  const contextInput = {
+    state: snapshot.state,
+    sources: snapshot.sources,
+    observations: snapshot.observations,
+    results: actor.trustedResults,
+    appointments: actor.appointments,
+  };
+  if (snapshot.state.continuation) {
+    const digest = new Uint8Array(
+      await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(actorContinuationBasis(snapshot.state)),
+      ),
+    );
+    const basisHash = Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
+    if (localContinuationSettled(contextInput, basisHash)) return [];
+  }
   const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
   if (!context.sources.has(sourceId)) {
     console.info(
@@ -1013,16 +1035,21 @@ async function localInitiative(view: SchedulingView, context: ActorContext, real
     );
     return [];
   }
-  // Stable across refresh, other actors' commits and accelerated story time.
-  // The original actor attempt/lease blocks unknown work even across later windows.
-  const bucket = Math.floor(realNow / 60_000);
+  // A quiet receipt consumes this authorized semantic context. Merely advancing
+  // time, writing that quiet state, or another actor committing is not new work.
   return [
     await candidate(view, context, {
       source: 'actor_local',
       actionId: null,
       sourceIds: [sourceId],
       responsibilities: [],
-      semantic: { contactWindow: bucket },
+      semantic: localInitiativeContext({
+        state: snapshot.viewState,
+        sources: snapshot.sources,
+        observations: snapshot.observations,
+        results: actor.trustedResults,
+        appointments: actor.appointments,
+      }),
       reason:
         '这是本人一次自主考虑机会。结合人格、关系、记忆、最近对话和当前安排，可以推进计划，也可以关心、分享、表达情绪或延续话题；没有正式任务也可以联系。不要假定玩家空闲，不复述同一请求；可以保持安静，不需要导演批准。',
     }),
@@ -1166,7 +1193,7 @@ export function createAgentScheduleSources(
                     : source === 'appointment'
                       ? appointmentWindows(view, actor, context)
                       : source === 'actor_local'
-                        ? localInitiative(view, context, realNow)
+                        ? localInitiative(view, context, actor)
                         : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };
