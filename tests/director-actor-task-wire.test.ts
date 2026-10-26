@@ -296,7 +296,9 @@ test('v9 schema requires three bounded personal fields while v8 saved task remai
   const format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
   const tasks: any = (format.schema as any).$defs.director_author_opportunity.properties.actorTasks;
-  const personal = tasks.properties['actor:1'].anyOf[0];
+  assert.equal(tasks.properties['actor:1'].anyOf[0].$ref, '#/$defs/director_actor_task');
+  const personal = (format.schema as any).$defs.director_actor_task;
+  assert.equal(JSON.stringify(format.schema).split('本人与玩家可交流的具体议题').length - 1, 1);
   assert.deepEqual(personal.required, ['topic', 'personalObjective', 'proposedInteraction']);
   assert.equal(personal.additionalProperties, false);
   for (const field of personal.required) assert.equal(personal.properties[field].maxLength, 140);

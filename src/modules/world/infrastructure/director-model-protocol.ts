@@ -1210,35 +1210,35 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   delete authorProperties.id;
   delete authorProperties.actors;
   delete authorProperties.stagingIntents;
+  // Every actor has the same task grammar; identity and event cast remain
+  // bound by the enclosing actor-ref key. Do not inline it for every actor/event.
+  const actorTaskSchema = object({
+    topic: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 140,
+      description: '本人与玩家可交流的具体议题，不是计划准备过程。',
+    },
+    personalObjective: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 140,
+      description: '本人从这次交流希望了解、表达或争取什么；不替玩家决定。',
+    },
+    proposedInteraction: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 140,
+      description: '建议本人向玩家提出的具体信息、请求或选择；不是预制对白或已发生事实。',
+    },
+  });
   authorProperties.actorTasks = object(
     Object.fromEntries(
       catalog.actors.map((a) => [
         a.ref,
         {
-          description: `仅为 ${a.name ?? a.actorId}（${a.ref}）安排本人愿意考虑的互动；按 taskParticipants 中同一 actorRef 的人物设定和已有信息，不按事件叙述顺序分配。`,
-          anyOf: [
-            object({
-              topic: {
-                type: 'string',
-                minLength: 1,
-                maxLength: 140,
-                description: '本人与玩家可交流的具体议题，不是计划准备过程。',
-              },
-              personalObjective: {
-                type: 'string',
-                minLength: 1,
-                maxLength: 140,
-                description: '本人从这次交流希望了解、表达或争取什么；不替玩家决定。',
-              },
-              proposedInteraction: {
-                type: 'string',
-                minLength: 1,
-                maxLength: 140,
-                description: '建议本人向玩家提出的具体信息、请求或选择；不是预制对白或已发生事实。',
-              },
-            }),
-            { type: 'null' },
-          ],
+          description: `仅为 ${a.name ?? a.actorId}（${a.ref}）安排本人愿意考虑的互动，身份与设定见taskParticipants。`,
+          anyOf: [{ $ref: '#/$defs/director_actor_task' }, { type: 'null' }],
         },
       ]),
     ),
@@ -1246,6 +1246,7 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   const authorItem = object(authorProperties);
   const deferChoice = object({ kind: { type: 'string', enum: ['defer'] }, reason: text });
   schema.$defs = {
+    director_actor_task: actorTaskSchema,
     director_author_opportunity: authorItem,
     director_author_choice: {
       anyOf: [
