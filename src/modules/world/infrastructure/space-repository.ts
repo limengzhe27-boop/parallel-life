@@ -1,3 +1,4 @@
+import { acceptsTravelVersion } from './travel-version-admission-repository.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
@@ -379,11 +380,12 @@ export class PostgresWorldSpace implements WorldSpacePort {
       const w = await owned(sql, owner, id, true),
         old = await replay(sql, id, input, hash);
       if (old) return TravelReceiptSchema.parse(old);
-      if (w.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      if (!(await acceptsTravelVersion(sql, owner, id, input.expectedVersion, w.version)))
+        throw new DomainError('VERSION_CONFLICT');
       await authorizeWorldCommandInTransaction(sql, owner, {
         worldId: id,
         commandId: input.commandId,
-        expectedWorldVersion: input.expectedVersion,
+        expectedWorldVersion: w.version,
         kind: 'space_travel',
       });
       await assertSpaceIdle(sql, id);
