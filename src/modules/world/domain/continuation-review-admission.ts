@@ -14,7 +14,8 @@ export function continuationReviewAdmission(input: {
   if (!input.continuation || input.continuation.basisHash !== input.currentBasisHash)
     return 'eligible';
   // Waiting and having no current intent are decisions about execution, not a
-  // permanent ban on reconsidering one's own arrangements. Each unchanged basis
-  // gets at most one paid review, including reviews with unknown/invalid results.
+  // permanent ban on reconsidering one's own arrangements. Non-complete paid
+  // outcomes fence their unchanged basis; a complete review may only receive a
+  // successor via the separate authenticated anchor/window/family/budget authority.
   return input.paidBasisHashes.includes(input.currentBasisHash) ? 'already_considered' : 'eligible';
 }

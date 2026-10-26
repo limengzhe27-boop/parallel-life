@@ -33,7 +33,7 @@ export type OwnAgendaReviewEvidence = {
   lastPresentedRealAt: string | null;
   /** Must be handled before N2. A different family or epoch cannot hide an active actor call. */
   actorBlockers: OwnAgendaReviewActorBlocker[];
-  /** Personal semantic bases already considered by an authenticated paid own-agenda request. */
+  /** Semantic bases with a paid non-complete outcome. Successful full reviews use the original next-anchor window. */
   paidContinuationBases: string[];
 };
 export class OwnAgendaReviewEvidenceError extends Error {
@@ -92,6 +92,9 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         SELECT a.id,a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
           a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,
           a.sent_at IS NOT NULL AS sent,a.response IS NOT NULL AS has_response,a.response_hash,
+          (COALESCE(a.response->>'kind'='npc_agent_partial_stream',false) OR EXISTS (
+            SELECT 1 FROM parallel_life.agent_attempt_stream_segments sg WHERE sg.world_id=a.world_id AND sg.owner_id=a.owner_id
+              AND sg.attempt_id=a.id AND sg.completion_status IN ('partial_interrupted','superseded'))) incomplete_stream,
           CASE WHEN i.id IS NULL THEN NULL ELSE jsonb_build_object('id',i.id,'worldId',i.world_id,
             'ownerId',i.owner_id,'commandId',i.command_id,'inputHash',i.input_hash,'document',i.document) END receipt,
           CASE WHEN cmd.id IS NULL THEN NULL ELSE jsonb_build_object('id',cmd.id,'worldId',cmd.world_id,
@@ -390,7 +393,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         unchanged,
       presentedRealAt: rt.statementCount > 0 ? new Date(e.realAt).toISOString() : null,
     });
-    if (!privateCommit) continue;
+    if (!privateCommit || r.incomplete_stream) continue;
     anchors.set(r.id, {
       version: e.version,
       ...(typeof after.continuationBasisHash === 'string' &&
@@ -484,8 +487,15 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         recordFamily = envelope.grantId;
         // The exact authenticated predecessor is the review's original personal
         // continuation, not the new quiet receipt/anchor produced afterwards.
-        // Unknown or invalid paid results also fence this basis; never rebuy them.
-        if ((r.sent || r.has_response) && predecessor?.continuationBasisHash)
+        // A fully committed review consumes its original family, not all future
+        // bounded windows over the same personal state. Its authenticated commit
+        // becomes the next anchor; time/backoff, family history and budgets still apply.
+        // Unknown/invalid/paid-stale and interrupted presentations never mint that grant.
+        if (
+          (r.sent || r.has_response) &&
+          (r.status !== 'committed' || r.incomplete_stream) &&
+          predecessor?.continuationBasisHash
+        )
           paidContinuationBases.add(predecessor.continuationBasisHash);
         if (recordFamily !== null && recordFamily === familyId)
           attempts.push({

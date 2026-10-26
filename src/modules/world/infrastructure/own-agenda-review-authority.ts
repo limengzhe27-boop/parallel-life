@@ -301,6 +301,8 @@ export async function readOwnAgendaReviewWorkInTransaction(
     definitionRef,
   });
   if (!evidence.anchor || !evidence.familyId) return null;
+  // This protects non-complete paid outcomes, not a permanent quiet decision.
+  // A full predecessor still needs its new family, due backoff window and budget below.
   if (
     phase !== 'commit' &&
     continuationReviewAdmission({
