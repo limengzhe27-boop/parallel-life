@@ -144,7 +144,19 @@ test('local integrated save → private trial → explicit synthetic NPC turn �
     contentHash: saved.draft.contentHash,
   });
   const privateScope = await worlds.trialSession(staff, trial.trialId!);
-  const phone = await new BuildRepository(app).phone(privateScope.ownerId, trial.worldId);
+  let phoneTransactions = 0;
+  const phoneDb = new Proxy(app, {
+    get(target, property, receiver) {
+      if (property === 'transaction')
+        return (...args: Parameters<typeof app.transaction>) => {
+          phoneTransactions++;
+          return app.transaction(...args);
+        };
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const phone = await new BuildRepository(phoneDb).phone(privateScope.ownerId, trial.worldId);
+  assert.equal(phoneTransactions, 1, 'phone projections share one owner-scoped read transaction');
   assert.equal(phone.actors.length, 2);
   assert.ok(phone.notes.some((n) => n.origin?.kind === 'publication_opening'));
   assert.equal(JSON.stringify(phone).includes('privatePersona'), false);

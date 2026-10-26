@@ -23,7 +23,7 @@ import {
   TaskError,
 } from '../../tasks/infrastructure/task-repository.ts';
 import { PostgresWorldRepository } from './postgres-world-repository.ts';
-import { PostgresClockStore } from './clock-repository.ts';
+import { readClockInTransaction } from './clock-repository.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 export async function readBuild(sql: SqlClient, seedId: string) {
   const row = (
@@ -131,7 +131,13 @@ export class BuildRepository {
     return this.db.transaction(ownerId, (sql) => createWorldBuild(sql, ownerId, request));
   }
   async phone(ownerId: string, worldId: string) {
-    const metadata = await this.db.transaction(ownerId, async (sql) => {
+    return this.db.transaction(ownerId, (sql) => this.phoneInTransaction(sql, ownerId, worldId));
+  }
+
+  /** One owner-scoped read unit; no model calls or network asset reads occur here. */
+  private async phoneInTransaction(sql: SqlClient, ownerId: string, worldId: string) {
+    const read = <T>(run: (sql: SqlClient) => Promise<T>) => run(sql);
+    const metadata = await read(async (sql) => {
       const row = (
         await sql.query(
           'SELECT b.*,s.document AS approved_seed FROM parallel_life.world_builds b JOIN parallel_life.approved_seeds s ON s.id=b.seed_id AND s.owner_id=b.owner_id WHERE b.world_id=$1 AND b.opening IS NOT NULL',
@@ -141,9 +147,18 @@ export class BuildRepository {
       if (!row) throw new TaskError('NOT_FOUND');
       return row;
     });
-    const state = await new PostgresWorldRepository(this.db).get({ userId: ownerId }, worldId, {
-      includeFacts: false,
-    });
+    const world = (
+      await sql.query(
+        'SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2',
+        [worldId, ownerId],
+      )
+    ).rows[0];
+    if (!world || world.state?.deletedAt) throw new TaskError('NOT_FOUND');
+    const state = await PostgresWorldRepository.hydrateInTransaction(
+      sql,
+      { ...world.state, version: world.version },
+      { includeFacts: false },
+    );
     const choiceEventIds = (state.choices ?? []).flatMap((choice) => [
       choice.sourceEventId,
       ...(choice.nextStep ? [choice.nextStep.sourceEventId] : []),
@@ -152,7 +167,7 @@ export class BuildRepository {
     ]);
     const eventTimes = new Map<string, string>();
     if (choiceEventIds.length) {
-      const rows = await this.db.transaction(ownerId, (sql) =>
+      const rows = await read((sql) =>
         sql.query(
           'SELECT id,occurred_at FROM parallel_life.world_events WHERE world_id=$1 AND id=ANY($2::text[])',
           [worldId, choiceEventIds],
@@ -160,7 +175,7 @@ export class BuildRepository {
       );
       for (const row of rows.rows) eventTimes.set(row.id, new Date(row.occurred_at).toISOString());
     }
-    const bindings = await this.db.transaction(ownerId, (sql) =>
+    const bindings = await read((sql) =>
       sql.query(
         `SELECT b.actor_id,b.person_id,b.asset_id,b.asset_revision,
           a.world_id IS NOT NULL AS has_current_avatar,a.asset_id AS current_asset_id,a.asset_revision AS current_asset_revision
@@ -176,8 +191,7 @@ export class BuildRepository {
     const publication = published ? PublicationSeedSchema.parse(metadata.approved_seed) : null;
     const opening = published ? PublicationOpeningSchema.parse(metadata.opening) : null;
     const visual = published
-      ? await this.db.transaction(
-          ownerId,
+      ? await read(
           async (sql) =>
             (
               await sql.query('SELECT parallel_life.publication_world_visuals($1) AS visual', [
@@ -208,7 +222,7 @@ export class BuildRepository {
       )
         throw new TaskError('INVALID_STATE');
       // A compiled opening is usable only with the immutable source binding created with this exact world.
-      const binding = await this.db.transaction(ownerId, (sql) =>
+      const binding = await read((sql) =>
         sql.query('SELECT parallel_life.player_publication_origin($1,$2) AS origin', [
           worldId,
           metadata.seed_id,
@@ -255,7 +269,7 @@ export class BuildRepository {
       ];
     });
     // A dialogue observed by this player introduces its speaker; hidden presence does not.
-    const sceneContacts = await this.db.transaction(ownerId, (sql) =>
+    const sceneContacts = await read((sql) =>
       sql.query(
         `SELECT DISTINCT i.document->'speaker'->>'actorId' AS actor_id
        FROM parallel_life.scene_items i JOIN parallel_life.world_events e
@@ -273,16 +287,14 @@ export class BuildRepository {
         [worldId, ownerId, state.version, JSON.stringify([{ kind: 'player' }])],
       ),
     );
-    const clock = await new PostgresClockStore(this.db).read(ownerId, worldId);
+    const clock = await readClockInTransaction(sql, ownerId, worldId);
     const storyTime = new Date(
       Math.max(
         Date.parse(state.time),
         Date.parse(projectStoryTime(clock, new Date().toISOString())),
       ),
     ).toISOString();
-    const album = await this.db.transaction(ownerId, (sql) =>
-      albumPhotosWithPersonBindings(sql, worldId),
-    );
+    const album = await read((sql) => albumPhotosWithPersonBindings(sql, worldId));
     const photos = album.photos;
     // The album projection already read these immutable bindings; reuse them
     // instead of joining the same rows again for the history links.

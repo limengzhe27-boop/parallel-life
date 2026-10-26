@@ -3188,3 +3188,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - **402/503 退避**：仅对明确 402 或连续 503 停止自动轮询并给出手动重试，恢复后立即刷新；正常路径不改变。
 - **请求内去重**：只做同一请求内 memoize，不做跨请求缓存；改造前后对同一世界响应做快照 diff，确保字节一致。
 - 不做：世界 GET 快速返回/change token、客户端轮询间隔或可见性策略、跨请求缓存、任何用户体验变化。
+
+|LOCAL-PLAY-03|[x] 本地已完成：隔离会话+手机单事务读取，原档HTTP200且Ego错误已消失|root-local-play|忽略的本地启动/登录/诊断脚本，专属报告；build-repository.ts单事务读取、tests/integration/publication-flow.test.ts事务预算断言|隔离3218/3219会话、定位15秒网络超时与远程读取503；保留进度，不隐藏错误、不自动重买。|
