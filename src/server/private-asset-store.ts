@@ -2,6 +2,7 @@ import 'server-only';
 import type { AssetStore } from '../modules/media/application/asset-store.ts';
 import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
 import { SupabaseStorageStore } from '../modules/media/infrastructure/supabase-storage-store.ts';
+import { LocalFirstAssetStore } from '../modules/media/infrastructure/local-first-asset-store.ts';
 import { PrivateDiskStore } from '../modules/media/infrastructure/private-disk-store.ts';
 class FallbackAssetStore implements AssetStore {
   private primary: AssetStore;
@@ -64,10 +65,17 @@ export function createPrivateAssetStore(): AssetStore {
       ? new VercelBlobStore({ token: blobToken, storeId: blobStoreId })
       : null;
 
-  if (supabaseStore && blobStore) {
-    return new FallbackAssetStore(supabaseStore, blobStore);
+  const remote =
+    supabaseStore && blobStore
+      ? new FallbackAssetStore(supabaseStore, blobStore)
+      : (supabaseStore ?? blobStore);
+  // Explicit local storage is only enabled for a loopback deployment, never Vercel.
+  const origin = process.env.APP_ORIGIN;
+  const localHost = origin ? new URL(origin).hostname : '';
+  if (assetDir && !process.env.VERCEL && ['localhost', '127.0.0.1', '[::1]'].includes(localHost)) {
+    const disk = new PrivateDiskStore(assetDir);
+    return remote ? new LocalFirstAssetStore(disk, remote) : disk;
   }
-  if (supabaseStore) return supabaseStore;
-  if (blobStore) return blobStore;
+  if (remote) return remote;
   return new PrivateDiskStore(assetDir!);
 }
