@@ -12,11 +12,13 @@ export function sceneStatus(task?: SceneTask | null) {
     case 'running':
       return '行动已保存，正在等待现场回应';
     case 'unknown':
-      return '结果还不能确认，请先重新读取。确认重试可能再次产生费用。';
+      return '行动已保存，后续结果还不能确认。请先核对原回应，不必再次发送行动。';
     case 'failed':
       return '这次现场回应没有完成，已保存的行动仍在。';
     case 'cancelled':
       return '这次回应已停止，行动记录仍在。';
+    case 'conflict':
+      return '现场已有变化，这次回应未能保存。行动记录仍在，可以重新读取。';
     default:
       return '';
   }
@@ -58,4 +60,45 @@ export function restoreSceneEntry(raw: string | null, destination: string) {
 }
 export function shouldResumeSceneTask(task: SceneTask | null | undefined, paused: boolean) {
   return task?.status === 'queued' && !paused;
+}
+
+/** Presence controls the responder, not whether a player can act in a live scene. */
+export function sceneInputDisabled(
+  read: SceneRead | undefined,
+  task: SceneTask | null | undefined,
+  submitting: boolean,
+) {
+  return (
+    submitting || sceneBusy(task) || !read?.scene || read.paused || read.scene.status !== 'active'
+  );
+}
+
+/** A slower read cannot replace a newer status of the same saved task. */
+export function mergeSceneTask(current: SceneTask | null | undefined, next: SceneTask | null) {
+  return current &&
+    next &&
+    current.id === next.id &&
+    Date.parse(current.updatedAt) > Date.parse(next.updatedAt)
+    ? current
+    : next;
+}
+
+export function canRetrySceneTask(task: SceneTask | null | undefined) {
+  return !!task && ['failed', 'unknown', 'cancelled'].includes(task.status);
+}
+
+/** Only query the original task here. Starting another paid response remains an explicit step. */
+export async function readSceneTaskForRecovery(
+  original: SceneTask,
+  read: (id: string) => Promise<SceneTask>,
+) {
+  const latest = await read(original.id);
+  if (
+    latest.id !== original.id ||
+    latest.scope.kind !== 'world' ||
+    original.scope.kind !== 'world' ||
+    latest.scope.worldId !== original.scope.worldId
+  )
+    throw new Error('现场回应的来源不一致，请重新读取现场。');
+  return mergeSceneTask(original, latest)!;
 }

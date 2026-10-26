@@ -90,7 +90,7 @@ export function SceneStage({
             </div>
           </details>
         ) : (
-          <span className={s.empty}>此刻只有你在这里</span>
+          <span className={s.empty}>暂未见到熟悉的人</span>
         )}
       </div>
     </section>

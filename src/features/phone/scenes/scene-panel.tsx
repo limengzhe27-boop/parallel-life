@@ -12,6 +12,10 @@ import {
   sceneStatus,
   mergeScene,
   restoreSceneCommand,
+  sceneInputDisabled,
+  mergeSceneTask,
+  canRetrySceneTask,
+  readSceneTaskForRecovery,
   type SceneTask,
 } from './state.ts';
 import type { SceneRead } from '../../../contracts/scenes.ts';
@@ -107,6 +111,7 @@ export function ScenePanel({
   const target =
     typeof window === 'undefined' ? undefined : readRoute(window.location.hash, worldId).target;
   const draftKey = `pl-scene-draft:${worldId}:${target ?? 'current'}`;
+  const acceptedRead = useRef<SceneRead | undefined>(undefined);
   const readTarget = useRef(target);
   readTarget.current = target;
   const inFlightRead = useRef<{ target: string | undefined; promise: Promise<SceneRead> } | null>(
@@ -117,8 +122,12 @@ export function ScenePanel({
       return inFlightRead.current.promise;
     const pending = client.read(worldId, target).then((next) => {
       if (live.current && readTarget.current === target) {
-        setData((d) => mergeScene(d, next));
-        setTask(next.task);
+        const accepted = mergeScene(acceptedRead.current, next);
+        if (accepted === next) {
+          acceptedRead.current = next;
+          setData(next);
+          setTask((current) => mergeSceneTask(current, next.task));
+        }
       }
       return next;
     });
@@ -278,8 +287,13 @@ export function ScenePanel({
     // The persisted queue lease arbitrates other tabs. Unknown/running/failed tasks are reads only.
     void run(() => execute(task));
   }, [task?.id, task?.status, data?.paused]);
-  const disabled =
-    busy || sceneBusy(task) || !data?.scene || data.paused || data.scene.status !== 'active';
+  useEffect(() => {
+    setRetryConfirm(false);
+  }, [task?.id]);
+  useEffect(() => {
+    if (!canRetrySceneTask(task)) setRetryConfirm(false);
+  }, [task?.status]);
+  const disabled = sceneInputDisabled(data, task, busy);
   return (
     <div
       ref={panel}
@@ -575,19 +589,41 @@ export function ScenePanel({
                       推动故事继续展开
                     </button>
                   ) : null}
-                  {['failed', 'unknown', 'cancelled'].includes(task.status) &&
-                  data.scene.status === 'active' ? (
-                    <button disabled={busy || data.paused} onClick={() => setRetryConfirm(true)}>
-                      重试这次回应
+                  {canRetrySceneTask(task) && data.scene.status === 'active' ? (
+                    <button
+                      disabled={busy || data.paused}
+                      onClick={() =>
+                        void run(async () => {
+                          const latest = await readSceneTaskForRecovery(task, (id) =>
+                            client.task(id),
+                          );
+                          setTask(latest);
+                          setRetryConfirm(canRetrySceneTask(latest));
+                        })
+                      }
+                    >
+                      {task.status === 'unknown' ? '核对回应结果' : '重新处理这次回应'}
                     </button>
                   ) : null}
                   {retryConfirm ? (
                     <div>
-                      <p>先核对已保存记录。确认后将发起一次新的回应，可能再次产生费用。</p>
+                      <p>
+                        {task.status === 'unknown'
+                          ? '原回应的结果仍未确认，可能已经处理。重新生成可能重复回应并再次产生费用。'
+                          : '行动已经保存。确认后只重新处理这次回应，不会再次发送你的行动；可能再次产生费用。'}
+                      </p>
                       <button
                         disabled={busy || data.paused}
                         onClick={() =>
                           void run(async () => {
+                            const latest = await readSceneTaskForRecovery(task, (id) =>
+                              client.task(id),
+                            );
+                            setTask(latest);
+                            if (!canRetrySceneTask(latest)) {
+                              setRetryConfirm(false);
+                              return;
+                            }
                             if (retryId.current?.taskId !== task.id)
                               retryId.current = { taskId: task.id, id: crypto.randomUUID() };
                             const t = await client.retry(task.id, retryId.current.id);
@@ -597,7 +633,7 @@ export function ScenePanel({
                           })
                         }
                       >
-                        确认重试
+                        {task.status === 'unknown' ? '仍要重新生成回应' : '确认重新处理'}
                       </button>
                       <button onClick={() => setRetryConfirm(false)}>取消</button>
                     </div>
