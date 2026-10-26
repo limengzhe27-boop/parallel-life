@@ -33,7 +33,7 @@
 .imageLabel {
   position: absolute;
   right: 12px;
-  top: 64px;
+  top: 48px;
   color: #ffffffc9;
   background: #11212b61;
   padding: 4px 8px;
@@ -44,7 +44,7 @@
   position: absolute;
   left: 16px;
   right: 100px;
-  top: 56px;
+  top: 10px;
   color: #fff;
   text-shadow: 0 1px 6px #0009;
 }
@@ -60,7 +60,7 @@
 }
 .people {
   position: absolute;
-  top: 120px;
+  top: 64px;
   left: 14px;
   right: 14px;
   display: flex;
@@ -190,7 +190,7 @@
 }
 @container scene-panel (max-height: 450px) {
   .caption {
-    top: 48px;
+    top: 8px;
   }
   .caption h3 {
     font-size: 17px;
@@ -199,10 +199,10 @@
     display: none;
   }
   .imageLabel {
-    top: 52px;
+    top: 48px;
   }
   .people {
-    top: 90px;
+    top: 64px;
   }
   .presenceCount {
     display: none;

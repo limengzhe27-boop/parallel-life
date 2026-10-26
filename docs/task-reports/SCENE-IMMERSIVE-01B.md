@@ -16,7 +16,7 @@ PhoneContact 只有 avatarUrl 与 publicProfile.appearance；PhonePhoto identity
 
 ## 接口与布局
 
-SceneStage 仅依赖现有 read/contacts/photos/onSelectPerson。父容器 position:relative，stage absolute inset:0,z0。顶图标签约64px、地点标题56px、头像区120px；短屏容器450px以下标题48px、头像90px。root 顶部 controls 应为44px紧凑行；若另设地点标题可由root删去重复caption。
+SceneStage 仅依赖现有 read/contacts/photos/onSelectPerson。父容器 position:relative，stage absolute inset:0,z0。按root最新接线，顶图标签48px、地点标题10px、头像区64px；短屏容器450px以下标题8px、头像64px。root 顶部 controls 为z4，readingArea底部54%/z2；若另设地点标题可由root删去重复caption。
 
 ## 检查
 
