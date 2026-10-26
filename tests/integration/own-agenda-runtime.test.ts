@@ -1,3 +1,6 @@
+import { setTimeout as sleep } from 'node:timers/promises';
+import { ownAgendaReviewWindow } from '../../src/modules/world/application/own-agenda-review-policy.ts';
+import { readOwnAgendaReviewEvidenceInTransaction } from '../../src/modules/world/infrastructure/own-agenda-review-repository.ts';
 import type { TextModel, ModelMessage } from '../../src/modules/ai/application/ports.ts';
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
 import { NpcAgentModel } from '../../src/modules/world/infrastructure/npc-agent-model.ts';
@@ -169,6 +172,22 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
         calls.push({ kind: 'npc', input, actor });
         if (input.type === 'npc_agenda_initialize')
           return JSON.stringify(v9({ agendaReview: null }));
+        if (input.type === 'npc_own_condition_ready')
+          return JSON.stringify({
+            protocol: 'npc-wire-v15',
+            statements: [],
+            executions: [],
+            changes: {
+              continuation: {
+                decision: 'no_current_intent',
+                reason: '已考虑真实条件变化，暂不联系玩家',
+                sourceIds: [p.wireCatalog.inputSourceRef],
+                planIds: [],
+                questionIds: [],
+                conditions: [],
+              },
+            },
+          });
         assert.equal(input.type, 'npc_agenda_review');
         if (phase === 'unknown' && actor === ACTOR_A) throw Error('SYNTHETIC_LOST_MODEL_RESULT');
         if (phase === 'quiet')
@@ -204,10 +223,14 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
                 goal: {
                   kind: 'new',
                   summary: actor === ACTOR_A ? '考虑陈列方案' : '核对预算方案',
-                  sourceIds: [p.sources.find((s: { kind: string }) => s.kind === 'authored').id],
+                  sourceIds: [
+                    p.wireCatalog.sources.find((s: { kind: string }) => s.kind === 'authored').ref,
+                  ],
                 },
                 summary: '等真实信息后继续本人安排',
-                sourceIds: [p.sources.find((s: { kind: string }) => s.kind === 'authored').id],
+                sourceIds: [
+                  p.wireCatalog.sources.find((s: { kind: string }) => s.kind === 'authored').ref,
+                ],
                 nextStep: { kind: 'blocked', missing: ['尚需具体的方案信息'] },
               },
             ],
@@ -316,54 +339,87 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
   async function prime(f: F) {
     const h = harness(f);
     await h.advance();
-    assert.equal(
-      h.calls.filter((c) => c.kind === 'npc' && c.input.type === 'npc_agenda_initialize').length,
-      2,
+    const initial = h.calls.filter((c) => c.kind === 'npc');
+    assert.equal(initial.length, 2);
+    assert.deepEqual(new Set(initial.map((c) => c.actor)), new Set([ACTOR_A, ACTOR_B]));
+    assert(
+      initial.every((c) =>
+        ['npc_agenda_initialize', 'npc_own_condition_ready'].includes(c.input.type),
+      ),
+      'initial anchors must come from an explicit current scheduler grant',
     );
     return h;
   }
   await t.test(
-    'v12 continuation commits through original kernel and suppresses self-created quiet review',
+    'v12 complete quiet continuation respects real successor windows and family payment fences',
     async () => {
       const f = await fixture();
       await prime(f);
       const available = await work(f);
       assert.ok(available);
       const prepared = await prepare(f, available);
-      await runNpcAgent(
-        {
-          attempts: store,
-          kernel: new PostgresNpcAgentKernel(db, worlds),
-          model: new NpcAgentModel({
-            async complete() {
-              return JSON.stringify({
-                ...v9(),
-                protocol: 'npc-wire-v12',
-                agendaReview: {
-                  decision: 'quiet',
-                  reason: 'No personal change that calls for another contact.',
-                  basisSourceIds: ['source:1'],
-                },
-                continuation: {
-                  decision: 'no_current_intent',
-                  reason: 'No pending personal action; await relevant new information.',
-                  sourceIds: ['source:1'],
-                  planIds: [],
-                  questionIds: [],
-                  conditions: [],
-                },
-              });
-            },
-          }),
-        },
-        f.owner,
-        prepared.claim,
-        prepared.snapshot,
-      );
+      let reviewCalls = 0;
+      const deps = {
+        attempts: store,
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+        model: new NpcAgentModel({
+          async complete() {
+            reviewCalls++;
+            return JSON.stringify({
+              ...v9(),
+              protocol: 'npc-wire-v12',
+              agendaReview: {
+                decision: 'quiet',
+                reason: 'No personal change that calls for another contact.',
+                basisSourceIds: ['source:1'],
+              },
+              continuation: {
+                decision: 'no_current_intent',
+                reason: 'No pending personal action; await relevant new information.',
+                sourceIds: ['source:1'],
+                planIds: [],
+                questionIds: [],
+                conditions: [],
+              },
+            });
+          },
+        }),
+      };
+      await runNpcAgent(deps, f.owner, prepared.claim, prepared.snapshot);
       const saved = await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A });
       assert.equal(saved!.continuation?.decision, 'no_current_intent');
       assert.match(saved!.continuation!.basisHash, /^[a-f0-9]{64}$/);
-      assert.equal(await work(f), null, 'quiet receipt itself cannot mint another paid review');
+      const bounded = structuredClone(fast);
+      Object.assign(bounded.policy, {
+        realGapMs: 500,
+        maxRealGapMs: 2000,
+        quietBackoffMultiplier: 2,
+      });
+      assert.equal(
+        await work(f, ACTOR_A, bounded),
+        null,
+        'complete quiet cannot bypass its real successor window',
+      );
+      assert.equal(reviewCalls, 1);
+      const evidence = await db.transaction(f.owner, (sql) =>
+        readOwnAgendaReviewEvidenceInTransaction(sql, f.owner, f.identity),
+      );
+      const window = ownAgendaReviewWindow(evidence.anchor!, bounded.policy, evidence.quietStreak);
+      await sleep(Math.max(0, Date.parse(window.nextReviewRealAt) - Date.now() + 15));
+      const successor = await work(f, ACTOR_A, bounded);
+      assert.ok(
+        successor,
+        'a complete quiet is not a permanent scheduling ban after the due window',
+      );
+      assert.notEqual(successor.grant.grantId, available.grant.grantId);
+      assert.equal(successor.grant.anchorAttemptId, prepared.claim.id);
+      assert.equal(
+        (await work(f, ACTOR_A, bounded))?.commandId,
+        successor.commandId,
+        'repeated reads retain one successor grant',
+      );
+      await runNpcAgent(deps, f.owner, prepared.claim, prepared.snapshot);
+      assert.equal(reviewCalls, 1, 'replaying the original paid family does not call the model');
       assert.equal((await worlds.get({ userId: f.owner }, f.worldId)).messages.length, 0);
     },
   );
@@ -405,7 +461,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
       assert.equal(
         (await attempts(f)).filter((a) => a.sent_at && a.status === 'committed').length,
         4,
-        'two initialization attempts and two reviews (Director has its own ledger)',
+        'two authenticated initial quiet anchors and two reviews (Director has its own ledger)',
       );
       const beforeFocus = await Promise.all(
         [ACTOR_A, ACTOR_B].map(
@@ -728,10 +784,10 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
                   goal: {
                     kind: 'new',
                     summary: '核对本人的陈列安排',
-                    sourceIds: [p.sources.find((s: any) => s.kind === 'authored').id],
+                    sourceIds: [p.wireCatalog.sources.find((s: any) => s.kind === 'authored').ref],
                   },
                   summary: '保留安排待核对',
-                  sourceIds: [p.sources.find((s: any) => s.kind === 'authored').id],
+                  sourceIds: [p.wireCatalog.sources.find((s: any) => s.kind === 'authored').ref],
                   nextStep: { kind: 'blocked', missing: ['等待方案信息'] },
                 },
               ],
