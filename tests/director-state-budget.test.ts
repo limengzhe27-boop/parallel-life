@@ -53,7 +53,13 @@ test('director trims setting before sacrificing actual positions or persistent e
   const fitted = fitWithinBudget(payload);
   assert.deepEqual(payload, original, 'preparation cannot mutate the saved snapshot');
   assert.deepEqual(fitted.actorStates, [state]);
-  assert.deepEqual(fitted.episodes, episodes);
+  assert.deepEqual(
+    (fitted.episodes as typeof episodes).map(({ description: _excerpt, ...status }) => status),
+    episodes.map(({ description: _original, ...status }) => status),
+  );
+  assert.ok(
+    (fitted.episodes as typeof episodes).every((episode) => episode.description.length > 0),
+  );
   assert.deepEqual(fitted.actorKnownTopics, topics);
   const observations = fitted.observations as typeof payload.observations;
   assert.deepEqual(
@@ -61,4 +67,57 @@ test('director trims setting before sacrificing actual positions or persistent e
     positions,
   );
   assert.ok((fitted.worldSetting as string).length < payload.worldSetting.length);
+});
+
+test('director omits only redundant private-thread binding without losing questions or their outcomes', () => {
+  const questions = [
+    {
+      id: 'private-question',
+      channel: 'private',
+      threadId: 'actor',
+      sourceId: 'message:old',
+      text: 'Can you come?',
+      status: 'answered',
+      askedAt: '2026-10-14T10:00:00Z',
+      resolution: {
+        kind: 'decline_to_answer',
+        sourceId: 'message:reply',
+        quote: 'I cannot discuss that',
+        at: '2026-10-14T10:01:00Z',
+      },
+    },
+    {
+      id: 'group-question',
+      channel: 'group',
+      threadId: 'group',
+      sourceId: 'group-message:old',
+      text: 'What time?',
+      status: 'open',
+    },
+  ];
+  const state = {
+    actorId: 'actor',
+    worldId: 'world',
+    schemaVersion: 1,
+    definitionRef: 'definition:actor',
+    revision: 4,
+    questions,
+    focus: { channel: 'private', threadId: 'actor' },
+  };
+  const fitted = fitWithinBudget({
+    worldSetting: 'setting'.repeat(15000),
+    actorStates: [state],
+    episodes: [],
+    observations: Array.from({ length: 40 }, (_, index) => ({
+      sourceId: `ambient:${index}`,
+      kind: 'belief',
+      text: 'ambient'.repeat(400),
+    })),
+  });
+  const view = (fitted.actorStates as (typeof state)[])[0]!;
+  const { threadId: _thread, ...privateQuestion } = questions[0]!;
+  assert.deepEqual(view.questions, [privateQuestion, questions[1]]);
+  assert.deepEqual(view.focus, state.focus);
+  assert.equal(view.revision, 4);
+  assert.equal(state.questions[0]!.threadId, 'actor');
 });

@@ -414,6 +414,32 @@ export function fitWithinBudget(payload: Payload): Payload {
         next.worldSetting = next.worldSetting.slice(0, 2000);
     },
     () => {
+      if (Array.isArray(next.actorStates))
+        next.actorStates = (next.actorStates as Payload[]).map((state) => {
+          // The enclosing world and actor already bind these private threads.
+          // Keep each question, its source, time, answer and business identity.
+          const {
+            worldId: _world,
+            schemaVersion: _schema,
+            definitionRef: _definition,
+            ...view
+          } = state;
+          return {
+            ...view,
+            ...(Array.isArray(state.questions)
+              ? {
+                  questions: (state.questions as Payload[]).map((question) => {
+                    if (question.channel !== 'private' || question.threadId !== state.actorId)
+                      return question;
+                    const { threadId: _sameActorThread, ...questionView } = question;
+                    return questionView;
+                  }),
+                }
+              : {}),
+          };
+        });
+    },
+    () => {
       if (next.authoredMaterials && typeof next.authoredMaterials === 'object') {
         const catalog = next.authoredMaterials as {
           source?: unknown;
@@ -439,7 +465,17 @@ export function fitWithinBudget(payload: Payload): Payload {
         };
       }
     },
-
+    () => {
+      if (Array.isArray(next.episodes))
+        next.episodes = next.episodes.map((episode) =>
+          episode &&
+          typeof episode === 'object' &&
+          !Array.isArray(episode) &&
+          typeof episode.description === 'string'
+            ? { ...episode, description: authoredSourceExcerpt(episode.description, '', 300) }
+            : episode,
+        );
+    },
     () => {
       next.observations = trimObservations(6);
     },
@@ -484,6 +520,18 @@ export function fitWithinBudget(payload: Payload): Payload {
     () => {
       next.changes = trimEnd(next.changes, 2);
       next.candidates = trimStart(next.candidates, 3);
+    },
+    () => {
+      if (Array.isArray(next.actorDirectionMaterials))
+        next.actorDirectionMaterials = next.actorDirectionMaterials.map((entry) => ({
+          ...entry,
+          modules: Object.fromEntries(
+            Object.entries(entry.modules).map(([key, value]) => [
+              key,
+              authoredSourceExcerpt(value as string, '', 150),
+            ]),
+          ),
+        }));
     },
   ];
   for (const step of steps) {
