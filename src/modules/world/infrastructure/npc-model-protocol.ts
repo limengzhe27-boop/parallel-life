@@ -21,6 +21,7 @@ import {
   type AgentValidationContext,
 } from '../domain/agent-kernel.ts';
 import { playerReplyTargets } from '../domain/agent-input-interpretation.ts';
+import { expandCompactPlayerInterpretation } from '../domain/player-reply-target-catalog.ts';
 import {
   NativeExecutionIntentSchema,
   compileNpcExecutionIntents,
@@ -267,6 +268,24 @@ const Interpretation = z.discriminatedUnion('kind', [
     replies: z.array(InputReply).min(1).max(16),
   }),
 ]);
+// Current calls use one snapshot-scoped alias instead of repeating the target tuple.
+// The legacy strict schema remains a decoder option for already purchased v15 responses.
+const CompactInterpretation = z.strictObject({
+  kind: z.literal('related_reply'),
+  sourceId: Id,
+  quote: Text.max(1000),
+  replies: z
+    .array(
+      z.strictObject({
+        targetRef: Id,
+        relation: InputReply.shape.relation,
+        decision: InputReply.shape.decision,
+      }),
+    )
+    .min(1)
+    .max(16),
+});
+const CurrentInterpretation = z.union([Interpretation, CompactInterpretation]);
 const PreviousInterpretationWire = PreviousModelWire.omit({
   decisions: true,
   replyAssessments: true,
@@ -693,21 +712,44 @@ export function npcResponseFormat(
               focus: state.focus ?? null,
             },
             ...current,
+            authorizedSourceIds: current.sources
+              ? new Set(current.sources.map((source) => source.id))
+              : undefined,
           });
           if (!targets.length) continue;
-          const item = option.properties!.replies!.items!;
-          option.properties!.replies!.items = {
-            anyOf: targets.map((target) => {
-              const branch = structuredClone(item);
-              for (const [key, value] of Object.entries(target))
-                branch.properties![key] =
-                  value === null
-                    ? { type: 'null' }
-                    : { type: typeof value === 'number' ? 'integer' : 'string', enum: [value] };
-              if (!target.responsibilityId) branch.properties!.decision = { type: 'null' };
-              return branch;
-            }),
-          };
+          const replyBranches = [false, true].flatMap((hasResponsibility) => {
+            const refs = targets.flatMap((target, index) =>
+              !!target.responsibilityId === hasResponsibility ? [`reply:${index + 1}`] : [],
+            );
+            if (!refs.length) return [];
+            return [
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['targetRef', 'relation', 'decision'],
+                properties: {
+                  targetRef: { type: 'string', enum: refs },
+                  relation: {
+                    type: 'string',
+                    enum: ['answer', 'decline_to_answer', 'defer_answer'],
+                  },
+                  decision: hasResponsibility
+                    ? {
+                        anyOf: [
+                          {
+                            type: 'string',
+                            enum: ['accepted', 'declined', 'negotiating', 'deferred', 'undecided'],
+                          },
+                          { type: 'null' },
+                        ],
+                      }
+                    : { type: 'null' },
+                },
+              },
+            ];
+          });
+          option.properties!.replies!.items =
+            replyBranches.length === 1 ? replyBranches[0]! : { anyOf: replyBranches };
         }
         branches.push(option);
       }
@@ -1677,7 +1719,10 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     executions: true,
   })
     .partial()
-    .extend({ planIntents: NativePlanIntentsSchema.optional() });
+    .extend({
+      planIntents: NativePlanIntentsSchema.optional(),
+      inputInterpretation: CurrentInterpretation.optional(),
+    });
   const change = changeSchema.parse(
     Object.fromEntries(Object.entries(mapped.changes).filter(([, value]) => value !== null)),
   );
@@ -1766,7 +1811,20 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
   }
   if ([...plans.goals, ...plans.plans, ...updates].some((p) => occupied.has(p.id)))
     throw Error('NPC_PLAN_OBJECT_CONFLICT');
-  const interpretation = change.inputInterpretation ?? null;
+  const rawInterpretation = change.inputInterpretation ?? null;
+  const interpretation =
+    rawInterpretation?.kind === 'related_reply' &&
+    rawInterpretation.replies.some((reply) => 'targetRef' in reply)
+      ? expandCompactPlayerInterpretation(
+          {
+            state: visible,
+            input: context.input,
+            channel: context.channel,
+            authorizedSourceIds: new Set(context.sources.map((source) => source.id)),
+          },
+          CompactInterpretation.parse(rawInterpretation),
+        )
+      : Interpretation.nullable().parse(rawInterpretation);
   const replies = interpretation ? interpretCurrentPlayerInput(context, interpretation) : [];
   const focus = change.focusChange;
   const proposal = AgentProposalSchema.parse(

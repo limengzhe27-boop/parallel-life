@@ -550,6 +550,7 @@ test('new strict model media choices keep existing goals scoped, while old prote
 
 test('native reply assessments can cite only a visible open question and this short player input', () => {
   const { c } = fixture();
+  c.sources.push({ ...c.sources[0]!, id: 'old-npc-message', kind: 'private_message' });
   c.state.questions = [
     {
       id: 'current-question',
@@ -588,8 +589,9 @@ test('native reply assessments can cite only a visible open question and this sh
   if (format.format !== 'json_schema') throw Error('schema');
   const field: any = changeFields(format).inputInterpretation;
   const related = field.anyOf.find((n: any) => n.properties.kind.enum.includes('related_reply'));
-  const item = related.properties.replies.items.anyOf[0];
-  assert.deepEqual(item.properties.questionId.enum, ['current-question']);
+  const item = related.properties.replies.items;
+  assert.deepEqual(item.properties.targetRef.enum, ['reply:1']);
+  assert.equal(item.properties.questionId, undefined);
   assert.deepEqual(related.properties.sourceId.enum, ['source:1']);
   assert.deepEqual(related.properties.quote.enum, [c.input.text]);
   type InputJudgmentSchema = { items: { properties: Record<string, { enum?: unknown[] }> } };
@@ -606,6 +608,7 @@ test('native reply assessments can cite only a visible open question and this sh
 
 test('non-player or no visible question permits no assessments; long input keeps source and question binding', () => {
   const { c } = fixture();
+  c.sources.push({ ...c.sources[0]!, id: 'old-npc-message', kind: 'private_message' });
   c.state.questions = [
     {
       id: 'open-question',
@@ -634,8 +637,9 @@ test('non-player or no visible question permits no assessments; long input keeps
   assert(!JSON.stringify(empty).includes('related_reply'));
   const long: any = field({ ...c.input, text: '继续讨论临窗。'.repeat(150) });
   const related = long.anyOf.find((n: any) => n.properties.kind.enum.includes('related_reply'));
-  const item = related.properties.replies.items.anyOf[0];
-  assert.deepEqual(item.properties.questionId.enum, ['open-question']);
+  const item = related.properties.replies.items;
+  assert.deepEqual(item.properties.targetRef.enum, ['reply:1']);
+  assert.equal(item.properties.questionId, undefined);
   assert.deepEqual(related.properties.sourceId.enum, [`source:${c.sources.length}`]);
   assert.equal(related.properties.quote.enum, undefined);
 });
@@ -1155,9 +1159,10 @@ test('native player decision identifiers bind current input and visible responsi
     );
   };
   const first = branches().properties;
-  const target = first.replies.items.anyOf[0].properties;
-  assert.deepEqual(target.responsibilityId.enum, ['request']);
-  assert.deepEqual(target.responsibilityRevision.enum, [2]);
+  const target = first.replies.items.properties;
+  assert.deepEqual(target.targetRef.enum, ['reply:1']);
+  assert.equal(target.responsibilityId, undefined);
+  assert.equal(target.responsibilityRevision, undefined);
   assert.deepEqual(first.sourceId.enum, [`source:${c.sources.length}`]);
   assert.deepEqual(branches({ ...c.input, sourceId: 'next-input' }).properties.sourceId.enum, [
     `source:${c.sources.length + 1}`,
