@@ -7,6 +7,7 @@ import { ProgressState } from '../../../components/progress-state.tsx';
 import { sceneOverview } from './index-state.ts';
 import { SceneClient } from './client.ts';
 import {
+  shouldResumeSceneTask,
   sceneBusy,
   sceneStatus,
   mergeScene,
@@ -196,6 +197,19 @@ export function ScenePanel({
     const result = await client.execute(t.id);
     if (live.current) setTask(result);
   }
+  const resumedTasks = useRef(new Set<string>());
+  useEffect(() => {
+    if (
+      !task ||
+      !shouldResumeSceneTask(task, data?.paused ?? true) ||
+      running.current ||
+      resumedTasks.current.has(task.id)
+    )
+      return;
+    resumedTasks.current.add(task.id);
+    // The persisted queue lease arbitrates other tabs. Unknown/running/failed tasks are reads only.
+    void run(() => execute(task));
+  }, [task?.id, task?.status, data?.paused]);
   const disabled =
     busy || sceneBusy(task) || !data?.scene || data.paused || data.scene.status !== 'active';
   return (

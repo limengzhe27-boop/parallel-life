@@ -41,3 +41,21 @@ export function restoreSceneCommand(raw: string | null) {
     return undefined;
   }
 }
+
+// Only the original entry command is retained; restoring never purchases a new response.
+const SavedSceneEntry = z.strictObject({
+  commandId: Id,
+  expectedVersion: Version,
+  destination: z.string().min(1).max(100),
+});
+export function restoreSceneEntry(raw: string | null, destination: string) {
+  try {
+    const value = SavedSceneEntry.safeParse(JSON.parse(raw ?? 'null'));
+    return value.success && value.data.destination === destination ? value.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+export function shouldResumeSceneTask(task: SceneTask | null | undefined, paused: boolean) {
+  return task?.status === 'queued' && !paused;
+}

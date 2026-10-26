@@ -89,7 +89,7 @@ export function replaySceneEnvironment(
     before.worldId !== world.id ||
     before.ownerId !== world.ownerId ||
     before.sourceEventId !== environment.enteredEventId ||
-    before.sourceVersion !== world.version ||
+    before.sourceVersion > world.version ||
     before.status !== 'active' ||
     before.placeId !== environment.placeId ||
     world.space?.currentPlaceId !== environment.placeId ||
@@ -132,7 +132,11 @@ export function replaySceneEnvironment(
         reject('SCENE_ENVIRONMENT_PLAYER_POSITION');
     } else {
       const actorId = proof.subject.actorId;
-      if (proof.worldVersion >= before.sourceVersion || !world.actors.some((a) => a.id === actorId))
+      if (
+        proof.sourceEventId === event.id ||
+        proof.worldVersion === before.sourceVersion ||
+        !world.actors.some((a) => a.id === actorId)
+      )
         reject('SCENE_ENVIRONMENT_INDEPENDENT_POSITION_REQUIRED');
       scene.presence.push({
         participant: proof.subject,
@@ -172,7 +176,12 @@ async function appIdentity(sql: SqlClient, owner: string) {
 }
 
 /** Root-approved system boundary: only a proven live opening task, never NPC/player impersonation. */
-async function authorizeEnvironmentWrite(sql: SqlClient, lease: TaskLease, epoch: number) {
+async function authorizeEnvironmentWrite(
+  sql: SqlClient,
+  lease: TaskLease,
+  epoch: number,
+  appendBase: number,
+) {
   await appIdentity(sql, lease.ownerId);
   const row = (
     await sql.query(
@@ -181,8 +190,16 @@ async function authorizeEnvironmentWrite(sql: SqlClient, lease: TaskLease, epoch
        WHERE t.id=$1 AND t.owner_id=$2 AND t.scope_id=$3 AND t.scope_kind='world'
        AND t.status='running' AND t.lease_token=$4 AND t.lease_until>clock_timestamp()
        AND t.input=$5::jsonb AND c.engine_epoch=$6 AND t.input->>'type'='scene'
-       AND t.input->'actionId'='null'::jsonb AND w.version=(t.input->>'expectedVersion')::integer`,
-      [lease.id, lease.ownerId, lease.scopeId, lease.token, JSON.stringify(lease.input), epoch],
+       AND t.input->'actionId'='null'::jsonb AND w.version=$7`,
+      [
+        lease.id,
+        lease.ownerId,
+        lease.scopeId,
+        lease.token,
+        JSON.stringify(lease.input),
+        epoch,
+        appendBase,
+      ],
     )
   ).rows[0];
   if (!row) reject('SCENE_ENVIRONMENT_AUTHORIZATION_LOST');
@@ -221,7 +238,7 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
     if (epoch < 2) return false;
     return scoped.transaction(lease.ownerId, async (sql) => {
       const { world, paused } = await sceneWorld(sql, lease.ownerId, lease.scopeId, true);
-      if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      if (world.version < input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
       if (paused) reject('WORLD_PAUSED');
       const current = await loadScene(sql, world.id, input.sceneId);
       const experience = (
@@ -254,7 +271,7 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
         original.version !== input.expectedVersion ||
         original.id !== current.scene.sourceEventId ||
         original.payload.commandId !== original.command_id ||
-        original.payload.storyAt !== world.time ||
+        Date.parse(original.payload.storyAt) > Date.parse(world.time) ||
         (original.payload.data.placeId !== undefined &&
           original.payload.data.placeId !== current.scene.placeId) ||
         (original.payload.data.appointmentId !== undefined &&
@@ -370,7 +387,7 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
       const { state, jobs } = applyWorldHistoryEvent(world, event);
       const compact = compactWorldState(state);
       if (signal.aborted) throw signal.reason ?? Error('CANCELLED');
-      await authorizeEnvironmentWrite(sql, lease, epoch);
+      await authorizeEnvironmentWrite(sql, lease, epoch, world.version);
       await sql.query(
         "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
         [

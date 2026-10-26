@@ -5,7 +5,7 @@ import type { PhoneMapContext, TravelOperation } from './context.ts';
 import { SpaceClient, SpaceFailure } from './client.ts';
 import { restoreTravel, storeTravel } from './operation.ts';
 import { routeHash } from '../navigation.ts';
-import { SceneClient } from '../scenes/client.ts';
+import { restoreSceneEntry } from '../scenes/state.ts';
 export function useWorldMap(
   worldId: string,
   version: number,
@@ -267,28 +267,36 @@ export function useWorldMap(
       guard.current = true;
       setWorking(true);
       try {
-        if (enter.current?.placeId !== placeId)
+        const savedKey = `pl-scene-entry:${worldId}:place`;
+        if (enter.current?.placeId !== placeId) {
+          const saved = restoreSceneEntry(sessionStorage.getItem(savedKey), placeId);
+          const latest = await client.read(worldId);
           enter.current = {
-            commandId: crypto.randomUUID(),
-            expectedVersion: data.worldVersion,
+            commandId: saved?.commandId ?? crypto.randomUUID(),
+            expectedVersion: saved?.expectedVersion ?? latest.worldVersion,
             placeId,
           };
+          sessionStorage.setItem(
+            savedKey,
+            JSON.stringify({ ...enter.current, destination: placeId, placeId: undefined }),
+          );
+        }
         const r = await client.enter(worldId, enter.current);
         window.location.hash = routeHash(worldId, {
           app: 'scenes',
           panel: 'scene',
           target: r.sceneId,
         });
-        await after();
-        if (r.task?.status === 'queued') {
-          await new SceneClient(transport).execute(r.task.id);
-          await after();
-        }
+        sessionStorage.removeItem(`pl-scene-entry:${worldId}:place`);
+        await Promise.allSettled([after()]);
         enter.current = null;
       } catch (e) {
         // Definitive rejection did not create a scene. A user retry needs a fresh version.
         // Unknown transport results keep the exact command so they cannot create duplicates.
-        if (e instanceof SpaceFailure && !e.unknown) enter.current = null;
+        if (e instanceof SpaceFailure && !e.unknown) {
+          enter.current = null;
+          sessionStorage.removeItem(`pl-scene-entry:${worldId}:place`);
+        }
         setError(
           e instanceof Error ? e.message : '\u73b0\u573a\u6682\u65f6\u6ca1\u80fd\u6253\u5f00\u3002',
         );

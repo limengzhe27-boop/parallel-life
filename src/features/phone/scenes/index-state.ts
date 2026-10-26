@@ -12,12 +12,16 @@ export function appointmentScene(
       (appointment.responseVersion === undefined || appointment.responseVersion <= s.sourceVersion),
   );
 }
-export function canEnterAppointment(history: SceneHistory, invitation: PhoneInvitation) {
+export function canEnterAppointment(
+  history: SceneHistory,
+  invitation: PhoneInvitation,
+  storyNow = history.storyNow,
+) {
   return (
     invitation.status === 'confirmed' &&
     !history.paused &&
     !history.currentScene &&
-    Date.parse(invitation.at) <= Date.parse(history.storyNow) &&
+    Date.parse(invitation.at) <= Date.parse(storyNow) &&
     !appointmentScene(history, invitation)
   );
 }

@@ -3198,3 +3198,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |CHAT-TIME-01|[x] 本地集成验证并启动双端口（生产待额度恢复）|root-chat-time-20261026；主目录唯一集成|apps/messages.tsx、apps/helpers.ts、apps/apps.module.css、tests/phone-apps.test.ts、专属报告；本地3218/3219构建启动|仅以已有消息虚拟时间判断5分钟/跨日标签；同人6px、换人12px、标签上下12px，无SQL/业务字段/模型调用。|
 
 CHAT-TIME-01 / NOTIFY-OVERLAY-01 最终本地接续：2026-10-26 main c8884e6c含试聊无host兼容（原acacad5c）；统一check4020/4020、build09成功；3218 PID6434、3219 PID6433，两端health200。试聊fallback原真实SSR动作/定位13项通过；未做真实试聊页面/生产验收，不将其标线上完成。
+
+|SCENE-CLOSURE-01|[ ] 开发/PG/真实合成人物对话通过；原档读取实际503后轻量化已构建，待更新本地复验|root-scene-closure-20261026；主目录唯一集成；只读审查agent不写源码|scene-repository/scene-task-handler/原NPC现场入口、space必要接线、world-phone-app及scenes必要UI、必要聚焦测试与专属报告；端口3218/3219由root独占|核对并补齐地图前往→实际到达→现场进入→同一NPC接续演绎/保存/恢复；保留原档，不强插消息，不新增无必要字段。真实PG、必要真实原档验收、check/build后更新双端口；生产依额度恢复。|

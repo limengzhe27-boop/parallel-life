@@ -7,8 +7,9 @@ import type { SceneHistory, SceneSummary } from '../../../contracts/scenes.ts';
 import { routeHash } from '../navigation.ts';
 import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.ts';
 import s from './scenes.module.css';
+import type { PhoneAppContext } from '../phone-shell.tsx';
 const status = { active: '正在现场', paused: '现场已暂停', ended: '已离场' };
-export function SceneIndexApp() {
+export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
   const { transport, worldId, data, actions } = usePhoneApps(),
     client = useMemo(() => new SceneClient(transport), [worldId, transport]);
   const [history, setHistory] = useState<SceneHistory>(),
@@ -126,7 +127,9 @@ export function SceneIndexApp() {
           <h3>已确认的约定</h3>
           {appointments.map((a) => {
             const record = appointmentScene(history, a),
-              ready = canEnterAppointment(history, a);
+              ready = canEnterAppointment(history, a, data.referenceTime),
+              venue = map?.data?.places.find((p) => p.appointmentIds.includes(a.id)),
+              needsTravel = !!venue && map?.data?.currentPlaceId !== venue.id;
             return (
               <div key={a.id} className={s.indexRow}>
                 <strong>{a.title}</strong>
@@ -135,8 +138,22 @@ export function SceneIndexApp() {
                   <button onClick={() => open(record.id)}>查看已有现场</button>
                 ) : (
                   <>
-                    <button disabled={!ready || !!entering} onClick={() => void enter(a.id)}>
-                      {entering === a.id ? '正在进入…' : '进入现场'}
+                    <button
+                      disabled={!ready || !!entering}
+                      onClick={() => {
+                        if (needsTravel)
+                          window.location.hash = routeHash(worldId, {
+                            app: 'map',
+                            target: venue!.id,
+                          });
+                        else void enter(a.id);
+                      }}
+                    >
+                      {entering === a.id
+                        ? '正在进入…'
+                        : needsTravel
+                          ? `前往${venue!.name}`
+                          : '进入现场'}
                     </button>
                     {!ready ? (
                       <small>

@@ -28,7 +28,7 @@ export function PhoneAppView(context: PhoneAppContext) {
       {context.app === 'map' ? (
         <MapApp {...context} />
       ) : context.app === 'scenes' ? (
-        <SceneIndexApp />
+        <SceneIndexApp map={context.map} />
       ) : loading && !hasData ? (
         <Empty title="正在打开…" />
       ) : loadError && !hasData ? (

@@ -467,7 +467,7 @@ test('deterministic scene environment: real owner SQL, actual entry/lease, atomi
     },
   );
   await t.test(
-    'pause and a later world version stop stale opening instead of silently changing time',
+    'pause stops opening; returning to the phone does not cancel the saved environment task',
     async () => {
       const f = await fixture();
       await db.transaction(f.owner, (sql) =>
@@ -488,8 +488,128 @@ test('deterministic scene environment: real owner SQL, actual entry/lease, atomi
         expectedVersion: f.entered.version,
         view: 'phone',
       });
-      await assert.rejects(handler(f.lease, signal()), /VERSION_CONFLICT/);
-      assert.equal(await countOpen(f.worldId), 0);
+      assert.equal(await handler(f.lease, signal()), true);
+      assert.equal(await countOpen(f.worldId), 1);
+      assert.equal((await scenes.read(f.owner, f.worldId)).experience.view.kind, 'phone');
+    },
+  );
+  await t.test(
+    'unrelated real note commit before the queued environment preserves entry and opens once at the actual version',
+    async () => {
+      const f = await fixture(true);
+      await worlds.saveNote(
+        { userId: f.owner },
+        {
+          worldId: f.worldId,
+          commandId: randomUUID(),
+          title: 'Unrelated note',
+          text: 'No change to the current scene or position.',
+          expectedVersion: 0,
+        },
+      );
+      const advanced = await worlds.get({ userId: f.owner }, f.worldId);
+      assert(advanced.version > f.entered.version);
+      assert.equal(await handler(f.lease, signal()), true);
+      const opened = await scenes.read(f.owner, f.worldId, f.entered.sceneId);
+      assert.equal(opened.worldVersion, advanced.version + 1);
+      assert.equal(opened.scene!.id, f.entered.sceneId);
+      assert.equal(opened.entries.length, 1);
+      assert.equal(opened.task!.status, 'succeeded');
+      assert.equal(opened.scene!.presence.length, 2);
+      const events = (
+        await admin.query(
+          'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 ORDER BY version',
+          [f.worldId],
+        )
+      ).rows;
+      assert.equal(
+        events.filter(
+          (x) => x.payload.type === 'scene.entered' && x.payload.data.sceneId === f.entered.sceneId,
+        ).length,
+        1,
+      );
+      assert.equal(
+        events.filter(
+          (x) => x.payload.type === 'scene.opened' && x.payload.data.sceneId === f.entered.sceneId,
+        ).length,
+        1,
+      );
+      // Original accepted command and task baseline never change when the append point advances.
+      const stored = (
+        await admin.query('SELECT input FROM parallel_life.tasks WHERE id=$1', [f.lease.id])
+      ).rows[0];
+      assert.equal(stored.input.expectedVersion, f.entered.version);
+    },
+  );
+  await t.test(
+    'stale entry intent is rechecked against current place; original command replays without another scene',
+    async () => {
+      const f = await fixture();
+      const originalVersion = f.entered.version;
+      await scenes.navigate(
+        f.owner,
+        f.worldId,
+        f.entered.sceneId,
+        { commandId: randomUUID(), expectedVersion: originalVersion },
+        true,
+      );
+      await worlds.saveNote(
+        { userId: f.owner },
+        {
+          worldId: f.worldId,
+          commandId: randomUUID(),
+          title: 'Unrelated note',
+          text: 'No travel or agreement change.',
+          expectedVersion: 0,
+        },
+      );
+      const before = await worlds.get({ userId: f.owner }, f.worldId);
+      const intent = { commandId: randomUUID(), expectedVersion: originalVersion, placeId: 'room' };
+      const entered = await scenes.enterPlace(f.owner, f.worldId, intent);
+      assert.equal(entered.version, before.version + 1);
+      assert.notEqual(entered.sceneId, f.entered.sceneId);
+      assert.deepEqual(await scenes.enterPlace(f.owner, f.worldId, intent), entered);
+      assert.equal((await worlds.get({ userId: f.owner }, f.worldId)).version, entered.version);
+    },
+  );
+  await t.test(
+    'scene display reads a bounded projection without replaying world facts or locking the clock',
+    async () => {
+      const f = await fixture();
+      const queries: string[] = [];
+      const traced = Object.create(db) as PostgresDatabase;
+      traced.transaction = async (owner, run) =>
+        db.transaction(owner, (sql) =>
+          run(
+            new Proxy(sql, {
+              get(target, key) {
+                if (key === 'query')
+                  return (...args: unknown[]) => {
+                    queries.push(String(args[0]));
+                    return (target.query as Function).apply(target, args);
+                  };
+                const value = Reflect.get(target, key);
+                return typeof value === 'function' ? value.bind(target) : value;
+              },
+            }),
+          ),
+        );
+      const read = await new SceneRepository(traced).read(f.owner, f.worldId, f.entered.sceneId);
+      assert.equal(read.scene!.id, f.entered.sceneId);
+      assert.equal(read.task!.status, 'running');
+      assert(queries.length <= 6, `scene projection made ${queries.length} queries`);
+      assert(
+        !queries.some(
+          (q) =>
+            q.includes('world_facts') ||
+            q.includes('world_initial_snapshots') ||
+            q.includes('invitation.responded') ||
+            q.includes('FOR UPDATE'),
+        ),
+      );
+      await assert.rejects(
+        new SceneRepository(traced).read(randomUUID(), f.worldId, f.entered.sceneId),
+      );
     },
   );
   await t.test(

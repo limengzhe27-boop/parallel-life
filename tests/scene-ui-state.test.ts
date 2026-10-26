@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  restoreSceneEntry,
+  shouldResumeSceneTask,
   sceneBusy,
   sceneStatus,
   restoreSceneCommand,
@@ -29,4 +31,26 @@ test('late scene queries cannot roll back the same saved scene but different sce
   assert.equal(mergeScene(a, b), a);
   const c = { worldVersion: 8, scene: { id: 'b' } } as SceneRead;
   assert.equal(mergeScene(a, c), c);
+});
+
+test('entry recovery retains the original command; only unclaimed queued tasks resume', () => {
+  const command = {
+    commandId: '00000000-0000-4000-8000-000000000001',
+    expectedVersion: 7,
+    destination: 'room',
+  };
+  assert.deepEqual(restoreSceneEntry(JSON.stringify(command), 'room'), command);
+  assert.equal(restoreSceneEntry(JSON.stringify(command), 'other'), undefined);
+  assert.equal(restoreSceneEntry('{', 'room'), undefined);
+  for (const status of [
+    'queued',
+    'running',
+    'unknown',
+    'failed',
+    'cancelled',
+    'succeeded',
+  ] as const) {
+    assert.equal(shouldResumeSceneTask({ status } as SceneTask, false), status === 'queued');
+    assert.equal(shouldResumeSceneTask({ status } as SceneTask, true), false);
+  }
 });

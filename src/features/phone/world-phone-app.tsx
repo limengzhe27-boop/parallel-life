@@ -1,4 +1,5 @@
 'use client';
+import { restoreSceneEntry } from './scenes/state.ts';
 import { annotatePartialReplies, restorePartialReplyCommands } from './partial-replies.ts';
 import { useAdvanceRecovery } from './use-advance-recovery.ts';
 import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
@@ -1695,12 +1696,6 @@ export function WorldPhoneSurface({
           : async (appointmentId) => {
               setSceneWaiting(true);
               try {
-                if (enterCommand.current?.appointmentId !== appointmentId)
-                  enterCommand.current = {
-                    appointmentId,
-                    commandId: crypto.randomUUID(),
-                    version: data.version ?? 0,
-                  };
                 const history = await sceneClient.history(data.id);
                 const invitation = phoneData.invitations.find((a) => a.id === appointmentId);
                 const prior = invitation ? appointmentScene(history, invitation) : undefined;
@@ -1725,9 +1720,29 @@ export function WorldPhoneSurface({
                     view: 'scene',
                   });
                 } else {
+                  const savedKey = `pl-scene-entry:${data.id}:appointment`;
+                  if (enterCommand.current?.appointmentId !== appointmentId) {
+                    const saved = restoreSceneEntry(
+                      sessionStorage.getItem(savedKey),
+                      appointmentId,
+                    );
+                    enterCommand.current = {
+                      appointmentId,
+                      commandId: saved?.commandId ?? crypto.randomUUID(),
+                      version: saved?.expectedVersion ?? existing.worldVersion,
+                    };
+                    sessionStorage.setItem(
+                      savedKey,
+                      JSON.stringify({
+                        commandId: enterCommand.current.commandId,
+                        expectedVersion: enterCommand.current.version,
+                        destination: appointmentId,
+                      }),
+                    );
+                  }
                   receipt = await sceneClient.enter(data.id, {
-                    commandId: enterCommand.current.commandId,
-                    expectedVersion: enterCommand.current.version,
+                    commandId: enterCommand.current!.commandId,
+                    expectedVersion: enterCommand.current!.version,
                     appointmentId,
                   });
                 }
@@ -1736,15 +1751,15 @@ export function WorldPhoneSurface({
                   panel: 'scene',
                   target: receipt.sceneId,
                 });
-                await onReload?.();
-                if (receipt.task?.status === 'queued') {
-                  await sceneClient.execute(receipt.task.id);
-                  await onReload?.();
-                }
+                // The scene panel resumes the saved queued task independently of phone refresh.
+                sessionStorage.removeItem(`pl-scene-entry:${data.id}:appointment`);
+                enterCommand.current = undefined;
+                await Promise.allSettled([onReload?.()]);
                 return { status: 'committed' };
               } catch (e) {
                 if (e instanceof ApiFailure && e.code === 'VERSION_CONFLICT') {
                   enterCommand.current = undefined;
+                  sessionStorage.removeItem(`pl-scene-entry:${data.id}:appointment`);
                   await Promise.allSettled([onReload?.()]);
                 }
                 throw e;

@@ -51,3 +51,9 @@ test('history pagination merges duplicate IDs without replacing newer saved stat
   ]);
   assert.equal(mergeHistory([record], [{ ...record, sourceVersion: 9 }])[0]!.sourceVersion, 9);
 });
+
+test('an already-open scene list uses the current world time for due eligibility', () => {
+  const future = { ...invitation, responseVersion: 6, at: '2026-10-09T04:00:00Z' };
+  assert.equal(canEnterAppointment(history, future), false);
+  assert.equal(canEnterAppointment(history, future, '2026-10-09T04:00:00Z'), true);
+});

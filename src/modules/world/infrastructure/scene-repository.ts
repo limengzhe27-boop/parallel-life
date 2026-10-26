@@ -142,9 +142,10 @@ export async function sceneWorld(
   }
   world = { ...world, version: row.version, time: row.state.time };
   const clock = (
-    await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 FOR UPDATE', [
-      worldId,
-    ])
+    await sql.query(
+      `SELECT * FROM parallel_life.world_clock WHERE world_id=$1${lock ? ' FOR UPDATE' : ''}`,
+      [worldId],
+    )
   ).rows[0];
   const effectiveClock = clock
     ? readableActivityClock(storedActivityClock(clock), new Date().toISOString())
@@ -156,6 +157,28 @@ export async function sceneWorld(
     world,
     storyAt: new Date(Math.max(Date.parse(storyAt), Date.parse(world.time))).toISOString(),
     paused: Boolean(effectiveClock?.paused),
+  };
+}
+/** The scene viewer needs no private facts, invitation replay or author history. */
+async function sceneViewWorld(sql: SqlClient, ownerId: string, worldId: string) {
+  const row = (
+    await sql.query(
+      `SELECT w.version AS world_version,w.state->>'time' AS world_time,
+      w.state->'space' AS world_space,c.* FROM parallel_life.worlds w
+      LEFT JOIN parallel_life.world_clock c ON c.world_id=w.id AND c.owner_id=w.owner_id
+      WHERE w.id=$1 AND w.owner_id=$2 AND w.state->>'deletedAt' IS NULL FOR SHARE OF w`,
+      [worldId, ownerId],
+    )
+  ).rows[0];
+  if (!row) throw new DomainError('NOT_FOUND');
+  const now = new Date().toISOString();
+  const clock = row.world_id ? readableActivityClock(storedActivityClock(row), now) : null;
+  const storyAt = clock ? projectStoryTime(clock, now) : row.world_time;
+  return {
+    version: row.world_version,
+    space: row.world_space as WorldState['space'],
+    storyAt: new Date(Math.max(Date.parse(storyAt), Date.parse(row.world_time))).toISOString(),
+    paused: Boolean(clock?.paused),
   };
 }
 async function experience(
@@ -370,7 +393,7 @@ export class SceneRepository {
   }
   async read(ownerId: string, worldId: string, sceneId?: string): Promise<SceneRead> {
     return this.db.transaction(ownerId, async (sql) => {
-      const w = await sceneWorld(sql, ownerId, worldId),
+      const w = await sceneViewWorld(sql, ownerId, worldId),
         x = await experience(sql, ownerId, worldId),
         id = sceneId ?? x.currentSceneId;
       const s = id
@@ -384,11 +407,11 @@ export class SceneRepository {
       ).rows[0];
       const placeId = s.scene?.placeId;
       const images =
-        placeId && w.world.space?.places.some((place) => place.id === placeId)
+        placeId && w.space?.places.some((place) => place.id === placeId)
           ? await readPublicationSceneImages(sql, worldId, [placeId])
           : new Map<string, string>();
       return SceneReadSchema.parse({
-        worldVersion: w.world.version,
+        worldVersion: w.version,
         storyNow: w.storyAt,
         paused: w.paused,
         experience: x,
@@ -486,11 +509,13 @@ export class SceneRepository {
         hash = requestHash(['scene.enter', worldId, input]);
       const replay = await previous(sql, worldId, input.commandId, hash);
       if (replay) return replay;
-      if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      // Entry has no model snapshot: validate the current place/appointment below.
+      // An unrelated message must not invalidate the player's unchanged entry intent.
+      if (world.version < input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
       const { engineEpoch } = await authorizeWorldCommandInTransaction(sql, ownerId, {
         worldId,
         commandId: input.commandId,
-        expectedWorldVersion: input.expectedVersion,
+        expectedWorldVersion: world.version,
         kind: 'scene_enter',
       });
       if (paused) throw new DomainError('INVALID_COMMAND');
@@ -569,11 +594,13 @@ export class SceneRepository {
       const { world, storyAt, paused } = await sceneWorld(sql, ownerId, worldId, true);
       const replay = await previous(sql, worldId, input.commandId, hash);
       if (replay) return replay;
-      if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      // Entry has no model snapshot: validate the current place/appointment below.
+      // An unrelated message must not invalidate the player's unchanged entry intent.
+      if (world.version < input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
       const { engineEpoch } = await authorizeWorldCommandInTransaction(sql, ownerId, {
         worldId,
         commandId: input.commandId,
-        expectedWorldVersion: input.expectedVersion,
+        expectedWorldVersion: world.version,
         kind: 'scene_enter',
       });
       if (paused) throw new DomainError('INVALID_COMMAND');
