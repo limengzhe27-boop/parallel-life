@@ -3190,3 +3190,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 - 不做：世界 GET 快速返回/change token、客户端轮询间隔或可见性策略、跨请求缓存、任何用户体验变化。
 
 |LOCAL-PLAY-03|[x] 本地已完成：隔离会话+手机单事务读取，原档HTTP200且Ego错误已消失|root-local-play|忽略的本地启动/登录/诊断脚本，专属报告；build-repository.ts单事务读取、tests/integration/publication-flow.test.ts事务预算断言|隔离3218/3219会话、定位15秒网络超时与远程读取503；保留进度，不隐藏错误、不自动重买。|
+
+|LOCAL-PLAY-04|[ ] 会话已隔离且原档真实回复落库；195秒发送耗时与旧草稿接续未完成|root-local-play|忽略的local-play本地服务/请求诊断、原请求回执、专属报告；src/server/private-asset-store.ts、tests/local-asset-host.test.ts（未改PostgresDatabase）|原档发送连接失败定位，单一主机隔离旧页面流量，核对原请求保存状态后恢复；不自动重买unknown。|
+
+|NOTIFY-OVERLAY-01|[ ] 进行中|codex-notify-overlay-20261026；复用独立grok-image-20261023工作树，新branch codex/phone-notification-overlay-20261026，自de635388|仅phone-shell.tsx、phone.module.css、NEW phone-top-overlay.tsx（UI portal）、apps/messages.tsx、apps/apps.module.css（通知/日程弹层定位）、现tests/phone-notification-banner.test.ts、专属报告及UI证据|用户要求手机顶部悬浮覆盖，消息/日程弹窗不得挤动微信/首屏；复用现通知投影/点击/关闭/日程操作，不新增业务字段/迁移，不改world-phone-app/CPU任务。独立HTTP3268/3269先核监听，专属Ego后登记，0模型/生图。已有复用：PhoneShell通知与日程操作；需修改：内嵌banner与日程卡正常流；新增仅UI portal复用手机顶部层，手机/短屏/PC几何与交互验收。check/build后交root协调发布，生产Vercel团队暂停状态待核实。| 补充测试兼容范围tests/chat-invitation-ui.test.ts：仅对无DOM的SSR动作资格测试透明替代UI portal，保留原动作断言，真实portal交Ego471验证。114迁移已应用本人PG55651；首全量4015/4016唯一SSR旧预期已修，聚焦4/4通过。Ego471真实390×844/390×500/1440×900，叠放/关闭前后header/log/input几何零位移，草稿保留，输入实际可点，通知跳转私聊/备忘录正确，日程原动作UI回调可达，锁屏隐藏portal，原6秒计时未改。无说明条时overlayY66/statusBottom58=8px。显式临时夹具已移除，browser任务已结束，独立3268已停；最终check/build进行中。root明确Vercel仍暂停，仅本地交付，不push/deploy。

@@ -72,7 +72,11 @@ export function createPrivateAssetStore(): AssetStore {
   // Explicit local storage is only enabled for a loopback deployment, never Vercel.
   const origin = process.env.APP_ORIGIN;
   const localHost = origin ? new URL(origin).hostname : '';
-  if (assetDir && !process.env.VERCEL && ['localhost', '127.0.0.1', '[::1]'].includes(localHost)) {
+  if (
+    assetDir &&
+    !process.env.VERCEL &&
+    (['localhost', '127.0.0.1', '[::1]'].includes(localHost) || localHost.endsWith('.localhost'))
+  ) {
     const disk = new PrivateDiskStore(assetDir);
     return remote ? new LocalFirstAssetStore(disk, remote) : disk;
   }
