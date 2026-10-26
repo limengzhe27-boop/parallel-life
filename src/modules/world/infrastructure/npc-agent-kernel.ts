@@ -231,13 +231,23 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         throw new AgentValidationError('INPUT_SOURCE_MISMATCH');
       if (!isDeepStrictEqual(current, snapshot.state))
         throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
+      // Reuse denial lineage within this validation stage, while retaining the
+      // later forgotten-source recheck before effects are executed.
+      const validationBlockedSources =
+        snapshot.channel.kind === 'private' &&
+        (snapshot.sources.some((s) => s.usage === 'private_strategy') ||
+          snapshot.actorObservationInbox?.narrativeKnowledgeIds !== undefined)
+          ? await forgottenAgentSourceIds(sql, ownerId, attempt.worldId, attempt.actorId)
+          : undefined;
       await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
       await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
       await validateActorEpisodeResults(sql, ownerId, snapshot);
       await validateActorMediaResultContextInTransaction(sql, ownerId, snapshot);
       await validateSceneObservationContext(sql, ownerId, snapshot);
       await validateGroupObservationContext(sql, ownerId, snapshot);
-      await validateActorObservationInbox(sql, ownerId, snapshot);
+      await validateActorObservationInbox(sql, ownerId, snapshot, {
+        blockedSources: validationBlockedSources,
+      });
       await validatePlayerEpisodeManifest(sql, ownerId, snapshot);
       await requirePlayerEpisodeBinding(sql, ownerId, attempt, snapshot);
       if (isEpisodeConsiderationInput(receivedInput))
@@ -264,6 +274,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           current,
           attempt.expectedWorldVersion,
           snapshot.storyAt,
+          { blockedSources: validationBlockedSources, skipEmptyMediaHeadCheck: true },
         );
         if (strategy.some((source) => !currentBasis.some((now) => isDeepStrictEqual(source, now))))
           throw Object.assign(Error('AGENT_REVISION_CONFLICT'), {
@@ -281,6 +292,14 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         attempt.worldId,
         attempt.actorId,
       );
+      // A concurrent forget can target hidden narrative lineage rather than a
+      // visible snapshot ID. A changed denial packet invalidates the reused reads.
+      if (
+        validationBlockedSources &&
+        (validationBlockedSources.size !== forgotten.size ||
+          [...validationBlockedSources].some((id) => !forgotten.has(id)))
+      )
+        throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
       if (sourceIds.some((id) => forgotten.has(id)))
         throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
       const memorySources = snapshot.sources.filter((source) => source.id.startsWith('memory:'));

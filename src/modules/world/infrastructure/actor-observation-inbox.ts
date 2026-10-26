@@ -176,6 +176,7 @@ export async function validateActorObservationInbox(
   sql: SqlClient,
   owner: string,
   snapshot: AgentSnapshot,
+  options: { blockedSources?: ReadonlySet<string> } = {},
 ) {
   const recalled =
     snapshot.channel.kind === 'private'
@@ -194,6 +195,7 @@ export async function validateActorObservationInbox(
       worldVersion: snapshot.worldVersion,
       storyAt: snapshot.storyAt,
       sourceIds: recalled.map((s) => s.id),
+      ...(options.blockedSources ? { blockedSources: options.blockedSources } : {}),
     });
     const observations = snapshot.observations.filter((o) =>
       recalled.some((s) => s.id === o.sourceId),
@@ -218,6 +220,7 @@ export async function validateActorObservationInbox(
     actual = await readActorObservationInbox(sql, owner, snapshot, {
       includeGroups: snapshot.actorObservationInbox.groupIds !== undefined,
       includeNarrative: snapshot.actorObservationInbox.narrativeKnowledgeIds !== undefined,
+      ...(options.blockedSources ? { blockedSources: options.blockedSources } : {}),
     });
   } catch (error) {
     const code = String((error as { code?: string }).code ?? '');

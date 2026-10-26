@@ -4,7 +4,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
-import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
+import {
+  PostgresDatabase,
+  type SqlClient,
+} from '../../src/modules/storage/infrastructure/postgres.ts';
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import {
@@ -551,6 +554,97 @@ test('actual NPC kernel and private service commit actor state with world receip
       assert.equal(current.goals.find((g) => g.id === 'secret-goal')?.summary, secret);
     },
   );
+  await t.test(
+    'concurrent hidden denial-lineage change rolls back reused source validation without repurchasing',
+    async () => {
+      const f = await fixture();
+      f.snapshot.state.knowledgeSourceIds = [f.input.id];
+      f.snapshot.viewState = structuredClone(f.snapshot.state);
+      await admin.query(
+        'UPDATE parallel_life.actor_agent_states SET document=$3 WHERE world_id=$1 AND actor_id=$2',
+        [f.world.id, f.actorId, f.snapshot.state],
+      );
+      const strategy = await db.transaction(f.ownerId, (sql) =>
+        readActorStrategyBasis(sql, f.ownerId, f.snapshot.state, 0, at),
+      );
+      assert.ok(strategy.length > 0);
+      f.snapshot.sources = [
+        ...f.snapshot.sources.filter((source) => !strategy.some((item) => item.id === source.id)),
+        ...strategy,
+      ];
+      const denialMemoryId = randomUUID();
+      await admin.query(
+        "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Synthetic hidden denial','hidden_lineage','agent_inference',$5,'active')",
+        [
+          denialMemoryId,
+          f.ownerId,
+          f.actorId,
+          f.world.id,
+          JSON.stringify(['basis:hidden-denial-source']),
+        ],
+      );
+      let injected = false;
+      let reads = 0;
+      const gatedDb = {
+        pool: db.pool,
+        close: () => db.close(),
+        transaction: <T>(ownerId: string, run: (sql: SqlClient) => Promise<T>) =>
+          db.transaction(ownerId, async (sql) => {
+            const proxy = new Proxy(sql, {
+              get(target, property, receiver) {
+                if (property === 'query')
+                  return async (...args: Parameters<SqlClient['query']>) => {
+                    const result = await target.query(...args);
+                    if (
+                      typeof args[0] === 'string' &&
+                      args[0].includes('SELECT id,source_ids FROM parallel_life.memory_records')
+                    ) {
+                      reads++;
+                      if (!injected) {
+                        injected = true;
+                        // This basis alias is absent from snapshot IDs; the packet itself must change.
+                        await admin.query(
+                          "UPDATE parallel_life.memory_records SET status='forgotten' WHERE id=$1",
+                          [denialMemoryId],
+                        );
+                      }
+                    }
+                    return result;
+                  };
+                const value = Reflect.get(target, property, receiver);
+                return typeof value === 'function' ? value.bind(target) : value;
+              },
+            });
+            return run(proxy);
+          }),
+      } as PostgresDatabase;
+      let calls = 0;
+      await assert.rejects(
+        runNpcAgent(
+          {
+            attempts: store,
+            model: {
+              decide: async () => {
+                calls++;
+                return JSON.stringify(proposal());
+              },
+            },
+            kernel: new PostgresNpcAgentKernel(gatedDb, worlds),
+          },
+          f.ownerId,
+          f.claim,
+          f.snapshot,
+        ),
+        { code: 'AGENT_REVISION_CONFLICT' },
+      );
+      assert.equal(calls, 1);
+      assert.equal(reads, 2, 'one shared initial packet and the final denial recheck');
+      assert.equal((await worlds.get({ userId: f.ownerId }, f.world.id)).version, 0);
+      const saved = (await store.lookup(f.ownerId, f.world.id, f.input.commandId))!;
+      assert.equal((await store.readResponse(f.ownerId, saved)).found, true);
+    },
+  );
+
   await t.test(
     'a nonexistent local calendar date is rejected without silently rolling to the next month',
     async () => {

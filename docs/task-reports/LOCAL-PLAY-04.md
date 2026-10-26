@@ -30,3 +30,13 @@
 local-asset-host + local-first共3/3；npm run check4017/4017，build04生产构建通过；只有本地配置和存储主机识别变更，无SQL迁移。本轮0公网部署，未新增世界/草稿，没有删用户进度。
 
 协作：已与NOTIFY-OVERLAY-01执行者同步，其UI浮层/SSR测试独立工作树；本轮不碰其phone-shell/messages/portal文件。其不重启3218/3219或覆盖本地构建。
+
+## 后续核心精简（本地build05已加载）
+
+只读Agent复核确认264是整个run阶段（付费前mark、各流式段、response保存、最终提交），不是最终kernel单独264SQL。本轮不混淆口径。
+
+在同一最终提交的验证阶段复用forgotten否定来源集合，透传inbox recall/inbox与strategy认证；不跨事务缓存、不共享不同预算的narrative包。末次仍重新读取forgotten，集合任何变化即AGENT_REVISION_CONFLICT（含隐藏basis别名，不能只比较可见source ID）；原最终活动到期判断不删除。两处strategy认证启用已有skipEmptyMediaHeadCheck，只跳过已验证world且媒体为空时的重复head读取，非空媒体完整认证保留。没有新增业务字段/表。
+
+真实PG kernel14/14，新增并发隐藏否定来源变化回滚，原raw response仍保留，模型1次、world版本不变，认证集合首次/最终2读。npm check4017/4017、build05通过。本地另两组旧PG有6个子项失败（包括父项共8），隔离build04基线复跑同名失败一致；本次未关闭它们或放松校验，最终活动中途到期测试两边均通过。未在改动后重新购买整轮模型来夸大速度收益；真实195秒是改动前这一轮证据，减掉多少时间尚未量化。
+
+用户正在Ego另一标签测试3219，界面控制多次提示用户变更，故停止抢占该标签；以play.localhost独立一次性登录入口交付，旧localhost待确认草稿不清除。原消息实际文本已在原档新验收command上得到3条回复，v290。限定原世界后台重新启动（原scheduler/kernel，非强制消息），仍需观察有合法工作时的表现，不宣称持续推进通过。

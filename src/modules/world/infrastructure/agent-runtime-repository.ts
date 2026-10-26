@@ -810,6 +810,7 @@ export class PostgresAgentRuntimeRepository
               state.document,
               snapshot.worldVersion,
               snapshot.storyAt,
+              { skipEmptyMediaHeadCheck: true },
             );
             if (strategy.some((source) => !actual.some((item) => isDeepStrictEqual(source, item))))
               fail('AGENT_REVISION_CONFLICT');
