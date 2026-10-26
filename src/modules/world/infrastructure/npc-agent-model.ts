@@ -29,7 +29,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v71-opening-context-delivery';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v72-task-specific-wake';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 32_000;
 // Includes the generated response schema as well as the message envelope.
@@ -662,7 +662,9 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       content:
         snapshot.input.origin === 'player'
           ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。无状态变化时changes=null。`
-          : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}当前为服务器${snapshot.input.origin}唤醒，不是玩家新消息。来源仍为${inputSourceRef}。你是${snapshot.actor.name}，自行决定是否参与或保持安静；不要把任务说明复述成向玩家索取任务。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
+          : isActorEpisodeConsiderationInput(snapshot.input)
+            ? `你是${snapshot.actor.name}。本次任务是考虑currentOpportunity所指、专门交给你的一项互动机会。根据对应来源中的具体议题、本人动机和可见事实，决定怎样参与、调整、拒绝、暂缓或保持安静。没有玩家新消息不等于没有新的机会；判断对象是这项机会，而不是是否收到玩家发言。参与时形成自己的具体说法或合法下一步，不复述任务说明；不适合时保留具体人物理由，不需要为了完成任务发消息。来源仍为${inputSourceRef}。\n${inputText}`
+            : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
     },
   ];
   const fits = () =>

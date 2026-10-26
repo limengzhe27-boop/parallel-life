@@ -953,7 +953,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v71-opening-context-delivery');
+  assert.equal(payload.promptVersion, 'npc-agent-v72-task-specific-wake');
   assert.match(system, /玩家明确说忙、晚点、想休息或暂时不想谈时/);
   assert.match(system, /之后的自动唤醒都不再提同一邀约、计划或问题/);
   assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
@@ -1193,6 +1193,8 @@ test('director suggestions remain nonbinding third-party guidance, not adopted f
   const before = structuredClone(input);
   const { adapter, calls } = capture();
   await adapter.decide(input);
+  assert.match(calls[0]!.messages.at(-1)!.content, /currentOpportunity/);
+  assert.match(calls[0]!.messages.at(-1)!.content, /没有玩家新消息不等于没有新的机会/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.deepEqual(payload.replyAs, { kind: 'actor', actorId: 'actor-a', name: input.actor.name });
   assert.deepEqual(payload.directorGuidance, {
@@ -1650,6 +1652,6 @@ test('autonomous wake cue remains a consideration basis, not a mandatory event o
   const instruction = calls[0]!.messages.at(-1)!.content;
   assert.match(instruction, /结合最近交流考虑自己的联系意图/);
   assert.match(instruction, /不是玩家要求，也不是已经发生的事实/);
-  assert.match(instruction, /自行决定是否参与或保持安静/);
+  assert.match(instruction, /决定自己的下一步，可以行动、联系或保持安静/);
   assert.doesNotMatch(instruction, /必须按这个阶段回应/);
 });
