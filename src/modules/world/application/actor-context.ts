@@ -39,6 +39,7 @@ export function actorContext(
   userText = '',
   memoryRecords: MemoryRecord[] = [],
   blockedSources: Set<string> = new Set(),
+  retrievalQueries: readonly string[] = [],
 ): ActorContext {
   const actor = state.actors.find((item) => item.id === actorId);
   if (!actor || userText.length > 4000) throw new DomainError('INVALID_COMMAND');
@@ -253,8 +254,35 @@ export function actorContext(
     }
     append(context.choices!, visible, 1200);
   }
-  const historical = rank(messages.slice(0, -RECENT_LIMIT), (item) => item.text)
-    .filter((item) => item.score > 0 && !context.messages.some((m) => m.id === item.item.id))
+  const older = messages.slice(0, -RECENT_LIMIT);
+  const historicalCandidates = [
+    // Autonomous triggers have no conversational topic. Reserve bounded existing
+    // history slots for each authenticated personal topic before broad retrieval.
+    ...retrievalQueries.slice(0, 16).flatMap((query) => {
+      const queryWords = terms(query.slice(0, 1000));
+      const ranked = older
+        .map((item, index) => ({ item, index, score: relevance(item.text, queryWords) }))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score || b.index - a.index);
+      // Authored conversation is already spoken history, unlike a narrative
+      // report. Keep one relevant original opening and one runtime follow-up
+      // rather than allowing recent low-score chatter to erase that distinction.
+      const isOpening = (message: (typeof messages)[number]) =>
+        message.sourceEventId === `publication-genesis:${state.id}` ||
+        message.sourceEventId === `genesis:${state.id}`;
+      const opening = ranked.find(({ item }) => isOpening(item));
+      const runtime = ranked.find(({ item }) => !isOpening(item));
+      return opening && runtime ? [opening, runtime] : ranked.slice(0, 2);
+    }),
+    ...rank(older, (item) => item.text).filter((item) => item.score > 0),
+  ];
+  const selectedHistory = new Set(context.messages.map((message) => message.id));
+  const historical = historicalCandidates
+    .filter(({ item }) => {
+      if (selectedHistory.has(item.id)) return false;
+      selectedHistory.add(item.id);
+      return true;
+    })
     .slice(0, HISTORICAL_LIMIT);
   for (const { item } of historical) append(context.messages, item, 11500);
   const order = new Map(messages.map((message, index) => [message.id, index]));

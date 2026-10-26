@@ -19,6 +19,7 @@ import type { AgentInputReceipt, ActorAgentState, AgentSource } from '../domain/
 import { emptyActorAgentState } from '../domain/agent-runtime.ts';
 import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
 import { actorContext } from '../application/actor-context.ts';
+import { actorRetrievalQueries } from '../application/actor-retrieval-queries.ts';
 import type { ActorContext } from '../application/ports.ts';
 import type { PrivateChatWorld } from '../application/chat-context-read.ts';
 import type { WorldState } from '../domain/types.ts';
@@ -205,6 +206,14 @@ export async function readPrivateAgentSnapshot(
       input?.text ?? '',
       memories.records,
       memories.blockedSources,
+      actorRetrievalQueries({
+        origin: input?.origin ?? 'wake',
+        state,
+        actorId,
+        threadId: actorId,
+        narrative: narrative.observations,
+        blockedSources: memories.blockedSources,
+      }),
     );
     // readActorSituation locks the world row FOR SHARE and verifies world.version === context.worldVersion
     // before any cached immutable publication actor module is consulted.
