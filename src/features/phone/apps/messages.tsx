@@ -1,3 +1,10 @@
+import {
+  emptyChatReadingPosition,
+  restoreVisibleChatPosition,
+  captureVisibleChatPosition,
+  chatIsReadable,
+  chatIsAtLatest,
+} from './chat-reading-scroll.ts';
 import { PhoneTopOverlay } from '../phone-top-overlay.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { STICKER_LABELS, type StickerId } from '../stickers.ts';
@@ -114,8 +121,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   }, [appointmentNotice]);
 
   const messageScroll = useRef<HTMLDivElement>(null);
-  const wasNearBottom = useRef(true);
-  const lastScroll = useRef(0);
+  const readingPosition = useRef(emptyChatReadingPosition(`${worldId}:${target ?? ''}`));
   const readAttempt = useRef<string | undefined>(undefined);
 
   const actor = data.contacts.find((c) => c.id === target);
@@ -192,35 +198,22 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
 
   useLayoutEffect(() => {
     const el = messageScroll.current;
-    if (el) {
-      el.scrollTop =
-        drafts[`scroll:${target}`] === undefined
-          ? el.scrollHeight
-          : Number(drafts[`scroll:${target}`]);
-      lastScroll.current = el.scrollTop;
-      wasNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    const scope = `${worldId}:${target ?? ''}`;
+    if (!el || !actor) {
+      if (readingPosition.current.scope === scope)
+        readingPosition.current = { ...readingPosition.current, visible: false };
+      return;
     }
-  }, [target, profileId]);
-
-  useLayoutEffect(() => {
-    const el = messageScroll.current;
-    if (el && wasNearBottom.current) el.scrollTop = el.scrollHeight;
-  }, [messages.length]);
-
-  useEffect(() => {
-    const el = messageScroll.current;
-    if (!el || !actor) return;
-    let previousHeight = el.clientHeight;
-    const readSignature = `${actor.id}:${actor.unread}:${messages.at(-1)?.id ?? ''}`;
-    const observe = () => {
-      if (el.clientHeight === 0) {
-        previousHeight = 0;
-        return;
-      }
-      if (previousHeight === 0) el.scrollTop = lastScroll.current;
-      previousHeight = el.clientHeight;
+    const metrics = () => ({
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+      scrollTop: el.scrollTop,
+      documentVisible: document.visibilityState === 'visible',
+    });
+    const readSignature = `${worldId}:${actor.id}:${actor.unread}:${messages.at(-1)?.id ?? ''}`;
+    const markVisibleRead = () => {
       if (
-        document.visibilityState === 'visible' &&
+        chatIsAtLatest(metrics()) &&
         actor.unread > 0 &&
         actions.markRead &&
         readAttempt.current !== readSignature
@@ -232,15 +225,42 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         });
       }
     };
+    const observe = () => {
+      const restored = restoreVisibleChatPosition(
+        readingPosition.current,
+        scope,
+        metrics(),
+        draftsRef.current[`scroll:${target}`],
+      );
+      readingPosition.current = restored.position;
+      if (restored.scrollTo !== null) el.scrollTop = restored.scrollTo;
+      markVisibleRead();
+    };
+    // Scroll reads never reposition the user. Only resize/visibility restore does.
+    const onReadScroll = () => markVisibleRead();
     const resize = new ResizeObserver(observe);
     resize.observe(el);
+    el.addEventListener('scroll', onReadScroll);
     document.addEventListener('visibilitychange', observe);
     observe();
     return () => {
       resize.disconnect();
+      el.removeEventListener('scroll', onReadScroll);
       document.removeEventListener('visibilitychange', observe);
+      if (readingPosition.current.scope === scope)
+        readingPosition.current = { ...readingPosition.current, visible: false };
     };
-  }, [actor?.id, actor?.unread, actions.markRead, messages.at(-1)?.id]);
+  }, [
+    worldId,
+    target,
+    profileId,
+    creatingGroup,
+    actor?.id,
+    actor?.unread,
+    actions.markRead,
+    messages.length,
+    messages.at(-1)?.id,
+  ]);
 
   if (creatingGroup)
     return (
@@ -1556,10 +1576,21 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         ref={messageScroll}
         onScroll={(e) => {
           const el = e.currentTarget;
-          if (!el.clientHeight) return;
-          lastScroll.current = el.scrollTop;
-          wasNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-          setDraft(`scroll:${target}`, String(el.scrollTop));
+          const scope = `${worldId}:${target ?? ''}`;
+          const metrics = {
+            clientHeight: el.clientHeight,
+            scrollHeight: el.scrollHeight,
+            scrollTop: el.scrollTop,
+            documentVisible: document.visibilityState === 'visible',
+          };
+          if (!chatIsReadable(metrics)) return;
+          readingPosition.current = captureVisibleChatPosition(
+            readingPosition.current,
+            scope,
+            metrics,
+          );
+          if (readingPosition.current.scope === scope && readingPosition.current.initialized)
+            setDraft(`scroll:${target}`, String(el.scrollTop));
         }}
         className={`${s.messages} ${s.chatTimeline}`}
         style={{
