@@ -31,3 +31,5 @@ root负责phone-shell及现场UI/CSS、DESIGN、最终集成/真实图片与页�
 - 3218 PID84462 build16；3219 PID84464主.next，共用本地clone_20261026；所有src哈希与build16零差异。两端health200，原档space200/251ms、scenes200/16ms、v292与迁移前一致。root只恢复实际原档已备份的paused=false/active_until；其他旧世界时钟保持隔离暂停，不批量唤醒旧世界。
 - LOCAL-CLONE/WORKER/聊天提速协作成果同时合入：本地克隆113表摘要一致；新worker PID85509健康，排除410历史tasks/251历史outbox，不重买未知调用；明确清空云存储环境键防Next.env.local重新回源。普通NPC/现场选grok4.3非思考，导演模型不改。合成手机HTTP与现场行动最终验收由协作chat收尾，不能据此前PG替代。
 - 本批仅本地启动，没有push/生产部署。旧云私有素材仍有79个ready引用未找回，Supabase下载402；本地新图可保存，缺图不伪替；线上同步本地新增进度/素材仍待专门合并流程，不自动覆盖线上。
+
+最终构建更新为build17：已包含QUIET-CONTEXT-01防空转修复，check4047/build通过；3218 PID93936、3219 PID93939，worker93940健康，两端原档334一致。原始导入进度292已保留并正常接续，本轮旧调度在原档浏览器打开时产生42个无新消息状态提交，已如实记QUIET报告并停止排查页；没有手工塞消息。当前原档仍只有玩家在场，没有伪造参考图里的双人场面。新增合成手机完整/messages约5223.6ms、现场行动约4291ms通过，真实HTTP测试与模型实际账见GROK-FAST-LOCAL-01，不代表原档长线演绎验证。
