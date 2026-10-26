@@ -1,6 +1,10 @@
 import { normalizeStickerStatement } from '../domain/sticker-expression.ts';
 import { z } from 'zod';
-import { NPC_WIRE_PROTOCOL, CURRENT_NPC_WIRE_PROTOCOL } from './npc-model-protocol.ts';
+import {
+  NPC_WIRE_PROTOCOL,
+  CURRENT_NPC_WIRE_PROTOCOL,
+  PREVIOUS_DELTA_WIRE_PROTOCOL,
+} from './npc-model-protocol.ts';
 import {
   classifyNpcStreamStatement,
   type NpcParsedStreamEvent,
@@ -327,7 +331,9 @@ export class NpcStreamParser {
       this.executionIntentsEmitted ||
       this.haltedByError ||
       !this.statementsComplete ||
-      ![NPC_WIRE_PROTOCOL, CURRENT_NPC_WIRE_PROTOCOL].includes(this.protocol ?? '') ||
+      ![NPC_WIRE_PROTOCOL, CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_DELTA_WIRE_PROTOCOL].includes(
+        this.protocol ?? '',
+      ) ||
       this.parsedExecutions === null
     )
       return;

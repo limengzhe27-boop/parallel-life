@@ -36,7 +36,8 @@ import {
 } from './npc-media-intent.ts';
 
 export const NPC_WIRE_PROTOCOL = 'npc-wire-v14'; // historical decoder identifier
-export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v15';
+export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v16';
+export const PREVIOUS_DELTA_WIRE_PROTOCOL = 'npc-wire-v15';
 const PREVIOUS_NOOP_GOAL_PROTOCOL = 'npc-wire-v13';
 const PREVIOUS_CONTINUATION_PROTOCOL = 'npc-wire-v12';
 const PREVIOUS_GOAL_SOURCE_PROTOCOL = 'npc-wire-v11';
@@ -917,7 +918,18 @@ export function npcResponseFormat(
       ],
     },
   };
-  if (considerationScope === 'required' || reviewScope)
+  const replyRequired =
+    !!current &&
+    playerReplyTargets({
+      state: {
+        ...state,
+        responsibilities: state.responsibilities ?? [],
+        focus: state.focus ?? null,
+      },
+      ...current,
+      authorizedSourceIds: current.sources ? new Set(current.sources.map((s) => s.id)) : undefined,
+    }).length > 0;
+  if (considerationScope === 'required' || reviewScope || replyRequired)
     schema.properties.changes = schema.properties.changes!.anyOf![0]!;
   const optionalActionFields = new Set<string>();
   const relaxActionRequired = (value: unknown): unknown => {
@@ -973,7 +985,7 @@ export function npcResponseFormat(
     if (properties) {
       properties.executions = { type: 'null' };
       // A sticker is expression, not a plot or plan mutation.
-      properties.changes = { type: 'null' };
+      if (!replyRequired) properties.changes = { type: 'null' };
     }
   }
   requireAll(finalized);
@@ -1025,7 +1037,10 @@ function transport(value: unknown, convertParameters = true): unknown {
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
-  if ('protocol' in raw && raw.protocol === CURRENT_NPC_WIRE_PROTOCOL)
+  if (
+    'protocol' in raw &&
+    [CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_DELTA_WIRE_PROTOCOL].includes(raw.protocol as string)
+  )
     return decodeCurrentNpcWire(context, raw);
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
     const transformed = structuredClone(raw) as Record<string, unknown>;
@@ -1692,7 +1707,7 @@ function bindNpcConsideration(
 function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
   const envelope = z
     .strictObject({
-      protocol: z.literal(CURRENT_NPC_WIRE_PROTOCOL),
+      protocol: z.enum([CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_DELTA_WIRE_PROTOCOL]),
       statements: AgentProposalSchema.shape.statements,
       executions: z.array(z.unknown()).max(1).nullable().optional(),
       changes: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -1703,6 +1718,17 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     npcSourceReferences(context.sources),
     'decode',
   ) as { executions: any[]; changes: Record<string, unknown> };
+  if (
+    envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL &&
+    playerReplyTargets({
+      state: context.viewState ?? context.state,
+      input: context.input,
+      channel: context.channel,
+      authorizedSourceIds: new Set(context.sources.map((s) => s.id)),
+    }).length &&
+    !mapped.changes.inputInterpretation
+  )
+    throw Error('NPC_INPUT_INTERPRETATION_REQUIRED');
   const source = context.sources.filter((s) => s.id === context.input.sourceId);
   if (source.length !== 1 || source[0]!.kind !== 'accepted_input') throw Error('NPC_INPUT_SOURCE');
   const basis = (ids: string[]) => {

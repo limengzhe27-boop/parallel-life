@@ -1,10 +1,11 @@
-import {
-  normalizeStickerStatement,
-  stickerFitsStatement,
-} from '../domain/sticker-expression.ts';
+import { normalizeStickerStatement, stickerFitsStatement } from '../domain/sticker-expression.ts';
 import { attachAgentFailure } from '../application/agent-failure-diagnostic.ts';
 import { AgentProposalSchema, STICKER_IDS } from './agent-proposal-schema.ts';
-import { decodeNpcWire } from './npc-model-protocol.ts';
+import {
+  decodeNpcWire,
+  CURRENT_NPC_WIRE_PROTOCOL,
+  PREVIOUS_DELTA_WIRE_PROTOCOL,
+} from './npc-model-protocol.ts';
 import type { AgentProposal } from '../domain/agent-runtime.ts';
 import {
   AgentValidationError,
@@ -97,12 +98,19 @@ function normalizeExpressionMarkers(value: unknown): unknown {
       typeof (raw as { text?: unknown }).text === 'string' &&
       (raw as { text: string }).text.trim() === '[[recall:last]]',
   );
-  if (recall && object.protocol === 'npc-wire-v15') {
+  if (
+    recall &&
+    [CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_DELTA_WIRE_PROTOCOL].includes(object.protocol as string)
+  ) {
     const changes =
       object.changes && typeof object.changes === 'object' && !Array.isArray(object.changes)
         ? (object.changes as Record<string, unknown>)
         : {};
-    return { ...object, statements: expressionStatements, changes: { ...changes, recallLast: true } };
+    return {
+      ...object,
+      statements: expressionStatements,
+      changes: { ...changes, recallLast: true },
+    };
   }
   return {
     ...object,

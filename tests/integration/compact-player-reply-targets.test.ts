@@ -156,7 +156,7 @@ test('compact reply commits exact player decision once; stored response replays 
     async decide() {
       calls++;
       return JSON.stringify({
-        protocol: 'npc-wire-v15',
+        protocol: 'npc-wire-v16',
         statements: [{ text: '知道了，我自行安排。', dependsOnActionIds: [] }],
         executions: [],
         changes: {

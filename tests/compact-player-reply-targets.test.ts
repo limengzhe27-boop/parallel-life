@@ -166,7 +166,7 @@ test('38 pending targets produce compact schema with full target coverage', () =
   const format = npcResponseFormat(context.state, 'optional', context);
   assert.equal(format.format, 'json_schema');
   if (format.format !== 'json_schema') throw Error('schema');
-  const changes = (format.schema.properties as any).changes.anyOf.find((n: any) => n.properties);
+  const changes = (format.schema.properties as any).changes;
   const schema = changes.properties.inputInterpretation;
   const encoded = JSON.stringify(schema);
   assert.ok(encoded.length < 2000, `interpretation schema ${encoded.length}`);
@@ -190,4 +190,71 @@ test('38 pending targets produce compact schema with full target coverage', () =
     ).replyAssessments![0]!.questionId,
     'question-37',
   );
+});
+
+test('v16 pending-target turn requires interpretation while uncertainty preserves responsibility; v15 recovery stays strict and compatible', () => {
+  const { context, value } = compact();
+  const current = (interpretation: unknown) => ({
+    ...wire(interpretation),
+    protocol: 'npc-wire-v16',
+  });
+  for (const changes of [null, {}, { inputInterpretation: null }])
+    assert.throws(() => parseAgentProposal(context, { ...current(null), changes }));
+  const uncertainty = {
+    kind: 'uncertain',
+    sourceId: context.input.sourceId,
+    quote: context.input.text,
+  };
+  const p = parseAgentProposal(context, current(uncertainty));
+  assert.deepEqual(p.decisions, []);
+  assert.deepEqual(p.replyAssessments, []);
+  assert.equal(context.state.responsibilities[0]!.status, 'waiting');
+  assert.equal(context.state.questions![0]!.status, 'open');
+  assert.equal(parseAgentProposal(context, current(value)).decisions[0]!.kind, 'accepted');
+  assert.doesNotThrow(() => parseAgentProposal(context, { ...wire(null), changes: null }));
+  context.state.questions = [];
+  context.state.focus = null;
+  assert.doesNotThrow(() => parseAgentProposal(context, { ...current(null), changes: null }));
+});
+
+test('v16 and historical v15 stream executions and recall preserve their original envelopes', async () => {
+  const { NpcStreamParser } =
+    await import('../src/modules/world/infrastructure/npc-stream-parser.ts');
+  for (const protocol of ['npc-wire-v16', 'npc-wire-v15']) {
+    const parser = new NpcStreamParser({
+      channelKind: 'private',
+      inputOrigin: 'player',
+      existingResponsibilityIds: [],
+    });
+    const executions = [
+      {
+        ref: 'action_1',
+        action: {
+          capability: 'media.generate_image',
+          parameters: { sceneDescription: '自拍', purpose: 'portrait' },
+        },
+      },
+    ];
+    const events = parser.pushChunk(
+      JSON.stringify({
+        protocol,
+        statements: [{ text: '等我一下。', dependsOnActionIds: [] }],
+        executions,
+      }),
+    );
+    assert.deepEqual(
+      events.filter((e) => e.kind === 'execution_intents'),
+      [{ kind: 'execution_intents', protocol, executions }],
+    );
+    const { context } = compact();
+    context.state.questions = [];
+    context.state.responsibilities = [];
+    const result = parseAgentProposal(context, {
+      protocol,
+      statements: [{ text: '[[recall:last]]', dependsOnActionIds: [] }],
+      executions: [],
+      changes: null,
+    });
+    assert.equal(result.recallLast, true);
+  }
 });
