@@ -288,10 +288,26 @@ export async function persistAndCommitStreamSegment(
       throw Object.assign(Error('NOT_FOUND'), { code: 'NOT_FOUND' });
     }
 
+    // Input acceptance and engine switches take the world lock above first.
+    // Read their immutable receipt/predicate with the epoch in one statement;
+    // attempt/actor locks and every early-return check remain in their old order.
     const epochRow = (
       await sql.query(
-        'SELECT COALESCE(engine_epoch,1) AS engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
-        [attempt.worldId, ownerId],
+        `SELECT COALESCE((SELECT engine_epoch FROM parallel_life.agent_runtime_worlds
+           WHERE world_id=$1 AND owner_id=$2),1) AS engine_epoch,
+         receipt.document AS input_document,
+         EXISTS (
+           SELECT 1 FROM parallel_life.agent_input_receipts newer
+           WHERE newer.world_id=$1 AND newer.owner_id=$2 AND newer.id<>$3
+             AND newer.document->>'origin'='player'
+             AND newer.document->>'channel'='private'
+             AND newer.document->>'recipientActorId'=$4
+             AND newer.created_at>=receipt.created_at
+         ) AS newer_player_input
+         FROM (SELECT 1) singleton
+         LEFT JOIN parallel_life.agent_input_receipts receipt
+           ON receipt.id=$3 AND receipt.world_id=$1 AND receipt.owner_id=$2`,
+        [attempt.worldId, ownerId, attempt.inputReceiptId, attempt.actorId],
       )
     ).rows[0];
     if (Number(epochRow?.engine_epoch ?? 1) !== attempt.engineEpoch) {
@@ -330,31 +346,15 @@ export async function persistAndCommitStreamSegment(
       return { outcome: 'superseded' as const, reason: 'AGENT_REVISION_CONFLICT' };
     }
 
-    const receiptRow = (
-      await sql.query(
-        `SELECT receipt.document, EXISTS (
-           SELECT 1 FROM parallel_life.agent_input_receipts newer
-           WHERE newer.world_id=receipt.world_id AND newer.owner_id=receipt.owner_id
-             AND newer.id<>receipt.id
-             AND newer.document->>'origin'='player'
-             AND newer.document->>'channel'='private'
-             AND newer.document->>'recipientActorId'=$4
-             AND newer.created_at >= receipt.created_at
-         ) AS newer_player_input
-         FROM parallel_life.agent_input_receipts receipt
-         WHERE receipt.id=$1 AND receipt.world_id=$2 AND receipt.owner_id=$3`,
-        [attempt.inputReceiptId, attempt.worldId, ownerId, attempt.actorId],
-      )
-    ).rows[0];
-    const receivedInput = receiptRow?.document as AgentInputReceipt | undefined;
+    const receivedInput = epochRow.input_document as AgentInputReceipt | undefined;
     if (!receivedInput) {
       await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
       return { outcome: 'superseded' as const, reason: 'INPUT_SCOPE_FORBIDDEN' };
     }
 
-    // Read the receipt and its interruption predicate together under the existing
-    // world/attempt/actor locks; keep authority and activity checks below unchanged.
-    const newerPlayerInput = receiptRow.newer_player_input;
+    // Apply the already-read interruption predicate after the unchanged
+    // attempt/actor guards; authority and activity are still checked below.
+    const newerPlayerInput = epochRow.newer_player_input;
     if (newerPlayerInput) {
       await markSegmentSupersededInTx(sql, ownerId, attempt, statement.segmentIndex);
       return { outcome: 'superseded' as const, reason: 'SUPERSEDED_BY_USER_INTERRUPT' };
