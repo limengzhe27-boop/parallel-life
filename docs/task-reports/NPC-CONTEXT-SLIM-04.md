@@ -107,3 +107,10 @@
 - 完整 active 模式仍保留完整 contract/state/60 表情。
 - 定向 NPC/schema 93/93；完整 check 4161/4161；build 通过。
 - 代价：compact 普通聊天的表情只有 10 个、没有独立 responseContract/timeInput；时间仍可从 worldContext 读取，完整状态/约会场景不受影响。
+
+## 39,865 字符版本的真实模型样本
+
+- 真实 `grok-4.7`、reasoning none、1 次请求、无重试。
+- 耗时 **11,501ms**，raw 327 字符；parser 通过：2 statements、changes 空、actions 0。
+- 没有尝试被移除的 responseContract/continuation/inputInterpretation 字段；10 个表情 shortlist 未导致错误。
+- 仍是单样本，不等于所有场景质量或稳定延迟。
