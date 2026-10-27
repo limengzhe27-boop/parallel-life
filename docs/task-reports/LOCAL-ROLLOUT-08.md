@@ -40,3 +40,10 @@
 - 3218 PID 41592；3219 PID 41593；queue 41628；proactive 41629。
 - 两端 health 200；原存档 `/scenes` 200（v533，player+actor presence）；旧 `/stickers/hao.svg` 404。
 - `npm run check` 4160/4160、`npm run build` 通过；0 新模型/生图/生产推送。
+
+## 追加：source pruning 构建
+
+- 3218 PID 43121；3219 PID 43122；queue 43140；proactive 43141。
+- 两端 health 200；原存档 `/scenes` 200（v533，player+actor presence）；旧 `/stickers/hao.svg` 404。
+- `npm run check` 4160/4160、`npm run build` 通过；0 新模型/生图/生产推送。
+- 旧 41592/41593 已停止；41593 对 SIGTERM 未退出后仅清理该无监听旧进程。
