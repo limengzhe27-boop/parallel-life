@@ -99,3 +99,11 @@
 - 耗时 **11,973ms**，raw 317 字符；parser 通过：2 statements、changes 空、actions 0。
 - 没有尝试被移除的 continuation/inputInterpretation，也没有因 12 个表情 shortlist 报错。
 - 仍只代表单样本，不代表所有场景质量或稳定延迟。
+
+## 追加：compact 进入 40k 以内
+
+- compact 模式不再发送 responseContract、contextSelection、promptVersion、worldVersion、storyAt；sticker shortlist 12→10。
+- 空状态真实 snapshot：总请求 **39,865 字符**，schema 11,538、system 13,405。
+- 完整 active 模式仍保留完整 contract/state/60 表情。
+- 定向 NPC/schema 93/93；完整 check 4161/4161；build 通过。
+- 代价：compact 普通聊天的表情只有 10 个、没有独立 responseContract/timeInput；时间仍可从 worldContext 读取，完整状态/约会场景不受影响。

@@ -405,40 +405,27 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest !== undefined;
   const compact = compactChangesFor(snapshot);
   const payload = {
-    responseContract: compact
-      ? {
-          protocol: NPC_WIRE_PROTOCOL,
-          considerationRequired,
-          considerationAllowed: false,
-          ...(snapshot.channel.allowedCapabilities.includes('appointment.propose')
-            ? {
-                timeInput: {
+    ...(compact
+      ? {}
+      : {
+          responseContract: {
+            protocol: NPC_WIRE_PROTOCOL,
+            outputSchemaHash: createHash('sha256')
+              .update(JSON.stringify(responseFormat))
+              .digest('hex'),
+            considerationRequired,
+            considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
+            planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
+            timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
+              ? {
                   localDate: awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10),
                   utcOffset: '+08:00',
                   format: 'YYYY-MM-DDTHH:mm:ss+08:00',
                   authority: 'conversion_only_not_an_appointment',
-                },
-              }
-            : {}),
-        }
-      : {
-          protocol: NPC_WIRE_PROTOCOL,
-          outputSchemaHash: createHash('sha256')
-            .update(JSON.stringify(responseFormat))
-            .digest('hex'),
-          considerationRequired,
-          considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
-          planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
-          // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
-          timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
-            ? {
-                localDate: awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10),
-                utcOffset: '+08:00',
-                format: 'YYYY-MM-DDTHH:mm:ss+08:00',
-                authority: 'conversion_only_not_an_appointment',
-              }
-            : null,
-        },
+                }
+              : null,
+          },
+        }),
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
     conversationParticipants: {
@@ -614,7 +601,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       state: snapshot.viewState ?? snapshot.state,
     }),
     stickerCatalog: Object.fromEntries(
-      (compact ? SELECTABLE_STICKERS.slice(0, 12) : SELECTABLE_STICKERS).map(
+      (compact ? SELECTABLE_STICKERS.slice(0, 10) : SELECTABLE_STICKERS).map(
         ({ id, label, description }) => [id, `${label}；${description}`],
       ),
     ),
@@ -755,7 +742,19 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
         : original.text;
     });
     // Source metadata is serialized once below, not recursively projected and discarded.
-    const { sources, ...contextPayload } = payload;
+    const { sources, ...allContext } = payload;
+    const contextPayload = compact
+      ? (() => {
+          const {
+            contextSelection: _contextSelection,
+            promptVersion: _promptVersion,
+            worldVersion: _worldVersion,
+            storyAt: _storyAt,
+            ...rest
+          } = allContext;
+          return rest;
+        })()
+      : allContext;
     const knownSourceIds = new Set(sources.map((source) => source.id));
     const referencedSourceIds = new Set<string>([snapshot.input.sourceId]);
     collectReferencedSourceIds(contextPayload, knownSourceIds, referencedSourceIds);
