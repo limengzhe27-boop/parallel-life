@@ -3410,3 +3410,14 @@ NPC-REQUEST-SLIM-02最终root集成：第二块fd777f0c（7处重复机械形状
 |ATTEMPT-LEASE-11|[x] 已完成（限定实现与本地集成）|attempt-lease11-20261027；/root/empty_scene_runtime；独立.local/worktrees/attempt-lease11自657d6f78；root唯一集成|agent-runtime-repository.ts仅claim同actor过期unknown无response槽回收；NEW专属PG/report；不改SQL/服务/collector|同command先原replay不重买，旧已发送执行权过期退役留sent/input/receipt，晚到raw存而不提交；live/known不动；隔离55687真实PG，0模型/原档/运行端口；冻结b4888e04；5/5真实PG/type0/boundary767/diff，55687已停；仅claim10行回收，old replay/late raw拒commit/live/known保护保持，root接collector并真实验收。|
 
 SCENE-SPATIAL-HOME-10 build41：check4147/build通过，两端health及原4953办公室现场200；六NPC原模型实际确立v518–523，地图去办公室→首页现场直入→刘胜男真实3回复，24.7秒，同scene回访不新建（仅1条）。320/390/1440首页无横纵溢出八入口屏内。2fb仅三人有合法地点，另外三人因原住所不在地点库保留unknown并一次quiet，不能称全部旧档位置完成；作者住处+权限/完全缺行旧档迁移/原长期自主与延迟问题仍列报告。PID88782/88783/88873/88874，保留模型/进度，0生产部署。
+
+|NPC-CONTEXT-TRIM-03|[x] 已完成（限定用户指定本地替换，速度无稳定收益）|npc-context-trim-20261027-p；用户本线程授权且禁止联系其他Agent|独立.local/worktrees/npc-context-trim-03，原f94a662a→main4868cc8a；仅NPC请求表示/原单测/专属报告；未覆盖其他UI WIP|80表情完整含义压缩、明确重复规则删除、唯一同源历史引用/原话单份；人物记忆剧情state/source/schema保持，包-4.1~4.2%。12次原网关A/B原6/6候选5/6有效，1次未闭合JSON原校验拒绝，不修补重买；有效首句16.72→19.36秒未改善。|用户明确接受结论后要求替换；main4868cc8a独立check4157/4157/build通过，已用不可变build-context-trim-03-4868cc8a替换3218/3219，PID13619/13620、queue13621/proactive13622，环境/原410任务251outbox隔离不变。两端health+原办公室scene200，6条记录与presence哈希前后完全一致；无新手动模型消息/生产/GitHub推送/Agent联系。原Director context超限仍另问题，不冒称速度或长期自主已解决。|
+
+|HOME-CARDS-12|[x] 已完成（限定UI与本地验收）|home-cards12-20261027；/root/scene_input_experience；.local/worktrees/home-cards-12/codex/home-cards-12自f9c96502；root唯一集成|phone-desktop.tsx/module.css、phone.module.css首页尺寸/badge锚点、NEW desktop-widget-selection.ts及专属tests/report；旧notes-records-ui桌面断言/home-eight10样例|紧凑标题/时间+日程/真实照片双小卡+眼下任务；只取真实已承担near_term事项或planned/blocked玩家选择，禁便签/人物私有计划充数；保留3+2工具/底栏3；0新字段/请求/模型/原档/端口，root构建实页|
+
+|HOME-TASKS-UNREAD-12|[x] 已完成（限定UI与本地验收）|root-home-tasks12-20261027；主目录唯一集成/3218/3219|phone-shell.tsx角标锚点/唯一计数，world-app-data/notification policy必要去重及专属tests/report；HOME-CARDS-12独占desktop/两CSS/任务selector及测试|按已批准图恢复日程/相册紧凑卡，备忘录条替真实眼下任务，保留8入口单屏；核对Agent任务来源及历史未读/已读计数，99+固定图标右上；check/build本地验收，0生产部署|
+
+NPC-CONTEXT-TRIM-03接续：用户最新明确接受实测无稳定提速结果，要求替换现有版本；本人已串行合入原精简提交，正在独立构建与本地双端口/worker更新，保持当前环境与存档，不联系其他Agent、不推送生产。新首页改动与3个UI WIP保持原样，不覆盖。
+NPC-CONTEXT-TRIM-03替换完成：4868cc8a已本地运行，两端13619/13620和原配置workers13621/13622；check4157/build与原scene只读哈希验证通过，模型参数与存档保留，无生产部署、无其他Agent消息。详专属报告接续。
+
+HOME-TASKS-UNREAD-12 build44本地交付：check4159/build通过，原4953真实三卡/任务记录与日历相册点击通过，320/390/1440及矮PC1046无首页溢出；badge锚图标99+、实读林白语29条233→204刷新保持。current任务实际为空故不填假任务；新引擎任务下发全覆盖/跨设备已读并未新增，仍清单。双端20241/20242，queue20243/proactive20244，保留4868cc8a其他线程精简和原配置/内容，无生产部署。报告HOME-TASKS-UNREAD-12.md。
