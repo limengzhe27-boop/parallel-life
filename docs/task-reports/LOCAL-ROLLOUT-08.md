@@ -47,3 +47,9 @@
 - 两端 health 200；原存档 `/scenes` 200（v533，player+actor presence）；旧 `/stickers/hao.svg` 404。
 - `npm run check` 4160/4160、`npm run build` 通过；0 新模型/生图/生产推送。
 - 旧 41592/41593 已停止；41593 对 SIGTERM 未退出后仅清理该无监听旧进程。
+
+## 追加：compact changes schema 构建
+
+- 3218 PID 45036；3219 PID 45037；queue 45042；proactive 45043。
+- 两端 health 200；原存档 `/scenes` 200（v533，player+actor presence）；旧 `/stickers/hao.svg` 404。
+- `npm run check` 4161/4161、`npm run build` 通过；0 新模型/生图/生产推送。
