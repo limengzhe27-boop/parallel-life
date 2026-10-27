@@ -36,3 +36,11 @@
 - 导演 staging brief（目标地点/时间窗/角色任务）与 NPC 自主 `travel.begin` 尚未接入。
 - 现有 `tests/integration/scenes.test.ts` 首条在本机出现 `BUSY` vs `INVALID_COMMAND` 的既有断言差异；本次场景进入专项临时 PG 验证通过，未改该测试或任务队列。
 - 未部署、未重启本地服务。
+
+## 追加 v77 与本地切换
+
+- 删除 SYSTEM 中与 WIRE 重复的媒体段落，以及重复的“日常 1–3 条”规则；`promptVersion` 更新为 `npc-agent-v77-trim-duplicate-media-rules`。
+- 用同一真实 snapshot 估算：system 17,465→16,983，总请求 51,381→50,909 字符；persona、schema、授权与动作语义未变。
+- `npm run check` 4160/4160；`npm run build` 通过。
+- 本地 3218/3219、queue、proactive 已重启到当前 main 构建；health 200，原存档 `/scenes` 200 且含 player+actor presence；旧 `/stickers/hao.svg` 404、新图 200。
+- 0 新付费模型调用、0 生图、0 生产推送。
