@@ -72,3 +72,15 @@
 - 空状态真实 snapshot：system 16,983→13,406；schema 11,538；总请求约 **43.2k**。
 - 有 active 状态/待回复责任/机会时仍使用完整 system+schema；完整 check 4161/4161、build 通过。
 - compact system 尚未经过真实模型输出验收；只做受控 schema/parser/kernel 测试。
+
+## compact schema 受控真实模型样本
+
+- 真实 gateway `grok-4.7`、`reasoning_effort=none`，使用空状态 compact snapshot；1 次请求，无重试、无 DB/world 写入、无生图。
+- 耗时 **10,045ms**，raw 324 字符；输出为：
+  - protocol `npc-wire-v16`
+  - 2 条 statements
+  - `executions: []`
+  - `changes: null`
+- 原 parser 解析通过：statements 2，goals/plans/actions/responsibilities/decisions 均为 0。
+- 模型没有尝试被 compact 移除的 continuation/inputInterpretation 等字段。
+- 这证明 compact schema 可被真实模型接受；不等于所有角色/所有场景的质量验收，也不证明速度稳定提升。
