@@ -977,7 +977,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v74-schema-guided-shapes');
+  assert.equal(payload.promptVersion, 'npc-agent-v75-lossless-context-trim');
   assert.match(system, /玩家明确说忙、晚点、想休息或暂时不想谈时/);
   assert.match(system, /之后的自动唤醒都不再提同一邀约、计划或问题/);
   assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
@@ -1078,7 +1078,9 @@ test('current utterance is presented last with its actual speaker and same sourc
   assert.match(last.content, /当前发言人：玩家/);
   assert(last.content.includes(input.actor.name));
   assert(last.content.includes(sourceRef(input, input.input.sourceId)!));
-  assert(last.content.includes(input.input.text));
+  assert(!last.content.includes(input.input.text));
+  assert.match(last.content, /input.text/);
+  assert.equal(JSON.parse(calls[0]!.messages[1]!.content).input.text, input.input.text);
   assert.equal(JSON.parse(calls[0]!.messages[1]!.content).input.speaker, 'player');
   const wake = snapshot();
   wake.input.origin = 'wake';
@@ -1169,7 +1171,8 @@ test('v8 source projection preserves canonical inbox manifests and exact player 
   player.input.text = JSON.stringify({ sourceId: definition, basisSourceIds: [definition] });
   await adapter.decide(player);
   assert.equal(JSON.parse(calls[1]!.messages[1]!.content).input.text, player.input.text);
-  assert(calls[1]!.messages.at(-1)!.content.includes(player.input.text));
+  assert.match(calls[1]!.messages.at(-1)!.content, /input.text/);
+  assert(!calls[1]!.messages.at(-1)!.content.includes(player.input.text));
 });
 
 test('private recipient is the player even when actor authorization scope contains only this NPC', async () => {
@@ -1734,5 +1737,108 @@ test('streaming sends exactly the prepared schema bound to the recorded context'
   assert.equal(
     payload.responseContract.outputSchemaHash,
     createHash('sha256').update(JSON.stringify(sent.output)).digest('hex'),
+  );
+});
+
+test('compact sticker catalogue preserves every selectable ID, label and semantic boundary', async () => {
+  const { SELECTABLE_STICKERS } = await import('../src/modules/world/domain/stickers.ts');
+  const { calls, adapter } = capture();
+  await adapter.decide(snapshot());
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(
+    Object.keys(payload.stickerCatalog),
+    SELECTABLE_STICKERS.map((s) => s.id),
+  );
+  for (const s of SELECTABLE_STICKERS)
+    assert.equal(payload.stickerCatalog[s.id], `${s.label}；${s.description}`);
+  assert(
+    Buffer.byteLength(JSON.stringify(payload.stickerCatalog)) <
+      Buffer.byteLength(
+        JSON.stringify(
+          SELECTABLE_STICKERS.map(({ id, label, description }) => ({ id, label, description })),
+        ),
+      ),
+  );
+});
+
+test('recent self references preserve full attributed history, persona, state and current input once', async () => {
+  const { calls, adapter } = capture();
+  const input = snapshot();
+  input.actor.persona = JSON.stringify({
+    lifeContext: '完整经历，不裁切',
+    traits: '完整性格',
+    drives: '真实动机',
+    behavior: '说话习惯',
+    relationships: '全部关系与边界',
+  });
+  input.input.text = '唯一当前原话：今晚先不见面，我还有自己的安排。';
+  input.observations.push({
+    sourceId: 'source-1',
+    kind: 'speech',
+    text: 'SELF_HISTORY_UNIQUE：昨天我已答应自己处理。',
+    speaker: { kind: 'actor', actorId: 'actor-a' },
+  });
+  const before = structuredClone(input);
+  await adapter.decide(input);
+  const messages = calls[0]!.messages,
+    payload = JSON.parse(messages[1]!.content);
+  assert.equal(payload.actor.persona, input.actor.persona);
+  assert.deepEqual(payload.observations, wireExpected(input, input.observations));
+  assert.equal(payload.input.text, input.input.text);
+  // Two observations share source-1, so a reference would be ambiguous: retain the text.
+  assert.deepEqual(payload.recentSelfMessages, ['SELF_HISTORY_UNIQUE：昨天我已答应自己处理。']);
+  assert.deepEqual(input, before);
+  assert.equal(messages.filter((m) => m.content.includes(input.input.text)).length, 1);
+});
+
+test('a unique retained self message is referenced with its original source, speaker and full text', async () => {
+  const { calls, adapter } = capture();
+  const input = snapshot();
+  input.observations[0] = {
+    sourceId: 'source-1',
+    kind: 'speech',
+    text: '完整本人原话，不丢已作出的决定。',
+    speaker: { kind: 'actor', actorId: 'actor-a' },
+  };
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.recentSelfMessages, [{ sourceId: sourceRef(input, 'source-1') }]);
+  assert.deepEqual(payload.observations, wireExpected(input, input.observations));
+  assert.equal(calls[0]!.messages[1]!.content.split(input.observations[0]!.text).length - 1, 1);
+});
+
+test('a transformed internal record never replaces the original recent-self text', async () => {
+  const { calls, adapter } = capture();
+  const input = snapshot();
+  const text = JSON.stringify({
+    method: 'authored_initial_context',
+    text: JSON.stringify({
+      type: 'received_opening_information',
+      assertion: 'report',
+      executionEvidence: false,
+      content: '完整开场报告：家人正在医院，仍须确认现场情况。',
+    }),
+  });
+  input.sources.push({
+    id: 'narrative:initial',
+    recordId: 'initial',
+    kind: 'world_event',
+    usage: 'private_strategy',
+    worldVersion: 9,
+    at: input.storyAt,
+  });
+  input.observations.push({
+    sourceId: 'narrative:initial',
+    text,
+    kind: 'fact',
+    evidenceKind: 'authored_context',
+    speaker: { kind: 'actor', actorId: 'actor-a' },
+  });
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.recentSelfMessages, [text]);
+  assert.equal(
+    payload.presentationContext.internalContext[0].observation.text,
+    '本人获知的开场报告（不是已投递聊天或执行回执）：完整开场报告：家人正在医院，仍须确认现场情况。',
   );
 });
