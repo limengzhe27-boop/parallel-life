@@ -17,3 +17,9 @@
 ## 边界
 
 - 目前只是给 NPC 地点依据；真正“导演指定地点 → NPC 自主 travel → 到场”仍需要 actor 的路线与后续 arrival 链路验证。
+
+## 追加真实链路验证
+
+- `AGENT_JOURNEY_TEST_PORT=55432 node --experimental-strip-types --test tests/integration/agent-journey.test.ts`：19/19 通过，覆盖真实 departure → in_transit → arrival、并发/暂停/错误来源/重放。
+- `actor-initial-position-awareness.test.ts`：6/6 通过，覆盖 version 0 权威位置、到达后覆盖、旧档不重放。
+- 这两组使用 `parallel_life_test` 真实 PG，0 付费模型调用。
