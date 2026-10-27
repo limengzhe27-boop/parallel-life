@@ -189,6 +189,23 @@ function invalid(
   throw Object.assign(Error(`${code}:${reason}`), { code });
 }
 
+function collectReferencedSourceIds(
+  value: unknown,
+  known: ReadonlySet<string>,
+  out: Set<string>,
+): void {
+  if (typeof value === 'string') {
+    if (known.has(value)) out.add(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectReferencedSourceIds(item, known, out);
+    return;
+  }
+  if (value && typeof value === 'object')
+    for (const child of Object.values(value)) collectReferencedSourceIds(child, known, out);
+}
+
 function responseFormatFor(snapshot: AgentSnapshot) {
   return npcResponseFormat(
     snapshot.viewState,
@@ -666,6 +683,16 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     });
     // Source metadata is serialized once below, not recursively projected and discarded.
     const { sources, ...contextPayload } = payload;
+    const knownSourceIds = new Set(sources.map((source) => source.id));
+    const referencedSourceIds = new Set<string>([snapshot.input.sourceId]);
+    collectReferencedSourceIds(contextPayload, knownSourceIds, referencedSourceIds);
+    collectReferencedSourceIds(recentSelfMessages, knownSourceIds, referencedSourceIds);
+    for (const observation of presentation.observations)
+      collectReferencedSourceIds(observation.sourceId, knownSourceIds, referencedSourceIds);
+    for (const entry of presentation.presentationContext.internalContext)
+      collectReferencedSourceIds(entry.observation.sourceId, knownSourceIds, referencedSourceIds);
+    if (currentOpportunity)
+      collectReferencedSourceIds(currentOpportunity.sourceId, knownSourceIds, referencedSourceIds);
     const projected = mapNpcSourceFields(
       {
         ...contextPayload,
@@ -684,14 +711,16 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     projected.actor.persona = npcPersonaSourceReferences(payload.actor.persona, sourceCatalog);
     projected.input.text = inputText;
     projected.wireCatalog = {
-      sources: sources.map((s) => {
-        const { id, usage, ...metadata } = s;
-        return {
-          ref: npcSourceRef(sourceCatalog, id)!,
-          ...metadata,
-          ...(usage === 'channel_context' ? {} : { usage }),
-        };
-      }),
+      sources: sources
+        .filter((s) => referencedSourceIds.has(s.id))
+        .map((s) => {
+          const { id, usage, ...metadata } = s;
+          return {
+            ref: npcSourceRef(sourceCatalog, id)!,
+            ...metadata,
+            ...(usage === 'channel_context' ? {} : { usage }),
+          };
+        }),
       inputSourceRef,
     };
     return projected;

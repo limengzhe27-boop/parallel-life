@@ -50,3 +50,9 @@
 - `wireCatalog.sources` 不再发送内部 `worldVersion`；`responseContract.executionProposal` 删除（WIRE 已有同一执行语义）。
 - 同一 snapshot：总请求 50,909→50,341 字符；schema 14,406 不变。
 - 定向 NPC 测试 55/55。
+
+## 追加：来源目录只保留实际引用的来源
+
+- `wireCatalog.sources` 现在只列出 observations、input、state、presentation、opportunity 等最终 payload 实际引用的 source；未引用的 authored/accepted_input 元数据不再发送。
+- 同一 snapshot：wireCatalog 1,989→1,881，总请求 50,341→50,217 字符；NPC 定向 55/55。
+- 源目录映射仍以完整 snapshot 建立，ref 编号保持稳定；只是不发送未引用条目的元数据。
