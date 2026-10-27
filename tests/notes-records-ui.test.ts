@@ -372,119 +372,39 @@ test('invitation timestamps use world display time without changing source seman
   assert.equal(recordText({ ...fixture.current[0]!, text: invitation.text }), invitation.text);
 });
 
-test('PhoneDesktop matter card prioritizes active world matters, pursuits, and navigates to target', () => {
-  const matterFixture: PlayerRecords = PlayerRecordsSchema.parse({
-    schemaVersion: 1,
-    worldId: '10000000-0000-4000-8000-000000000001',
-    worldVersion: 5,
-    coverage: 'recent',
-    current: [
-      {
-        id: 'sys/matter/near-1',
-        kind: 'world_matter',
-        span: 'near_term',
-        title: '签约摄影工作室',
-        text: '准备个人作品集，与艺术总监见面洽谈签约。',
-        state: 'in_progress',
-        stateLabel: '进行中',
-        assertion: 'world_verified',
-        source: {
-          kind: 'world_matter',
-          matterId: 'matter-1',
-          span: 'near_term',
-          at: '2026-10-10T02:00:00Z',
-          timeBasis: 'story',
-        },
-        navigation: { app: 'map', placeId: 'place-studio-1' },
-      },
-    ],
-    about: [
-      {
-        id: 'sys/matter/pursuit-1',
-        kind: 'world_matter',
-        span: 'pursuit',
-        title: '举办个人摄影个展',
-        text: '用三年时间积累一系列城市纪实作品并举办展览。',
-        state: 'in_progress',
-        stateLabel: '进行中',
-        assertion: 'player_statement',
-        source: {
-          kind: 'world_matter',
-          matterId: 'matter-2',
-          span: 'pursuit',
-          at: '2026-10-10T00:00:00Z',
-          timeBasis: 'recorded',
-        },
-      },
-    ],
-    history: [],
-  });
-
-  const baseData = {
-    contacts: [],
-    messages: [],
-    photos: [],
-    invitations: [],
-    notes: [
-      {
-        id: 'note-1',
-        title: '旧便签标题',
-        text: '便签内容',
-        updatedAt: '2026-10-10T00:00:00Z',
-        version: 1,
-      },
-    ],
-  };
-
-  // 1. With active near-term matter: shows "眼下要做的事", matter title and state/attribution meta
-  const openedWithMatter: unknown[] = [];
-  const htmlWithMatter = renderToStaticMarkup(
+test('PhoneDesktop keeps identity and time compact without duplicating records or app widgets', () => {
+  const html = renderToStaticMarkup(
     createElement(PhoneDesktop, {
       title: '摄影师人生',
       dateLabel: '10月10日 周六',
       timeLabel: '10:00',
-      data: baseData,
-      records: { status: 'ready', data: matterFixture },
-      open: (...args: unknown[]) => openedWithMatter.push(args),
-      openPanel: noop,
-    }),
-  );
-  assert.ok(htmlWithMatter.includes('眼下要做的事'));
-  assert.ok(htmlWithMatter.includes('签约摄影工作室'));
-  assert.ok(htmlWithMatter.includes('进行中 · 世界核实'));
-
-  // 2. With only pursuit: shows "长期追求"
-  const pursuitOnlyFixture: PlayerRecords = { ...matterFixture, current: [] };
-  const htmlWithPursuit = renderToStaticMarkup(
-    createElement(PhoneDesktop, {
-      title: '摄影师人生',
-      dateLabel: '10月10日 周六',
-      timeLabel: '10:00',
-      data: baseData,
-      records: { status: 'ready', data: pursuitOnlyFixture },
+      data: {
+        contacts: [],
+        messages: [],
+        photos: [],
+        invitations: [],
+        notes: [
+          {
+            id: 'n',
+            title: '旧便签标题',
+            text: '便签内容',
+            updatedAt: '2026-10-10T00:00:00Z',
+            version: 1,
+          },
+        ],
+      },
       open: noop,
       openPanel: noop,
     }),
   );
-  assert.ok(htmlWithPursuit.includes('长期追求'));
-  assert.ok(htmlWithPursuit.includes('举办个人摄影个展'));
-  assert.ok(htmlWithPursuit.includes('进行中 · 你的讲述'));
-
-  // 3. Fallback when no matters or legacy world without records
-  const openedFallback: unknown[] = [];
-  const htmlFallback = renderToStaticMarkup(
-    createElement(PhoneDesktop, {
-      title: '摄影师人生',
-      dateLabel: '10月10日 周六',
-      timeLabel: '10:00',
-      data: baseData,
-      open: (...args: unknown[]) => openedFallback.push(args),
-      openPanel: noop,
-    }),
-  );
-  assert.ok(htmlFallback.includes('备忘录'));
-  assert.ok(htmlFallback.includes('旧便签标题'));
-  assert.ok(!htmlFallback.includes('眼下要做的事'));
+  assert.ok(html.includes('摄影师人生'));
+  assert.ok(html.includes('10月10日 周六'));
+  assert.ok(html.includes('10:00'));
+  assert.ok(html.includes('返回'));
+  assert.ok(html.includes('切换人生'));
+  assert.ok(!html.includes('旧便签标题'));
+  assert.ok(!html.includes('眼下要做的事'));
+  assert.ok(!html.includes('暂无待办日程'));
 });
 
 test('lockscreen notifications include verified active world_matters and exclude completed/legacy', () => {

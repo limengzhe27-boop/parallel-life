@@ -372,7 +372,7 @@
 .dock {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   margin: 0 10px;
   padding: 12px 6px 8px;
@@ -1098,4 +1098,68 @@
   z-index: 5;
   min-height: 22px;
   padding: 6px 0 8px;
+}
+
+/* Home is a single screen; individual app pages retain their own scrolling. */
+.phone[data-screen='home'] .scroll {
+  overflow: hidden;
+}
+.home {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  gap: clamp(12px, 3cqh, 28px);
+}
+.homeSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: white;
+}
+.homeApps {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 3cqh, 28px);
+}
+.homeAppRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.home .launcher,
+.dock .launcher {
+  position: relative;
+  min-height: 76px;
+  gap: 5px;
+}
+.home .appIcon,
+.dock .appIcon {
+  width: clamp(44px, 14cqw, 58px);
+  height: clamp(44px, 14cqw, 58px);
+}
+.home .appLabel,
+.dock .appLabel {
+  font-size: 12px;
+  line-height: 16px;
+}
+.identityIcon {
+  background: linear-gradient(145deg, #8293b2, #404f74);
+}
+@container (max-height: 600px) {
+  .home {
+    gap: 10px;
+  }
+  .homeApps {
+    gap: 10px;
+  }
+  .home .appIcon,
+  .dock .appIcon {
+    width: 44px;
+    height: 44px;
+  }
+  .home .launcher,
+  .dock .launcher {
+    min-height: 66px;
+    gap: 4px;
+  }
 }

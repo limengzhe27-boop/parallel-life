@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveDefaultWallpaper, AUTHORIZED_WALLPAPERS } from '../src/features/phone/wallpaper.ts';
-import { desktopApps } from '../src/features/phone/navigation.ts';
+import { homeAppRows, homeDockApps } from '../src/features/phone/home-app-layout.ts';
 
 test('resolveDefaultWallpaper resolves branch-specific authorized art and falls back safely', () => {
   // Motor / workshop branch
@@ -27,18 +27,14 @@ test('resolveDefaultWallpaper resolves branch-specific authorized art and falls 
   }
 });
 
-test('desktop dock includes all 6 functional core apps and an independent scene entry', () => {
-  const dockApps = desktopApps;
-  assert.deepEqual(dockApps, ['messages', 'calendar', 'photos', 'notes', 'scenes', 'map']);
-  assert.equal(dockApps.length, 6);
-
-  // Each app must be a distinct valid functional feature
-  const appSet = new Set(dockApps);
-  assert.equal(appSet.size, 6);
-  assert.ok(appSet.has('messages'), 'Messages (微信) must be in dock');
-  assert.ok(appSet.has('calendar'), 'Calendar (日历) must be in dock');
-  assert.ok(appSet.has('photos'), 'Photos (相册) must be in dock');
-  assert.ok(appSet.has('notes'), 'Notes (备忘录) must be in dock');
-  assert.ok(appSet.has('scenes'), 'Scenes (现场) must be in dock');
-  assert.ok(appSet.has('map'), 'Map (地图) must be in dock');
+test('home has five desktop entries and three independent dock applications', () => {
+  assert.deepEqual(homeDockApps, ['messages', 'scenes', 'map']);
+  assert.deepEqual(
+    homeAppRows.map((row) => row.map((entry) => entry.label)),
+    [
+      ['日历', '相册', '备忘录'],
+      ['记录', '身份'],
+    ],
+  );
+  assert.equal(homeAppRows.flat().length + homeDockApps.length, 8);
 });

@@ -6,7 +6,6 @@ import {
   homeRoute,
   activePhoneRoute,
   parentRoute,
-  desktopApps,
   readRoute,
   routeHash,
   scrollKey,
@@ -15,6 +14,7 @@ import {
   type PhoneRoute,
 } from './navigation.ts';
 import { PhoneIcon } from './phone-icons.tsx';
+import { homeAppRows, homeDockApps } from './home-app-layout.ts';
 import { StatusBar } from './status-bar.tsx';
 import { arrivingIds, isUnlockSwipe } from './notification-state.ts';
 import {
@@ -346,12 +346,12 @@ function LifePhone({
       </div>
     );
   }
-  function appButton(app: PhoneApp) {
+  function appButton(app: PhoneApp, label = apps[app]) {
     return (
       <button
         key={app}
         data-app={app}
-        aria-label={apps[app]}
+        aria-label={label}
         className={styles.launcher}
         onClick={() => open(app)}
       >
@@ -375,7 +375,7 @@ function LifePhone({
             {pending.filter((n) => n.app === app).length}
           </span>
         )}
-        <span className={styles.appLabel}>{apps[app]}</span>
+        <span className={styles.appLabel}>{label}</span>
       </button>
     );
   }
@@ -472,18 +472,45 @@ function LifePhone({
           }}
         >
           {!route.app ? (
-            renderHome ? (
-              renderHome({
-                open: (app: PhoneApp, target?: string) => open(app, target),
-                openPanel: (panel: PhonePanel) => navigate({ ...route, panel }),
-              })
-            ) : (
-              <div className={styles.home}>
-                <button className={styles.manageShortcut} onClick={() => open('notes')}>
-                  备忘录 <PhoneIcon name="next" />
-                </button>
-              </div>
-            )
+            <div className={styles.home}>
+              {renderHome ? (
+                renderHome({
+                  open: (app: PhoneApp, target?: string) => open(app, target),
+                  openPanel: (panel: PhonePanel) => navigate({ ...route, panel }),
+                })
+              ) : (
+                <div className={styles.homeSummary}>
+                  <strong>{lifeName}</strong>
+                  <span>
+                    {dateLabel} {timeLabel}
+                  </span>
+                </div>
+              )}
+              <nav className={styles.homeApps} aria-label="桌面应用">
+                {homeAppRows.map((row, index) => (
+                  <div key={index} className={styles.homeAppRow} data-home-row={index + 1}>
+                    {row.map((entry) =>
+                      entry.kind === 'app' ? (
+                        appButton(entry.app, entry.label)
+                      ) : (
+                        <button
+                          key={entry.panel}
+                          data-panel={entry.panel}
+                          aria-label={entry.label}
+                          className={styles.launcher}
+                          onClick={() => navigate({ ...route, panel: entry.panel })}
+                        >
+                          <span className={`${styles.appIcon} ${styles.identityIcon}`}>
+                            <PhoneIcon name="timeline" variant="app" />
+                          </span>
+                          <span className={styles.appLabel}>{entry.label}</span>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                ))}
+              </nav>
+            </div>
           ) : (
             <div className={styles.appContent} key={`${route.app}:${route.target ?? ''}`}>
               {renderApp ? (
@@ -527,7 +554,7 @@ function LifePhone({
         )}
         {isHome && (
           <nav className={styles.dock} aria-label="常用应用">
-            {desktopApps.map(appButton)}
+            {homeDockApps.map((app) => appButton(app))}
           </nav>
         )}
         <button
