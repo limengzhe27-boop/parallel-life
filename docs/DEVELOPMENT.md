@@ -3388,3 +3388,11 @@ SCENE-RESPONSE-AUDIT-08地图增量b20148b2：readonly4953v506/epoch2 legacy nod
 SPACE-IDLE-09冻结02319c72：map.read不缓存瞬时advisory锁；epoch2仅scene unknown不全局busy，原write锁/queued-running/legacy-nonscene守卫不变。独立PG8/8含unknown原记录保留且旅行hotel、late scene拒绝、持锁read不冻而write BUSY；type0/boundaries765，0模型/原档/用户端口。root集成与最终页面验收。
 
 SCENE-PUBLIC-07 本地集成交付：build37，check4137/4137+build通过；两原档两端space200/busy=false；真实酒店任务8f0dca9f正常工作人员问路回应，私人任务724669f2成功，PC/手机首页现场App验收。3218/3219+queue/proactive已重启，保留内容/旧unknown不重跑，无生产部署。报告SCENE-PUBLIC-07.md；正式人物多人现场实际模型旅程、原4953旧actor unknown与长期推进、酒店客房素材/大堂内容匹配仍列未完成，不以本次成功替代。
+
+|LIZHI-LATENCY-AB-01|[x] 已完成（限定诊断/方案）|lizhi-real-latency-20261027；本对话proactive-runtime；独立grok-image树/忽略目录|只读2fb李之之原commands052eb3b7/5864380c快照、build36真实模型链；NEW专属报告/隔离benchmark，不改产品代码/字段/端口/存档|用户明确要求两真实请求比较、查证32-37秒上游首段，保留人物/历史/事件；真实探针对照有界记录且仅gateway、不接kernel/自动重试，先验证原请求可复现与实际传输|分开headers/SSE首事件/content/合法statement/整轮/providerusage与原哈希，不能分清的排队/prefill明确限制；给有实证的无字段优化方案。| 报告acfcd1b8自审；实际6次HTTP200/0重试/0游戏提交/生图。默认两请求39.26–42.74秒含可观察24–29秒推理；同输入low14.18/27.72秒，复测19.69缓存已变化；去schema单次77.04秒不采为方案。6份离线原校验通过，原body未存/哈希不可逐字复现/初始12秒内部细分未知明示；未改人物/历史/事件/产品配置/字段/端口，代码实施待用户后续指令。
+
+|NPC-PROMPT-LATENCY-01|[ ] 待验收（速度未通过，不推荐集成）|npc-prompt-latency-20261027；独立grok-image树/codex/npc-prompt-latency-20261027，自5ced5671；root唯一main/运行集成|独占npc-agent-model.ts当前协议说明/重复上下文及必要纯助手模块、专属tests/report；如需npc-model-protocol.ts仅同协议字段顺序须再协调|用户授权项目侧优化，不换模型/推理档、不新增字段；保留人物原文/可见历史/责任/事件与来源语义。两原请求隔离A/B、原校验与质量，0真实世界重发/自动生图；原body不可逐字复现明示|冻结13f11214；本树check4138及build通过，PG kernel/native过，旧execution-contract五子项同基线失败；9次文字实测最终40.36/44.15秒，对照72.87/39.13秒，无稳定提速。详本树docs/task-reports/NPC-PROMPT-LATENCY-01.md；保留证据不上main，3218/3219与生产不动，root决定下一步。|
+
+|NPC-REQUEST-SLIM-02|[ ] 进行中|npc-request-slim-20261027；独立grok-image树/codex/npc-request-slim-20261027自5ced5671；root唯一main/端口集成|npc-agent-model.ts仅请求构建/缓存，npc-model-protocol.ts仅最终schema机械去重，NEW纯helper/专属tests/report；不碰SQL/services/内核/模型参数/UI|最新用户明确先精简项目；原人物/历史/业务payload与解码权限不变，不新业务字段，不沿用13f11214提示词改写；0付费模型探针。相等schema展开等价、构建次数与相同输入请求大小实证，check/build后交root集成刷新两端口|先移除同快照重复schema构建和双缓存，再无损复用schema重复子树；逐项登记，不以体积缩小宣称模型提速。|
+
+NPC-REQUEST-SLIM-02第一块root集成da0efcf3：请求字节等价的重复构建清理已check4139/build并更新build38双端口与两worker，health及原4953酒店记录两端200且保留。0新增付费探针/字段/模型改动；不宣称解决模型长延迟。第二块WIRE纯形状样例独立待审，任务总体尚不结清；见报告集成段。
