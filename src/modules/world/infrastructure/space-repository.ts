@@ -55,7 +55,11 @@ export async function assertSpaceIdle(sql: SqlClient, worldId: string): Promise<
     ).rowCount ||
     (
       await sql.query(
-        "SELECT 1 FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1 AND status IN ('queued','running','unknown') LIMIT 1",
+        `SELECT 1 FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1
+         AND status IN ('queued','running','unknown')
+         AND NOT (status='unknown' AND (input->>'type') IS NOT DISTINCT FROM 'scene'
+           AND COALESCE((SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1),1)>=2)
+         LIMIT 1`,
         [worldId],
       )
     ).rowCount ||
@@ -252,14 +256,8 @@ export class PostgresWorldSpace implements WorldSpacePort {
         if (!(e instanceof TaskError) || e.code !== 'BUSY') throw e;
         busy = true;
       }
-      if (
-        !(
-          await sql.query('SELECT pg_try_advisory_xact_lock(hashtextextended($1,0)) AS locked', [
-            id,
-          ])
-        ).rows[0]?.locked
-      )
-        busy = true;
+      // A read must not cache a momentary execution lock as durable map busy.
+      // Travel/establish still acquire the original lock at their write boundary.
       let canEstablish = false;
       if (!w.space && w.version === 0 && !x?.current_scene_id) {
         const snap = (
