@@ -27,7 +27,11 @@ test('new opportunity requires authenticated origin version; copied old task and
     'future_proposal_only',
   );
 });
-async function read(version: string, badHash = false) {
+async function read(
+  version: string,
+  badHash = false,
+  options: { placeIds?: string[]; position?: unknown; space?: unknown } = {},
+) {
   const response = raw(version);
   const topic = {
     id: 'topic-a',
@@ -43,6 +47,7 @@ async function read(version: string, badHash = false) {
     id: 'episode-a',
     participantActorIds: ['actor-a', 'actor-b'],
     activity: 'conversation',
+    ...(options.placeIds ? { placeIds: options.placeIds } : {}),
     basisSourceIds: [],
     stagingIntents: [
       { actorId: 'actor-a', kind: 'future_task', task },
@@ -56,7 +61,10 @@ async function read(version: string, badHash = false) {
         return {
           rows: [
             {
-              state: { actors: [{ id: 'actor-a' }, { id: 'actor-b' }] },
+              state: {
+                actors: [{ id: 'actor-a' }, { id: 'actor-b' }],
+                ...(options.space ? { space: options.space } : {}),
+              },
               version: 1,
               engine_epoch: 2,
             },
@@ -90,7 +98,9 @@ async function read(version: string, badHash = false) {
         };
       if (q.includes('FROM parallel_life.memory_records')) return { rows: [] };
       if (q.includes('FROM parallel_life.world_authoritative_positions'))
-        return { rows: [{ document: { status: 'unknown', placeId: null } }] };
+        return {
+          rows: options.position ? [{ document: options.position }] : [],
+        };
       if (q.includes('FROM parallel_life.actor_agent_states') && version === 'director-wire-v8')
         throw Error('old staging must not read ignored topic state');
       if (q.includes('FROM parallel_life.actor_agent_states')) return { rows: [{ document: {} }] };
@@ -152,4 +162,31 @@ test('current director tasks retain their structured opportunity alongside old p
     await assert.rejects(read(version, true), /AGENT_REVISION_CONFLICT/);
   }
   assert.equal(actorOpportunityContext(raw('director-wire-v999'), task), null);
+});
+
+test('staged place hint carries a one-hop route from the actor current position', async () => {
+  const view = await read('director-wire-v9', false, {
+    placeIds: ['room', 'park'],
+    position: { status: 'at', placeId: 'room' },
+    space: {
+      places: [
+        { id: 'room', name: '房间' },
+        { id: 'park', name: '公园' },
+      ],
+      routes: [
+        {
+          id: 'room-park',
+          fromPlaceId: 'room',
+          toPlaceId: 'park',
+          durationMinutes: 15,
+          modeLabel: '步行',
+        },
+      ],
+    },
+  });
+  assert.match(view.observation.text, /这次机会涉及的地点/);
+  assert.match(view.observation.text, /公园/);
+  assert.match(view.observation.text, /room-park/);
+  assert.match(view.observation.text, /15 分钟/);
+  assert.doesNotMatch(view.observation.text, /other private task/);
 });

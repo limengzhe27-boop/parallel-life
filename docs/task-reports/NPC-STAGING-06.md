@@ -41,3 +41,9 @@
 
 - 在独立 worktree `cd94c5d5`（本轮 compact/source 变更前）运行同一 `agent-travel-kernel`，也是 6/8，且同样只有 `authored genesis position` 的 evidence 断言失败。
 - 结论：该失败不是本轮 scene presence / compact schema / source 裁剪引入；实际私有 NPC departure 子项在本轮和基线都通过。
+
+## 追加：地点提示到一跳到路线的单测
+
+- 新增测试覆盖：actor 当前在 room、机会涉及 room/park，提示包含公园名称、`room-park` routeId 和 15 分钟；不泄露其他 actor task。
+- 结合既有“实际私有 NPC departure 提交 journey/scene exit/in_transit”测试，形成 director 任务 → actor 地点/路线依据 → travel kernel 的受控链路。
+- 仍未做一次真实付费 NPC 自主选择 travel 的样本；genesis evidence 基线失败仍保留。
