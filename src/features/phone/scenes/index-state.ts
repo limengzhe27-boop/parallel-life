@@ -1,3 +1,4 @@
+import type { PhoneMapContext } from '../map/context.ts';
 import type { SceneHistory, SceneRead, SceneSummary } from '../../../contracts/scenes.ts';
 import type { PhoneInvitation } from '../apps/types.ts';
 import { scenePresent } from '../../../modules/world/domain/scene-runtime.ts';
@@ -41,4 +42,35 @@ export function sceneOverview(read: SceneRead) {
     ? scenePresent(read.scene, read.worldVersion).filter((p) => p.kind === 'actor')
     : [];
   return { place, environment, people };
+}
+
+/** An app entry reads current projections; only the explicit enter button invokes an existing command. */
+export function sceneHomeEntry(
+  history: SceneHistory | undefined,
+  map: Pick<PhoneMapContext, 'data' | 'working' | 'operation'> | undefined,
+) {
+  const space = map?.data;
+  const latestIsSpace = !!space && (!history || space.worldVersion > history.worldVersion);
+  const currentSceneId = latestIsSpace
+    ? space.currentSceneId
+    : (history?.currentScene?.id ??
+      (space?.worldVersion === history?.worldVersion ? space?.currentSceneId : null) ??
+      null);
+  const currentPlace = space?.places.find((place) => place.id === space.currentPlaceId);
+  const unresolvedTravel = map?.operation && ['pending', 'unknown'].includes(map.operation.status);
+  const blockedReason = !space
+    ? '正在读取当前位置。'
+    : !currentPlace
+      ? '当前位置尚未确认，可以在地图中查看地点。'
+      : space.paused
+        ? '时间已暂停，可以回看记录，继续后再进入现场。'
+        : map?.working || space.busy || unresolvedTravel
+          ? '请先等待当前操作完成，或到地图核对行程。'
+          : null;
+  return {
+    currentSceneId,
+    currentPlace,
+    canEnterCurrentPlace: !currentSceneId && !!currentPlace && !blockedReason,
+    blockedReason,
+  };
 }

@@ -27,17 +27,18 @@ test('resolveDefaultWallpaper resolves branch-specific authorized art and falls 
   }
 });
 
-test('desktop dock includes all 5 functional core apps with no dead icons', () => {
-  const dockApps = desktopApps.filter((app) => app !== 'scenes');
-  assert.deepEqual(dockApps, ['messages', 'calendar', 'photos', 'notes', 'map']);
-  assert.equal(dockApps.length, 5);
+test('desktop dock includes all 6 functional core apps and an independent scene entry', () => {
+  const dockApps = desktopApps;
+  assert.deepEqual(dockApps, ['messages', 'calendar', 'photos', 'notes', 'scenes', 'map']);
+  assert.equal(dockApps.length, 6);
 
   // Each app must be a distinct valid functional feature
   const appSet = new Set(dockApps);
-  assert.equal(appSet.size, 5);
+  assert.equal(appSet.size, 6);
   assert.ok(appSet.has('messages'), 'Messages (微信) must be in dock');
   assert.ok(appSet.has('calendar'), 'Calendar (日历) must be in dock');
   assert.ok(appSet.has('photos'), 'Photos (相册) must be in dock');
   assert.ok(appSet.has('notes'), 'Notes (备忘录) must be in dock');
+  assert.ok(appSet.has('scenes'), 'Scenes (现场) must be in dock');
   assert.ok(appSet.has('map'), 'Map (地图) must be in dock');
 });

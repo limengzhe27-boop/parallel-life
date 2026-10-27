@@ -372,7 +372,7 @@
 .dock {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   margin: 0 10px;
   padding: 12px 6px 8px;
@@ -383,6 +383,16 @@
   border-radius: 34px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
 }
+.dock .appIcon {
+  width: min(100%, 50px);
+  height: auto;
+  aspect-ratio: 1;
+}
+.dock .calendarFace strong {
+  font-size: clamp(18px, 6.5cqw, 28px);
+  line-height: 1;
+}
+
 .gestureArea {
   height: max(30px, env(safe-area-inset-bottom));
   flex-shrink: 0;
@@ -511,6 +521,9 @@
   }
 }
 @container (max-height:520px) {
+  .dock .appIcon {
+    width: min(100%, 38px);
+  }
   .home {
     padding: 4px 10px;
   }

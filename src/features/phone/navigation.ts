@@ -46,7 +46,6 @@ export function readRoute(hash: string, worldId: string): PhoneRoute {
 export function activePhoneRoute(route: PhoneRoute): PhoneRoute {
   if (route.panel === 'time') return homeRoute;
   if (route.panel === 'schedule') return { app: 'calendar' };
-  if (route.app === 'scenes' && !route.target) return homeRoute;
   return route;
 }
 

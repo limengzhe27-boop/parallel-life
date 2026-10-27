@@ -2,7 +2,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePhoneApps } from '../apps/provider.tsx';
 import { SceneClient } from './client.ts';
-import { appointmentScene, canEnterAppointment, mergeHistory } from './index-state.ts';
+import {
+  appointmentScene,
+  canEnterAppointment,
+  mergeHistory,
+  sceneHomeEntry,
+} from './index-state.ts';
 import type { SceneHistory, SceneSummary } from '../../../contracts/scenes.ts';
 import { routeHash } from '../navigation.ts';
 import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.ts';
@@ -65,12 +70,28 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
       setEntering(undefined);
     }
   }
+  async function enterCurrentPlace() {
+    const place = entry.currentPlace;
+    if (!map || !place || !entry.canEnterCurrentPlace || entering) return;
+    setEntering('place:' + place.id);
+    setError('');
+    try {
+      await map.enterPlace(place.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '暂时无法进入，请先核对当前位置。');
+    } finally {
+      setEntering(undefined);
+    }
+  }
+  const entry = sceneHomeEntry(history, map);
+  const currentScene =
+    history?.currentScene?.id === entry.currentSceneId ? history.currentScene : undefined;
   const appointments = data.invitations.filter((a) => a.status === 'confirmed');
   return (
     <div className={s.panel} data-scene-index>
       <section className={s.card}>
         <h3>现场</h3>
-        <p>查看已经发生的现场，或前往确认过的约定。打开记录不会重新赴约。</p>
+        <p>回到眼前的现场，或选择接下来要去的地方。历史记录随时可以回看。</p>
         {enabled ? (
           <button disabled={loading} onClick={() => void refresh()}>
             更新现场
@@ -89,39 +110,68 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
           {error}
         </p>
       ) : null}
-      {history?.currentScene ? (
+      {entry.currentSceneId ? (
         <section className={s.card}>
           <small>当前现场</small>
-          <h3>{history.currentScene.title}</h3>
-          <p>{history.currentScene.location ?? '现场开场后可查看地点与环境'}</p>
-          <button
-            disabled={!!entering}
-            onClick={() =>
-              history.currentScene!.appointmentId
-                ? void enter(history.currentScene!.appointmentId)
-                : open(history.currentScene!.id)
-            }
-          >
-            {entering ? '正在返回现场…' : '回到现场'}
+          <h3>{currentScene?.title ?? entry.currentPlace?.name ?? '当前现场'}</h3>
+          {currentScene?.location ? <p>{currentScene.location}</p> : null}
+          <button type="button" onClick={() => open(entry.currentSceneId!)}>
+            回到现场
           </button>
-          <p className={s.notice}>回到手机只切换视图；离开现场需要在现场里确认。</p>
+          <p className={s.notice}>打开已有现场，不会重新生成或重复赴约。</p>
         </section>
-      ) : history ? (
+      ) : history || map?.data ? (
         <section className={s.card}>
-          <h3>当前没有进行中的现场</h3>
-          <p>
-            可以回看记录，或从已确认且已到时间的约定进入。你也可以前往地图在当前所在地点直接进入现场。
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              window.location.hash = routeHash(worldId, { app: 'map' });
-            }}
-          >
-            🗺️ 打开地图前往地点进入现场
-          </button>
+          <small>当前地点</small>
+          <h3>{entry.currentPlace?.name ?? '当前位置尚未确认'}</h3>
+          {entry.currentPlace ? (
+            <button
+              type="button"
+              disabled={!entry.canEnterCurrentPlace || !!entering}
+              onClick={() => void enterCurrentPlace()}
+            >
+              {entering?.startsWith('place:') ? '正在进入…' : '进入这里的现场'}
+            </button>
+          ) : null}
+          {entry.blockedReason ? (
+            <p className={s.notice}>{entry.blockedReason}</p>
+          ) : (
+            <p>看看周围，或做点什么。人物是否在场以实际情况为准。</p>
+          )}
         </section>
       ) : null}
+      <section className={s.card}>
+        <h3>前往地点</h3>
+        <p>选择地点后，在地图确认路线再前往。</p>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.hash = routeHash(worldId, { app: 'map' });
+          }}
+        >
+          打开地图
+        </button>
+        {map?.data?.places.length ? (
+          <details>
+            <summary>查看地点</summary>
+            <div className={s.buttons}>
+              {map.data.places
+                .filter((place) => place.id !== map.data?.currentPlaceId)
+                .map((place) => (
+                  <button
+                    type="button"
+                    key={place.id}
+                    onClick={() => {
+                      window.location.hash = routeHash(worldId, { app: 'map', target: place.id });
+                    }}
+                  >
+                    {place.name}
+                  </button>
+                ))}
+            </div>
+          </details>
+        ) : null}
+      </section>
       {appointments.length && history ? (
         <section className={s.card}>
           <h3>已确认的约定</h3>
@@ -173,7 +223,7 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
       ) : null}
       {history ? (
         <section className={s.card}>
-          <h3>现场记录</h3>
+          <h3>历史现场</h3>
           {records.length ? (
             records.map((record) => (
               <div className={s.indexRow} key={record.id}>

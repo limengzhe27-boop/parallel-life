@@ -527,7 +527,7 @@ function LifePhone({
         )}
         {isHome && (
           <nav className={styles.dock} aria-label="常用应用">
-            {desktopApps.filter((app) => app !== 'scenes').map(appButton)}
+            {desktopApps.map(appButton)}
           </nav>
         )}
         <button
