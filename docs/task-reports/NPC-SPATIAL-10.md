@@ -42,3 +42,11 @@ phone-entry-probe在pendingDirector分支仅认agenda/plans/media，通用fallba
 - 单元证明普通版本/时间/definition变化不造新候选，known/in_transit/失效来源不生成，活动/unknown不重买。
 
 typecheck0、boundaries通过。0商业模型/原档写/用户端口变化；真实PG仅独立55676测试库。未把受控测试等同原档6人真实体验。旧自然表达、长期移动意图与root服务入口最终联调仍需root如实验收。
+
+## 集成入口补验（root公共WIP，2026-10-27）
+
+仅把root当时的npc-agent-advance-services.ts和agent-phone-entry-probe.ts复制至隔离树测试，公共副本未提交、不覆盖root。新增第三条原通道真实PG：预先有reserved Director runtime frame时，initial_position仍先执行，Director调用数0；不需要导演审批来完成空间准备。
+
+三条PG均精确断言phone entry初次返回initialPosition stable key，原人物回合确立位置（或quiet消费）后不再返回该空间hint。另一人物在夹具中有真实创世at位置，避免无关缺行引入候选。复验3/3通过（7.25秒），类型检查通过。没有原档写入、商业模型调用、用户端口或生产操作。
+
+额外只读发现已告root：probe若接受p.document IS NULL而collector要求真实unknown0证明，完全缺位置行旧档会产生无效空间hint；应把本轮probe资格与collector对齐，缺行留显式迁移处理，不在读取时补造数据。

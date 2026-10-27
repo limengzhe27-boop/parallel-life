@@ -33,9 +33,10 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 import { createAgentScheduleSources } from '../../src/modules/world/application/agent-schedule-collectors.ts';
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
+import { readAgentPhoneEntryProbe } from '../../src/modules/world/infrastructure/agent-phone-entry-probe.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 
-async function checkSpatial(t: TestContext, establish: boolean) {
+async function checkSpatial(t: TestContext, establish: boolean, pendingDirector = false) {
   const cfg = await localConfig();
   assert.equal(cfg.port, Number(process.env.NPC_SPATIAL_TEST_PORT ?? 55676));
   const admin = await adminClient('parallel_life_test');
@@ -126,15 +127,79 @@ async function checkSpatial(t: TestContext, establish: boolean) {
       expectedWorldVersion: 0,
     });
   });
+  await admin.query(
+    'INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document) VALUES($1,$2,$3,NULL,0,$4)',
+    [
+      worldId,
+      owner,
+      `actor:${other}`,
+      { ...unknown, subject: { kind: 'actor', actorId: other }, status: 'at', placeId: 'home' },
+    ],
+  );
+  if (pendingDirector)
+    await admin.query(
+      `INSERT INTO parallel_life.director_runtime_attempts(id,world_id,owner_id,engine_epoch,expected_world_version,command_id,token,lease_until,input_hash,status,snapshot)
+     VALUES($1,$2,$3,2,0,$4,$5,now()+interval '10 minutes',$6,'reserved',$7)`,
+      [
+        randomUUID(),
+        worldId,
+        owner,
+        randomUUID(),
+        randomUUID(),
+        'a'.repeat(64),
+        {
+          schemaVersion: 1,
+          worldId,
+          engineEpoch: 2,
+          worldVersion: 0,
+          observedThroughVersion: 0,
+          evaluatedThroughVersion: 0,
+        },
+      ],
+    );
   const clock = new PostgresClockStore(db);
   await clock.ensureAnchor(owner, worldId, await clock.read(owner, worldId));
 
+  await admin.query(
+    `UPDATE parallel_life.world_clock SET managed=true,paused=false,active_until=now()+interval '10 minutes' WHERE world_id=$1`,
+    [worldId],
+  );
+  const probe = async () =>
+    db.transaction(owner, async (sql) => {
+      const current = await sql.query('SELECT version FROM parallel_life.worlds WHERE id=$1', [
+        worldId,
+      ]);
+      return readAgentPhoneEntryProbe(sql, owner, {
+        worldId,
+        engineEpoch: 2,
+        worldVersion: current.rows[0].version,
+        storyAt: at,
+      });
+    });
+  const initialHint = await probe();
+  assert.equal(initialHint.status, 'ready');
+  assert.equal(
+    initialHint.key,
+    createHash('sha256')
+      .update(
+        JSON.stringify([
+          'phone-continuation-v1',
+          worldId,
+          2,
+          'independent_scheduler_check',
+          JSON.stringify({ initialPosition: [actorId] }),
+        ]),
+      )
+      .digest('hex'),
+  );
+  let directorCalls = 0;
   let npcCalls = 0,
     spatialCalls = 0;
   const model = {
     async complete(messages: any[]) {
       const p = JSON.parse(messages.find((m) => m.role === 'user').content);
-      if (p.promptVersion?.startsWith('director-'))
+      if (p.promptVersion?.startsWith('director-')) {
+        directorCalls++;
         return JSON.stringify({
           protocol: 'director-wire-v15',
           openingContext: null,
@@ -147,6 +212,7 @@ async function checkSpatial(t: TestContext, establish: boolean) {
           opportunities: [],
           audit: { reason: '只给本人有边界的空间工作权限', sourceRefs: [] },
         });
+      }
       npcCalls++;
       const input = JSON.parse(p.input.text);
       if (input.wakeCue?.includes('position.establish')) {
@@ -190,6 +256,17 @@ async function checkSpatial(t: TestContext, establish: boolean) {
   );
   await service.advanceIfEnabled(owner, worldId);
   assert.equal(spatialCalls, 1);
+  assert.equal(
+    directorCalls,
+    0,
+    'spatial work executes without a Director call, even with a reserved global frame',
+  );
+  const afterHint = await probe();
+  assert.notEqual(
+    afterHint.status === 'ready' ? afterHint.key : undefined,
+    initialHint.key,
+    'consumed spatial work no longer creates an entry hint',
+  );
   const rows = (
     await admin.query(
       'SELECT document,source_event_id,source_version FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND subject_key=$2',
@@ -207,7 +284,7 @@ async function checkSpatial(t: TestContext, establish: boolean) {
   }
   const saved = await worlds.get({ userId: owner }, worldId);
   assert.equal(saved.messages.length, 0);
-  await service.advanceIfEnabled(owner, worldId);
+  if (!pendingDirector) await service.advanceIfEnabled(owner, worldId);
   assert.equal(spatialCalls, 1);
   const history = (
     await admin.query(
@@ -228,3 +305,6 @@ test('initial spatial candidate travels through original advance/native wake and
   checkSpatial(t, true));
 test('quiet spatial assessment is paid once and does not repeat on another advance', (t) =>
   checkSpatial(t, false));
+
+test('reserved Director work does not starve spatial initialization and entry probe retires the spatial hint', (t) =>
+  checkSpatial(t, true, true));
