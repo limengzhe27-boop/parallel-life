@@ -478,7 +478,7 @@ test('budget selects bounded persona and whole older observations without trunca
 
 test('oversized active questions fail free preflight rather than silently losing reply evidence', () => {
   const input = snapshot();
-  const questions = Array.from({ length: 100 }, (_, index) => ({
+  const questions = Array.from({ length: 120 }, (_, index) => ({
     id: `q-${index}`,
     channel: 'private' as const,
     threadId: 'private-thread',
