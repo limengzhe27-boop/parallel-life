@@ -92,3 +92,10 @@
 - promptVersion `npc-agent-v79-compact-payload`。
 - 完整 check 4161/4161、build 通过；compact 测试 56/56。
 - 这一步没有牺牲 active 状态的 goals/plans/responsibilities/executions；只影响无状态普通聊天。
+
+## compact payload 受控真实模型样本（12 表情、空 state）
+
+- 真实 `grok-4.7`、reasoning none、1 次请求、无重试。
+- 耗时 **11,973ms**，raw 317 字符；parser 通过：2 statements、changes 空、actions 0。
+- 没有尝试被移除的 continuation/inputInterpretation，也没有因 12 个表情 shortlist 报错。
+- 仍只代表单样本，不代表所有场景质量或稳定延迟。
