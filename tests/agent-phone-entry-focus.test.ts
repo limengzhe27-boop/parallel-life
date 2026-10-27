@@ -75,6 +75,9 @@ function fixture(options: {
           ],
         };
       if (query.includes('FROM parallel_life.world_clock')) return { rows: [clock] };
+      // No unresolved spatial work is present in these narrative-focus fixtures.
+      if (query.includes('LEFT JOIN parallel_life.world_authoritative_positions p'))
+        return { rows: [] };
       if (query.includes('FROM parallel_life.agent_attempts a')) attemptQuery = query;
       if (query.includes('a.document') || query.includes('FROM parallel_life.agent_attempts a'))
         return { rows: attempts };

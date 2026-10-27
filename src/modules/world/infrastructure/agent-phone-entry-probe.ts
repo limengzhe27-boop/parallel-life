@@ -99,7 +99,7 @@ export async function readAgentPhoneEntryProbe(
       LEFT JOIN parallel_life.world_authoritative_positions p
         ON p.world_id=s.world_id AND p.owner_id=s.owner_id AND p.subject_key='actor:'||s.actor_id
      WHERE s.world_id=$1 AND s.owner_id=$2
-       AND (p.document IS NULL OR (p.document->>'status'='unknown' AND p.source_version=0))
+       AND p.document->>'status'='unknown' AND p.source_version=0
        AND NOT EXISTS (SELECT 1 FROM parallel_life.npc_journeys j
          WHERE j.world_id=s.world_id AND j.owner_id=s.owner_id AND j.actor_id=s.actor_id)
        AND NOT EXISTS (SELECT 1 FROM parallel_life.agent_attempts a
