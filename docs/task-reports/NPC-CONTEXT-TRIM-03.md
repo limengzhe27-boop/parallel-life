@@ -2,7 +2,7 @@
 
 2026-10-27，负责人 npc-context-trim-20261027-p。用户授权仅实施表情目录压缩、规则去重、重复原文去重，必须保留人物设定、相关记忆、剧情，并比较回复速度；明确禁止联系其他 Agent。本任务未联系任何 Agent。
 
-状态：代码精简与对照完成；性能未通过，不建议以提速名义切换运行版本。未修改主目录业务源码、端口3218/3219、用户存档、生产环境或远端仓库。
+初次对照状态：代码精简完成但性能未通过，当时未切换运行版本。用户随后明确要求替换现用版本，已按下节完成本地替换；速度结论不变。
 
 ## 范围
 
@@ -67,3 +67,17 @@ promptVersion为 npc-agent-v75-lossless-context-trim，只是原有版本字段�
 - 仅独立PG18.4/55681合成dev/test库供既有check中需要数据库的测试使用；无SQL源码变更。无原数据库/存档写入。
 - 全部私有snapshot、body、raw、计时脚本、ledger位于本树忽略的.local，权限600，不提交密钥或私人正文。
 - 不发布、不推送、不切换正在运行的本地/线上服务，不把结构精简称为性能问题已解决。保留独立分支供检查；本次不再扩展到换模型、改对白顺序或裁人物记忆。
+
+
+## 用户明确要求采用后的本地替换
+
+2026-10-27 用户在看到全部对照结论后明确说“替换现在的版本吧”。未联系其他 Agent。
+
+- 原 f94a662a 以 4868cc8a 合入主目录main，保留同时已提交的8dc67dfd首页改动及全部他人UI工作区改动，未覆盖或提交这些WIP。
+- 在独立树切到4868cc8a重新完整验证：check4,157/4,157（0失败/跳过）、build通过。未并行占用主目录.next。
+- 原样导出已验证commit并复制对应构建产物至不可变`.local/local-play/build-context-trim-03-4868cc8a`，无.env文件/无测试库连接配置随构建复制。BUILD_SOURCE_COMMIT及BUILD_ID与验证来源匹配，实际服务端bundle包含v75标记。
+- 保留原`.local/local-play/env.json`、runtime-env/proactive-env的模型、角色、数据库、session及存储设置；先等proactive当前tick完成、SIGTERM原workers并等待退出，再优雅关闭原web服务，不force kill、不重发请求。
+- 新本地进程：3218=13619、3219=13620、queue=13621、proactive=13622。进程记录`.local/local-play/processes-context-trim-03.json`；模型仍grok-4.7+原none配置，旧410 tasks/251 outbox隔离保持。
+- 两端health200；通过原cookie只读原办公室scene API均200，6条记录及scene/presence完整内容哈希在替换前后、两个端口完全一致。日志及before/after证据在忽略的`.local/npc-context-trim-rollout/`。没有追加模型验收消息或执行生图。
+- 两worker均state=ready；恢复后曾出现原独立问题DIRECTOR_CONTEXT_LIMIT（Director上下文约105k），下一tick lastError清空。没有掩盖这条背景失败或扩大到导演重构；本任务不声称原自主世界所有问题已解决。
+- 生产和GitHub未推送/部署。本次仅完成用户指定的本地现用版本替换，不宣称20秒回复已改善。原始性能结论及1次无效JSON仍完整保留。
