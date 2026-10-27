@@ -29,3 +29,10 @@
 - 读取 actor 当前权威位置；对每个机会地点给出直达 routeId/分钟，或明确“当前没有直达路线”；位置未知时明确不能直接出发。
 - 不新增地点、不替 NPC 选择、不把 route 当成已出发。
 - `tests/actor-opportunity-context.test.ts`、`director-wire15-handoff.test.ts`、`director-unified-actor-tasks15.test.ts`：9/9 通过。
+
+## 受控 travel kernel 复核（未全绿）
+
+- `AGENT_TRAVEL_KERNEL_TEST_PORT=55432 tests/integration/agent-travel-kernel.test.ts`：6/8。
+- 通过的包括“实际私有 NPC 调用提交 departure、scene exit、in_transit，不移动玩家”及重放/回滚/未知/失败路由。
+- 未通过：`authored genesis position ...` 的 action-result evidence 未包含 `self-position:genesis:*`；未修改测试或放宽断言，留待下一轮定位。
+- `episode-journey-evidence` 在本地测试库因 director proposal boundary 失败，未作为本轮通过证据。
