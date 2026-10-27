@@ -1108,7 +1108,7 @@
   box-sizing: border-box;
   height: 100%;
   min-height: 0;
-  gap: clamp(12px, 3cqh, 28px);
+  gap: clamp(10px, 2cqh, 18px);
 }
 .homeSummary {
   display: flex;
@@ -1119,7 +1119,7 @@
 .homeApps {
   display: flex;
   flex-direction: column;
-  gap: clamp(12px, 3cqh, 28px);
+  gap: clamp(10px, 2cqh, 18px);
 }
 .homeAppRow {
   display: grid;
@@ -1147,10 +1147,10 @@
 }
 @container (max-height: 600px) {
   .home {
-    gap: 10px;
+    gap: 8px;
   }
   .homeApps {
-    gap: 10px;
+    gap: 8px;
   }
   .home .appIcon,
   .dock .appIcon {
@@ -1161,5 +1161,34 @@
   .dock .launcher {
     min-height: 66px;
     gap: 4px;
+  }
+}
+
+/* Anchor unread counts to the icon, keeping the icon's rounded clipping intact. */
+.appIconAnchor {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(44px, 14cqw, 58px);
+  height: clamp(44px, 14cqw, 58px);
+  overflow: visible;
+  flex-shrink: 0;
+}
+.appIconAnchor > .badge {
+  top: -5px;
+  right: -7px;
+  z-index: 1;
+}
+@container (max-height: 600px) {
+  .home {
+    padding-block: 6px;
+  }
+  .appIconAnchor {
+    width: 44px;
+    height: 44px;
+  }
+  .phone[data-screen='home'] .homeGesture {
+    min-height: 28px;
+    padding-top: 4px;
   }
 }

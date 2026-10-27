@@ -59,7 +59,7 @@ test('home exposes exactly eight actual entries in rows three/two and dock three
   assert.ok(!html.includes('data-app="moments"'));
 });
 
-test('custom desktop keeps the same eight shell-owned entries without old widgets', () => {
+test('custom desktop keeps eight shell-owned entries alongside compact widgets', () => {
   const html = renderToStaticMarkup(
     createElement(PhoneShell, {
       worldId: 'home-eight10',
@@ -83,5 +83,7 @@ test('custom desktop keeps the same eight shell-owned entries without old widget
     8,
   );
   assert.ok(html.includes('data-phone-desktop'));
-  assert.ok(!html.includes('暂无待办日程'));
+  assert.ok(html.includes('眼下任务'));
+  assert.ok(html.includes('最近照片'));
+  assert.ok(html.includes('暂无即将到来的日程'));
 });

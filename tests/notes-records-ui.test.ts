@@ -372,7 +372,7 @@ test('invitation timestamps use world display time without changing source seman
   assert.equal(recordText({ ...fixture.current[0]!, text: invitation.text }), invitation.text);
 });
 
-test('PhoneDesktop keeps identity and time compact without duplicating records or app widgets', () => {
+test('PhoneDesktop keeps compact identity and honest small widgets without notes or duplicate unread', () => {
   const html = renderToStaticMarkup(
     createElement(PhoneDesktop, {
       title: '摄影师人生',
@@ -404,7 +404,11 @@ test('PhoneDesktop keeps identity and time compact without duplicating records o
   assert.ok(html.includes('切换人生'));
   assert.ok(!html.includes('旧便签标题'));
   assert.ok(!html.includes('眼下要做的事'));
-  assert.ok(!html.includes('暂无待办日程'));
+  assert.ok(html.includes('暂无即将到来的日程'));
+  assert.ok(html.includes('眼下任务'));
+  assert.ok(html.includes('点此查看任务'));
+  assert.ok(html.includes('暂无照片'));
+  assert.ok(!html.includes('条未读'));
 });
 
 test('lockscreen notifications include verified active world_matters and exclude completed/legacy', () => {
