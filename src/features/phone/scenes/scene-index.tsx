@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePhoneApps } from '../apps/provider.tsx';
+import { useMapEntryRefresh } from '../map/use-map-entry-refresh.ts';
 import { SceneClient } from './client.ts';
 import {
   appointmentScene,
@@ -14,7 +15,7 @@ import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.t
 import s from './scenes.module.css';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 const status = { active: '正在现场', paused: '现场已暂停', ended: '已离场' };
-export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
+export function SceneIndexApp({ map: providedMap }: Pick<PhoneAppContext, 'map'>) {
   const { transport, worldId, data, actions } = usePhoneApps(),
     client = useMemo(() => new SceneClient(transport), [worldId, transport]);
   const [history, setHistory] = useState<SceneHistory>(),
@@ -22,6 +23,12 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
     [loading, setLoading] = useState(false),
     [error, setError] = useState(''),
     [entering, setEntering] = useState<string>();
+  const map =
+    providedMap && (!providedMap.data || providedMap.data.worldId === worldId)
+      ? providedMap
+      : undefined;
+  const entryChecking = useMapEntryRefresh(worldId, providedMap);
+  const mapReady = !entryChecking && !map?.loading && !map?.error;
   const pending = useRef(false),
     live = useRef(true);
   const enabled = !!actions.enterScene;
@@ -59,7 +66,7 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
     window.location.hash = routeHash(worldId, { app: 'scenes', panel: 'scene', target: id });
   };
   async function enter(id: string) {
-    if (entering || !actions.enterScene) return;
+    if (entering || !actions.enterScene || !mapReady) return;
     setEntering(id);
     setError('');
     try {
@@ -72,7 +79,7 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
   }
   async function enterCurrentPlace() {
     const place = entry.currentPlace;
-    if (!map || !place || !entry.canEnterCurrentPlace || entering) return;
+    if (!map || !place || !entry.canEnterCurrentPlace || !mapReady || entering) return;
     setEntering('place:' + place.id);
     setError('');
     try {
@@ -93,7 +100,13 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
         <h3>现场</h3>
         <p>回到眼前的现场，或选择接下来要去的地方。历史记录随时可以回看。</p>
         {enabled ? (
-          <button disabled={loading} onClick={() => void refresh()}>
+          <button
+            disabled={loading || entryChecking || map?.loading}
+            onClick={() => {
+              void refresh();
+              void map?.refresh().catch(() => {});
+            }}
+          >
             更新现场
           </button>
         ) : (
@@ -103,6 +116,12 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
       {loading ? (
         <p role="status">
           {history ? '正在更新现场记录，已有内容仍可查看…' : '正在读取现场与约定…'}
+        </p>
+      ) : null}
+      {entryChecking && !loading ? <p role="status">正在核对当前位置，已有记录仍可查看…</p> : null}
+      {map?.error ? (
+        <p className={s.notice} role="alert">
+          {map.error} 可以打开地图重新核对。
         </p>
       ) : null}
       {error ? (
@@ -127,7 +146,7 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
           {entry.currentPlace ? (
             <button
               type="button"
-              disabled={!entry.canEnterCurrentPlace || !!entering}
+              disabled={!entry.canEnterCurrentPlace || !mapReady || !!entering}
               onClick={() => void enterCurrentPlace()}
             >
               {entering?.startsWith('place:') ? '正在进入…' : '进入这里的现场'}
@@ -189,7 +208,7 @@ export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
                 ) : (
                   <>
                     <button
-                      disabled={!ready || !!entering}
+                      disabled={!ready || !mapReady || !!entering}
                       onClick={() => {
                         if (needsTravel)
                           window.location.hash = routeHash(worldId, {

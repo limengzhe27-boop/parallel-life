@@ -5,6 +5,7 @@ import type { WorldSpace } from '../../../contracts/world-space.ts';
 import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { TravelOperation } from '../map/context.ts';
+import { useMapEntryRefresh } from '../map/use-map-entry-refresh.ts';
 import { TravelFeedback } from '../map/travel-feedback.tsx';
 import type { TravelFeedbackState } from '../map/travel-presentation.ts';
 import { usePhoneApps } from './provider.tsx';
@@ -100,6 +101,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
       : undefined;
   const controller = useRef(map);
   controller.current = map;
+  const entryChecking = useMapEntryRefresh(worldId, map);
   const [selectedId, select] = useState<string | undefined>(
     () => target ?? selectedPlaces.get(worldId),
   );
@@ -160,7 +162,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
     );
     return () => cancelAnimationFrame(frame);
   }, [target, targetAvailable, selected?.id, space?.worldVersion]);
-  const unavailable = !map || (!space && !map.loading && !error);
+  const unavailable = !map || (!space && !map.loading && !entryChecking && !error);
   async function refresh() {
     if (!map || map.loading) return;
     setReadError('');
@@ -178,6 +180,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
       map.loading ||
       map.working ||
       error ||
+      (entryChecking && !(kind === 'enter' && space.currentSceneId)) ||
       ((space.paused || space.busy) && !(kind === 'enter' && space.currentSceneId)) ||
       operation ||
       acting.current
@@ -208,6 +211,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
       !route ||
       !arrival ||
       map.loading ||
+      entryChecking ||
       map.working ||
       error ||
       space.paused ||
@@ -353,7 +357,9 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
     ? phone.invitations.filter((invitation) => selected.appointmentIds.includes(invitation.id))
     : [];
   const blocked = Boolean(map?.loading || map?.working || error || busyAction);
-  const entryBlocked = blocked || Boolean(!space?.currentSceneId && (space?.paused || space?.busy));
+  const entryBlocked =
+    Boolean(map?.loading || map?.working || error || busyAction) ||
+    Boolean(!space?.currentSceneId && (entryChecking || space?.paused || space?.busy));
   function resetMap() {
     setZoomScale(1);
     setPanOffset({ x: 0, y: 0 });
@@ -387,7 +393,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
           </button>
         </div>
       )}
-      {map?.loading && (
+      {(entryChecking || map?.loading) && (
         <p className={s.notice} role="status">
           正在更新地点…
         </p>
@@ -464,7 +470,9 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
             <button
               type="button"
               className={s.primary}
-              disabled={Boolean(blocked || space.paused || space.busy || operation)}
+              disabled={Boolean(
+                entryChecking || blocked || space.paused || space.busy || operation,
+              )}
               onClick={() => void placeAction('establish')}
             >
               {busyAction === 'establish' ? '正在确认…' : '使用起点中的地点'}
@@ -473,7 +481,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
         </div>
       ) : !space ? (
         <div className={s.empty}>
-          <h2>{map?.loading ? '正在打开地图…' : '暂时读不到地点'}</h2>
+          <h2>{map?.loading || (entryChecking && !error) ? '正在打开地图…' : '暂时读不到地点'}</h2>
         </div>
       ) : (
         <>
@@ -668,7 +676,9 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                   <button
                     type="button"
                     className={s.primary}
-                    disabled={Boolean(!arrival || blocked || space.paused || space.busy)}
+                    disabled={Boolean(
+                      entryChecking || !arrival || blocked || space.paused || space.busy,
+                    )}
                     onClick={() => void startTravel()}
                   >
                     {busyAction === 'travel' ? '正在确认行程…' : '前往这里'}
