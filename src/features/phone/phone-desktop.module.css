@@ -177,7 +177,7 @@
   height: 14px;
   flex-shrink: 0;
 }
-@container (max-height: 600px) {
+@container (max-height: 700px) {
   .desktop {
     gap: 6px;
   }

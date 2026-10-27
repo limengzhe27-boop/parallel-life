@@ -1145,7 +1145,7 @@
 .identityIcon {
   background: linear-gradient(145deg, #8293b2, #404f74);
 }
-@container (max-height: 600px) {
+@container (max-height: 700px) {
   .home {
     gap: 8px;
   }
@@ -1179,7 +1179,7 @@
   right: -7px;
   z-index: 1;
 }
-@container (max-height: 600px) {
+@container (max-height: 700px) {
   .home {
     padding-block: 6px;
   }
