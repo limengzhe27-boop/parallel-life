@@ -173,13 +173,13 @@ test('group planner accepts a sticker id from the visible catalog only', async (
   const planner = new WorldGroupPlanner({
     async complete(messages) {
       seen = JSON.parse(messages[1]!.content as string);
-      return JSON.stringify({ stickerId: 'zan' });
+      return JSON.stringify({ stickerId: 'selected_aa' });
     },
   });
   const reply = await planner.propose(input);
   assert.equal(reply.text, '');
-  assert.equal(reply.stickerId, 'zan');
-  assert.ok(seen.stickerCatalog.some((sticker: any) => sticker.id === 'zan'));
+  assert.equal(reply.stickerId, 'selected_aa');
+  assert.ok(seen.stickerCatalog.some((sticker: any) => sticker.id === 'selected_aa'));
 
   const invalid = new WorldGroupPlanner({
     async complete() {

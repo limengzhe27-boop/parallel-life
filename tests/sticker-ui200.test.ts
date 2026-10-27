@@ -55,12 +55,12 @@ test('picker renders real catalog images with send labels; busy disables image s
   );
   assert.match(html, /图片表情/);
   assert.match(html, /Emoji/);
-  assert.match(html, /发送表情：好/);
-  assert.match(html, /src="\/stickers\/hao.svg"/);
+  assert.match(html, /发送表情：指着你笑/);
+  assert.match(html, /src="\/stickers\/candidates\/selected_aa.webp"/);
   assert.match(html, /disabled=""/);
 });
 
-test('picker renders every one of the 80 catalog entries, not a truncated first page', () => {
+test('picker renders every one of the 60 sendable catalog entries, not a truncated first page', () => {
   const html = renderToStaticMarkup(
     createElement(StickerPicker, {
       emojis: ['😊'],
@@ -69,17 +69,21 @@ test('picker renders every one of the 80 catalog entries, not a truncated first 
       onSticker: () => {},
     }),
   );
-  assert.equal(SELECTABLE_STICKERS.length, 80);
-  assert.equal((html.match(/aria-label="发送表情：/g) ?? []).length, 80);
-  assert.equal((html.match(/<img /g) ?? []).length, 80);
+  assert.equal(SELECTABLE_STICKERS.length, 60);
+  assert.equal((html.match(/aria-label="发送表情：/g) ?? []).length, 60);
+  assert.equal((html.match(/<img /g) ?? []).length, 60);
 });
 
 test('sticker preserves image alt text and does not gate neighboring text on image loading', () => {
   const html = renderToStaticMarkup(
     createElement(StickerImage, {
-      sticker: { id: 'hao', label: '好', src: '/stickers/hao.svg' },
+      sticker: {
+        id: 'selected_aa',
+        label: '指着你笑',
+        src: '/stickers/candidates/selected_aa.webp',
+      },
     }),
   );
-  assert.match(html, /alt="好"/);
+  assert.match(html, /alt="指着你笑"/);
   assert.match(html, /loading="lazy"/);
 });

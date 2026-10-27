@@ -861,6 +861,14 @@ async function attachAgentWorldContextInTransaction(
   // A proposal still needs its original authorized input/plan basis, and the kernel
   // independently checks actual current possession before any transfer/use.
   const ownedItems = awareness.ownedItems.filter((item) => !blocked.has(item.sourceEventId));
+  // Only offer actions this channel/state can actually use. This keeps the
+  // response schema and permission manual small without removing a capability
+  // from the kernel or from a channel that genuinely needs it.
+  const hasLiveAppointment = snapshot.state.responsibilities.some(
+    (responsibility) =>
+      responsibility.subject.kind === 'appointment' &&
+      !['fulfilled', 'withdrawn', 'expired'].includes(responsibility.status),
+  );
   const contextual: AgentSnapshot = {
     ...snapshot,
     channel: {
@@ -870,7 +878,15 @@ async function attachAgentWorldContextInTransaction(
           boundaryCapabilities.includes(cap) &&
           (cap !== 'position.establish' || !!initialPlacement) &&
           (cap !== 'travel.begin' || !!travelRoutes?.length) &&
-          (!['item.deliver', 'item.use'].includes(cap) || ownedItems.length > 0),
+          (!['item.deliver', 'item.use'].includes(cap) || ownedItems.length > 0) &&
+          (![
+            'appointment.accept',
+            'appointment.cancel',
+            'appointment.fulfill',
+            'appointment.reschedule',
+          ].includes(cap) ||
+            hasLiveAppointment) &&
+          (cap !== 'activity.participate' || snapshot.channel.kind !== 'private'),
       ),
     },
     ...authorizedAgentState(snapshot.state, new Set(sources.map((s) => s.id))),

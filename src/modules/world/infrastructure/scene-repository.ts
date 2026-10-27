@@ -4,6 +4,8 @@ import { readSceneWaitContext } from './scene-wait-context.ts';
 import { canWaitInAppointmentScene } from '../domain/appointment-wait.ts';
 import { acceptNativeAgentInput } from './accept-native-agent-input.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
+import { seedScenePresenceAtOpen } from '../domain/agent-scene-arrival.ts';
+import type { AuthoritativePosition } from '../domain/world-awareness.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
@@ -402,6 +404,35 @@ async function receipt(sql: SqlClient, ownerId: string, x: SceneReceipt) {
   );
   return x;
 }
+/** Current authoritative occupants at a place, excluding actors already present in another open scene. */
+async function positionsAtPlace(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+  placeId: string,
+  throughVersion: number,
+): Promise<AuthoritativePosition[]> {
+  const rows = (
+    await sql.query(
+      `SELECT wp.document FROM parallel_life.world_authoritative_positions wp
+       WHERE wp.world_id=$1 AND wp.owner_id=$2 AND wp.subject_key LIKE 'actor:%'
+         AND wp.document->>'status'='at' AND wp.document->>'placeId'=$3
+         AND (wp.document->>'worldVersion')::integer <= $4
+         AND NOT EXISTS (
+           SELECT 1 FROM parallel_life.scene_sessions s,
+             jsonb_array_elements(s.document->'presence') p
+           WHERE s.world_id=wp.world_id AND s.owner_id=wp.owner_id
+             AND s.document->>'status'='active'
+             AND p->'participant'->>'actorId'=wp.document->'subject'->>'actorId'
+             AND p->>'leftVersion' IS NULL
+         )
+       ORDER BY wp.subject_key`,
+      [worldId, ownerId, placeId, throughVersion],
+    )
+  ).rows;
+  return rows.map((row) => row.document as AuthoritativePosition);
+}
+
 export class SceneRepository {
   private db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
@@ -628,15 +659,29 @@ export class SceneRepository {
         status: 'active',
         presence: [{ participant: player, joinedVersion: source.sourceVersion, ...source }],
       };
+      const appointmentActorIds = new Set(ap.participantIds);
+      const openedScene = scene.placeId
+        ? seedScenePresenceAtOpen(
+            scene,
+            (
+              await positionsAtPlace(sql, ownerId, worldId, scene.placeId, source.sourceVersion)
+            ).filter(
+              (position) =>
+                position.subject.kind === 'actor' &&
+                appointmentActorIds.has(position.subject.actorId),
+            ),
+            source,
+          )
+        : scene;
       await sql.query(
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
-        [sceneId, worldId, ownerId, source.sourceEventId, scene],
+        [sceneId, worldId, ownerId, source.sourceEventId, openedScene],
       );
       // New Agent runtime owns progression; do not seed an old progress projection.
       if (engineEpoch === 1)
-        await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
+        await seedSceneMatters(sql, ownerId, worldId, openedScene, world.matters, source);
       const ctx = await context(sql, { ...world, version: source.sourceVersion });
-      await saveExperience(sql, enterCurrentScene(ctx, x, scene));
+      await saveExperience(sql, enterCurrentScene(ctx, x, openedScene));
       const task = await enqueue(
         sql,
         ownerId,
@@ -716,19 +761,29 @@ export class SceneRepository {
         status: 'active',
         presence: [{ participant: player, joinedVersion: source.sourceVersion, ...source }],
       };
+      const appointmentActorIds = new Set(activeAppointment?.participantIds ?? []);
+      const openedScene = seedScenePresenceAtOpen(
+        scene,
+        (await positionsAtPlace(sql, ownerId, worldId, place.id, source.sourceVersion)).filter(
+          (position) =>
+            position.subject.kind === 'actor' &&
+            (appointmentActorIds.size === 0 || appointmentActorIds.has(position.subject.actorId)),
+        ),
+        source,
+      );
       await sql.query(
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
-        [sceneId, worldId, ownerId, source.sourceEventId, scene],
+        [sceneId, worldId, ownerId, source.sourceEventId, openedScene],
       );
       // New Agent runtime owns progression; do not seed an old progress projection.
       if (engineEpoch === 1)
-        await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
+        await seedSceneMatters(sql, ownerId, worldId, openedScene, world.matters, source);
       await saveExperience(
         sql,
         enterCurrentScene(
           await context(sql, { ...world, version: source.sourceVersion }),
           x,
-          scene,
+          openedScene,
         ),
       );
       const task = await enqueue(

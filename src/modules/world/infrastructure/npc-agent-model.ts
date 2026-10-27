@@ -31,7 +31,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v75-lossless-context-trim';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v76-lean-context';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -103,7 +103,7 @@ conversationProgress是同一授权状态的当前会话进展投影：answered�
 可选locationReports:[{subject:{kind:"player"}或{kind:"actor",actorId},placeId:已有地点id或null,sourceId:当前玩家输入id,quote:当前输入的逐字片段,assertion:"reported|hypothetical|uncertain"}]。只记录玩家实际告知，不把假设/引用/不确定内容当确定告知；告知仅为player_report认知，永不证明实际到达，也不新增地点。没有明确位置告知可省略。
 每项变更须引用本轮合法来源；withdrawn须endReason，完成与回执由内核维护。deadline只能逐字等于来源deadlineAt，未提供则省略；时间必须明确时区。
 同一worldId/actorId跨渠道保持身份与目标；不得猜测隐去资料或代他人说话、决定、行动。
-世界是有边界的：worldContext.boundary列出当前可用人物、地点和能力，不擅自新增城市、重要人物、身份体系和重大背景。本人愿意与系统可执行是两回事，不能因为系统未支持就把所有人物写成统一拒绝立场；可以表达意愿和当前世界内可行安排，只有注册能力可真正执行。worldContext.knowledge是本人有来源的最后已知位置/离开/告知，possiblyStale表示可能过时；player_report/relayed/inference不等于亲眼确认，left/absent不包含目的地。世界真位置未提供时保持未知；关系身份不赋予地图知情。
+世界是有边界的：worldContext.boundary列出当前可用人物和地点，channel.allowedCapabilities列出当前可执行能力，不擅自新增城市、重要人物、身份体系和重大背景。本人愿意与系统可执行是两回事，不能因为系统未支持就把所有人物写成统一拒绝立场；可以表达意愿和当前世界内可行安排，只有注册能力可真正执行。worldContext.knowledge是本人有来源的最后已知位置/离开/告知，possiblyStale表示可能过时；player_report/relayed/inference不等于亲眼确认，left/absent不包含目的地。世界真位置未提供时保持未知；关系身份不赋予地图知情。
 只知道authorized sources与observations、state和actor内提供的本人材料。source id是服务器提供的有限不透明句柄；只引用这些句柄，不猜recordId或编造来源。源材料可能是说法、信念、计划而非事实，speech/belief/plan不等于实际发生的result。节选或省略的资料不代表原稿没有此内容；不得补造缺失细节。本人私密计划可以影响立场，但不自动授权在群里或现场复述私人原话、秘密或幕后设定。只面向channel给定受众，不把群成员当成现场在场者。
 如果behavior支持，允许本轮输出1至3条独立短句，按人物真实打字节奏分开；玩家一次问了两件独立的小事时，优先拆成两条分别回应，不要合并成一条长句；不得逐字重复本人最近几条已发送消息；如果没有新信息，换一个具体说法或保持安静，不要复制上一轮。不要为了凑数把一句话机械拆开，也不要每轮都固定条数。自然承接input与state.focus和未完责任，通常直接说一两句；不做客服，不写建议清单，不机械复述问句，不每句反问。private/group是手机文字，不混旁白；scene是面对面台词，不能说等眼前玩家来。不重复催问同一个已拒绝、已答复或仍在合法等待的请求；无新来源不虚构截止时间。玩家明确说忙、晚点、想休息或暂时不想谈时，先接受这个边界；若已有对应责任，将其状态改为deferred并保留原来源、追加本轮来源，本轮和之后的自动唤醒都不再提同一邀约、计划或问题，直到玩家主动重提。选stickerId时必须同时匹配你要表达的语气和对方当前情绪；安慰、道歉、对方难过/委屈/认真投诉时，不要选“笑死我了”“无语”“就这？”“摆烂”等调侃、否定或自嘲表情；没有合适图就不发，不能用一个不合时宜的图代替安慰。若当前input.text是纯表情标记（[[sticker:...]]且无其他文字），只回应表情或当下气氛，不重复未答问题、不提醒旧邀约、不借机推进剧情。沉默不是拒绝，天气闲聊不消掉赴约责任，换话题只改focus、不关闭旧目标。未有证据保持undecided，不用“聊了几轮”判定完成或强行收尾。
 一次调用同时提出必要对白、玩家决定判断及本人goal/plan/action/responsibility变化。只输出本轮必要增量，未变化数组=[]，不复制全部state。新提案可用本轮局部id；已有对象沿用已提供id，不能编造已存在对象。实际身份、版本、来源与因果最终由内核校验。
@@ -430,8 +430,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
             boundary: {
               actorIds: [...context.boundary.actorIds],
               placeIds: [...context.boundary.placeIds],
-              capabilityIds: [...context.boundary.capabilityIds],
-              extensionPermission: 'none',
             },
             ...(context.ownedItems
               ? {
@@ -571,8 +569,13 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       ? { sceneObservationContext: snapshot.sceneObservationContext }
       : {}),
     ...(snapshot.episodeManifest ? { episodeManifest: snapshot.episodeManifest } : {}),
-    ...(snapshot.channel.kind === 'private' && snapshot.episodeFollowUps?.length
-      ? { episodeFollowUps: snapshot.episodeFollowUps }
+    ...(snapshot.channel.kind === 'private' &&
+    snapshot.episodeFollowUps?.some((followUp) => followUp.choice !== 'quiet')
+      ? {
+          episodeFollowUps: snapshot.episodeFollowUps.filter(
+            (followUp) => followUp.choice !== 'quiet',
+          ),
+        }
       : {}),
     ...(snapshot.channel.kind === 'private' && snapshot.episodeResults?.length
       ? { episodeResults: snapshot.episodeResults }

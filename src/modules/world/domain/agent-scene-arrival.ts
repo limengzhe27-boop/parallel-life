@@ -122,3 +122,66 @@ export function applyAgentScenePosition(
     ],
   };
 }
+
+/** A scene opens with people who are already at that place. The scene-entry
+ * event witnesses current presence; it is not a journey, an arrival or a claim
+ * that the actor entered at this instant. */
+export function seedScenePresenceAtOpen(
+  scene: SceneSession,
+  positions: readonly AuthoritativePosition[],
+  source: { sourceEventId: string; sourceVersion: number },
+): SceneSession {
+  if (
+    scene.status !== 'active' ||
+    !scene.placeId ||
+    !source.sourceEventId ||
+    !Number.isSafeInteger(source.sourceVersion) ||
+    source.sourceVersion < 0 ||
+    !Array.isArray(positions)
+  )
+    return scene;
+  const alreadyPresent = new Set(
+    scene.presence.flatMap((entry) =>
+      entry.participant.kind === 'actor' && entry.leftVersion === undefined
+        ? [entry.participant.actorId]
+        : [],
+    ),
+  );
+  const additions = positions
+    .filter((position) => {
+      if (
+        position.worldId !== scene.worldId ||
+        position.subject.kind !== 'actor' ||
+        !position.subject.actorId ||
+        position.status !== 'at' ||
+        position.placeId !== scene.placeId ||
+        !Number.isSafeInteger(position.worldVersion) ||
+        position.worldVersion < 0 ||
+        position.worldVersion > source.sourceVersion ||
+        !Number.isFinite(Date.parse(position.occurredAt)) ||
+        alreadyPresent.has(position.subject.actorId)
+      )
+        return false;
+      alreadyPresent.add(position.subject.actorId);
+      return true;
+    })
+    .sort((left, right) =>
+      left.subject.kind === 'actor' && right.subject.kind === 'actor'
+        ? left.subject.actorId.localeCompare(right.subject.actorId)
+        : 0,
+    )
+    .map((position) => ({
+      participant: {
+        kind: 'actor' as const,
+        actorId: (position.subject as { kind: 'actor'; actorId: string }).actorId,
+      },
+      joinedVersion: source.sourceVersion,
+      sourceEventId: source.sourceEventId,
+      sourceVersion: source.sourceVersion,
+    }));
+  if (!additions.length) return scene;
+  return {
+    ...structuredClone(scene),
+    presence: [...structuredClone(scene.presence), ...additions],
+  };
+}

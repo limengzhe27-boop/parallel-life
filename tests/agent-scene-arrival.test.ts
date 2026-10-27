@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyAgentSceneArrival } from '../src/modules/world/domain/agent-scene-arrival.ts';
+import {
+  applyAgentSceneArrival,
+  seedScenePresenceAtOpen,
+} from '../src/modules/world/domain/agent-scene-arrival.ts';
 import type { SceneSession } from '../src/modules/world/domain/experience-rules.ts';
 import type { AgentArrivalCommittedEvent } from '../src/modules/world/domain/agent-arrival-event.ts';
 import type { AuthoritativePosition } from '../src/modules/world/domain/world-awareness.ts';
@@ -150,5 +153,77 @@ test('forged arrival or owner scope rejects; a prior closed interval permits a r
   assert.equal(
     applyAgentSceneArrival(s, { ownerId: 'owner', event, playerPosition: player }).presence.length,
     3,
+  );
+});
+
+test('scene opening includes only actors already at that exact place, without claiming an arrival', () => {
+  const { scene } = fixture();
+  const before = structuredClone(scene);
+  const positions: AuthoritativePosition[] = [
+    {
+      worldId: 'world',
+      subject: { kind: 'actor', actorId: 'actor-b' },
+      status: 'at',
+      placeId: 'park',
+      sourceEventId: null,
+      worldVersion: 0,
+      occurredAt: '2026-10-15T08:00:00.000Z',
+    },
+    {
+      worldId: 'world',
+      subject: { kind: 'actor', actorId: 'actor-a' },
+      status: 'at',
+      placeId: 'park',
+      sourceEventId: 'position-a',
+      worldVersion: 1,
+      occurredAt: '2026-10-15T08:30:00.000Z',
+    },
+    {
+      worldId: 'world',
+      subject: { kind: 'actor', actorId: 'actor-c' },
+      status: 'at',
+      placeId: 'shop',
+      sourceEventId: 'position-c',
+      worldVersion: 2,
+      occurredAt: '2026-10-15T08:30:00.000Z',
+    },
+    {
+      worldId: 'world',
+      subject: { kind: 'actor', actorId: 'actor-d' },
+      status: 'at',
+      placeId: 'park',
+      sourceEventId: 'position-d',
+      worldVersion: 3,
+      occurredAt: '2026-10-15T09:30:00.000Z',
+    },
+  ];
+  const opened = seedScenePresenceAtOpen(scene, positions, {
+    sourceEventId: 'entered',
+    sourceVersion: 1,
+  });
+  assert.deepEqual(scene, before);
+  assert.deepEqual(
+    opened.presence.map((entry) => entry.participant),
+    [
+      { kind: 'player' },
+      { kind: 'actor', actorId: 'actor-a' },
+      { kind: 'actor', actorId: 'actor-b' },
+    ],
+  );
+  for (const entry of opened.presence.slice(1))
+    assert.deepEqual(entry, {
+      participant: entry.participant,
+      joinedVersion: 1,
+      sourceEventId: 'entered',
+      sourceVersion: 1,
+    });
+  assert.equal(
+    seedScenePresenceAtOpen(opened, positions, { sourceEventId: 'entered', sourceVersion: 1 }),
+    opened,
+  );
+  const ended = { ...scene, status: 'ended' as const };
+  assert.equal(
+    seedScenePresenceAtOpen(ended, positions, { sourceEventId: 'entered', sourceVersion: 1 }),
+    ended,
   );
 });

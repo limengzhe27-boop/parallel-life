@@ -568,8 +568,33 @@ export function isStickerId(value: unknown): value is StickerId {
   return typeof value === 'string' && (STICKER_IDS as readonly string[]).includes(value);
 }
 
+/** Retired text/smiley stickers stay parseable for history but are no longer offered. */
+export const LEGACY_TEXT_STICKER_IDS = new Set([
+  'wole',
+  'xswl',
+  'wuyu',
+  'zhende',
+  'jiuzhe',
+  'bailan',
+  'chong',
+  'zaima',
+  'shuile',
+  'e',
+  'kun',
+  'moyu',
+  'jiayou',
+  'keyi',
+  'juele',
+  'hao',
+  'zan',
+  'a',
+  'bie',
+  'wanan',
+]);
 /** The sendable subset can shrink without breaking historical IDs. */
-export const SELECTABLE_STICKERS = STICKER_CATALOG;
+export const SELECTABLE_STICKERS = STICKER_CATALOG.filter(
+  (sticker) => !LEGACY_TEXT_STICKER_IDS.has(sticker.id),
+);
 export function getSticker(id: string) {
   return STICKER_CATALOG.find((s) => s.id === id) ?? null;
 }
