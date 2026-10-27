@@ -114,3 +114,61 @@ test('already cancelled complete never starts an upstream request', async () => 
   });
   assert.equal(calls, 0);
 });
+
+test('explicit quota and rate-limit HTTP rejections remain known for complete and streamed calls', async (t) => {
+  const logs: unknown[][] = [];
+  t.mock.method(console, 'error', (...args: unknown[]) => logs.push(args));
+  for (const status of [402, 429]) {
+    for (const streamed of [false, true]) {
+      let calls = 0;
+      const model = new YibuTextModel(config, async () => {
+        calls++;
+        return new Response('fixture-private-body-and-request-text', { status });
+      });
+      const call = async () => {
+        if (!streamed) return model.complete(messages);
+        for await (const _ of model.streamComplete(messages)) {
+          /* consume */
+        }
+      };
+      await assert.rejects(call, {
+        code: 'UPSTREAM_FAILED',
+        stage: 'response',
+        httpStatus: status,
+        responseOutcome: 'rejected',
+        model: config.model,
+      });
+      assert.equal(calls, 1);
+    }
+  }
+  assert.doesNotMatch(JSON.stringify(logs), /fixture-private|request-text/);
+});
+
+test('5xx or errors inside an accepted stream are not promoted to known HTTP rejection', async () => {
+  const unavailable = new YibuTextModel(config, async () => new Response('', { status: 503 }));
+  await assert.rejects(unavailable.complete(messages), (error: any) => {
+    assert.equal(error.responseOutcome, undefined);
+    assert.equal(error.httpStatus, 503);
+    return true;
+  });
+  const accepted = new YibuTextModel(
+    config,
+    async () =>
+      new Response('data: {"error":{"code":429}}\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+  );
+  await assert.rejects(
+    async () => {
+      for await (const _ of accepted.streamComplete(messages)) {
+        /* consume */
+      }
+    },
+    (error: any) => {
+      assert.equal(error.responseOutcome, undefined);
+      assert.equal(error.httpStatus, 200);
+      return true;
+    },
+  );
+});

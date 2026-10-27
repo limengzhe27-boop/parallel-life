@@ -31,12 +31,14 @@ export class GatewayError extends Error {
   readonly stage?: 'request' | 'response' | 'parse' | 'stream';
   readonly durationMs?: number;
   readonly httpStatus?: number;
+  readonly model?: string;
   constructor(
     code: GatewayError['code'],
     details?: {
       stage: 'request' | 'response' | 'parse' | 'stream';
       httpStatus?: number;
       durationMs?: number;
+      model?: string;
     },
   ) {
     super(code);
@@ -46,10 +48,11 @@ export class GatewayError extends Error {
     if (code === 'INVALID_CONFIG') this.responseOutcome = 'not_sent';
     this.httpStatus = details?.httpStatus;
     this.durationMs = details?.durationMs;
+    this.model = details?.model;
     if (
       code === 'UPSTREAM_FAILED' &&
       details?.stage === 'response' &&
-      [400, 401, 403, 404, 413, 415, 422].includes(details.httpStatus ?? 0)
+      [400, 401, 402, 403, 404, 413, 415, 422, 429].includes(details.httpStatus ?? 0)
     )
       this.responseOutcome = 'rejected';
   }
@@ -115,12 +118,9 @@ export class YibuTextModel implements TextModel {
       );
       stage = 'response';
       if (!response.ok) {
-        const rejection = (await response.text().catch(() => '')).slice(0, 1000);
-        console.error(
-          'MODEL_REQUEST_REJECTED',
-          response.status,
-          rejection.replace(/[A-Za-z0-9_-]{24,}/g, '<redacted>'),
-        );
+        // A non-success HTTP status is enough to classify a rejection. Do not
+        // wait for or log a provider body which may contain private request text.
+        console.error('MODEL_REQUEST_REJECTED', response.status, this.config.model);
         throw new GatewayError('UPSTREAM_FAILED', {
           stage: 'response',
           httpStatus: response.status,
@@ -178,7 +178,14 @@ export class YibuTextModel implements TextModel {
         stage,
         httpStatus: response?.status,
         durationMs: Math.round(performance.now() - started),
+        model: this.config.model,
       };
+      if (error instanceof GatewayError && error.responseOutcome === 'rejected')
+        throw new GatewayError(error.code, {
+          ...details,
+          stage: error.stage ?? stage,
+          httpStatus: error.httpStatus ?? response?.status,
+        });
       if (signal?.aborted) throw new GatewayError('CANCELLED', details);
       if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       if (error instanceof GatewayError) {
@@ -240,12 +247,7 @@ export class YibuTextModel implements TextModel {
         (late) => cancelBody(late.body),
       );
       if (!response.ok) {
-        const rejection = (await response.text().catch(() => '')).slice(0, 1000);
-        console.error(
-          'MODEL_REQUEST_REJECTED',
-          response.status,
-          rejection.replace(/[A-Za-z0-9_-]{24,}/g, '<redacted>'),
-        );
+        console.error('MODEL_REQUEST_REJECTED', response.status, this.config.model);
         throw new GatewayError('UPSTREAM_FAILED', {
           stage: 'response',
           httpStatus: response.status,
@@ -312,7 +314,14 @@ export class YibuTextModel implements TextModel {
         stage: response ? ('stream' as const) : ('request' as const),
         httpStatus: response?.status,
         durationMs: Math.round(performance.now() - started),
+        model: this.config.model,
       };
+      if (error instanceof GatewayError && error.responseOutcome === 'rejected')
+        throw new GatewayError(error.code, {
+          ...details,
+          stage: error.stage ?? details.stage,
+          httpStatus: error.httpStatus ?? response?.status,
+        });
       if (signal?.aborted) throw new GatewayError('CANCELLED', details);
       if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       if (error instanceof GatewayError)
