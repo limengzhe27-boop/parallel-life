@@ -27,3 +27,10 @@
 
 - 当前 `渣男体验` 3 个 unknown NPC 已按可修改草稿映射补到位置；不是运行时自动推断。
 - 导演 staging 目前只把 `placeIds` 作为 actor 文本提示；NPC 自主 `travel.begin` 后的真实到场仍待下一轮端到端验证。
+
+## 追加：route-aware staging hint 构建
+
+- 3218 PID 40470；3219 PID 40471；queue 40479；proactive 40480。
+- 两端 health 200；原存档 `/scenes` 200（v533，player+actor presence）；旧 `/stickers/hao.svg` 404。
+- 本轮 `npm run check` 4160/4160、`npm run build` 通过。
+- 0 新模型调用、0 生图、0 生产推送。
