@@ -58,7 +58,7 @@ test('fast NPC and scene selection leave director, base and authoring model para
     await m.complete(messages);
     await createSceneTextModel().complete(messages);
     await createManuscriptTextModel().complete(messages);
-    assert.deepEqual(seen.map(x=>[x.model,x.reasoning_effort]),[['grok-4.3','none'],['grok-4.7',undefined],['grok-4.7',undefined],['grok-4.3','none'],['fixture-preparation',undefined]]);
+    assert.deepEqual(seen.map(x=>[x.model,x.reasoning_effort]),[['grok-4.7','none'],['grok-4.7',undefined],['grok-4.7',undefined],['grok-4.3','none'],['fixture-preparation',undefined]]);
   `,
     ],
     {
@@ -70,7 +70,7 @@ test('fast NPC and scene selection leave director, base and authoring model para
         YIBU_API_KEY: 'fixture',
         YIBU_BASE_URL: 'https://yibuapi.com',
         YIBU_TEXT_MODEL: 'grok-4.7',
-        YIBU_NPC_MODEL: 'grok-4.3',
+        YIBU_NPC_MODEL: 'grok-4.7',
         YIBU_DIRECTOR_MODEL: 'grok-4.7',
         YIBU_SCENE_MODEL: 'grok-4.3',
         YIBU_PREPARATION_MODEL: 'fixture-preparation',

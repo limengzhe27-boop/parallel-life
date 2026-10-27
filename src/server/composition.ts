@@ -18,9 +18,11 @@ export function createTextModel() {
       )
     : base;
 }
-/** Explicit non-reasoning for the selected fast NPC model; other roles keep their configuration. */
+/** Explicit non-reasoning for selected fast NPC models; other roles keep their configuration. */
 function npcGatewayConfig(config: GatewayConfig): GatewayConfig {
-  return config.model === 'grok-4.3' ? { ...config, reasoningEffort: 'none' } : config;
+  return config.model === 'grok-4.3' || config.model === 'grok-4.7'
+    ? { ...config, reasoningEffort: 'none' }
+    : config;
 }
 /** Authoring compiles a whole screenplay; its model can be configured independently of chat. */
 export function createManuscriptTextModel() {
