@@ -69,6 +69,14 @@ export async function readActorEpisodeIntentsInTransaction(
     return conflict();
   const world = worldRow.state as WorldState;
   if (!world.actors.some((actor) => actor.id === frame.actorId)) return conflict();
+  const actorPosition = (
+    await sql.query(
+      'SELECT document FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND owner_id=$2 AND subject_key=$3',
+      [frame.worldId, ownerId, `actor:${frame.actorId}`],
+    )
+  ).rows[0]?.document as { status?: string; placeId?: string | null } | undefined;
+  const currentPlaceId =
+    actorPosition?.status === 'at' && actorPosition.placeId ? actorPosition.placeId : null;
   const requests = (
     await sql.query(
       `SELECT r.*,d.document AS decision,a.snapshot AS director_snapshot,a.response AS director_response,a.response_hash AS director_response_hash
@@ -302,7 +310,12 @@ export async function readActorEpisodeIntentsInTransaction(
               ? '当前可考虑的个人互动机会及本人已有议程。ownKnownTopics保留各自contentHash与状态，只代表本人目标/计划/责任；opportunity是可提出的内容，不是已发生事实、玩家同意或必须行动的命令。由你决定参与、调整、暂缓或拒绝：'
               : '导演建议你自行考虑跟进以下本人已知事项。它不是命令、已经发生的事实或玩家同意；你可以调整、暂缓或不参与：') +
             JSON.stringify(directive) +
-            opportunityPlaceHint(opportunity.placeIds, world.space?.places ?? []),
+            opportunityPlaceHint(
+              opportunity.placeIds,
+              world.space?.places ?? [],
+              currentPlaceId,
+              world.space?.routes ?? [],
+            ),
         },
       });
     }
@@ -398,24 +411,50 @@ export async function readActorEpisodeIntentsInTransaction(
         text:
           'Author suggestion addressed only to you. Consider it using your own position; it is not an event, verified fact, obligation, deadline or player agreement: ' +
           JSON.stringify(directive) +
-          opportunityPlaceHint(opportunity.placeIds, world.space?.places ?? []),
+          opportunityPlaceHint(
+            opportunity.placeIds,
+            world.space?.places ?? [],
+            currentPlaceId,
+            world.space?.routes ?? [],
+          ),
       },
     });
   }
   return result;
 }
 
-/** Places are a staging hint, not a new authorization or a claim of arrival. */
+/** Places and one-hop routes are staging hints, not a new authorization or a claim of arrival. */
 function opportunityPlaceHint(
   placeIds: readonly string[] | undefined,
   places: readonly { id: string; name: string }[],
+  currentPlaceId: string | null,
+  routes: readonly {
+    id: string;
+    fromPlaceId: string;
+    toPlaceId: string;
+    durationMinutes: number;
+  }[],
 ): string {
-  const selected = (placeIds ?? []).flatMap((id) => {
-    const place = places.find((candidate) => candidate.id === id);
-    return place ? [`${place.name}（${place.id}）`] : [];
-  });
+  if (!placeIds?.length) return '';
+  const selected = placeIds
+    .map((id) => {
+      const place = places.find((candidate) => candidate.id === id);
+      if (!place) return null;
+      const route = currentPlaceId
+        ? routes.find(
+            (candidate) => candidate.fromPlaceId === currentPlaceId && candidate.toPlaceId === id,
+          )
+        : undefined;
+      const travel = currentPlaceId
+        ? route
+          ? `可沿路线 ${route.id} 出发，约 ${route.durationMinutes} 分钟；`
+          : '当前没有直达路线；'
+        : '本人当前位置未确定，不能直接出发；';
+      return `${place.name}（${place.id}，${travel}）`;
+    })
+    .filter(Boolean);
   return selected.length
-    ? ` 这次机会涉及的地点：${selected.join('、')}。若你决定前往，只能沿已有路线提 travel.begin；出发不等于到场。`
+    ? ` 这次机会涉及的地点：${selected.join('、')}。若你决定前往，只能用已有 routeId 提 travel.begin；出发不等于到场。`
     : '';
 }
 

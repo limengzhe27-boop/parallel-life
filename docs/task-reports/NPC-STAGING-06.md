@@ -23,3 +23,9 @@
 - `AGENT_JOURNEY_TEST_PORT=55432 node --experimental-strip-types --test tests/integration/agent-journey.test.ts`：19/19 通过，覆盖真实 departure → in_transit → arrival、并发/暂停/错误来源/重放。
 - `actor-initial-position-awareness.test.ts`：6/6 通过，覆盖 version 0 权威位置、到达后覆盖、旧档不重放。
 - 这两组使用 `parallel_life_test` 真实 PG，0 付费模型调用。
+
+## 追加：地点提示带一跳到路线
+
+- 读取 actor 当前权威位置；对每个机会地点给出直达 routeId/分钟，或明确“当前没有直达路线”；位置未知时明确不能直接出发。
+- 不新增地点、不替 NPC 选择、不把 route 当成已出发。
+- `tests/actor-opportunity-context.test.ts`、`director-wire15-handoff.test.ts`、`director-unified-actor-tasks15.test.ts`：9/9 通过。
