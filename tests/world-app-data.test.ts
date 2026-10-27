@@ -470,7 +470,7 @@ test('empty assistant rows are omitted while authored attachment-only rows remai
   );
 });
 
-test('exact repeated NPC bubbles within five minutes are projected once', () => {
+test('distinct delivered messages remain visible even when their words repeat', () => {
   const message = { ...world.messages[0]!, role: 'assistant' as const };
   const data = worldAppData({
     ...world,
@@ -482,7 +482,7 @@ test('exact repeated NPC bubbles within five minutes are projected once', () => 
   } as Parameters<typeof worldAppData>[0]);
   assert.deepEqual(
     data.messages.map((entry) => entry.id),
-    ['m1', 'new'],
+    ['m1', 'same', 'new'],
   );
 });
 
