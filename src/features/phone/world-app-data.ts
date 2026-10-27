@@ -95,7 +95,8 @@ export function worldAppData(
       }
     }
   });
-  return {
+  const projectedIds = new Set<string>();
+  const output: PhoneAppsData = {
     contacts: world.actors.map((actor) => {
       const art = resolveAvatarArt(world, actor);
       return {
@@ -108,12 +109,7 @@ export function worldAppData(
         avatarUrl: art.url,
         avatarKind: art.kind,
         avatarLabel: art.label,
-        unread: world.messages.filter(
-          (message) =>
-            message.actorId === actor.id &&
-            isIncomingRuntimeMessage(message) &&
-            !viewed.has(message.id),
-        ).length,
+        unread: 0,
       };
     }),
     photos,
@@ -210,7 +206,9 @@ export function worldAppData(
                 ? '对方撤回了一条消息'
                 : message.text,
             ...(message.stickerId ? { stickerId: message.stickerId } : {}),
-            ...(message.recalled === true ? { recalled: true } : {}),
+            ...(message.recalled === true || recallMarkerIds.has(message.id)
+              ? { recalled: true }
+              : {}),
             /* The server already staggers opening timestamps; display them as stored. */
             at: message.at,
             role: message.role ?? 'assistant',
@@ -234,20 +232,10 @@ export function worldAppData(
       ...local.map((message) => ({ ...message })),
     ]
       .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
-      .filter((message, index, all) => {
-        if (message.role !== 'assistant' || message.origin || message.photo || message.attachment)
-          return true;
-        const previous = all[index - 1];
-        return !(
-          previous &&
-          previous.actorId === message.actorId &&
-          previous.role === 'assistant' &&
-          !previous.origin &&
-          !previous.photo &&
-          !previous.attachment &&
-          previous.text.trim() === message.text.trim() &&
-          Date.parse(message.at) - Date.parse(previous.at) <= 5 * 60_000
-        );
+      .filter((message) => {
+        if (projectedIds.has(message.id)) return false;
+        projectedIds.add(message.id);
+        return true;
       }),
     notes: (world.notes ?? []).map((note) => ({ ...note })),
     choices: (world.choices ?? []).map((choice) => ({
@@ -304,6 +292,30 @@ export function worldAppData(
           : []),
       ],
       version: world.version ?? 0,
+    })),
+  };
+  // Contacts and notifications count the same visible, persisted runtime messages.
+  // Repeated projection rows, recalls and omitted failed media are not new deliveries.
+  const persisted = new Set(world.messages.map((message) => message.id));
+  const seen = new Set<string>();
+  const unread = new Map<string, number>();
+  for (const message of output.messages) {
+    if (
+      !persisted.has(message.id) ||
+      message.status !== 'sent' ||
+      seen.has(message.id) ||
+      viewed.has(message.id) ||
+      !isIncomingRuntimeMessage(message)
+    )
+      continue;
+    seen.add(message.id);
+    unread.set(message.actorId, (unread.get(message.actorId) ?? 0) + 1);
+  }
+  return {
+    ...output,
+    contacts: output.contacts.map((contact) => ({
+      ...contact,
+      unread: unread.get(contact.id) ?? 0,
     })),
   };
 }

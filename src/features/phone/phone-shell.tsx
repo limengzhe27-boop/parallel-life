@@ -165,7 +165,9 @@ function LifePhone({
     const timer = window.setTimeout(() => setBannerId(undefined), 6000);
     return () => window.clearTimeout(timer);
   }, [bannerId]);
-  const pending = notifications.filter((n) => !openedIds.has(n.id));
+  const pending = Array.from(
+    new Map(notifications.filter((n) => !openedIds.has(n.id)).map((n) => [n.id, n])).values(),
+  );
   const banner = pending.find((n) => n.id === bannerId);
   const groups = groupNotifications(pending, referenceTime);
   const visibleGroups = showAllGroups ? groups : groups.slice(0, 3);
@@ -347,6 +349,7 @@ function LifePhone({
     );
   }
   function appButton(app: PhoneApp, label = apps[app]) {
+    const unread = pending.filter((n) => n.app === app).length;
     return (
       <button
         key={app}
@@ -355,26 +358,25 @@ function LifePhone({
         className={styles.launcher}
         onClick={() => open(app)}
       >
-        <span className={`${styles.appIcon} ${styles[app]}`}>
-          {app === 'calendar' ? (
-            <span className={styles.calendarFace}>
-              <span>
-                {dateLabel.match(/星期[一二三四五六日天]|周[一二三四五六日天]/)?.[0] ?? '日历'}
+        <span className={styles.appIconAnchor}>
+          <span className={`${styles.appIcon} ${styles[app]}`}>
+            {app === 'calendar' ? (
+              <span className={styles.calendarFace}>
+                <span>
+                  {dateLabel.match(/星期[一二三四五六日天]|周[一二三四五六日天]/)?.[0] ?? '日历'}
+                </span>
+                <strong>{dateLabel.match(/(\d{1,2})\s*日/)?.[1] ?? '—'}</strong>
               </span>
-              <strong>{dateLabel.match(/(\d{1,2})\s*日/)?.[1] ?? '—'}</strong>
+            ) : (
+              <PhoneIcon name={app} variant="app" />
+            )}
+          </span>
+          {unread > 0 && (
+            <span className={styles.badge} aria-label={`${unread} 条未读通知`}>
+              {unread > 99 ? '99+' : unread}
             </span>
-          ) : (
-            <PhoneIcon name={app} variant="app" />
           )}
         </span>
-        {pending.filter((n) => n.app === app).length > 0 && (
-          <span
-            className={styles.badge}
-            aria-label={`${pending.filter((n) => n.app === app).length} 条待查看通知`}
-          >
-            {pending.filter((n) => n.app === app).length}
-          </span>
-        )}
         <span className={styles.appLabel}>{label}</span>
       </button>
     );

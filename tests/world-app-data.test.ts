@@ -558,3 +558,52 @@ test('stale pending media is omitted instead of forever generating or showing a 
   );
   assert.equal(fresh.messages[0]?.photo?.status, 'generating');
 });
+
+test('contact unread and notification projection share visible runtime IDs across recalls, duplicates and failed media', async () => {
+  const { projectMessageNotifications } =
+    await import('../src/features/phone/notification-projection.ts');
+  const source = {
+    ...world,
+    messages: [
+      { ...world.messages[0]!, id: 'history', origin: 'fictional_history' as const },
+      { ...world.messages[0]!, id: 'gone', text: '已撤回内容', role: 'assistant' as const },
+      { ...world.messages[0]!, id: 'recall', text: '[[recall:last]]', role: 'assistant' as const },
+      { ...world.messages[0]!, id: 'silent-fail', text: '', mediaStatus: 'failed' as const },
+      { ...world.messages[0]!, id: 'pending-image', text: '', mediaStatus: 'pending' as const },
+      { ...world.messages[0]!, id: 'live', text: '新来信' },
+      { ...world.messages[0]!, id: 'live', text: '新来信' },
+    ],
+  };
+  const data = worldAppData(
+    source as Parameters<typeof worldAppData>[0],
+    new Set(),
+    [],
+    undefined,
+    undefined,
+    Date.parse(world.time),
+  );
+  const notifications = projectMessageNotifications(
+    data.messages,
+    data.contacts,
+    new Set(),
+    (at) => at,
+  );
+  assert.equal(data.contacts[0]!.unread, 1);
+  assert.deepEqual(
+    notifications.map((n) => n.id),
+    ['live'],
+  );
+  const read = worldAppData(
+    source as Parameters<typeof worldAppData>[0],
+    new Set(['live']),
+    [],
+    undefined,
+    undefined,
+    Date.parse(world.time),
+  );
+  assert.equal(read.contacts[0]!.unread, 0);
+  assert.equal(
+    projectMessageNotifications(read.messages, read.contacts, new Set(['live']), (at) => at).length,
+    0,
+  );
+});

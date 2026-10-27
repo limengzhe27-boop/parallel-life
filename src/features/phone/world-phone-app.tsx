@@ -1572,8 +1572,11 @@ export function WorldPhoneSurface({
     }
   }
   const phoneNotifications = [
-    ...projectMessageNotifications(mergedData.messages, data.actors, viewed, (at) =>
-      formatChatTime(at, currentReferenceTime),
+    ...projectMessageNotifications(
+      basePhoneData.messages.filter((message) => message.status === 'sent'),
+      data.actors,
+      viewed,
+      (at) => formatChatTime(at, currentReferenceTime),
     ),
     ...Object.values(groups.details)
       .filter((d) => isJoined(d.group))
