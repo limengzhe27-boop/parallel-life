@@ -3398,3 +3398,15 @@ SCENE-PUBLIC-07 本地集成交付：build37，check4137/4137+build通过；两�
 NPC-REQUEST-SLIM-02第一块root集成da0efcf3：请求字节等价的重复构建清理已check4139/build并更新build38双端口与两worker，health及原4953酒店记录两端200且保留。0新增付费探针/字段/模型改动；不宣称解决模型长延迟。第二块WIRE纯形状样例独立待审，任务总体尚不结清；见报告集成段。
 
 NPC-REQUEST-SLIM-02最终root集成：第二块fd777f0c（7处重复机械形状，独有语义保留）与第一块da0efcf3均已build39本地运行，check4139/build通过；3218/3219健康/原4953现场记录200，queue/proactive ready。无字段/SQL/模型或推理改动，无新增付费探针。仅结构清理结项，模型长延迟和长期自主推进仍属未完成原清单。
+
+|NPC-SPATIAL-10|[x] 已完成（限定实现与本地集成）|npc-spatial10-20261027；/root/arrival_continuity；独立.local/worktrees/npc-spatial10自82512596|agent-schedule-collectors.ts initial_position独占分支、专属unit/原通道PG/report；其余发布/迁移/服务源码只读，原两档应用角色readonly|代码931c8706已集成bb3ac895；补验21e7b788：root服务/probe WIP原通道PG3/3+typecheck0，pending Director不饿死空间/初始hint消费后消失；此前54/54；55676已停止；root原档验收中，0模型/原档写/用户端口|
+
+|SCENE-SPATIAL-HOME-10|[ ] 已更新本地，住处资料缺口未完成|root-scene-spatial10-20261027；主目录唯一集成/原档/模型/3218/3219|scenes/scene-index.tsx直入、scene-room及controller就近失败/静默保存、必要scene-repository幂等与人物位置接线协调；子HOME-EIGHT-10独占首页shell/css，NPC-SPATIAL-10先只读诊断|点击现场直达当前位置并接续，八App一屏，人物真实初始/行程/到场与知情统一；不任意放人、尽量无新字段；check/build、本地原档真实验收，无生产部署|
+
+|HOME-EIGHT-10|[x] 已完成（限定实现与本地集成）|home-eight-10-20261027；/root/scene_input_experience；独立.local/worktrees/home-eight-10/codex/home-eight-10自82512596；root唯一集成|phone-shell.tsx、phone.module.css首页/dock、phone-desktop.tsx/module.css紧凑首页、NEW纯layout/tests/report；旧notes-records-ui仅Desktop子例、scene-home08与phone-visual-ui旧入口断言|首页第一排日历/相册/备忘录、第二排记录/身份，底栏微信/现场/地图，一屏8入口不滚；保留返回/世界身份/时间/未读，移除重复大widget，不改App内部/导航controller/数据；0模型/原档/端口，root实际手机PC| 冻结de2a6e2a；21/21聚焦、type0，root集成实页后关闭。
+
+|SCENE-INLINE-10|[x] 已完成（限定实现与本地集成）|scene-inline10-20261027；/root/empty_scene_runtime；独立.local/worktrees/scene-inline10/codex/scene-inline10自82512596；root唯一集成|scenes/scene-panel.tsx、state.ts状态文案/纯helper、scenes.module.css仅inline状态、专属tests/report；不改index/SQL/服务|成功静默，等待/失败贴对应action，unknown原查询/显式风险及原command草稿恢复保留；同步短失败只读重试；必要聚焦/type，0模型/原档/端口；冻结cf8d2a29；10/10/type0/boundary766/diff；成功无卡，等待/失败贴原read确认输入，unknown风险不变；原稿/端口0改，root统一手机PC验收。|
+
+|ATTEMPT-LEASE-11|[x] 已完成（限定实现与本地集成）|attempt-lease11-20261027；/root/empty_scene_runtime；独立.local/worktrees/attempt-lease11自657d6f78；root唯一集成|agent-runtime-repository.ts仅claim同actor过期unknown无response槽回收；NEW专属PG/report；不改SQL/服务/collector|同command先原replay不重买，旧已发送执行权过期退役留sent/input/receipt，晚到raw存而不提交；live/known不动；隔离55687真实PG，0模型/原档/运行端口；冻结b4888e04；5/5真实PG/type0/boundary767/diff，55687已停；仅claim10行回收，old replay/late raw拒commit/live/known保护保持，root接collector并真实验收。|
+
+SCENE-SPATIAL-HOME-10 build41：check4147/build通过，两端health及原4953办公室现场200；六NPC原模型实际确立v518–523，地图去办公室→首页现场直入→刘胜男真实3回复，24.7秒，同scene回访不新建（仅1条）。320/390/1440首页无横纵溢出八入口屏内。2fb仅三人有合法地点，另外三人因原住所不在地点库保留unknown并一次quiet，不能称全部旧档位置完成；作者住处+权限/完全缺行旧档迁移/原长期自主与延迟问题仍列报告。PID88782/88783/88873/88874，保留模型/进度，0生产部署。
