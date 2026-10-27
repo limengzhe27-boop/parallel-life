@@ -3368,3 +3368,23 @@ ACTOR-RETRIEVAL-12冻结fd3b5ac1：自主wake用本人认证报告/有效目标�
 |CHAT-VISIBLE-SCROLL-06|[x] 已完成|chat-visible-scroll-06-20261027；/root/scene_input_experience；独立.local/worktrees/chat-visible-scroll-06/codex/chat-visible-scroll-06自c1d245bf；root唯一集成|apps/messages.tsx滚动与已读hooks；NEW纯helper/tests/report|锁屏hidden高度0不初始化/覆盖scroll，首次实际可见才saved/bottom；历史位置保留，近底隐藏来信返回到底；实际visible近底才markRead，scroll核销；0业务字段/后端/原档/模型/端口，root实际IAB验收| 冻结交root；7/7策略、typecheck0、boundary764、diffcheck通过；hidden不初始化/覆盖，首次visible恢复saved/bottom，近底隐藏新消息回底/历史保留；实际visible近底才核销已读。0模型/原档/端口，root最终IAB。
 
 RUNTIME-CONTINUITY-03最终本地交付：root已集成ec8ac0a2及全部本批冻结件，check35 4122/4122、build35通过，3218/3219同clone正式构建+队列/主动常驻已启动；原4953无输入v350林白语新来信/表情/本人计划及真实锁屏有证据，最终IAB解锁直达最新消息。原2fb现场/聊天/自主来信、QA真图投递分别证据，不混称同一存档全旅程。用户授权本地不部署，不推送/Workflow。根任务待用户体验验收；原出版persona错置、个别旧人物unknown、自然到场/长期多线/口头事件选择/79缺失素材与生产增量仍在主报告未完成列表，不声称全产品或全部旧档质量已合格。
+
+|SCENE-PUBLIC-07|[ ] 待用户验收|root-scene-public-20261027；主目录唯一集成、3218/3219/真实模型原档root独占|现场原请求/task/worker诊断与必要共享提交修复、公共类型/SQL如确有必要归root；子任务环境模型与首页入口独立工作树；报告SCENE-PUBLIC-07.md|原现场无回应闭环、公共场所有合理临时环境人物、现场首页App；无新旁路、尽量不新字段；本地真实酒店/私人地点/熟人在场/重放核对，check/build更新两端口，不部署不推送，未完成清单。|
+
+|SCENE-RESPONSE-AUDIT-08|[x] 已完成|scene-response-audit08-20261027；/root/arrival_continuity；独立.local/worktrees/scene-response-audit08自ad1714e2|只读主目录code/应用角色readonly诊断；仅NEW专属report|两原档最近scene/tasks/commands/entries及410排除清单对照，定位实际无回应断点；0源码/模型/原档写/端口，root独占共享修复|
+
+|SCENE-AMBIENT-08|[x] 已完成|scene-ambient08-20261027；/root/empty_scene_runtime；独立.local/worktrees/scene-ambient08/codex/scene-ambient08自ad1714e2；root唯一集成|empty-scene-environment.ts、NEW domain/scene-environment-scope.ts、专属tests/report；不改scene仓储/channel/SQL/UI|公共服务区匿名环境互动范围，私人/关闭/明确空置守卫；仍原feedback/任务事务，不建NPC/关系/付款成功；0模型/用户档/端口，必要聚焦/type；冻结15377bd4；5unit/9PG/type0/boundary765，隔离55686已停；429明确failed→显式retry同action且无重复；Error现有prompt/duration，未知不改。root真实模型/统一构建。|
+
+|SCENE-HOME-08|[x] 已完成|scene-home-08-20261027；/root/scene_input_experience；独立.local/worktrees/scene-home-08/codex/scene-home-08自ad1714e2；root唯一集成|phone-shell.tsx、navigation.ts、phone.module.css仅dock；scenes/scene-index.tsx、index-state.ts入口纯策略及专属tests/report、旧phone-visual-ui六App断言|首页现场App复用现有路由/当前现场只读打开、当前已知地点经原map.enterPlace进入；未知/旅行中不假入场；地图仍确认前往，历史不重演。0新字段/后台/模型/原档/端口，root真实PC/手机验收| 冻结交root；23/23聚焦、typecheck0、boundary764/diffcheck过；首页两处filter解除，当前scene只读、当前位置原map.enterPlace、未知/在途不入场，已有约定/历史保留。0模型/原档/端口；root手机/PC实际验收。
+
+SCENE-RESPONSE-AUDIT-08只读冻结3d7cf61c：4953旧scene.opened成功但无action；2fb出租屋两action已保存，环境模型HTTP429上游饱和/model_not_found被误记UNKNOWN；均非410排除任务。0源码/模型/原档写/端口，root共享适配/配置修复与页面验收。专属55676已停，root55432未动。
+
+SCENE-RESPONSE-AUDIT-08地图增量b20148b2：readonly4953v506/epoch2 legacy nodes/tasks/commands阻挡均空，pg_locks采样无锁，需UI时点对应；2fbv122两空场UNKNOWN会被全局assertSpaceIdle挡图，旧publication nodes为空。原commitSceneProposal已重验currentPlace/currentScene/active/intervening，建议unknown不占全局执行权，保留回执不重跑。0源码/模型/原档写。
+
+|SPACE-IDLE-09|[x] 已完成|space-idle09-20261027；/root/arrival_continuity；独立.local/worktrees/space-idle09自cf6289ca|space-repository.ts assertSpaceIdle/read、专属PG/test/report；root不改该文件|地图read不把瞬时advisory锁缓存成busy，写仍原锁；epoch2仅scene unknown不全局阻地图，queued/running/非scene/legacy守卫保留，旧晚到scene重验不落新地点；0模型/原档/用户端口|
+
+|MAP-ENTRY-REFRESH-09|[x] 已完成|map-entry-refresh-09-20261027；/root/scene_input_experience；独立.local/worktrees/map-entry-refresh-09/codex/map-entry-refresh-09自cf6289ca；root唯一集成|apps/map.tsx、scenes/scene-index.tsx进入读取、NEW map/use-map-entry-refresh.ts及专属test/report|进入App一次原map.refresh，与scene history读取并行；controller ref/稳定worldId防callback重建重复，无轮询；缓存先显示、刷新后新操作，0字段/后端/原档/模型/端口，root真实验收| 冻结交root；30/30聚焦、typecheck0、boundary766/diffcheck过；同次进入promise防callback重建/StrictMode重复，缓存显示但新动作等读完成，已有现场/原结果查询仍可用。0模型/原档/端口/build；root真实Ego。
+
+SPACE-IDLE-09冻结02319c72：map.read不缓存瞬时advisory锁；epoch2仅scene unknown不全局busy，原write锁/queued-running/legacy-nonscene守卫不变。独立PG8/8含unknown原记录保留且旅行hotel、late scene拒绝、持锁read不冻而write BUSY；type0/boundaries765，0模型/原档/用户端口。root集成与最终页面验收。
+
+SCENE-PUBLIC-07 本地集成交付：build37，check4137/4137+build通过；两原档两端space200/busy=false；真实酒店任务8f0dca9f正常工作人员问路回应，私人任务724669f2成功，PC/手机首页现场App验收。3218/3219+queue/proactive已重启，保留内容/旧unknown不重跑，无生产部署。报告SCENE-PUBLIC-07.md；正式人物多人现场实际模型旅程、原4953旧actor unknown与长期推进、酒店客房素材/大堂内容匹配仍列未完成，不以本次成功替代。
