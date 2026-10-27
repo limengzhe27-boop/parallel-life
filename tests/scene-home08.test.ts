@@ -119,7 +119,7 @@ function renderIndex(controller: PhoneMapContext) {
   );
 }
 
-test('home scene application remains an active route and is a real sixth launcher', () => {
+test('home scene application remains an active route and opens the current place directly', () => {
   assert.deepEqual(activePhoneRoute(readRoute(routeHash(worldId, { app: 'scenes' }), worldId)), {
     app: 'scenes',
   });
@@ -134,18 +134,18 @@ test('home scene application remains an active route and is a real sixth launche
     }),
   );
   assert.match(html, /data-app="scenes"/);
-  assert.equal((html.match(/data-app="/g) ?? []).length, 6);
+  assert.equal((html.match(/data-app="/g) ?? []).length, 7);
+  assert.match(html, /data-panel="timeline"/);
 });
 
-test('known current place can be entered explicitly without routing through travel or auto executing on app open', () => {
+test('current-place app renders the scene shell with no intermediate management or enter button', () => {
   const controller = map();
   assert.equal(sceneHomeEntry(history, controller).canEnterCurrentPlace, true);
   const html = renderIndex(controller);
   assert.match(html, /当前办公室/);
-  assert.match(html, /进入这里的现场/);
-  assert.match(html, /前往地点/);
-  assert.match(html, /打开地图/);
-  assert.match(html, /公园/);
+  assert.match(html, /data-scene-direct-entry/);
+  assert.match(html, /现场输入/);
+  assert.doesNotMatch(html, /进入这里的现场|前往地点|历史现场|公园/);
 });
 
 test('existing current scene is a navigation destination even if paused or another operation is running', () => {
@@ -156,7 +156,8 @@ test('existing current scene is a navigation destination even if paused or anoth
   assert.equal(entry.currentSceneId, sceneId);
   assert.equal(entry.canEnterCurrentPlace, false);
   const html = renderIndex(controller);
-  assert.match(html, /回到现场/);
+  assert.match(html, /data-scene-direct-entry/);
+  assert.doesNotMatch(html, /回到现场/);
   assert.doesNotMatch(html, /进入这里的现场/);
 });
 

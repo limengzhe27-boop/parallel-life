@@ -76,11 +76,46 @@ export async function readAgentPhoneEntryProbe(
   if (raw) return ready('npc_raw', raw.id);
   const blockedActors = new Set(
     actors
-      .filter((a) =>
-        ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(a.status),
+      .filter(
+        (a) =>
+          ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
+            a.status,
+          ) &&
+          !(
+            a.status === 'unknown_after_send' &&
+            a.sent_at &&
+            !a.has_response &&
+            !a.response_hash &&
+            new Date(a.lease_until).getTime() <= now
+          ),
       )
       .map((a) => String(a.actor_id)),
   );
+  // This is only an entry hint. The original NPC collector and kernel own spatial authority.
+  // A paid/committed spatial consideration has a stable identity and is never purchased on entry again.
+  const unset = (
+    await sql.query(
+      `SELECT s.actor_id FROM parallel_life.actor_agent_states s
+      LEFT JOIN parallel_life.world_authoritative_positions p
+        ON p.world_id=s.world_id AND p.owner_id=s.owner_id AND p.subject_key='actor:'||s.actor_id
+     WHERE s.world_id=$1 AND s.owner_id=$2
+       AND (p.document IS NULL OR (p.document->>'status'='unknown' AND p.source_version=0))
+       AND NOT EXISTS (SELECT 1 FROM parallel_life.npc_journeys j
+         WHERE j.world_id=s.world_id AND j.owner_id=s.owner_id AND j.actor_id=s.actor_id)
+       AND NOT EXISTS (SELECT 1 FROM parallel_life.agent_attempts a
+         JOIN parallel_life.agent_input_receipts r ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
+         WHERE a.world_id=s.world_id AND a.owner_id=s.owner_id AND a.actor_id=s.actor_id
+           AND (a.sent_at IS NOT NULL OR a.status='committed')
+           AND r.document->>'origin'='wake'
+           AND r.document->>'text' LIKE '%"candidateId":"actor_local:initial_position:%')
+     ORDER BY s.actor_id`,
+      [frame.worldId, ownerId],
+    )
+  ).rows
+    .map((a) => String(a.actor_id))
+    .filter((id) => !blockedActors.has(id));
+  if (unset.length)
+    return ready('independent_scheduler_check', JSON.stringify({ initialPosition: unset }));
   const states = () =>
     sql
       .query(

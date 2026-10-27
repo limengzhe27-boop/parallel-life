@@ -1,270 +1,110 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePhoneApps } from '../apps/provider.tsx';
 import { useMapEntryRefresh } from '../map/use-map-entry-refresh.ts';
-import { SceneClient } from './client.ts';
-import {
-  appointmentScene,
-  canEnterAppointment,
-  mergeHistory,
-  sceneHomeEntry,
-} from './index-state.ts';
-import type { SceneHistory, SceneSummary } from '../../../contracts/scenes.ts';
+import { sceneHomeEntry } from './index-state.ts';
 import { routeHash } from '../navigation.ts';
-import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.ts';
 import s from './scenes.module.css';
 import type { PhoneAppContext } from '../phone-shell.tsx';
-const status = { active: '正在现场', paused: '现场已暂停', ended: '已离场' };
-export function SceneIndexApp({ map: providedMap }: Pick<PhoneAppContext, 'map'>) {
-  const { transport, worldId, data, actions } = usePhoneApps(),
-    client = useMemo(() => new SceneClient(transport), [worldId, transport]);
-  const [history, setHistory] = useState<SceneHistory>(),
-    [records, setRecords] = useState<SceneSummary[]>([]),
-    [loading, setLoading] = useState(false),
-    [error, setError] = useState(''),
-    [entering, setEntering] = useState<string>();
-  const map =
-    providedMap && (!providedMap.data || providedMap.data.worldId === worldId)
-      ? providedMap
-      : undefined;
-  const entryChecking = useMapEntryRefresh(worldId, providedMap);
-  const mapReady = !entryChecking && !map?.loading && !map?.error;
-  const pending = useRef(false),
-    live = useRef(true);
-  const enabled = !!actions.enterScene;
-  const refresh = useCallback(
-    async (before?: number) => {
-      if (pending.current) return;
-      pending.current = true;
-      setLoading(true);
-      setError('');
-      try {
-        const next = await client.history(worldId, before);
-        if (live.current) {
-          setHistory(next);
-          setRecords((old) =>
-            before === undefined ? next.scenes : mergeHistory(old, next.scenes),
-          );
-        }
-      } catch (e) {
-        if (live.current) setError(e instanceof Error ? e.message : '暂时没能读取现场记录。');
-      } finally {
-        pending.current = false;
-        if (live.current) setLoading(false);
-      }
-    },
-    [client, worldId],
-  );
+
+/** The home icon opens the current place; it is not a scene-management page. */
+export function SceneIndexApp({ map }: Pick<PhoneAppContext, 'map'>) {
+  const { worldId } = usePhoneApps();
+  const checking = useMapEntryRefresh(worldId, map);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const attempted = useRef<string | undefined>(undefined);
+  const mounted = useRef(true);
   useEffect(() => {
-    live.current = true;
-    if (enabled) void refresh();
+    mounted.current = true;
     return () => {
-      live.current = false;
+      mounted.current = false;
     };
-  }, [refresh, enabled]);
-  const open = (id: string) => {
-    window.location.hash = routeHash(worldId, { app: 'scenes', panel: 'scene', target: id });
-  };
-  async function enter(id: string) {
-    if (entering || !actions.enterScene || !mapReady) return;
-    setEntering(id);
-    setError('');
-    try {
-      await actions.enterScene(id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '暂时无法进入，请先检查最新状态。');
-    } finally {
-      setEntering(undefined);
+  }, []);
+  const controller = useRef(map);
+  controller.current = map;
+  const current = map?.data?.worldId === worldId ? map : undefined;
+  const entry = sceneHomeEntry(undefined, current);
+  useEffect(() => {
+    if (checking || current?.loading || current?.error || !current?.data) return;
+    if (entry.currentSceneId) {
+      window.location.hash = routeHash(worldId, {
+        app: 'scenes',
+        panel: 'scene',
+        target: entry.currentSceneId,
+      });
+      return;
     }
-  }
-  async function enterCurrentPlace() {
-    const place = entry.currentPlace;
-    if (!map || !place || !entry.canEnterCurrentPlace || !mapReady || entering) return;
-    setEntering('place:' + place.id);
-    setError('');
-    try {
-      await map.enterPlace(place.id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '暂时无法进入，请先核对当前位置。');
-    } finally {
-      setEntering(undefined);
-    }
-  }
-  const entry = sceneHomeEntry(history, map);
-  const currentScene =
-    history?.currentScene?.id === entry.currentSceneId ? history.currentScene : undefined;
-  const appointments = data.invitations.filter((a) => a.status === 'confirmed');
+    if (!entry.canEnterCurrentPlace || !entry.currentPlace) return;
+    const key = `${worldId}:${entry.currentPlace.id}:${retry}`;
+    if (attempted.current === key) return;
+    attempted.current = key;
+    void controller.current!.enterPlace(entry.currentPlace.id).catch((e: unknown) => {
+      if (mounted.current) setError(e instanceof Error ? e.message : '现场暂时没能打开。');
+    });
+  }, [
+    worldId,
+    checking,
+    current?.loading,
+    current?.error,
+    current?.data?.worldVersion,
+    entry.currentSceneId,
+    entry.currentPlace?.id,
+    entry.canEnterCurrentPlace,
+    retry,
+  ]);
+  const problem = error || current?.error;
+  const blocked =
+    !checking && !current?.loading && !entry.canEnterCurrentPlace && !entry.currentSceneId;
   return (
-    <div className={s.panel} data-scene-index>
-      <section className={s.card}>
-        <h3>现场</h3>
-        <p>回到眼前的现场，或选择接下来要去的地方。历史记录随时可以回看。</p>
-        {enabled ? (
-          <button
-            disabled={loading || entryChecking || map?.loading}
-            onClick={() => {
-              void refresh();
-              void map?.refresh().catch(() => {});
-            }}
-          >
-            更新现场
-          </button>
-        ) : (
-          <p>预览中没有真实现场记录。</p>
-        )}
-      </section>
-      {loading ? (
-        <p role="status">
-          {history ? '正在更新现场记录，已有内容仍可查看…' : '正在读取现场与约定…'}
-        </p>
-      ) : null}
-      {entryChecking && !loading ? <p role="status">正在核对当前位置，已有记录仍可查看…</p> : null}
-      {map?.error ? (
-        <p className={s.notice} role="alert">
-          {map.error} 可以打开地图重新核对。
-        </p>
-      ) : null}
-      {error ? (
-        <p className={s.notice} role="alert">
-          {error}
-        </p>
-      ) : null}
-      {entry.currentSceneId ? (
-        <section className={s.card}>
-          <small>当前现场</small>
-          <h3>{currentScene?.title ?? entry.currentPlace?.name ?? '当前现场'}</h3>
-          {currentScene?.location ? <p>{currentScene.location}</p> : null}
-          <button type="button" onClick={() => open(entry.currentSceneId!)}>
-            回到现场
-          </button>
-          <p className={s.notice}>打开已有现场，不会重新生成或重复赴约。</p>
-        </section>
-      ) : history || map?.data ? (
-        <section className={s.card}>
-          <small>当前地点</small>
-          <h3>{entry.currentPlace?.name ?? '当前位置尚未确认'}</h3>
-          {entry.currentPlace ? (
-            <button
-              type="button"
-              disabled={!entry.canEnterCurrentPlace || !mapReady || !!entering}
-              onClick={() => void enterCurrentPlace()}
-            >
-              {entering?.startsWith('place:') ? '正在进入…' : '进入这里的现场'}
-            </button>
-          ) : null}
-          {entry.blockedReason ? (
-            <p className={s.notice}>{entry.blockedReason}</p>
-          ) : (
-            <p>看看周围，或做点什么。人物是否在场以实际情况为准。</p>
-          )}
-        </section>
-      ) : null}
-      <section className={s.card}>
-        <h3>前往地点</h3>
-        <p>选择地点后，在地图确认路线再前往。</p>
+    <div className={`${s.panel} ${s.scenePanel}`} data-scene-direct-entry>
+      <section className={s.sceneControls} aria-label="现场导航">
         <button
           type="button"
+          aria-label="返回手机"
           onClick={() => {
-            window.location.hash = routeHash(worldId, { app: 'map' });
+            window.location.hash = routeHash(worldId, { app: null });
           }}
         >
-          打开地图
+          ‹
         </button>
-        {map?.data?.places.length ? (
-          <details>
-            <summary>查看地点</summary>
-            <div className={s.buttons}>
-              {map.data.places
-                .filter((place) => place.id !== map.data?.currentPlaceId)
-                .map((place) => (
-                  <button
-                    type="button"
-                    key={place.id}
-                    onClick={() => {
-                      window.location.hash = routeHash(worldId, { app: 'map', target: place.id });
-                    }}
-                  >
-                    {place.name}
-                  </button>
-                ))}
-            </div>
-          </details>
-        ) : null}
+        <strong className={s.locationTitle}>{entry.currentPlace?.name ?? '当前地点'}</strong>
       </section>
-      {appointments.length && history ? (
-        <section className={s.card}>
-          <h3>已确认的约定</h3>
-          {appointments.map((a) => {
-            const record = appointmentScene(history, a),
-              ready = canEnterAppointment(history, a, data.referenceTime),
-              venue = map?.data?.places.find((p) => p.appointmentIds.includes(a.id)),
-              needsTravel = !!venue && map?.data?.currentPlaceId !== venue.id;
-            return (
-              <div key={a.id} className={s.indexRow}>
-                <strong>{a.title}</strong>
-                <small>{worldDateTimeLabel(a.at)}</small>
-                {record ? (
-                  <button onClick={() => open(record.id)}>查看已有现场</button>
-                ) : (
-                  <>
-                    <button
-                      disabled={!ready || !mapReady || !!entering}
-                      onClick={() => {
-                        if (needsTravel)
-                          window.location.hash = routeHash(worldId, {
-                            app: 'map',
-                            target: venue!.id,
-                          });
-                        else void enter(a.id);
-                      }}
-                    >
-                      {entering === a.id
-                        ? '正在进入…'
-                        : needsTravel
-                          ? `前往${venue!.name}`
-                          : '进入现场'}
-                    </button>
-                    {!ready ? (
-                      <small>
-                        {history.paused
-                          ? '这段人生的时间已暂停，暂时无法进入新的现场。'
-                          : history.currentScene
-                            ? '请先处理当前现场。'
-                            : '约定时间还未到。'}
-                      </small>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </section>
-      ) : null}
-      {history ? (
-        <section className={s.card}>
-          <h3>历史现场</h3>
-          {records.length ? (
-            records.map((record) => (
-              <div className={s.indexRow} key={record.id}>
-                <strong>{record.title}</strong>
-                <small>
-                  {status[record.status]}
-                  {record.storyAt ? ' · ' + worldDateTimeLabel(record.storyAt) : ''}
-                </small>
-                {record.location ? <span>{record.location}</span> : null}
-                <button onClick={() => open(record.id)}>查看记录</button>
-              </div>
-            ))
-          ) : (
-            <p>还没有现场记录。</p>
-          )}
-          {history.nextBefore !== null ? (
-            <button disabled={loading} onClick={() => void refresh(history.nextBefore!)}>
-              更早的记录
-            </button>
-          ) : null}
-        </section>
-      ) : null}
+      <div className={s.reading} role={problem ? 'alert' : 'status'}>
+        <p>{problem || (blocked ? entry.blockedReason : '看看眼前的环境…')}</p>
+        {problem ? (
+          <button
+            type="button"
+            onClick={async () => {
+              setError('');
+              try {
+                await map?.refresh();
+                setRetry((n) => n + 1);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : '暂时没能读取当前位置。');
+              }
+            }}
+          >
+            重试打开
+          </button>
+        ) : null}
+        {blocked || !map ? (
+          <button
+            type="button"
+            onClick={() => {
+              window.location.hash = routeHash(worldId, { app: 'map' });
+            }}
+          >
+            查看地图
+          </button>
+        ) : null}
+      </div>
+      <form className={s.composer} onSubmit={(e) => e.preventDefault()}>
+        <textarea disabled aria-label="现场输入" placeholder="想说点什么，或者做个动作……" />
+        <button disabled type="submit">
+          发送
+        </button>
+      </form>
     </div>
   );
 }

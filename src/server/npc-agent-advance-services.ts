@@ -341,7 +341,7 @@ export function npcAgentAdvanceServices(
         ).rows.map((r) => r.document as AgentActionResult);
         const prior = (
           await sql.query(
-            `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,(a.response IS NOT NULL) AS has_response,(a.event_id IS NOT NULL) AS has_event,a.expected_world_version,a.expected_actor_revision,a.engine_epoch,r.document->>'channel' AS channel,r.document->>'origin' AS origin,r.document->>'text' AS input_text
+            `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,(a.response IS NOT NULL) AS has_response,(a.event_id IS NOT NULL) AS has_event,a.expected_world_version,a.expected_actor_revision,a.engine_epoch,(a.lease_until>clock_timestamp()) AS lease_live,r.document->>'channel' AS channel,r.document->>'origin' AS origin,r.document->>'text' AS input_text
                FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
                ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
                WHERE a.world_id=$1 AND a.owner_id=$2 ORDER BY a.created_at,a.id`,
@@ -353,6 +353,7 @@ export function npcAgentAdvanceServices(
           commandId: String(r.command_id),
           status: r.status as AgentAttempt['status'],
           channel: String(r.channel),
+          leaseLive: r.lease_live === true,
           paid: r.sent_at !== null || r.response_hash !== null,
           sent: r.sent_at !== null,
           hasResponse: r.has_response || r.response_hash !== null,
@@ -511,18 +512,6 @@ export function npcAgentAdvanceServices(
           }
         }
       }
-      const delivery = retryCommandId
-        ? null
-        : await dispatchPendingAgentEpisode(
-            db,
-            npcModel,
-            ownerId,
-            world,
-            engineEpoch,
-            storyAt,
-            batch,
-          );
-      if (delivery) return delivery;
       let deferredInitializationCandidateIds: string[] = [];
       let directorDeliveryDeferred = false;
       const coordinate = async (
@@ -785,20 +774,6 @@ export function npcAgentAdvanceServices(
       };
       const commandForCandidate = (candidate: AgentCandidate) =>
         candidateCommand(candidate).commandId;
-      // A committed Director opportunity creates one pending episode request. Deliver
-      // it before a new review so an interrupted manual/HTTP request cannot orphan it.
-      if (!retryCommandId) {
-        const pendingEpisode = await dispatchPendingAgentEpisode(
-          db,
-          npcModel,
-          ownerId,
-          world,
-          engineEpoch,
-          storyAt,
-          batch,
-        );
-        if (pendingEpisode) return pendingEpisode;
-      }
       const directorReview = await directorReviewRepository.read(ownerId, worldId);
       // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
       const directorNow = new Date().toISOString();
@@ -816,7 +791,11 @@ export function npcAgentAdvanceServices(
         worldVersion: world.version,
         storyAt,
         actors,
-        activeAttempts: read.prior,
+        // An expired unknown still consumes its paid cause, but cannot own future actor work.
+        // Claim retires only this same no-response case under the actor/world locks.
+        activeAttempts: read.prior.filter(
+          (a) => !(a.status === 'unknown_after_send' && !a.leaseLive && a.sent && !a.hasResponse),
+        ),
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
         planReviews: planReviewStates,
@@ -873,6 +852,30 @@ export function npcAgentAdvanceServices(
         sources.map((s) => s.source.collect(ownerId, worldId)),
       );
       const allBlockers = existingCollections.flatMap((c) => c.blockers);
+      // Spatial grounding is a bounded actor-owned setup task, not a new plot opportunity.
+      // Reuse this same collector/claim/kernel before pending narrative work can starve it.
+      const spatial = existingCollections
+        .flatMap((c) => c.candidates)
+        .find(
+          (c) =>
+            c.id.startsWith('actor_local:initial_position:') &&
+            !allBlockers.some((b) => agentScopeBlocks(b.scope, c)),
+        );
+      if (!retryCommandId && spatial) return execute(spatial, []);
+      // A committed Director opportunity creates one pending episode request. Deliver
+      // it before a new review so an interrupted manual/HTTP request cannot orphan it.
+      if (!retryCommandId) {
+        const pendingEpisode = await dispatchPendingAgentEpisode(
+          db,
+          npcModel,
+          ownerId,
+          world,
+          engineEpoch,
+          storyAt,
+          batch,
+        );
+        if (pendingEpisode) return pendingEpisode;
+      }
       const priorityActors = new Set(
         existingCollections
           .flatMap((c) => c.candidates)
