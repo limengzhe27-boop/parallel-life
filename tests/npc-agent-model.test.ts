@@ -983,7 +983,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
   assert.match(system, /不能用一个不合时宜的图代替安慰/);
   assert.match(system, /只有executions这一个动作通道/);
-  assert.match(system, /不能只说“过会儿发”却不提交动作/);
+  assert.match(system, /不只是口头答应/);
 });
 
 test('a sticker-only turn receives no plan ledger, no pending questions and no change schema', async () => {
