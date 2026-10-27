@@ -301,7 +301,8 @@ export async function readActorEpisodeIntentsInTransaction(
             (combined
               ? '当前可考虑的个人互动机会及本人已有议程。ownKnownTopics保留各自contentHash与状态，只代表本人目标/计划/责任；opportunity是可提出的内容，不是已发生事实、玩家同意或必须行动的命令。由你决定参与、调整、暂缓或拒绝：'
               : '导演建议你自行考虑跟进以下本人已知事项。它不是命令、已经发生的事实或玩家同意；你可以调整、暂缓或不参与：') +
-            JSON.stringify(directive),
+            JSON.stringify(directive) +
+            opportunityPlaceHint(opportunity.placeIds, world.space?.places ?? []),
         },
       });
     }
@@ -396,11 +397,26 @@ export async function readActorEpisodeIntentsInTransaction(
         kind: 'plan',
         text:
           'Author suggestion addressed only to you. Consider it using your own position; it is not an event, verified fact, obligation, deadline or player agreement: ' +
-          JSON.stringify(directive),
+          JSON.stringify(directive) +
+          opportunityPlaceHint(opportunity.placeIds, world.space?.places ?? []),
       },
     });
   }
   return result;
+}
+
+/** Places are a staging hint, not a new authorization or a claim of arrival. */
+function opportunityPlaceHint(
+  placeIds: readonly string[] | undefined,
+  places: readonly { id: string; name: string }[],
+): string {
+  const selected = (placeIds ?? []).flatMap((id) => {
+    const place = places.find((candidate) => candidate.id === id);
+    return place ? [`${place.name}（${place.id}）`] : [];
+  });
+  return selected.length
+    ? ` 这次机会涉及的地点：${selected.join('、')}。若你决定前往，只能沿已有路线提 travel.begin；出发不等于到场。`
+    : '';
 }
 
 /** Revalidate exact source hashes before payment and again in the atomic kernel transaction. */
