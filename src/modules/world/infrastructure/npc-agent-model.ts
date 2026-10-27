@@ -17,7 +17,7 @@ import {
 } from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
 import type { NpcSuppliedContext } from '../domain/npc-supplied-context.ts';
-import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
+import type { ModelMessage, ModelOutputOptions, TextModel } from '../../ai/application/ports.ts';
 import type {
   AgentSnapshot,
   NpcAgentModel as NpcAgentModelPort,
@@ -209,7 +209,9 @@ function responseFormatFor(snapshot: AgentSnapshot) {
   );
 }
 
-function prepare(snapshot: AgentSnapshot): ModelMessage[] {
+type PreparedNpcRequest = { messages: ModelMessage[]; output: ModelOutputOptions };
+
+function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   const { state, viewState } = snapshot;
   if (
     state.schemaVersion !== 1 ||
@@ -655,20 +657,21 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       opportunitySourceId && payload.observations.some((o) => o.sourceId === opportunitySourceId)
         ? { sourceId: opportunitySourceId }
         : undefined;
+    // Source metadata is serialized once below, not recursively projected and discarded.
+    const { sources, ...contextPayload } = payload;
     const projected = mapNpcSourceFields(
-      { ...payload, ...presentation, ...(currentOpportunity ? { currentOpportunity } : {}) },
+      { ...contextPayload, ...presentation, ...(currentOpportunity ? { currentOpportunity } : {}) },
       sourceCatalog,
       'encode',
-    ) as typeof payload & {
+    ) as Omit<typeof payload, 'sources'> & {
       wireCatalog?: unknown;
     };
     // One source catalogue carries both handles and authorized metadata. The
     // original snapshot remains the sole execution/knowledge authority.
-    delete (projected as unknown as Record<string, unknown>).sources;
     projected.actor.persona = npcPersonaSourceReferences(payload.actor.persona, sourceCatalog);
     projected.input.text = inputText;
     projected.wireCatalog = {
-      sources: payload.sources.map((s) => {
+      sources: sources.map((s) => {
         const { id, usage, ...metadata } = s;
         return {
           ref: npcSourceRef(sourceCatalog, id)!,
@@ -680,18 +683,23 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     };
     return projected;
   };
+  const systemMessage: ModelMessage = {
+    role: 'system',
+    content: systemFor(snapshot) + WIRE_SYSTEM,
+  };
+  const replyInstruction: ModelMessage = {
+    role: 'user',
+    content:
+      snapshot.input.origin === 'player'
+        ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。${hasReplyTargets ? '当前有本人已提出的待答事项，changes必须是对象并给出inputInterpretation；无关话题可选new_request/topic_change，不确定可选uncertain，不要代替玩家答应。' : '无状态变化时changes=null。'}`
+        : isActorEpisodeConsiderationInput(snapshot.input)
+          ? `你是${snapshot.actor.name}。本次任务是考虑currentOpportunity所指、专门交给你的一项互动机会。根据对应来源中的具体议题、本人动机和可见事实，决定怎样参与、调整、拒绝、暂缓或保持安静。没有玩家新消息不等于没有新的机会；判断对象是这项机会，而不是是否收到玩家发言。参与时形成自己的具体说法或合法下一步，不复述任务说明；不适合时保留具体人物理由，不需要为了完成任务发消息。来源仍为${inputSourceRef}。\n${inputText}`
+          : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
+  };
   const messages = (): ModelMessage[] => [
-    { role: 'system', content: systemFor(snapshot) + WIRE_SYSTEM },
+    systemMessage,
     { role: 'user', content: JSON.stringify(wirePayload()) },
-    {
-      role: 'user',
-      content:
-        snapshot.input.origin === 'player'
-          ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n${snapshot.input.text.length <= 2000 ? snapshot.input.text : '完整原话见上方 input.text；请阅读全文，不依据片段判断。'}\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。${hasReplyTargets ? '当前有本人已提出的待答事项，changes必须是对象并给出inputInterpretation；无关话题可选new_request/topic_change，不确定可选uncertain，不要代替玩家答应。' : '无状态变化时changes=null。'}`
-          : isActorEpisodeConsiderationInput(snapshot.input)
-            ? `你是${snapshot.actor.name}。本次任务是考虑currentOpportunity所指、专门交给你的一项互动机会。根据对应来源中的具体议题、本人动机和可见事实，决定怎样参与、调整、拒绝、暂缓或保持安静。没有玩家新消息不等于没有新的机会；判断对象是这项机会，而不是是否收到玩家发言。参与时形成自己的具体说法或合法下一步，不复述任务说明；不适合时保留具体人物理由，不需要为了完成任务发消息。来源仍为${inputSourceRef}。\n${inputText}`
-            : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n${inputText.length <= 2000 ? inputText : '完整唤醒原因见上方 input.text；不截断其条件。'}`,
-    },
+    replyInstruction,
   ];
   const fits = (requestLimit = NPC_AGENT_REQUEST_LIMIT - 4000) => {
     // Budget the real transmitted envelope once, not an additional intermediate
@@ -832,21 +840,25 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
         Object.entries(payload).map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0]),
       ),
     });
-  return messages();
+  return { messages: messages(), output: responseFormat };
 }
 
 /** No DB, director, parsing, retries or output rewriting. The runner saves raw output first. */
 export class NpcAgentModel implements NpcAgentModelPort {
   private readonly model: TextModel;
-  private readonly validatedMessages = new WeakMap<AgentSnapshot, ModelMessage[]>();
-  private readonly prepared = new WeakMap<
-    AgentSnapshot,
-    { messages: ModelMessage[]; manifest: NpcSuppliedContext }
-  >();
+  private readonly prepared = new WeakMap<AgentSnapshot, PreparedNpcRequest>();
+
+  private requestFor(snapshot: AgentSnapshot): PreparedNpcRequest {
+    let request = this.prepared.get(snapshot);
+    if (!request) {
+      request = prepare(snapshot);
+      this.prepared.set(snapshot, request);
+    }
+    return request;
+  }
 
   describeSuppliedContext(snapshot: AgentSnapshot): NpcSuppliedContext {
-    const messages = this.validatedMessages.get(snapshot) ?? prepare(snapshot);
-    this.validatedMessages.delete(snapshot);
+    const { messages } = this.requestFor(snapshot);
     const payload = JSON.parse(messages[1]!.content);
     const observations = mapNpcSourceFields(
       [
@@ -884,7 +896,6 @@ export class NpcAgentModel implements NpcAgentModelPort {
         )
         .map((s) => ({ sourceId: s.id, contentHash: s.contentHash! })),
     };
-    this.prepared.set(snapshot, { messages, manifest });
     return structuredClone(manifest);
   }
 
@@ -893,20 +904,14 @@ export class NpcAgentModel implements NpcAgentModelPort {
   }
 
   validateInput(snapshot: AgentSnapshot): void {
-    if (!this.validatedMessages.has(snapshot))
-      this.validatedMessages.set(snapshot, prepare(snapshot));
+    this.requestFor(snapshot);
   }
 
   async decide(snapshot: AgentSnapshot, signal?: AbortSignal): Promise<unknown> {
-    const messages = this.prepared.get(snapshot)?.messages ?? prepare(snapshot);
+    const { messages, output } = this.requestFor(snapshot);
     this.prepared.delete(snapshot);
     signal?.throwIfAborted();
-    return this.model.complete(
-      messages,
-      signal,
-      NPC_AGENT_OUTPUT_TOKENS,
-      responseFormatFor(snapshot),
-    );
+    return this.model.complete(messages, signal, NPC_AGENT_OUTPUT_TOKENS, output);
   }
 
   async decideStream(
@@ -923,7 +928,7 @@ export class NpcAgentModel implements NpcAgentModelPort {
     ) {
       return this.decide(snapshot, signal);
     }
-    const messages = this.prepared.get(snapshot)?.messages ?? prepare(snapshot);
+    const { messages, output } = this.requestFor(snapshot);
     this.prepared.delete(snapshot);
     signal?.throwIfAborted();
     const { NpcStreamParser } = await import('./npc-stream-parser.ts');
@@ -935,7 +940,7 @@ export class NpcAgentModel implements NpcAgentModelPort {
         .map((r) => r.id),
     });
     try {
-      const stream = this.model.streamComplete(messages, signal, responseFormatFor(snapshot));
+      const stream = this.model.streamComplete(messages, signal, output);
       for await (const chunk of stream) {
         signal?.throwIfAborted();
         const events = parser.pushChunk(chunk);

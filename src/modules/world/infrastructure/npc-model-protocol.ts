@@ -931,31 +931,8 @@ export function npcResponseFormat(
     }).length > 0;
   if (considerationScope === 'required' || reviewScope || replyRequired)
     schema.properties.changes = schema.properties.changes!.anyOf![0]!;
-  const optionalActionFields = new Set<string>();
-  const relaxActionRequired = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(relaxActionRequired);
-    if (!value || typeof value !== 'object') return value;
-    const node = value as Record<string, any>;
-    if (node.properties?.action && Array.isArray(node.required))
-      node.required = node.required.filter((field: string) => !optionalActionFields.has(field));
-    if (node.properties && Array.isArray(node.required))
-      node.required = node.required.filter((field: string) => !optionalActionFields.has(field));
-    for (const [key, child] of Object.entries(node)) node[key] = relaxActionRequired(child);
-    return node;
-  };
-  relaxActionRequired(schema);
-  schema.required = Object.keys(schema.properties!).filter(
-    (key) =>
-      ![
-        'statements',
-        'executions',
-        'goals',
-        'plans',
-        'actions',
-        'responsibilities',
-        'decisions',
-      ].includes(key),
-  );
+  // Final requireAll below owns required fields; do not traverse the full
+  // schema with an empty relaxation set or build a required list it overwrites.
   const finalized = shareNpcConditionSchema(
     npcSourceReferenceSchema(
       schema as Record<string, unknown>,

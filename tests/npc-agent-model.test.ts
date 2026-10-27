@@ -1683,3 +1683,56 @@ test('autonomous wake cue remains a consideration basis, not a mandatory event o
   assert.match(instruction, /决定自己的下一步，可以行动、联系或保持安静/);
   assert.doesNotMatch(instruction, /必须按这个阶段回应/);
 });
+
+test('a validated request is sent without reading the snapshot again or rebuilding its schema', async () => {
+  const input = snapshot();
+  const { adapter, calls } = capture();
+  adapter.validateInput(input);
+  Object.defineProperty(input, 'viewState', {
+    get() {
+      throw Error('snapshot read after preparation');
+    },
+  });
+  await adapter.decide(input);
+  assert.equal(calls.length, 1);
+  const { createHash } = await import('node:crypto');
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(
+    payload.responseContract.outputSchemaHash,
+    createHash('sha256').update(JSON.stringify(calls[0]!.output)).digest('hex'),
+  );
+});
+
+test('streaming sends exactly the prepared schema bound to the recorded context', async () => {
+  const input = snapshot();
+  let sent: { messages: ModelMessage[]; output?: ModelOutputOptions } | undefined;
+  const model: TextModel = {
+    async complete() {
+      throw Error('unexpected nonstream fallback');
+    },
+    async *streamComplete(messages, _signal, output) {
+      sent = { messages, output };
+      yield '{}';
+    },
+  };
+  const adapter = new NpcAgentModel(model);
+  adapter.validateInput(input);
+  const manifest = adapter.describeSuppliedContext(input);
+  Object.defineProperty(input, 'viewState', {
+    get() {
+      throw Error('snapshot read after preparation');
+    },
+  });
+  await adapter.decideStream(input, () => {});
+  assert.ok(sent);
+  const { createHash } = await import('node:crypto');
+  assert.equal(
+    manifest.modelInputHash,
+    createHash('sha256').update(JSON.stringify(sent.messages)).digest('hex'),
+  );
+  const payload = JSON.parse(sent.messages[1]!.content);
+  assert.equal(
+    payload.responseContract.outputSchemaHash,
+    createHash('sha256').update(JSON.stringify(sent.output)).digest('hex'),
+  );
+});
