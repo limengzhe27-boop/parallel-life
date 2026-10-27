@@ -1,3 +1,4 @@
+import { scenePrivateThought } from '../../../modules/world/domain/scene-runtime.ts';
 import type { SceneRead } from '../../../contracts/scenes.ts';
 import { z } from 'zod';
 import { Id, Version, TaskSchema } from '../../../contracts/api.ts';
@@ -8,17 +9,17 @@ export function sceneBusy(task?: SceneTask | null) {
 export function sceneStatus(task?: SceneTask | null) {
   switch (task?.status) {
     case 'queued':
-      return '行动已保存，等待现场回应';
+      return '正在回应…';
     case 'running':
-      return '行动已保存，正在等待现场回应';
+      return '正在回应…';
     case 'unknown':
-      return '行动已保存，后续结果还不能确认。请先核对原回应，不必再次发送行动。';
+      return '结果还不能确认，请先核对原回应。';
     case 'failed':
-      return '这次现场回应没有完成，已保存的行动仍在。';
+      return '暂未收到回应。';
     case 'cancelled':
-      return '这次回应已停止，行动记录仍在。';
+      return '这次回应已停止。';
     case 'conflict':
-      return '现场已有变化，这次回应未能保存。行动记录仍在，可以重新读取。';
+      return '现场有了变化，请重新读取。';
     default:
       return '';
   }
@@ -101,4 +102,26 @@ export async function readSceneTaskForRecovery(
   )
     throw new Error('现场回应的来源不一致，请重新读取现场。');
   return mergeSceneTask(original, latest)!;
+}
+
+/** Scene reads expose the newest task and its scene's actions together. No invented task/input identity. */
+export function sceneTaskActionId(read: SceneRead, task: SceneTask | null | undefined) {
+  if (
+    !task ||
+    task.status === 'succeeded' ||
+    task.scope.kind !== 'world' ||
+    task.scope.worldId !== read.experience.worldId ||
+    read.task?.id !== task.id ||
+    !read.scene
+  )
+    return null;
+  return (
+    read.actions
+      .filter((a) => a.sceneId === read.scene!.id && !scenePrivateThought(a.text))
+      .reduce<(typeof read.actions)[number] | null>(
+        (latest, action) =>
+          !latest || action.sourceVersion >= latest.sourceVersion ? action : latest,
+        null,
+      )?.id ?? null
+  );
 }

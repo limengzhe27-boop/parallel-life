@@ -10,6 +10,7 @@ import {
   shouldResumeSceneTask,
   sceneBusy,
   sceneStatus,
+  sceneTaskActionId,
   mergeScene,
   restoreSceneCommand,
   sceneInputDisabled,
@@ -80,6 +81,7 @@ export function ScenePanel({
     [text, setText] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
+    [errorAt, setErrorAt] = useState<'global' | 'input' | 'task'>('global'),
     [retryConfirm, setRetryConfirm] = useState(false),
     [leaveConfirm, setLeaveConfirm] = useState(false),
     [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -102,6 +104,7 @@ export function ScenePanel({
       setHasNewEntries(false);
     }
   }, []);
+  const inputConflict = useRef(false);
   const live = useRef(true),
     running = useRef(false),
     retryId = useRef<{ taskId: string; id: string } | undefined>(undefined),
@@ -193,8 +196,7 @@ export function ScenePanel({
         if (current) setSyncError('');
       })
       .catch(() => {
-        if (current)
-          setSyncError('现场记录已保存，手机记录暂未同步。重新读取即可，不必再做一次行动。');
+        if (current) setSyncError('手机内容暂未同步。');
       });
     return () => {
       current = false;
@@ -231,28 +233,24 @@ export function ScenePanel({
   const overview = data ? sceneOverview(data) : undefined;
   const entries = data ? sceneTimelineEntries(visibleSceneEntries(data), data.actions) : [];
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, at: 'global' | 'input' | 'task' = 'global') {
     if (running.current) return;
     running.current = true;
     setBusy(true);
     setError('');
+    setErrorAt(at);
     try {
       await action();
     } catch (e) {
-      if ((e as { code?: string }).code === 'VERSION_CONFLICT') {
-        inputId.current = undefined;
-        try {
-          sessionStorage.removeItem(draftKey + ':command');
-        } catch {}
-      }
+      if (at === 'input')
+        inputConflict.current = (e as { code?: string }).code === 'VERSION_CONFLICT';
       if (live.current)
         setError(e instanceof Error ? e.message : '结果还不能确认，请重新读取核对。');
     } finally {
       const next = await refresh().catch(() => undefined);
       if (next && onWorldChanged)
         await sync.sync(next, phoneVersion, onWorldChanged).catch(() => {
-          if (live.current)
-            setSyncError('现场记录已保存，手机记录暂未同步。重新读取即可，不必再做一次行动。');
+          if (live.current) setSyncError('手机内容暂未同步。');
         });
       running.current = false;
       if (live.current) setBusy(false);
@@ -285,8 +283,8 @@ export function ScenePanel({
       return;
     resumedTasks.current.add(task.id);
     // The persisted queue lease arbitrates other tabs. Unknown/running/failed tasks are reads only.
-    void run(() => execute(task));
-  }, [task?.id, task?.status, data?.paused]);
+    void run(() => execute(task), 'task');
+  }, [task?.id, task?.status, data?.paused, busy]);
   useEffect(() => {
     setRetryConfirm(false);
   }, [task?.id]);
@@ -294,6 +292,75 @@ export function ScenePanel({
     if (!canRetrySceneTask(task)) setRetryConfirm(false);
   }, [task?.status]);
   const disabled = sceneInputDisabled(data, task, busy);
+  const taskActionId = data ? sceneTaskActionId(data, task) : null;
+  const taskFeedback =
+    data?.scene && task && task.status !== 'succeeded' ? (
+      <div className={s.inlineStatus} role="status" aria-live="polite">
+        <span>{sceneStatus(task)}</span>
+        {canRetrySceneTask(task) && data.scene.status === 'active' ? (
+          <button
+            disabled={busy || data?.paused}
+            onClick={() =>
+              void run(async () => {
+                const latest = await readSceneTaskForRecovery(task, (id) => client.task(id));
+                setTask(latest);
+                setRetryConfirm(canRetrySceneTask(latest));
+              }, 'task')
+            }
+          >
+            {task.status === 'unknown' ? '核对回应结果' : '重新处理这次回应'}
+          </button>
+        ) : null}
+        {task.status === 'conflict' ? (
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await refresh();
+              }, 'task')
+            }
+          >
+            重新读取
+          </button>
+        ) : null}
+        {error && errorAt === 'task' ? (
+          <span className={s.inlineError} role="alert">
+            {error}
+          </span>
+        ) : null}
+        {retryConfirm ? (
+          <div>
+            <p>
+              {task.status === 'unknown'
+                ? '原回应的结果仍未确认，可能已经处理。重新生成可能重复回应并再次产生费用。'
+                : '确认后重新处理这次回应，不会再次发送你的行动；可能再次产生费用。'}
+            </p>
+            <button
+              disabled={busy || data?.paused}
+              onClick={() =>
+                void run(async () => {
+                  const latest = await readSceneTaskForRecovery(task, (id) => client.task(id));
+                  setTask(latest);
+                  if (!canRetrySceneTask(latest)) {
+                    setRetryConfirm(false);
+                    return;
+                  }
+                  if (retryId.current?.taskId !== task.id)
+                    retryId.current = { taskId: task.id, id: crypto.randomUUID() };
+                  const t = await client.retry(task.id, retryId.current.id);
+                  setTask(t);
+                  setRetryConfirm(false);
+                  await execute(t);
+                }, 'task')
+              }
+            >
+              {task.status === 'unknown' ? '仍要重新生成回应' : '确认重新处理'}
+            </button>
+            <button onClick={() => setRetryConfirm(false)}>取消</button>
+          </div>
+        ) : null}
+      </div>
+    ) : null;
   return (
     <div
       ref={panel}
@@ -348,7 +415,20 @@ export function ScenePanel({
         <>
           {syncError ? (
             <p className={s.notice} role="status">
-              {syncError}
+              {syncError}{' '}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const latest = await refresh();
+                    if (onWorldChanged) await sync.sync(latest, phoneVersion, onWorldChanged);
+                    setSyncError('');
+                  })
+                }
+              >
+                重新同步
+              </button>
             </p>
           ) : null}
           <SceneStage
@@ -522,6 +602,7 @@ export function ScenePanel({
                     .map((a) => ({
                       kind: 'private_input' as const,
                       id: 'input-' + a.id,
+                      actionId: a.id,
                       text: a.text,
                       sourceVersion: a.sourceVersion,
                     })),
@@ -569,77 +650,16 @@ export function ScenePanel({
                                     : '现场'}
                           </small>
                           <p>{renderStoryContent(e.text)}</p>
+                          {(e.kind === 'user_action' || e.kind === 'private_input') &&
+                          e.actionId === taskActionId
+                            ? taskFeedback
+                            : null}
                         </div>
                       </article>
                     ),
                   )}
+                {!taskActionId ? taskFeedback : null}
               </div>
-              {task && task.status !== 'succeeded' ? (
-                <div className={s.card} role="status">
-                  <ProgressState
-                    label={sceneStatus(task)}
-                    busy={sceneBusy(task)}
-                    detail={sceneBusy(task) ? '正在保存现场的后续回应……' : undefined}
-                  />
-                  {task.status === 'queued' ? (
-                    <button
-                      disabled={busy || data.paused}
-                      onClick={() => void run(() => execute(task))}
-                    >
-                      推动故事继续展开
-                    </button>
-                  ) : null}
-                  {canRetrySceneTask(task) && data.scene.status === 'active' ? (
-                    <button
-                      disabled={busy || data.paused}
-                      onClick={() =>
-                        void run(async () => {
-                          const latest = await readSceneTaskForRecovery(task, (id) =>
-                            client.task(id),
-                          );
-                          setTask(latest);
-                          setRetryConfirm(canRetrySceneTask(latest));
-                        })
-                      }
-                    >
-                      {task.status === 'unknown' ? '核对回应结果' : '重新处理这次回应'}
-                    </button>
-                  ) : null}
-                  {retryConfirm ? (
-                    <div>
-                      <p>
-                        {task.status === 'unknown'
-                          ? '原回应的结果仍未确认，可能已经处理。重新生成可能重复回应并再次产生费用。'
-                          : '行动已经保存。确认后只重新处理这次回应，不会再次发送你的行动；可能再次产生费用。'}
-                      </p>
-                      <button
-                        disabled={busy || data.paused}
-                        onClick={() =>
-                          void run(async () => {
-                            const latest = await readSceneTaskForRecovery(task, (id) =>
-                              client.task(id),
-                            );
-                            setTask(latest);
-                            if (!canRetrySceneTask(latest)) {
-                              setRetryConfirm(false);
-                              return;
-                            }
-                            if (retryId.current?.taskId !== task.id)
-                              retryId.current = { taskId: task.id, id: crypto.randomUUID() };
-                            const t = await client.retry(task.id, retryId.current.id);
-                            setTask(t);
-                            setRetryConfirm(false);
-                            await execute(t);
-                          })
-                        }
-                      >
-                        {task.status === 'unknown' ? '仍要重新生成回应' : '确认重新处理'}
-                      </button>
-                      <button onClick={() => setRetryConfirm(false)}>取消</button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
             {(showScrollToBottom || hasNewEntries) && (
               <button
@@ -696,10 +716,31 @@ export function ScenePanel({
                   }
                   inputId.current = undefined;
                   setTask(receipt.task);
+                  // Read the already accepted action while its response runs, without buying work.
+                  void refresh().catch(() => {});
+                  setErrorAt('task');
                   if (receipt.task) await execute(receipt.task);
-                });
+                }, 'input');
               }}
             >
+              {error && errorAt === 'input' ? (
+                <div className={s.inputFailure} role="alert">
+                  <span>{error}</span>
+                  <button
+                    type="button"
+                    disabled={busy || data.paused}
+                    onClick={() => {
+                      if (inputConflict.current) {
+                        inputId.current = undefined;
+                        inputConflict.current = false;
+                      }
+                      inputRef.current?.form?.requestSubmit();
+                    }}
+                  >
+                    重试发送
+                  </button>
+                </div>
+              ) : null}
               {/* Dynamic Action Suggestions */}
               {(() => {
                 const activeMatter = data.matters.find(
@@ -813,7 +854,11 @@ export function ScenePanel({
           ) : null}
         </>
       )}
-      {error ? <p role="alert">{error}</p> : null}
+      {error && errorAt === 'global' && data ? (
+        <p className={s.inlineError} role="alert">
+          {error}
+        </p>
+      ) : null}
       {!data?.scene ? (
         <button
           disabled={busy}

@@ -452,3 +452,46 @@
     scroll-behavior: auto;
   }
 }
+
+/* Request feedback belongs to its spoken action, without a system status card. */
+.inlineStatus {
+  margin-top: 5px;
+  max-width: 100%;
+  color: #ffffffe3;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: right;
+  text-shadow: 0 1px 3px #000;
+}
+.inlineStatus > span {
+  display: inline;
+}
+.scenePanel .inlineStatus button,
+.scenePanel .inputFailure button,
+.scenePanel .notice button {
+  min-height: 36px;
+  padding: 5px 7px;
+  background: transparent;
+  border: 0;
+  color: #b9dcff;
+  font-size: 12px;
+}
+.inlineStatus p {
+  margin: 5px 0;
+  font-size: 12px;
+}
+.inlineError {
+  color: #ffd0c9;
+  font-size: 12px;
+  line-height: 1.6;
+  text-shadow: 0 1px 3px #000;
+}
+.inputFailure {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: #ffd0c9;
+  font-size: 12px;
+  line-height: 1.6;
+}

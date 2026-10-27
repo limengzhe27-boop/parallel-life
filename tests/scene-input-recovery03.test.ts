@@ -71,7 +71,7 @@ test('unknown recovery only reads original task; late success does not offer ano
   assert.equal(latest, completed);
   assert.equal(canRetrySceneTask(latest), false);
   assert.match(sceneStatus(original), /先核对原回应/);
-  assert.match(sceneStatus(task('conflict')), /行动记录仍在/);
+  assert.match(sceneStatus(task('conflict')), /现场有了变化.*重新读取/);
 });
 
 test('still unknown requires an explicit later decision; read failures and wrong task/world are not treated as permission to retry', async () => {
