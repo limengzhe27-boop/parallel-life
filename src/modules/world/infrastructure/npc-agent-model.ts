@@ -31,7 +31,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v78-compact-ordinary-chat';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v79-compact-payload';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -114,7 +114,7 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 
 const WIRE_SYSTEM = `
 如果刚发出的上一条本人消息不合适，想撤回时，在changes里输出 recallLast:true；当玩家明确要求你撤回刚才的话时，也直接输出 recallLast:true，再决定是否发新说法。撤回只针对本人上一条 assistant 消息，不撤回玩家消息，少用；不要用台词或标记表达撤回。
-表情由本人根据人格、关系和当前语境自然选择，目录见stickerCatalog（编号到“名称；含义/语气边界”的映射，全部可选编号保留）。同一次回复可纯文字、纯表情或文字加表情，不要求每轮使用。按自己的反应而非照抄玩家情绪选择；参考近期表情避免机械重复，但接图玩笑可以连续用。重要信息与承诺不能被表情替代，表情不代表真实动作或物品交付。
+表情由本人根据人格、关系和当前语境自然选择，目录见stickerCatalog（当前轮可选编号，编号到“名称；含义/语气边界”的映射）。同一次回复可纯文字、纯表情或文字加表情，不要求每轮使用。按自己的反应而非照抄玩家情绪选择；参考近期表情避免机械重复，但接图玩笑可以连续用。重要信息与承诺不能被表情替代，表情不代表真实动作或物品交付。
 记忆分两层使用：observations 中 memoryTier="exact" 的约定、承诺、日程、已答事项必须按已记录的值精确引用，不得改时间、改条件或编造；memoryTier="fuzzy" 的偏好、生活细节、旧摘要允许模糊或记错，可以自然说“记不太清”，但不能把模糊记忆冒充成契约事实。
 来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。presentationContext中authored_initial_context是本人获知的开场设定，不是已经发给玩家的聊天。原稿写“让他来/邀请他/发来照片”，不能据此推断聊天已送达；是否已表达只看本人实际消息和已记录问题。若本人尚未提出其中的请求，可以根据本人人格主动表达或调整做法，不必等待玩家先问。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排；不因此假称玩家已答应、到场，或NPC行动已执行。
 continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：执行下一步直接用executions或planIntents，不再用continuation重复声明act；普通提问期待回答时用await_response，可由本轮requestsPlayerReply=true的消息承载，无需虚构计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
@@ -247,6 +247,7 @@ function compactChangesFor(snapshot: AgentSnapshot): boolean {
   return (
     isStickerOnlyMessage(snapshot.input.text) ||
     (!hasLiveNpcState(snapshot.viewState) &&
+      snapshot.redactedStateIds.length === 0 &&
       !isActorEpisodeConsiderationInput(snapshot.input) &&
       !snapshot.episodeManifest)
   );
@@ -402,23 +403,42 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   const responseFormatSize = JSON.stringify(responseFormat).length;
   const considerationRequired =
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest !== undefined;
+  const compact = compactChangesFor(snapshot);
   const payload = {
-    responseContract: {
-      protocol: NPC_WIRE_PROTOCOL,
-      outputSchemaHash: createHash('sha256').update(JSON.stringify(responseFormat)).digest('hex'),
-      considerationRequired,
-      considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
-      planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
-      // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
-      timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
-        ? {
-            localDate: awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10),
-            utcOffset: '+08:00',
-            format: 'YYYY-MM-DDTHH:mm:ss+08:00',
-            authority: 'conversion_only_not_an_appointment',
-          }
-        : null,
-    },
+    responseContract: compact
+      ? {
+          protocol: NPC_WIRE_PROTOCOL,
+          considerationRequired,
+          considerationAllowed: false,
+          ...(snapshot.channel.allowedCapabilities.includes('appointment.propose')
+            ? {
+                timeInput: {
+                  localDate: awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10),
+                  utcOffset: '+08:00',
+                  format: 'YYYY-MM-DDTHH:mm:ss+08:00',
+                  authority: 'conversion_only_not_an_appointment',
+                },
+              }
+            : {}),
+        }
+      : {
+          protocol: NPC_WIRE_PROTOCOL,
+          outputSchemaHash: createHash('sha256')
+            .update(JSON.stringify(responseFormat))
+            .digest('hex'),
+          considerationRequired,
+          considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
+          planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
+          // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
+          timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
+            ? {
+                localDate: awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10),
+                utcOffset: '+08:00',
+                format: 'YYYY-MM-DDTHH:mm:ss+08:00',
+                authority: 'conversion_only_not_an_appointment',
+              }
+            : null,
+        },
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
     conversationParticipants: {
@@ -448,15 +468,19 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
           },
         }
       : {}),
-    state: stateContextWithFallback(
-      contextState,
-      {
-        privateStrategySourceIds: new Set(
-          snapshot.sources.filter((s) => s.usage === 'private_strategy').map((s) => s.id),
+    state: compact
+      ? contextState.focus
+        ? { focus: contextState.focus }
+        : {}
+      : stateContextWithFallback(
+          contextState,
+          {
+            privateStrategySourceIds: new Set(
+              snapshot.sources.filter((s) => s.usage === 'private_strategy').map((s) => s.id),
+            ),
+          },
+          () => invalid('NPC_AGENT_INVALID_SNAPSHOT', 'state_context'),
         ),
-      },
-      () => invalid('NPC_AGENT_INVALID_SNAPSHOT', 'state_context'),
-    ),
     ...(snapshot.channel.kind === 'private' &&
     !stickerOnly &&
     viewState.continuation &&
@@ -590,7 +614,9 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       state: snapshot.viewState ?? snapshot.state,
     }),
     stickerCatalog: Object.fromEntries(
-      SELECTABLE_STICKERS.map(({ id, label, description }) => [id, `${label}；${description}`]),
+      (compact ? SELECTABLE_STICKERS.slice(0, 12) : SELECTABLE_STICKERS).map(
+        ({ id, label, description }) => [id, `${label}；${description}`],
+      ),
     ),
     recentSelfMessages: snapshot.observations
       .filter(
@@ -772,7 +798,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     };
     return projected;
   };
-  const compact = compactChangesFor(snapshot);
   const systemMessage: ModelMessage = {
     role: 'system',
     content: systemFor(snapshot, compact) + wireSystemFor(compact),

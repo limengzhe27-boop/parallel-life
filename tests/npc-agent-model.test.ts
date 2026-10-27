@@ -977,7 +977,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v78-compact-ordinary-chat');
+  assert.equal(payload.promptVersion, 'npc-agent-v79-compact-payload');
   assert.match(system, /玩家明确说忙、晚点、想休息或暂时不想谈时/);
   assert.match(system, /之后的自动唤醒都不再提同一邀约、计划或问题/);
   assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
@@ -993,9 +993,7 @@ test('a sticker-only turn receives no plan ledger, no pending questions and no c
   adapter.validateInput(input);
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.deepEqual(payload.state.goals, []);
-  assert.deepEqual(payload.state.plans, []);
-  assert.deepEqual(payload.state.questions, []);
+  assert.deepEqual(payload.state, {});
   assert.deepEqual(payload.conversationProgress, { questions: [], waitingOnPlayer: [] });
   const output = calls[0]!.output;
   assert.equal(output?.format, 'json_schema');

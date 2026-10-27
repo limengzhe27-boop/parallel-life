@@ -84,3 +84,11 @@
 - 原 parser 解析通过：statements 2，goals/plans/actions/responsibilities/decisions 均为 0。
 - 模型没有尝试被 compact 移除的 continuation/inputInterpretation 等字段。
 - 这证明 compact schema 可被真实模型接受；不等于所有角色/所有场景的质量验收，也不证明速度稳定提升。
+
+## 追加：compact payload（state/contract/sticker shortlist）
+
+- compact 模式 state 只保留 focus（无 focus 时为空对象）；responseContract 只保留 protocol/consideration/timeInput；stickerCatalog 只给 12 个当前轮可选表情。完整 active 模式不变。
+- 空状态真实 snapshot：payload 16k→13.5k，总请求 **43.2k → 40.5k**；schema 11,538、system 13,405。
+- promptVersion `npc-agent-v79-compact-payload`。
+- 完整 check 4161/4161、build 通过；compact 测试 56/56。
+- 这一步没有牺牲 active 状态的 goals/plans/responsibilities/executions；只影响无状态普通聊天。
