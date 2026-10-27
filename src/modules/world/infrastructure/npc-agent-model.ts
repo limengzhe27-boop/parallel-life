@@ -206,7 +206,23 @@ function collectReferencedSourceIds(
     for (const child of Object.values(value)) collectReferencedSourceIds(child, known, out);
 }
 
+function hasLiveNpcState(state: AgentSnapshot['viewState']): boolean {
+  return (
+    (state.goals ?? []).some((goal) => !['fulfilled', 'withdrawn'].includes(goal.status)) ||
+    (state.plans ?? []).some((plan) => ['active', 'waiting', 'blocked'].includes(plan.status)) ||
+    (state.responsibilities ?? []).some(
+      (responsibility) => !['fulfilled', 'withdrawn', 'expired'].includes(responsibility.status),
+    ) ||
+    (state.questions ?? []).some((question) => question.status === 'open') ||
+    (state.actions ?? []).some((action) =>
+      ['proposed', 'ready', 'waiting', 'blocked', 'executing'].includes(action.status),
+    ) ||
+    state.continuation !== undefined
+  );
+}
+
 function responseFormatFor(snapshot: AgentSnapshot) {
+  const stickerOnly = isStickerOnlyMessage(snapshot.input.text);
   return npcResponseFormat(
     snapshot.viewState,
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest
@@ -217,7 +233,8 @@ function responseFormatFor(snapshot: AgentSnapshot) {
       channel: snapshot.channel,
       sources: snapshot.sources,
     },
-    isStickerOnlyMessage(snapshot.input.text),
+    stickerOnly,
+    stickerOnly || !hasLiveNpcState(snapshot.viewState) ? 'compact' : 'full',
   );
 }
 

@@ -1842,3 +1842,32 @@ test('a transformed internal record never replaces the original recent-self text
     '本人获知的开场报告（不是已投递聊天或执行回执）：完整开场报告：家人正在医院，仍须确认现场情况。',
   );
 });
+
+test('ordinary chat uses the compact changes schema while keeping promises available', async () => {
+  const compactInput = snapshot();
+  compactInput.state.goals = [];
+  compactInput.state.plans = [];
+  compactInput.state.actions = [];
+  compactInput.state.responsibilities = [];
+  compactInput.state.questions = [];
+  compactInput.state.continuation = undefined;
+  compactInput.viewState = structuredClone(compactInput.state);
+  const compact = capture();
+  await compact.adapter.decide(compactInput);
+  const compactSchema = (compact.calls[0]!.output as any).schema;
+  assert.deepEqual(Object.keys(compactSchema.properties.changes.anyOf[0].properties).sort(), [
+    'focusChange',
+    'goals',
+    'locationReports',
+    'planIntents',
+    'recallLast',
+    'responsibilities',
+  ]);
+  assert.equal('continuation' in compactSchema.properties.changes.anyOf[0].properties, false);
+
+  const fullInput = snapshot();
+  const full = capture();
+  await full.adapter.decide(fullInput);
+  const fullSchema = (full.calls[0]!.output as any).schema;
+  assert.ok('continuation' in fullSchema.properties.changes.anyOf[0].properties);
+});

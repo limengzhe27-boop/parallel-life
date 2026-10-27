@@ -478,6 +478,7 @@ export function npcResponseFormat(
   current?: Pick<AgentValidationContext, 'input' | 'channel'> &
     Partial<Pick<AgentValidationContext, 'sources'>>,
   expressionOnly = false,
+  changesScope: 'full' | 'compact' = 'full',
 ): ModelOutputOptions {
   if (NPC_RESPONSE_FORMAT.format !== 'json_schema') throw Error('NPC_RESPONSE_SCHEMA');
   type SchemaNode = {
@@ -931,6 +932,33 @@ export function npcResponseFormat(
     }).length > 0;
   if (considerationScope === 'required' || reviewScope || replyRequired)
     schema.properties.changes = schema.properties.changes!.anyOf![0]!;
+  else if (changesScope === 'compact') {
+    // Ordinary chat may still recall/focus/report a location, but must not
+    // spend schema budget on plans or responsibilities it did not need yet.
+    const compact = Object.fromEntries(
+      Object.entries(changes).filter(([key]) =>
+        [
+          'recallLast',
+          'focusChange',
+          'locationReports',
+          'goals',
+          'planIntents',
+          'responsibilities',
+        ].includes(key),
+      ),
+    );
+    schema.properties.changes = {
+      anyOf: [
+        {
+          type: 'object',
+          properties: compact,
+          required: Object.keys(compact),
+          additionalProperties: false,
+        },
+        { type: 'null' },
+      ],
+    };
+  }
   // Final requireAll below owns required fields; do not traverse the full
   // schema with an empty relaxation set or build a required list it overwrites.
   const finalized = shareNpcConditionSchema(

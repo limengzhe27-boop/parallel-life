@@ -56,3 +56,11 @@
 - `wireCatalog.sources` 现在只列出 observations、input、state、presentation、opportunity 等最终 payload 实际引用的 source；未引用的 authored/accepted_input 元数据不再发送。
 - 同一 snapshot：wireCatalog 1,989→1,881，总请求 50,341→50,217 字符；NPC 定向 55/55。
 - 源目录映射仍以完整 snapshot 建立，ref 编号保持稳定；只是不发送未引用条目的元数据。
+
+## 追加：普通聊天 compact changes schema
+
+- 当没有 active goals/plans/responsibilities/questions/actions/continuation、且没有待回复责任/机会时，`changes` 只保留：recallLast、focusChange、locationReports、goals、planIntents、responsibilities。
+- 移除本轮不需要的 continuation、inputInterpretation、questionWithdrawals、agendaReview、consideration 等 schema；仍保留承诺/计划/责任能力。
+- 空状态真实 snapshot：schema 14,406→11,538，总请求约 50.2k→**46.8k**；有 active 状态时仍用完整 schema。
+- NPC/schema 定向测试 93/93；完整 check 4161/4161；build 通过。
+- 没有新增模型调用；普通聊天仍可发图/邀约/出行等 executions，不因 compact 失去动作通道。
