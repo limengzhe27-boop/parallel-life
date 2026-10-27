@@ -44,3 +44,9 @@
 - `npm run check` 4160/4160；`npm run build` 通过。
 - 本地 3218/3219、queue、proactive 已重启到当前 main 构建；health 200，原存档 `/scenes` 200 且含 player+actor presence；旧 `/stickers/hao.svg` 404、新图 200。
 - 0 新付费模型调用、0 生图、0 生产推送。
+
+## 追加：去来源 worldVersion 与执行说明
+
+- `wireCatalog.sources` 不再发送内部 `worldVersion`；`responseContract.executionProposal` 删除（WIRE 已有同一执行语义）。
+- 同一 snapshot：总请求 50,909→50,341 字符；schema 14,406 不变。
+- 定向 NPC 测试 55/55。

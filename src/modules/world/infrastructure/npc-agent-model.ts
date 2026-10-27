@@ -344,8 +344,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       outputSchemaHash: createHash('sha256').update(JSON.stringify(responseFormat)).digest('hex'),
       considerationRequired,
       considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
-      executionProposal:
-        'Immediate image: executions[{ref,action:{capability,parameters}}], no goal/plan. Other actions retain goal/plan. State changes only in changes; no changes = null. Server binds IDs and current input.',
       planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
       // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
       timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
@@ -488,7 +486,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       id: s.id,
       kind: s.kind,
       usage: s.usage ?? 'channel_context',
-      worldVersion: s.worldVersion,
       at: s.at,
       localDateTime: awarenessLocalTime(s.at).localDateTime,
       ...(s.deadlineAt === undefined
@@ -772,7 +769,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     for (const source of payload.sources) {
       const value = source as unknown as Record<string, unknown>;
       delete value.localDateTime;
-      delete value.worldVersion;
     }
   const optional = payload as unknown as Record<string, unknown>;
   if (!fits()) optional.episodeFollowUps = [];

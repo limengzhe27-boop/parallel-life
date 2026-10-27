@@ -357,7 +357,7 @@ test('only explicit server deadline is carried as source data, without exposing 
   assert.equal(payload.wireCatalog.sources[0].deadlineAt, input.sources[0]!.deadlineAt);
   assert.equal(payload.wireCatalog.sources[0].deadlineLocalDateTime, '2026-10-15T18:00:00');
   assert.equal(payload.wireCatalog.sources[0].at, input.sources[0]!.at);
-  assert.equal(payload.wireCatalog.sources[0].worldVersion, input.sources[0]!.worldVersion);
+  assert.equal('worldVersion' in payload.wireCatalog.sources[0], false);
   assert.equal(payload.state.responsibilities[0].deadline, undefined);
   assert(!('recordId' in payload.wireCatalog.sources[0]));
 });
