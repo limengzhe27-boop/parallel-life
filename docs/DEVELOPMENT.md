@@ -3421,3 +3421,7 @@ NPC-CONTEXT-TRIM-03接续：用户最新明确接受实测无稳定提速结果�
 NPC-CONTEXT-TRIM-03替换完成：4868cc8a已本地运行，两端13619/13620和原配置workers13621/13622；check4157/build与原scene只读哈希验证通过，模型参数与存档保留，无生产部署、无其他Agent消息。详专属报告接续。
 
 HOME-TASKS-UNREAD-12 build44本地交付：check4159/build通过，原4953真实三卡/任务记录与日历相册点击通过，320/390/1440及矮PC1046无首页溢出；badge锚图标99+、实读林白语29条233→204刷新保持。current任务实际为空故不填假任务；新引擎任务下发全覆盖/跨设备已读并未新增，仍清单。双端20241/20242，queue20243/proactive20244，保留4868cc8a其他线程精简和原配置/内容，无生产部署。报告HOME-TASKS-UNREAD-12.md。
+
+|XGEN-REPO-SYNC-13|[x] 已完成（公司main远端核验）|root-xgen-sync-20261027；主目录main唯一推送|公司xgen远程https://github.com/XGEN-Labs/parallel-world-demo.git、专属report/本任务登记；不改应用或部署配置|用户明确要求把当前项目更新到公司仓库；核对远程分叉/新提交、密钥忽略、工作流触发，正常ff推送不强推，核验远程SHA；保留个人origin及现有数据，不另行部署|
+
+XGEN-REPO-SYNC-13：已验证a32829e6当前项目快照正常更新公司main=468d4895，保留92cf3fac初始历史，无force push；ls-remote一致，源码tree完全相同，未上传.local/.env.local/私有素材库。无业务修改/生产部署，专属报告记录。
