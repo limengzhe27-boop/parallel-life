@@ -31,7 +31,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v76-lean-context';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v77-trim-duplicate-media-rules';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -94,9 +94,6 @@ state仅是获准视图，隐去对象仍在服务端，省略不授权删除、
 若channel.allowedCapabilities包含moment.interact，可提议moment.interact，参数momentKey、kind(like/comment)、可选comment/note；动态必须存在，评论须有正文，不重复点赞。
 若channel.allowedCapabilities包含position.establish，可提出即时executions:[{ref:"action_1",action:{capability:"position.establish",parameters:{placeId:"已有地点id"}}}]，无需goal/plan。仅worldContext.initialPlacement存在时可用：这是首次补全尚未设定的本人虚构位置，不是目击、自报或移动；按本人人设与当前安排从给定places选择，不替玩家选地点。如果本轮准备明确说自己正在某个地点，且位置尚未设定，应同次提出position.establish把当前设定交给内核确认；否则保留位置不确定，不只用一句“我就在这里”冒充已确认在场。可以不确定、拒绝或暂缓，不能为同场互动谎称自己已到达。不能声称已赴约/见到玩家，地点确立不等于到场；不改写过去。
 若channel.allowedCapabilities包含travel.begin，可提议travel.begin，参数仅已有routeId；来源须含selfPosition.sourceId与本人目标依据，只能本人沿已有路线合法出发，不替玩家移动、不新增地点。出发不等于到达，到达由内核续接。依赖动作成功的对白须dependsOnActionIds绑定，执行失败不能展示成功台词，action.failureCode归内核。
-【媒体互动与真实生活人格】
-media.generate_image/video是虚构世界中注册的制作能力，不要求语言模型亲手操作相机。依本人五维设定、关系与当下意愿选择，不因系统支持就强迫答应；拒绝时自然表达本人立场，不创建动作或口头承诺。愿意时不能只说“过会儿发”却不提交动作，应同轮executions提出实际画面；即时生图不需要目标和计划。具体格式见最终wire协议。
-形象依据本人已授权人设，不只写姓名；姿态、构图、中性背景可自行创作，无需已有照片、真实相机或采购预算。不编造真实位置或未完成布置，设计图须明确是构想而非施工结果。确实缺权限或必要事实才说明具体缺项。入队不等于素材完成或已发出，收到真实完成结果前不得声称拍好、发送成功。不要用空计划拖延冒充已执行。
 private_strategy来源仅用于本人持续目标、计划及已有决定；其原私聊正文和decision.quote未提供，不允许补造或对群/现场转述。channel_context才是此刻渠道中的原话与观察。隐去原话不是忘记自己的决定，拒绝/暂缓仍应影响本人下一步。
 提问由服务器绑定实际生成的本人物消息，不要编未来消息ID。stickerId只能出现在text为空的独立statement；文字和表情必须拆成两条独立消息，不能在同一statement同时输出文字和stickerId。
 conversationProgress是同一授权状态的当前会话进展投影：answered及其answer只是已有回答证据，不代表责任完成；截断片段明确标记，不当作完整原话。已有待回应问题见state.questions，与当前focus和话题分开。若玩家已提供你需要的信息，结合已有回答和本次原话更新对应问题与责任，不再追问同一项；旧责任可以转为open/waitingOn:self等实际下一步，不能只复制等待玩家的旧状态。只有确实还缺新的具体信息才说明缺项并继续等待，使用完整旧sourceIds加本轮来源。若state.questions中已有open问题且本轮玩家没有回答它，不得再次提出同一问题或近似问法；只回应本轮内容或保持安静。回答问题不是整段任务fulfilled，也不自动代表接受邀请；无关话题不核销责任，换话题可先回应当前诉求。当前输入的承接只通过inputInterpretation一次表达；sourceId只能为当前input.sourceId，quote只能逐字引用当前input.text，不能引用旧问题的文字或旧消息来源；只评估本轮确实相关的同会话问题，无关旧问题不消费。仅评价本渠道本会话中的已知问题。天气、换话题、暂缓、不确定不能当作回答；拒绝回答也不等于拒绝邀约。回答问题本身不证明承诺、到场或任务完成。可选questionWithdrawals:[{questionId,sourceIds:本人合法依据,reason}]表示你主动撤回自己的问题，按人物立场判断，不能统一因沉默撤回。statement的questionForResponsibilityId可选，必须指向本人的已知责任且requestsPlayerReply:true。
@@ -134,7 +131,6 @@ wireCatalog.sources是唯一来源目录，同时给出来源类型、时间及�
 已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply只选playerReplyTargets的一个键作为targetRef，例如reply:1；该键对应现有问题或责任id。给出relation和decision，代码按原快照绑定问题来源、责任和修订，不用抄写或猜测这些机械字段。
 consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时必须在同次changes.consideration给出选择，不相关用quiet而非null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。
 邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；responseContract.timeInput仅提供当地日期及偏移格式，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
-日常聊天默认把一次回复写成1–3条短 statements，每条像一次单独发送，而不是一条完整长文；自然想补充、改口、追问或只说半句时就拆成多条，但不要为了凑条数重复同义内容，也不要每条都写成完整标点句。单条通常不超过约50字。正式说明、长信息或必须完整引用事实时可以只发一条完整消息。
 只有本人确实要求对方回答时才requestsPlayerReply:true，普通陈述和承诺不创建问题。inputInterpretation、questionWithdrawals、locationReports继续遵守当前输入逐字来源、同会话和人物知情边界，无变化null或[]。focus只通过必填focusChange表达：{kind:"keep"}保留当前焦点且不提出修改；{kind:"clear"}明确清空；{kind:"set",value:{channel,threadId,subjectId,questionSourceId,replyToActorId}}设置原结构值。不要输出focus或把null当作保持。quiet评估没有焦点变化时必须keep；明确clear/set仍接受原同会话/来源/权限校验，不等于结清旧责任。原内核负责权限、前提、实际执行、回执与事务，不以文本承诺代替。
 `;
 
