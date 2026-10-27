@@ -1,3 +1,7 @@
+import {
+  INITIAL_POSITION_POLICY,
+  initialPositionPolicySourceId,
+} from '../domain/agent-initial-position.ts';
 import { actorContinuationBasis } from '../domain/actor-continuation.ts';
 import {
   localInitiativeContext,
@@ -1055,6 +1059,74 @@ async function localInitiative(view: SchedulingView, context: ActorContext, acto
     }),
   ];
 }
+/** Stable family identity shared with entry probes; definition edits are not a new purchase. */
+export async function initialPositionWorkCandidateId(
+  worldId: string,
+  actorId: string,
+): Promise<string> {
+  return `actor_local:initial_position:${await fingerprint({ worldId, actorId, policy: INITIAL_POSITION_POLICY })}`;
+}
+
+/** One private spatial work item. It is not a player's task or a phone invitation. */
+async function initialPosition(
+  view: SchedulingView,
+  context: ActorContext,
+): Promise<AgentCandidate[]> {
+  const snapshot = context.snapshot,
+    own = snapshot.worldContext?.selfPosition,
+    placement = snapshot.worldContext?.initialPlacement;
+  if (
+    snapshot.channel.kind !== 'private' ||
+    snapshot.channel.threadId !== snapshot.state.actorId ||
+    own?.status !== 'unknown' ||
+    own.placeId !== null ||
+    !own.sourceId ||
+    placement?.policy !== INITIAL_POSITION_POLICY ||
+    !placement.places.length ||
+    !snapshot.channel.allowedCapabilities.includes('position.establish')
+  )
+    return [];
+  const policyId = initialPositionPolicySourceId(view.worldId, snapshot.state.actorId),
+    policy = context.sources.get(policyId),
+    self = context.sources.get(own.sourceId),
+    definition = [...context.sources.values()].find(
+      (s) => s.kind === 'authored' && s.recordId === snapshot.state.definitionRef,
+    );
+  if (
+    placement.sourceId !== policyId ||
+    policy?.kind !== 'authored' ||
+    policy.recordId !== view.worldId ||
+    policy.worldVersion !== 0 ||
+    self?.kind !== 'authored' ||
+    self.worldVersion !== 0 ||
+    self.id !== `self-position:genesis:${view.worldId}` ||
+    !definition
+  )
+    return [];
+  const work = await candidate(view, context, {
+    source: 'actor_local',
+    actionId: null,
+    sourceIds: [definition.id, policy.id, self.id],
+    responsibilities: [],
+    semantic: {
+      kind: 'initial_position',
+      policy: INITIAL_POSITION_POLICY,
+      definitionRef: snapshot.state.definitionRef,
+    },
+    reason: '本人的空间位置尚未确立，获得一次有界的当前活动地点选择机会；不要求联系玩家。',
+    wakeCue:
+      '本次是一次明确的本人空间工作：结合你的私人设定、当前已确认安排和当地时间，从initialPlacement列出的合法地点选择自己此刻合理的活动地点，并以position.establish提出确立。此刻确立不是恢复过去，也不是已经赴约；不从未来剧情场景推断到场，不为接近玩家而强行选择玩家所在处。你可以不发消息；若确实没有合理地点或依据，可以安静并说明未确立原因，不伪造行动。位置只交内核保存，不向其他人物广播。',
+  });
+  return [
+    {
+      ...work,
+      id: await initialPositionWorkCandidateId(view.worldId, snapshot.state.actorId),
+      priority: 45,
+      requiresCoordination: false,
+    },
+  ];
+}
+
 export function createAgentScheduleSources(
   input: SchedulingView,
   realNow: number = Date.now(),
@@ -1100,6 +1172,7 @@ export function createAgentScheduleSources(
       (
         [
           'actor_plan',
+          ...(actor.snapshot.worldContext?.initialPlacement ? ['initial_position' as const] : []),
           'actor_local' as const,
           'responsibility',
           'appointment' as const,
@@ -1121,7 +1194,9 @@ export function createAgentScheduleSources(
             if (worldId !== view.worldId) throw new DomainError('INVALID_COMMAND');
             const context = authorizedActor(view, actor);
             const blockers: AgentBlocker[] =
-              source === 'actor_plan' || source === 'agenda_initialize'
+              source === 'actor_plan' ||
+              source === 'agenda_initialize' ||
+              source === 'initial_position'
                 ? view.activeAttempts
                     .filter(
                       (a) =>
@@ -1182,19 +1257,21 @@ export function createAgentScheduleSources(
                         requiresCoordination: false,
                       })),
                   )
-                : source === 'actor_plan'
-                  ? plans(view, context).then(async (ready) => [
-                      ...ready,
-                      ...(await planReconsiderations(view, context, ready)),
-                      ...(await continuationConditions(view, context)),
-                    ])
-                  : source === 'responsibility'
-                    ? responsibilities(view, actor, context)
-                    : source === 'appointment'
-                      ? appointmentWindows(view, actor, context)
-                      : source === 'actor_local'
-                        ? localInitiative(view, context, actor)
-                        : observations(view, context))
+                : source === 'initial_position'
+                  ? initialPosition(view, context)
+                  : source === 'actor_plan'
+                    ? plans(view, context).then(async (ready) => [
+                        ...ready,
+                        ...(await planReconsiderations(view, context, ready)),
+                        ...(await continuationConditions(view, context)),
+                      ])
+                    : source === 'responsibility'
+                      ? responsibilities(view, actor, context)
+                      : source === 'appointment'
+                        ? appointmentWindows(view, actor, context)
+                        : source === 'actor_local'
+                          ? localInitiative(view, context, actor)
+                          : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };
           },
