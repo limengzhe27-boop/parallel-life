@@ -36,3 +36,8 @@
 - 通过的包括“实际私有 NPC 调用提交 departure、scene exit、in_transit，不移动玩家”及重放/回滚/未知/失败路由。
 - 未通过：`authored genesis position ...` 的 action-result evidence 未包含 `self-position:genesis:*`；未修改测试或放宽断言，留待下一轮定位。
 - `episode-journey-evidence` 在本地测试库因 director proposal boundary 失败，未作为本轮通过证据。
+
+## 基线复核
+
+- 在独立 worktree `cd94c5d5`（本轮 compact/source 变更前）运行同一 `agent-travel-kernel`，也是 6/8，且同样只有 `authored genesis position` 的 evidence 断言失败。
+- 结论：该失败不是本轮 scene presence / compact schema / source 裁剪引入；实际私有 NPC departure 子项在本轮和基线都通过。
