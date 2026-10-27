@@ -65,3 +65,9 @@
 - 3218 PID 49584；3219 PID 49585；queue 49590；proactive 49591。
 - 两端 health 200；原存档 `/scenes` 200（v533，player+actor presence）；旧 `/stickers/hao.svg` 404。
 - `npm run check` 4161/4161、`npm run build` 通过；0 新模型/生图/生产推送。
+
+## 追加：compact <40k 构建
+
+- 3218 PID 51059；3219 PID 51060；queue 51068；proactive 51069。
+- 两端 health 200；原存档 `/scenes` 200（v533，player+actor presence）；旧 `/stickers/hao.svg` 404。
+- `npm run check` 4161/4161、`npm run build` 通过；0 新模型/生图/生产推送。
