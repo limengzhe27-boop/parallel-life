@@ -26,3 +26,20 @@
 ### 第一块主线集成与运行（root，2026-10-27）
 
 已审查并集成为da0efcf3。主目录check通过4139项、build通过；按同一配置生成不可变build38，3218/3219及队列/主动调度两个worker已更新。两端健康200，原4953酒店现场读取200、已保存工作人员回复仍在，没有重发用户消息或新增付费探针。PID分别70483/70484/70485/70486，记录位于被忽略.local/local-play/processes-build38.json；日志request-slim-check38.log、request-slim-build38.log。没有改变模型或推理参数、没有生产部署。第二块WIRE样例精简仍为独立待审范围，不在本次交付中。原长期主动推进遗留项不因本次毫秒级构建优化而视为解决。
+## 第二块：独立删除7处纯字段形状示例
+
+本块不混入第一块提交，也不沿用13f人物说明改写。`SYSTEM`整个原文逐字不变；只在WIRE段删除下表重复字段罗列，并保留其中原有的语义说明。使用既有promptVersion标识本次文字变更为`npc-agent-v74-schema-guided-shapes`；wire协议、schema和解码器不变，不新增字段。
+
+| 删除的重复样例 | 已由实际输出schema提供的字段 | 仍保留的独有语义 |
+|---|---|---|
+| 持续executions完整对象形状 | executions[].ref/goal/plan/action及其子字段 | 本人可见旧目标、同目标supersedesPlanId、可省略数组默认空、机械编号/来源追加不产生权限、不可重复建计划、成功台词依赖 |
+| create对象字段罗列 | changes.planIntents create分支 | goal省略时由summary建目标；局部编号由schema提供，不能手编真实ID |
+| replace对象字段罗列 | 同上replace分支 | 本人原planId、保留旧目标并记录替换 |
+| update对象字段罗列 | 同上update分支 | 沿原计划；省略下一步保持原等待/状态 |
+| close对象字段罗列 | 同上close分支 | 只关闭计划，不完成目标或外部行动 |
+| responsibilities对象字段/枚举罗列 | changes.responsibilities项 | 旧来源完整保留、回答后转本人下一步、不伪造fulfilled/回执、拒绝/暂缓及来源规则完整保留 |
+| statements对象字段罗列 | statements项 | 真正提问才创建问题、来源逐字要求、focus keep/clear/set与null语义完整保留 |
+
+媒体准备/投递、inputInterpretation、focusChange、条件等样例中仍有独有语义，均保留，不为了缩短全部删除。没有裁切人物五维或历史。原两保存输入与schema离线比较：除promptVersion和7项映射后的system文字外，完整payload、末条原话、output schema、maxTokens相等。每条序列化消息减少829字节（约1%）：77,869→77,040、78,652→77,823；不宣称因此节省模型等待。
+
+本块88项聚焦协议/模型/计划/执行/焦点测试通过，类型检查通过；无付费探针。由集成人独立审查是否纳入后续构建，不把第一块正在运行的版本说成已包含本块。
