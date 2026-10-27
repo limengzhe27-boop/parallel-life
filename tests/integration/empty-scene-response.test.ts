@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { YibuTextModel } from '../../src/modules/ai/infrastructure/yibu-text-model.ts';
+import { recoverAgentTaskInTransaction } from '../../src/modules/world/infrastructure/agent-task-recovery.ts';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
@@ -25,6 +27,7 @@ import { sceneEnvironmentTaskHandler } from '../../src/modules/world/infrastruct
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import { nativeNpcTaskHandler } from '../../src/server/npc-agent-channel-services.ts';
 import {
+  EMPTY_SCENE_PROMPT_VERSION,
   emptySceneModelInput,
   emptySceneProposal,
 } from '../../src/server/empty-scene-environment.ts';
@@ -182,6 +185,73 @@ test('empty scene uses original input/task/scene transaction for bounded environ
     },
   );
   await t.test(
+    'public hotel service stays local narration across two real scene transactions without creating NPC state',
+    async () => {
+      const f = await fixture('酒店', '一层为公共接待大厅。');
+      const first = await send(f, '我向前台问：请问这里能咨询入住吗？');
+      let calls = 0;
+      const handler = nativeNpcTaskHandler(
+        db,
+        () => ({
+          async complete() {
+            throw Error('NO_FORMAL_NPC');
+          },
+        }),
+        () => ({
+          async complete(messages) {
+            calls++;
+            const payload = JSON.parse(messages.at(-1)!.content);
+            assert.equal(payload.place.name, '酒店');
+            assert.equal(payload.environmentScope.interaction, 'optional_anonymous_service');
+            assert.deepEqual(payload.environmentScope.suggestedRoles, ['前台工作人员']);
+            assert.ok(!JSON.stringify(payload).includes('PERSONA_PRIVATE_MARKER'));
+            if (calls === 1)
+              return JSON.stringify({ feedback: '前台工作人员望向你：“可以，您想了解什么？”' });
+            assert.ok(
+              payload.visibleHistory.some((e: any) => e.text?.includes('您想了解什么')),
+              'the same anonymous staff exchange remains in this scene history',
+            );
+            return JSON.stringify({
+              feedback: '那位工作人员接着说：“您可以先说一下想咨询的房型。”',
+            });
+          },
+        }),
+      );
+      await handler(first.lease, new AbortController().signal);
+      const second = await send(f, '我说：先了解一下单人房，可以吗？');
+      await handler(second.lease, new AbortController().signal);
+      const read = await scenes.read(f.owner, f.worldId, f.sceneId);
+      assert.equal(calls, 2);
+      assert.equal(
+        read.scene!.presence.length,
+        1,
+        'anonymous service is not formal actor attendance',
+      );
+      assert.ok(
+        read.entries.some((e) => e.kind === 'adjudicated_result' && e.text.includes('房型')),
+      );
+      assert.ok(!read.entries.some((e) => e.kind === 'dialogue'));
+      assert.equal(read.actions.filter((a) => a.status === 'resolved').length, 2);
+      const after = await worlds.get({ userId: f.owner }, f.worldId);
+      assert.equal(after.actors.length, 1);
+      assert.equal(after.messages.length, 0);
+      assert.equal(after.facts.length, 0);
+      assert.equal(after.appointments.length, 0);
+      const state = await db.transaction(f.owner, (sql) =>
+        sql.query(
+          'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2',
+          [f.worldId, f.owner],
+        ),
+      );
+      assert.equal(state.rows.length, 1);
+      assert.equal((state.rows[0]!.document as any).revision, 0, 'the absent actor learns nothing');
+      const replay = await scenes.input(f.owner, f.worldId, f.sceneId, second.command);
+      assert.equal(replay.task!.id, second.receipt.task!.id);
+      assert.equal(await queue.claimForOwner(second.lease.id, f.owner, ['world']), null);
+      assert.equal(calls, 2);
+    },
+  );
+  await t.test(
     'unverified operations cannot become world success, attendance, new NPCs or completed matters',
     async () => {
       const f = await fixture('虚构酒店', '大厅有服务台，值班人员可以办理公开业务。');
@@ -291,6 +361,118 @@ test('empty scene uses original input/task/scene transaction for bounded environ
     },
   );
   await t.test(
+    'rejected provider call retains original outcome, stage and status with scene prompt diagnostics',
+    async () => {
+      const f = await fixture('酒店');
+      const s = await send(f, '我问前台能否咨询');
+      const original = Object.assign(Error('UPSTREAM_REJECTED'), {
+        code: 'UPSTREAM_FAILED',
+        responseOutcome: 'rejected',
+        stage: 'response',
+        httpStatus: 429,
+      });
+      const handler = nativeNpcTaskHandler(db, () => ({
+        async complete() {
+          throw original;
+        },
+      }));
+      await assert.rejects(handler(s.lease, new AbortController().signal), (e: any) => {
+        assert.equal(e, original);
+        assert.equal(e.code, 'UPSTREAM_FAILED');
+        assert.equal(e.responseOutcome, 'rejected');
+        assert.equal(e.stage, 'response');
+        assert.equal(e.httpStatus, 429);
+        const annotated = e as unknown as Error & { promptVersion: string; durationMs: number };
+        assert.equal(annotated.promptVersion, EMPTY_SCENE_PROMPT_VERSION);
+        assert.ok(typeof annotated.durationMs === 'number' && annotated.durationMs >= 0);
+        return true;
+      });
+    },
+  );
+  await t.test(
+    'real adapter HTTP 429 becomes failed; explicit retry reuses original action and delivers service feedback once',
+    async () => {
+      const f = await fixture('酒店', '一楼公共接待大厅。');
+      const s = await send(f, '我向前台问能否咨询入住');
+      let fetches = 0;
+      const model = () =>
+        new YibuTextModel(
+          {
+            apiKey: 'synthetic-key',
+            model: 'synthetic-scene',
+            baseUrl: 'https://yibuapi.com',
+            timeoutMs: 2000,
+          },
+          async () => {
+            fetches++;
+            if (fetches === 1) return new Response('PRIVATE_BODY_NOT_LOGGED', { status: 429 });
+            return Response.json({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      feedback: '前台工作人员问：“可以，您想了解哪方面？”',
+                    }),
+                  },
+                  finish_reason: 'stop',
+                },
+              ],
+            });
+          },
+        );
+      const handler = nativeNpcTaskHandler(db, model, model);
+      await runOne(
+        {
+          claim: async () => s.lease,
+          renew: (l) => queue.renew(l),
+          finish: (l, o) => queue.finish(l, o),
+        },
+        {
+          world: async (l, signal) => {
+            await handler(l, signal);
+          },
+        },
+      );
+      assert.equal((await tasks.get(f.owner, s.lease.id)).status, 'failed');
+      assert.equal(fetches, 1);
+      let read = await scenes.read(f.owner, f.worldId, f.sceneId);
+      assert.equal(read.actions.length, 1);
+      assert.equal(read.actions[0]!.id, (s.lease.input as any).actionId);
+      assert.equal(read.actions[0]!.status, 'pending');
+      assert.equal(read.entries.filter((e) => e.kind === 'adjudicated_result').length, 0);
+      assert.equal(
+        await queue.claimForOwner(s.lease.id, f.owner, ['world']),
+        null,
+        'definite rejection still does not automatically buy another request',
+      );
+      const retry = new TaskRepository(db, { recoverWorldTask: recoverAgentTaskInTransaction });
+      const retryCommand = randomUUID();
+      const restored = await retry.retry(f.owner, s.lease.id, retryCommand);
+      assert.equal(restored.id, s.lease.id);
+      assert.equal(restored.status, 'queued');
+      await retry.retry(f.owner, s.lease.id, retryCommand);
+      const retryLease = (await queue.claimForOwner(s.lease.id, f.owner, ['world']))!;
+      await handler(retryLease, new AbortController().signal);
+      assert.equal(fetches, 2);
+      assert.equal((await tasks.get(f.owner, s.lease.id)).status, 'succeeded');
+      read = await scenes.read(f.owner, f.worldId, f.sceneId);
+      assert.equal(read.actions.length, 1);
+      assert.equal(read.actions[0]!.id, (s.lease.input as any).actionId);
+      assert.equal(read.actions[0]!.status, 'resolved');
+      assert.equal(read.entries.filter((e) => e.kind === 'adjudicated_result').length, 1);
+      assert.equal(read.scene!.presence.length, 1);
+      const after = await worlds.get({ userId: f.owner }, f.worldId);
+      assert.equal(after.actors.length, 1);
+      assert.equal(after.messages.length, 0);
+      assert.equal(after.facts.length, 0);
+      assert.equal(after.appointments.length, 0);
+      const replay = await scenes.input(f.owner, f.worldId, f.sceneId, s.command);
+      assert.equal(replay.task!.id, s.lease.id);
+      assert.equal(await queue.claimForOwner(s.lease.id, f.owner, ['world']), null);
+      assert.equal(fetches, 2);
+    },
+  );
+  await t.test(
     'network unknown remains unknown and original task cannot automatically buy again',
     async () => {
       const f = await fixture();
@@ -314,7 +496,16 @@ test('empty scene uses original input/task/scene transaction for bounded environ
           },
         },
       );
-      assert.equal((await tasks.get(f.owner, s.lease.id)).status, 'unknown');
+      const failedTask = await tasks.get(f.owner, s.lease.id);
+      assert.equal(failedTask.status, 'unknown');
+      const diagnostics = await db.transaction(f.owner, (sql) =>
+        sql.query(
+          'SELECT prompt_version,duration_ms FROM parallel_life.tasks WHERE id=$1 AND owner_id=$2',
+          [s.lease.id, f.owner],
+        ),
+      );
+      assert.equal(diagnostics.rows[0]!.prompt_version, EMPTY_SCENE_PROMPT_VERSION);
+      assert.ok(diagnostics.rows[0]!.duration_ms >= 0);
       assert.equal(await queue.claimForOwner(s.lease.id, f.owner, ['world']), null);
       assert.equal(calls, 1);
       assert.equal(
