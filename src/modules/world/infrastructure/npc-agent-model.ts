@@ -31,7 +31,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v77-trim-duplicate-media-rules';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v78-compact-ordinary-chat';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -135,13 +135,35 @@ consideration无本轮授权机会时null；coordination的npc_episode_considera
 `;
 
 /** Permission-scoped instructions; this is not intent routing or action selection. */
-function systemFor(snapshot: AgentSnapshot): string {
+const COMPACT_SYSTEM_OMISSIONS = [
+  '服务器唤醒若包含planReview',
+  '若本轮带episodeManifest',
+  '当input.origin为coordination',
+  'npc_agenda_review是根据',
+  '当前玩家输入只用inputInterpretation',
+] as const;
+function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
   const allowed = new Set(snapshot.channel.allowedCapabilities);
   return SYSTEM.split('\n')
     .filter((line) => {
+      if (compact && COMPACT_SYSTEM_OMISSIONS.some((marker) => line.includes(marker))) return false;
       const capability = /^若channel\.allowedCapabilities包含([a-z_]+\.[a-z_]+)，/.exec(line)?.[1];
       return !capability || allowed.has(capability);
     })
+    .join('\n');
+}
+function wireSystemFor(compact: boolean): string {
+  if (!compact) return WIRE_SYSTEM;
+  return WIRE_SYSTEM.split('\n')
+    .filter(
+      (line) =>
+        ![
+          'continuation仅在本人下一步',
+          '只有服务器npc_agenda_review唤醒时',
+          'inputInterpretation:{kind',
+          'consideration无本轮授权机会时',
+        ].some((marker) => line.includes(marker)),
+    )
     .join('\n');
 }
 
@@ -221,8 +243,16 @@ function hasLiveNpcState(state: AgentSnapshot['viewState']): boolean {
   );
 }
 
+function compactChangesFor(snapshot: AgentSnapshot): boolean {
+  return (
+    isStickerOnlyMessage(snapshot.input.text) ||
+    (!hasLiveNpcState(snapshot.viewState) &&
+      !isActorEpisodeConsiderationInput(snapshot.input) &&
+      !snapshot.episodeManifest)
+  );
+}
+
 function responseFormatFor(snapshot: AgentSnapshot) {
-  const stickerOnly = isStickerOnlyMessage(snapshot.input.text);
   return npcResponseFormat(
     snapshot.viewState,
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest
@@ -233,8 +263,8 @@ function responseFormatFor(snapshot: AgentSnapshot) {
       channel: snapshot.channel,
       sources: snapshot.sources,
     },
-    stickerOnly,
-    stickerOnly || !hasLiveNpcState(snapshot.viewState) ? 'compact' : 'full',
+    isStickerOnlyMessage(snapshot.input.text),
+    compactChangesFor(snapshot) ? 'compact' : 'full',
   );
 }
 
@@ -742,9 +772,10 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     };
     return projected;
   };
+  const compact = compactChangesFor(snapshot);
   const systemMessage: ModelMessage = {
     role: 'system',
-    content: systemFor(snapshot) + WIRE_SYSTEM,
+    content: systemFor(snapshot, compact) + wireSystemFor(compact),
   };
   const replyInstruction: ModelMessage = {
     role: 'user',

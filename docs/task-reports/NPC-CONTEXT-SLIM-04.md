@@ -64,3 +64,11 @@
 - 空状态真实 snapshot：schema 14,406→11,538，总请求约 50.2k→**46.8k**；有 active 状态时仍用完整 schema。
 - NPC/schema 定向测试 93/93；完整 check 4161/4161；build 通过。
 - 没有新增模型调用；普通聊天仍可发图/邀约/出行等 executions，不因 compact 失去动作通道。
+
+## 追加：普通聊天 compact system
+
+- compact 模式同时去掉本轮不可能使用的 SYSTEM/WIRE 段：planReview、episodeManifest、coordination consideration、agendaReview、inputInterpretation、continuation。
+- 保留：人格/关系、成人边界、记忆、来源、计划/责任/动作、表情、focus/location、output 形状。
+- 空状态真实 snapshot：system 16,983→13,406；schema 11,538；总请求约 **43.2k**。
+- 有 active 状态/待回复责任/机会时仍使用完整 system+schema；完整 check 4161/4161、build 通过。
+- compact system 尚未经过真实模型输出验收；只做受控 schema/parser/kernel 测试。
