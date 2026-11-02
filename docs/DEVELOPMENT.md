@@ -3453,3 +3453,9 @@ NPC-CONTEXT-SLIM-21验收：check4162/build、PG2通过；4次真实只读模型
 NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s，同原档两人物实际HTTP首段6.036/6.405s、completed整轮7.767/7.352s，刷新消息各一次；3218/3219及workers已更新。浏览器绘制、复杂事件质量及长期主动未验证，见NPC-LATENCY-22报告；无生产部署。
 
 |NPC-RECOVERY-23|[x] 本批本地验收完成，整体任务待续|root-recovery23唯一集成；partial23_diagnosis只读|actor-continuation.ts、npc-agent-services.ts、对应聚焦测试与报告|修复普通等待接话被误拒绝导致partial；保留来源/引用/条件校验，不重发历史文字；必要真实验证后更新3218/3219，不部署生产|
+
+|PROACTIVE-CONTINUITY-24|[ ] 核心修复本地已更新，持续推进待验收|root-proactive24唯一集成；wake_identity24只读|npc-agent-advance-services.ts、主动/unknown相关测试、专属报告；actor-snapshot/actor-episode-intent/episode-lifecycle接回本人未完成事件说明，相关测试；npc-agent-model.ts承接规则、模型测试；own-agenda修复25已合入，director继续只读定位|修同请求unknown重复准入与原档无候选根因；不清旧请求、不强制消息，必要真实验证后本地更新|
+
+|UNKNOWN-WAKE-SCOPE-24|[x] 已集成验证|wake_identity24；root唯一集成|独立 /Users/limengzhe/.codex/worktrees/a758/人生剧本；NEW tests/integration/unknown-wake-scope24.test.ts，仅测试|冻结304a559a；原基线实际COMMAND_CONFLICT，root一行WIP下真实PG1/1通过；过期unknown同候选不重买、原receipt不变、B继续；0真实模型，不提交公共源码|
+
+|PLAYER-AGENDA-BASIS-25|[x] 已集成验证|wake_identity24；root唯一集成|独立a758/codex/player-agenda-basis25自5156b5b4；own-agenda-review-repository.ts、NEW tests/integration/player-agenda-basis25.test.ts|冻结ea4d08d1；仅失败后认证完整private/player回合可新窗口；原请求不重买，partial/并发旧输入/quiet/别人物不解封；新+原PG13/13、typecheck通过；原基线两个正向例失败，0真实模型/用户档修改/部署|
