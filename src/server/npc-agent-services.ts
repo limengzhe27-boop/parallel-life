@@ -855,15 +855,25 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
                   (streamAbortController.signal.reason as { code?: unknown } | undefined)?.code ??
                   (err as { code?: unknown } | null)?.code;
                 const isSuperseded = stopCode === 'SUPERSEDED_BY_USER_INTERRUPT';
+                const failureCode = String(
+                  (err as { reason?: unknown } | null)?.reason ??
+                    (err as { code?: unknown } | null)?.code ??
+                    'STREAM_INTERRUPTED',
+                );
+                console.warn(
+                  JSON.stringify({
+                    scope: 'chat-prefix-seal',
+                    attemptId: attempt.id,
+                    commandId: command.id,
+                    failureCode,
+                    completionStatus: isSuperseded ? 'superseded' : 'partial_interrupted',
+                  }),
+                );
                 const sealed = await sealCommittedStreamPrefix(turnDb, ownerId, {
                   attempt,
                   snapshot: execSnapshot,
                   completionStatus: isSuperseded ? 'superseded' : 'partial_interrupted',
-                  failureCode: String(
-                    (err as { code?: unknown } | null)?.code ??
-                      (err as Error | null)?.message ??
-                      'STREAM_INTERRUPTED',
-                  ),
+                  failureCode,
                   partialRawText: (err as { partialResponseText?: string } | null)
                     ?.partialResponseText,
                 });

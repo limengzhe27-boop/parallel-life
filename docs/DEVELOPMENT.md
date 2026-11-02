@@ -3451,3 +3451,5 @@ NPC-CONTEXT-SLIM-21验收：check4162/build、PG2通过；4次真实只读模型
 |LATENCY-SCHEMA-22|[x] 已集成验证|latency22-schema-tests；root唯一集成|独立/Users/limengzhe/.codex/worktrees/latency22-schema-tests/人生剧本，自a8d8386b；tests/npc-agenda-review-wire.test.ts、tests/npc-model-protocol.test.ts、tests/npc-plan-wire.test.ts、专属报告|六处旧断言+新增省略/null解码等价与三类越权拒绝，三文件57/57通过；公共协议WIP仅复制测试未提交，0模型/数据/端口。详LATENCY-SCHEMA-22报告，root集成。|
 
 NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s，同原档两人物实际HTTP首段6.036/6.405s、completed整轮7.767/7.352s，刷新消息各一次；3218/3219及workers已更新。浏览器绘制、复杂事件质量及长期主动未验证，见NPC-LATENCY-22报告；无生产部署。
+
+|NPC-RECOVERY-23|[x] 本批本地验收完成，整体任务待续|root-recovery23唯一集成；partial23_diagnosis只读|actor-continuation.ts、npc-agent-services.ts、对应聚焦测试与报告|修复普通等待接话被误拒绝导致partial；保留来源/引用/条件校验，不重发历史文字；必要真实验证后更新3218/3219，不部署生产|

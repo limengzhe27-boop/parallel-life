@@ -84,11 +84,6 @@ export function validateActorContinuation(
   }
   if (c.decision === 'act' && !c.planIds.length && !proposal.actions.length) fail();
   if (c.decision === 'await_condition' && !c.conditions.length) fail();
-  if (
-    c.decision === 'await_response' &&
-    !c.questionIds.length &&
-    !c.planIds.length &&
-    !proposal.statements.some((s) => s.requestsPlayerReply)
-  )
-    fail();
+  // Waiting for conversation to continue does not create a player obligation.
+  // Explicit question/plan references are checked above; no new question is required.
 }

@@ -87,7 +87,7 @@ function buildWireV14(
 function buildWireV14Tail(options?: { inputSourceRef?: string; quote?: string }): string {
   const inputSourceRef = options?.inputSourceRef ?? 'source:1';
   const quote = options?.quote ?? '你好';
-  return `],"consideration":null,"goals":[],"planIntents":[],"responsibilities":[],"agendaReview":null,"inputInterpretation":{"kind":"new_request","sourceId":"${inputSourceRef}","quote":${JSON.stringify(quote)}},"continuation":{"decision":"no_current_intent","reason":"已回复。","sourceIds":["${inputSourceRef}"],"planIds":[],"questionIds":[],"conditions":[]}}`;
+  return `],"consideration":null,"goals":[],"planIntents":[],"responsibilities":[],"agendaReview":null,"inputInterpretation":{"kind":"new_request","sourceId":"${inputSourceRef}","quote":${JSON.stringify(quote)}},"continuation":{"decision":"await_response","reason":"等待自然接话，不新增问题。","sourceIds":["${inputSourceRef}"],"planIds":[],"questionIds":[],"conditions":[]}}`;
 }
 
 test('append units: immutable interleaved speech, input once, media once, interruption and replay', async (t) => {

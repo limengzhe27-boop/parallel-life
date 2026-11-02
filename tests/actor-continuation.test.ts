@@ -91,3 +91,29 @@ test('source-backed observation may be awaited without manufacturing an obligati
   assert.equal(proposal.goals.length, 0);
   assert.equal(proposal.statements.length, 0);
 });
+
+test('ordinary conversational waiting needs no new question and changes no existing state', () => {
+  const { context, proposal } = fixture();
+  proposal.continuation!.decision = 'await_response';
+  proposal.statements = [
+    { text: '嗯，我在听。', dependsOnActionIds: [], requestsPlayerReply: false },
+  ];
+  const before = JSON.stringify(context.state);
+  validateActorContinuation(context, proposal);
+  assert.equal(JSON.stringify(context.state), before);
+  assert.deepEqual(proposal.continuation!.questionIds, []);
+  for (const delta of [
+    { questionIds: ['missing'] },
+    { planIds: ['missing'] },
+    { sourceIds: ['hidden'] },
+  ]) {
+    assert.throws(
+      () =>
+        validateActorContinuation(context, {
+          ...proposal,
+          continuation: { ...proposal.continuation!, ...delta },
+        }),
+      /INVALID_ACTOR_CONTINUATION/,
+    );
+  }
+});
