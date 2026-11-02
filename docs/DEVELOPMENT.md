@@ -3445,3 +3445,9 @@ CODE-CLEANUP-20冻结1077d7e9（基于ed20dcb4）：删确定无入口回合/旧
 |NPC-SCHEMA-SLIM-21|[x] 已集成本地验收|schema21；root-context21集成；独立npc-schema21/codex/npc-schema21自551e69fa|npc-model-protocol.ts、NEW tests/npc-schema-size21.test.ts、专属报告；不改npc-agent-model.ts|冻结e4f5e0cb；仅最终schema不可达defs闭包清理，72组合展开前后deepEqual；expressionOnly schema3902→1793B或4858→1793B，full/compact不变。聚焦42/typecheck/boundaries通过；无通用大去重器，不改业务/状态/来源/权限；0模型/DB/端口。|
 
 NPC-CONTEXT-SLIM-21验收：check4162/build、PG2通过；4次真实只读模型回放，原输入供应商prompt_tokens19403→16420（-15.4%），单样本21.178→16.563秒不宣称SLA。原稿不改，仅逐字重复模块共享原文；实际payload展开后等价。3218/3219 PID99200/99201与worker99202/99203已更新。普通full schema14KB仍保留、原档重复催问/长期主动未解决，详专属报告。schema21已合入97ed4d90。
+
+|NPC-LATENCY-22|[ ] 本地功能及真实接口验收完成，页面计时待验收|root-latency22唯一集成；latency22_review独立测试|模型协议/流式适配及专属tests/report，必要前端耗时观测；不改记忆、SQL，原档仅通过正常发送验收|核对首段等待、精简共享输出链路，保留任务人格和动作依赖；真实流式对照、必要check/build、本地3218/3219更新；不部署生产|
+
+|LATENCY-SCHEMA-22|[x] 已集成验证|latency22-schema-tests；root唯一集成|独立/Users/limengzhe/.codex/worktrees/latency22-schema-tests/人生剧本，自a8d8386b；tests/npc-agenda-review-wire.test.ts、tests/npc-model-protocol.test.ts、tests/npc-plan-wire.test.ts、专属报告|六处旧断言+新增省略/null解码等价与三类越权拒绝，三文件57/57通过；公共协议WIP仅复制测试未提交，0模型/数据/端口。详LATENCY-SCHEMA-22报告，root集成。|
+
+NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s，同原档两人物实际HTTP首段6.036/6.405s、completed整轮7.767/7.352s，刷新消息各一次；3218/3219及workers已更新。浏览器绘制、复杂事件质量及长期主动未验证，见NPC-LATENCY-22报告；无生产部署。

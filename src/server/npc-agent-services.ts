@@ -779,6 +779,15 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
               onStreamEvent: async (attempt, execSnapshot, event) => {
                 if (streamAbortController.signal.aborted) return;
                 if (event.kind === 'statement') {
+                  if (event.statement.segmentIndex === 0)
+                    console.info(
+                      JSON.stringify({
+                        scope: 'chat-stream-timing',
+                        commandId: command.id,
+                        stage: 'first_statement_parsed',
+                        elapsedMs: roundDurationMs(performance.now() - tTurn0),
+                      }),
+                    );
                   // A sticker-only bubble has no safe text projection yet; the final
                   // structured commit persists it once with its stickerId.
                   if (!event.statement.text.trim() && event.statement.stickerId) return;
@@ -795,6 +804,15 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
                   );
                   if (segOutcome.outcome === 'committed') {
                     await options?.onSegment?.(segOutcome.event);
+                    if (event.statement.segmentIndex === 0)
+                      console.info(
+                        JSON.stringify({
+                          scope: 'chat-stream-timing',
+                          commandId: command.id,
+                          stage: 'first_segment_delivered',
+                          elapsedMs: roundDurationMs(performance.now() - tTurn0),
+                        }),
+                      );
                   } else if (
                     segOutcome.outcome === 'superseded' &&
                     segOutcome.reason !== 'VERSION_CONFLICT'

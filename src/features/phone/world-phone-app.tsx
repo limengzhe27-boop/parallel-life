@@ -415,7 +415,13 @@ export function WorldPhoneApp({
             if (!firstSegmentReceived) {
               firstSegmentReceived = true;
               const firstMeaningfulReplyMs = Math.round(performance.now() - tSend);
-              void firstMeaningfulReplyMs;
+              // Bounded browser-only timing; no message content or extra request.
+              performance.clearMeasures('parallel-life:first-reply-received');
+              performance.measure('parallel-life:first-reply-received', {
+                start: tSend,
+                duration: firstMeaningfulReplyMs,
+                detail: { commandId },
+              });
             }
             confirmedSendVersion.current = {
               worldId,
@@ -436,7 +442,12 @@ export function WorldPhoneApp({
         },
       );
       const fullTurnMs = Math.round(performance.now() - tSend);
-      void fullTurnMs;
+      performance.clearMeasures('parallel-life:turn-complete');
+      performance.measure('parallel-life:turn-complete', {
+        start: tSend,
+        duration: fullTurnMs,
+        detail: { commandId },
+      });
       const confirmed = committedLocalSend(worldId, entry, receipt);
       const originalCommand = sendCommands.current[commandId];
       if (originalCommand) observeReplyReceipt(receipt, originalCommand);

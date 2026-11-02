@@ -79,3 +79,45 @@ test('role selection does not infer unsupported reasoning settings from model na
   );
   assert.equal(result.status, 0, result.stderr);
 });
+
+test('explicit NPC effort is isolated from director and generic calls', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--conditions=react-server',
+      '--experimental-strip-types',
+      '--input-type=module',
+      '-e',
+      `
+    import assert from 'node:assert/strict';
+    import {createTextModel} from './src/server/composition.ts';
+    const seen=[];
+    globalThis.fetch=async(_url,init)=>{const b=JSON.parse(init.body);seen.push(b);return b.stream?new Response('data: {"choices":[{"delta":{"content":"{}"}}]}\\n\\ndata: [DONE]\\n\\n'):Response.json({choices:[{message:{content:'{}'},finish_reason:'stop'}]});};
+    const schema=name=>({format:'json_schema',name,strict:true,schema:{type:'object',properties:{},additionalProperties:false}});
+    const m=createTextModel(),messages=[{role:'user',content:'fixture'}];
+    await m.complete(messages,undefined,512,schema('npc_agent_response'));
+    for await(const c of m.streamComplete(messages,undefined,schema('npc_agent_response'))) {}
+    await m.complete(messages,undefined,512,schema('director_response_v1'));
+    await m.complete(messages);
+    assert.deepEqual(seen.map(x=>x.reasoning_effort),['none','none',undefined,undefined]);
+    process.env.YIBU_NPC_REASONING_EFFORT='invalid';
+    assert.throws(()=>createTextModel(),{code:'INVALID_CONFIG'});
+    assert.equal(seen.length,4);
+  `,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      timeout: 15000,
+      env: {
+        ...process.env,
+        YIBU_API_KEY: 'fixture',
+        YIBU_BASE_URL: 'https://yibuapi.com',
+        YIBU_TEXT_MODEL: 'grok-4.3',
+        YIBU_NPC_MODEL: 'grok-4.3',
+        YIBU_NPC_REASONING_EFFORT: 'none',
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+});

@@ -31,7 +31,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v82-lean-instructions';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v83-scoped-instructions';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -155,13 +155,16 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
   ].join('\n');
 }
 function wireSystemFor(snapshot: AgentSnapshot, compact: boolean): string {
+  const opportunity =
+    !!snapshot.episodeManifest || isActorEpisodeConsiderationInput(snapshot.input);
   return [
     WIRE_SYSTEM.conversation,
     ...(!compact ? [WIRE_SYSTEM.continuation] : []),
     WIRE_SYSTEM.envelope,
     ...(!compact && snapshot.input.origin !== 'player' ? [WIRE_SYSTEM.agendaReview] : []),
     WIRE_SYSTEM.sourcesAndActions,
-    ...(!compact ? [WIRE_SYSTEM.inputInterpretation, WIRE_SYSTEM.consideration] : []),
+    ...(!compact ? [WIRE_SYSTEM.inputInterpretation] : []),
+    ...(opportunity ? [WIRE_SYSTEM.consideration] : []),
     WIRE_SYSTEM.replyAndFocus,
   ].join('\n');
 }
@@ -400,12 +403,8 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       : {
           responseContract: {
             protocol: NPC_WIRE_PROTOCOL,
-            outputSchemaHash: createHash('sha256')
-              .update(JSON.stringify(responseFormat))
-              .digest('hex'),
             considerationRequired,
             considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
-            planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
             timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
               ? {
                   localDate: awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10),

@@ -10,10 +10,19 @@ export function createTextModel() {
   const base = new YibuTextModel(config);
   const npcModel = process.env.YIBU_NPC_MODEL?.trim();
   const directorModel = process.env.YIBU_DIRECTOR_MODEL?.trim();
-  return npcModel || directorModel
+  // Explicit provider configuration; never infer support from a model name.
+  const npcEffort =
+    process.env.YIBU_NPC_REASONING_EFFORT?.trim() as GatewayConfig['reasoningEffort'];
+  return npcModel || directorModel || npcEffort
     ? roleTextModel(
         base,
-        npcModel ? new YibuTextModel({ ...config, model: npcModel }) : base,
+        npcModel || npcEffort
+          ? new YibuTextModel({
+              ...config,
+              model: npcModel || config.model,
+              ...(npcEffort ? { reasoningEffort: npcEffort } : {}),
+            })
+          : base,
         directorModel ? new YibuTextModel({ ...config, model: directorModel }) : undefined,
       )
     : base;

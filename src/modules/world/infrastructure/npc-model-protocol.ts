@@ -931,6 +931,12 @@ export function npcResponseFormat(
       { type: 'null' },
     ],
   };
+  // These entries can only be null in this request. The current decoder already
+  // treats absence as no change; do not ask the model to echo inapplicable work.
+  // Limit this to changes: nested action discriminators retain their own grammar.
+  for (const [key, value] of Object.entries(changes)) {
+    if (value.type === 'null') delete changes[key];
+  }
   schema.properties = {
     protocol: { type: 'string', enum: [CURRENT_NPC_WIRE_PROTOCOL] },
     statements: properties.statements!,
