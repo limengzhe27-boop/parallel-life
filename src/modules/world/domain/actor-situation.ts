@@ -27,6 +27,13 @@ const moduleLimits = {
   relationships: 1400,
 };
 
+const stablePersonaKey =
+  /^(?:traits|drives|behavior|relationships|personality|motivation|性格|核心性格|动机|长期动机|行为|表达习惯|关系|关键关系)$/iu;
+/** Core personality must not oscillate with a new topic; only biography is topical. */
+function personaExcerpt(source: string, topic: string, budget: number, key: string): string {
+  return authoredSourceExcerpt(source, stablePersonaKey.test(key) ? '' : topic, budget);
+}
+
 /** Budgeted source excerpts, not the complete manuscript; preserve every supplied dimension. */
 export function selectActorPersona(
   modules: Modules | undefined,
@@ -37,7 +44,7 @@ export function selectActorPersona(
   for (const key of Object.keys(moduleLimits) as (keyof Modules)[]) {
     const value = modules[key];
     if (!value?.trim()) continue;
-    selected[key] = authoredSourceExcerpt(value, topic, moduleLimits[key]);
+    selected[key] = personaExcerpt(value, topic, moduleLimits[key], key);
   }
   return Object.keys(selected).length ? selected : undefined;
 }
@@ -53,18 +60,21 @@ export function legacyPersonaExcerpt(source: string, topic: string, budget: numb
   }
   if (!parsed || typeof parsed !== 'object') return authoredSourceExcerpt(source, topic, budget);
   let textFields = 0;
-  const visit = (value: unknown, textBudget?: number, key = ''): unknown => {
+  const visit = (value: unknown, textBudget?: number, key = '', inheritedCore = false): unknown => {
     if (/^(?:id|name|identity|boundaries|boundary|姓名|身份|边界)$/iu.test(key)) return value;
+    const core = inheritedCore || stablePersonaKey.test(key);
     if (typeof value === 'string') {
       textFields++;
-      return textBudget === undefined ? value : authoredSourceExcerpt(value, topic, textBudget);
+      return textBudget === undefined
+        ? value
+        : personaExcerpt(value, topic, textBudget, core ? 'traits' : key);
     }
-    if (Array.isArray(value)) return value.map((item) => visit(item, textBudget));
+    if (Array.isArray(value)) return value.map((item) => visit(item, textBudget, key, core));
     if (value && typeof value === 'object')
       return Object.fromEntries(
         Object.entries(value).map(([childKey, child]) => [
           childKey,
-          visit(child, textBudget, childKey),
+          visit(child, textBudget, childKey, core),
         ]),
       );
     return value;
@@ -125,7 +135,7 @@ export function reserveActorContext<
       for (const key of Object.keys(moduleLimits) as (keyof Modules)[]) {
         const value = context.authoredLifeModules?.[key];
         if (value)
-          next.authoredLifeModules![key] = authoredSourceExcerpt(value, userText, 400 / divisor);
+          next.authoredLifeModules![key] = personaExcerpt(value, userText, 400 / divisor, key);
       }
       for (const [index, goal] of (next.eventGoals ?? []).entries()) {
         goal.want = authoredSourceExcerpt(

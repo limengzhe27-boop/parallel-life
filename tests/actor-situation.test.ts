@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   selectActorPersona,
   reserveActorContext,
+  legacyPersonaExcerpt,
 } from '../src/modules/world/domain/actor-situation.ts';
 import { WorldTurnPlanner } from '../src/modules/world/infrastructure/turn-planner.ts';
 import type { ActorContext } from '../src/modules/world/application/ports.ts';
@@ -86,4 +87,56 @@ test('private direction reaches the actor model with current world time and clea
     },
   }).propose({ context: { ...base, actorSituation: situation }, userText: '现在怎么回事？' });
   assert.equal(calls, 1);
+});
+
+test('stable personality dimensions do not change with player topic; biography still follows relevance', () => {
+  const core =
+    '嘴硬心软，对陌生人强势，对妹妹退让。\n' +
+    '日常保持克制与边界。\n'.repeat(300) +
+    '海边时会放松说笑。';
+  const modules = {
+    traits: core,
+    drives: core,
+    behavior: core,
+    relationships: core,
+    lifeContext:
+      '大学毕业后定居。\n' +
+      '普通生活经历。\n'.repeat(300) +
+      '曾在海边做救生员。\n曾在医院做志愿者。',
+  };
+  const beach = selectActorPersona(modules, '海边'),
+    hospital = selectActorPersona(modules, '医院');
+  for (const key of ['traits', 'drives', 'behavior', 'relationships'] as const) {
+    assert.equal(beach![key], hospital![key]);
+    assert.match(beach![key]!, /对陌生人强势，对妹妹退让/);
+  }
+  assert.match(beach!.lifeContext!, /海边做救生员/);
+  assert.match(hospital!.lifeContext!, /医院做志愿者/);
+  assert.notEqual(beach!.lifeContext, hospital!.lifeContext);
+});
+
+test('legacy structured personality and final capacity fallback use the same stable-core rule', () => {
+  const source = JSON.stringify({
+    identity: '作者身份不得改',
+    boundaries: '不泄露私人信息',
+    traits: { details: ['嘴硬心软。', ...Array(100).fill('平时克制。'), '海边会笑。'] },
+    lifeContext: '普通经历。'.repeat(200) + '海边做救生员。',
+  });
+  const a = JSON.parse(legacyPersonaExcerpt(source, '海边', 500));
+  const b = JSON.parse(legacyPersonaExcerpt(source, '医院', 500));
+  assert.deepEqual(a.traits, b.traits);
+  assert.equal(a.identity, '作者身份不得改');
+  assert.equal(a.boundaries, '不泄露私人信息');
+  const input = {
+    ...base,
+    authoredLifeModules: {
+      traits: '嘴硬心软，对陌生人强势，对妹妹退让。\n' + '日常克制。'.repeat(6000),
+    },
+  };
+  const before = structuredClone(input);
+  const first = reserveActorContext(input, '海边');
+  const second = reserveActorContext(input, '医院');
+  assert.equal(first.authoredLifeModules.traits, second.authoredLifeModules.traits);
+  assert.match(first.authoredLifeModules.traits, /嘴硬心软/);
+  assert.deepEqual(input, before);
 });
