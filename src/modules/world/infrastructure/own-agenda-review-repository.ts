@@ -33,7 +33,7 @@ export type OwnAgendaReviewEvidence = {
   lastPresentedRealAt: string | null;
   /** Must be handled before N2. A different family or epoch cannot hide an active actor call. */
   actorBlockers: OwnAgendaReviewActorBlocker[];
-  /** Semantic bases with a paid non-complete outcome. Successful full reviews use the original next-anchor window. */
+  /** Paid non-complete bases not followed by independent complete player context. Full reviews still use the next-anchor window. */
   paidContinuationBases: string[];
 };
 export class OwnAgendaReviewEvidenceError extends Error {
@@ -90,7 +90,8 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       pg_has_role(current_user,'pl_worker','MEMBER') is_worker,
       COALESCE((SELECT jsonb_agg(to_jsonb(history)) FROM (
         SELECT a.id,a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
-          a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,
+          a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,a.sent_at,
+          i.created_at AS input_created_at,
           a.sent_at IS NOT NULL AS sent,a.response IS NOT NULL AS has_response,a.response_hash,
           (COALESCE(a.response->>'kind'='npc_agent_partial_stream',false) OR EXISTS (
             SELECT 1 FROM parallel_life.agent_attempt_stream_segments sg WHERE sg.world_id=a.world_id AND sg.owner_id=a.owner_id
@@ -260,6 +261,14 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     string,
     { anchor: OwnAgendaReviewAnchor; version: number; continuationBasisHash?: string }
   >();
+  // Authenticated complete player turns are new external context. A quiet wake,
+  // version increment or interrupted presentation cannot renew a failed review.
+  const playerContexts: {
+    acceptedAt: string;
+    inputWorldVersion: number;
+    actorRevisionBefore: number;
+    commitVersion: number;
+  }[] = [];
   const commits: {
     version: number;
     revisionBefore: number;
@@ -394,6 +403,13 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       presentedRealAt: rt.statementCount > 0 ? new Date(e.realAt).toISOString() : null,
     });
     if (!privateCommit || r.incomplete_stream) continue;
+    if (b.origin === 'player' && instant(r.input_created_at))
+      playerContexts.push({
+        acceptedAt: r.input_created_at,
+        inputWorldVersion: b.expectedWorldVersion,
+        actorRevisionBefore: rt.actorRevisionBefore,
+        commitVersion: e.version,
+      });
     anchors.set(r.id, {
       version: e.version,
       ...(typeof after.continuationBasisHash === 'string' &&
@@ -491,10 +507,21 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         // bounded windows over the same personal state. Its authenticated commit
         // becomes the next anchor; time/backoff, family history and budgets still apply.
         // Unknown/invalid/paid-stale and interrupted presentations never mint that grant.
+        // A later authenticated player turn may start independent work, but cannot
+        // retry this family. Receipt acceptance must follow the original paid send;
+        // finishing a previously queued player input later is not new authority.
         if (
           (r.sent || r.has_response) &&
           (r.status !== 'committed' || r.incomplete_stream) &&
-          predecessor?.continuationBasisHash
+          predecessor?.continuationBasisHash &&
+          !playerContexts.some(
+            (context) =>
+              instant(r.sent_at) &&
+              Date.parse(context.acceptedAt) > Date.parse(r.sent_at) &&
+              context.inputWorldVersion >= r.expected_world_version &&
+              context.actorRevisionBefore >= r.expected_actor_revision &&
+              context.commitVersion > (r.event?.version ?? r.expected_world_version),
+          )
         )
           paidContinuationBases.add(predecessor.continuationBasisHash);
         if (recordFamily !== null && recordFamily === familyId)
