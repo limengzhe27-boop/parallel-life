@@ -193,7 +193,7 @@ test('v7 provider grammar binds review scope and source validation remains expli
     'update_plan',
     'contact',
   ]);
-  assert.equal(npcChangeObject(b.schema).properties.agendaReview.type, 'null');
+  assert.equal(npcChangeObject(b.schema).properties.agendaReview, undefined);
   reject(own.c, { ...own.wire, agendaReview: null });
   reject(own.c, {
     ...own.wire,

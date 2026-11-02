@@ -632,7 +632,7 @@ test('non-player or no visible question permits no assessments; long input keeps
     if (format.format !== 'json_schema') throw Error('schema');
     return changeFields(format).inputInterpretation!;
   };
-  assert.equal(field({ ...c.input, origin: 'wake' }).type, 'null');
+  assert.equal(field({ ...c.input, origin: 'wake' }), undefined);
   const empty: any = field(c.input, { ...c.state, questions: [] });
   assert(!JSON.stringify(empty).includes('related_reply'));
   const long: any = field({ ...c.input, text: '继续讨论临窗。'.repeat(150) });
@@ -649,9 +649,7 @@ test('native response schema represents server event permission, never a guessed
   const forbidden = npcResponseFormat({ goals: [] }, 'forbidden');
   if (required.format !== 'json_schema' || forbidden.format !== 'json_schema')
     throw Error('schema');
-  assert.deepEqual(changeFields(forbidden).consideration, {
-    type: 'null',
-  });
+  assert.equal(changeFields(forbidden).consideration, undefined);
   const object = changeFields(required).consideration!;
   assert.equal(object.type, 'object');
   assert.ok((object.required as string[]).includes('choice'));
@@ -828,7 +826,7 @@ test('provider-safe null judgment collections decode only as explicit empty v2 s
   if (format.format !== 'json_schema') throw Error('schema');
   const fields = changeFields(format) as Record<string, { type: string }>;
   for (const name of ['inputInterpretation', 'locationReports'])
-    assert.equal(fields[name]!.type, 'null');
+    assert.equal(fields[name], undefined);
   assert.equal(fields.decisions, undefined);
   assert.equal(fields.replyAssessments, undefined);
   const visit = (node: unknown) => {
@@ -937,7 +935,7 @@ test('native completion references are actual visible receipts, not proposed exe
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
   const responsibility = changeFields(format).responsibilities.items.properties;
   assert.equal(responsibility.resolutionResultId, undefined);
-  assert.equal(changeFields(format).goals.type, 'null');
+  assert.equal(changeFields(format).goals, undefined);
   c.state.goals.push({
     id: 'visible-goal',
     summary: 'Current intention',
@@ -1380,4 +1378,51 @@ test('continuation only needs decision, reason and source when it has no targets
   assert.deepEqual(proposal.continuation?.planIds, []);
   assert.deepEqual(proposal.continuation?.questionIds, []);
   assert.deepEqual(proposal.continuation?.conditions, []);
+});
+
+test('current omitted fixed-null changes preserve decoding and do not authorize unavailable decisions', () => {
+  const { c } = fixture();
+  const base = {
+    protocol: 'npc-wire-v16',
+    statements: [{ text: '我先听你说。', dependsOnActionIds: [] }],
+    executions: [],
+  };
+  const omitted = parseAgentProposal(c, { ...base, changes: {} });
+  const explicitNull = parseAgentProposal(c, {
+    ...base,
+    changes: { consideration: null, goals: null, agendaReview: null },
+  });
+  assert.deepEqual(omitted, explicitNull);
+  assert.deepEqual(omitted.goals, []);
+  assert.equal(omitted.episodeDecision, undefined);
+
+  const format = npcResponseFormat(c.state, 'forbidden', c);
+  if (format.format !== 'json_schema') throw Error('schema');
+  const changes = (format.schema.properties as any).changes;
+  const object =
+    changes.type === 'object' ? changes : changes.anyOf.find((n: any) => n.type === 'object');
+  assert.equal(object.additionalProperties, false);
+  for (const key of ['consideration', 'goals', 'agendaReview']) {
+    assert.equal(Object.hasOwn(object.properties, key), false);
+    assert.equal(object.required.includes(key), false);
+  }
+  for (const unavailable of [
+    { consideration: { choice: 'engage', reason: 'invented opportunity', basisSourceIds: [] } },
+    { agendaReview: { decision: 'quiet', reason: 'not a review', basisSourceIds: ['source:1'] } },
+    {
+      goals: [
+        {
+          id: 'another-actor-goal',
+          summary: 'invented',
+          status: 'active',
+          sourceIds: ['source:1'],
+        },
+      ],
+    },
+  ]) {
+    assert.throws(
+      () => parseAgentProposal(c, { ...base, changes: unavailable }),
+      /RESPONSE_WIRE_SHAPE/,
+    );
+  }
 });

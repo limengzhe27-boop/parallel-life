@@ -228,7 +228,7 @@ test('scoped v6 grammar offers only visible editable old IDs and fits current pr
   );
   const c0 = fixture().c;
   const empty: any = npcResponseFormat(c0.viewState!, 'forbidden', c0);
-  assert.equal(npcChangeObject(empty.schema).properties.goals.type, 'null');
+  assert.equal(npcChangeObject(empty.schema).properties.goals, undefined);
   assert.equal(npcChangeObject(empty.schema).properties.planIntents.items.anyOf.length, 1);
   assert(JSON.stringify(format.schema).length < 32_000);
   const raw = fixture();
