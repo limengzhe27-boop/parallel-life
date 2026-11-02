@@ -31,7 +31,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v83-scoped-instructions';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v84-retained-event-continuity';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -82,7 +82,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
 selfAgendaContext是本人已授权职责、愿望和议程，不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
-  agendaReview: `npc_agenda_review是根据你本人真实提交状态和经过时间获得的有界自主复盘，不是玩家新请求，也不是要求你发消息。先看本人已知事实、目标、计划、等待条件、已回答/拒绝的问题，再决定保持安静、调整自己安排、提出具体的新信息或机会。没有新依据不要重复已有问题，不把沉默当同意或违约，不以换一个目标/问题编号绕过旧拒绝，也不能借复盘重新参与已消费/拒绝的事件请求。若你选择等待或调整计划，用planIntents明确记录目标与缺失条件；没有依据不发明硬期限或已完成行动。`,
+  agendaReview: `npc_agenda_review是根据你本人真实提交状态和经过时间获得的有界自主复盘，不是玩家新请求，也不是要求你发消息。先看本人已知事实、目标、计划、等待条件、已回答/拒绝的问题，再决定保持安静、调整自己安排、提出具体的新信息或机会。没有新依据不要重复已有问题，不把沉默当同意或违约，不以换一个目标/问题编号绕过旧拒绝，也已消费请求只表示参与选择已记录，不表示事件结束：对本人已engage且未结束的事件，承接原说明决定下一步，不重复作参与选择；已拒绝的请求不重开。未收到玩家回复只限制依赖该答复的步骤，不冻结本人的其他安排。推进已有安排不要求先出现新消息；若选择等待或调整计划，用planIntents记录真实缺失条件；没有依据不发明硬期限或已完成行动。`,
   commitments: `明确区分愿望与承诺：闲聊、试探、条件设想、拒绝、暂缓或换话题不构成玩家承诺，不给玩家新增责任；已有问题的真实回答和选择仍须记录。本人可基于人设/职责规划自己的议程，agenda_initialize/npc_agenda_review也不要求玩家先许诺。
 只为跨轮安排建立目标/计划；即时执行用executions，即时生图免建计划。不要口头答应立即做却漏执行。没有下一步的计划保持未完成，不伪造动作/期限；能力不足记录blocked及缺项，个人意愿仍可表达。已有对象沿用id和完整sourceIds，只输出必要增量。依赖执行成功的台词绑定该动作，失败时不展示成功。withdrawn须endReason；deadline只能逐字等于来源deadlineAt，未提供则省略；没有合法到期依据不提expired。`,
   inputInterpretation: `当前玩家输入只用inputInterpretation作一次语义判断，不另外输出decisions或replyAssessments。先分清：new_request（玩家提出新的请求，包括索图、请你做事）、topic_change（另换话题）、uncertain（不确定是否关联旧问题）、related_reply（确实回答原有问题或待玩家决定的责任）。前面三种没有replies，不消费旧事项。related_reply.replies只选原schema授权的原问题/责任配对；relation是answer/decline_to_answer/defer_answer。只有玩家确实对该责任作出决定时decision才是accepted/declined/negotiating/deferred/undecided，否则null。你自己答应或拒绝玩家的新请求属于你的立场，不是玩家对旧事项的决定，不能放到inputInterpretation的decision。不要因为仍有待答问题就强行把玩家新请求解释成旧问题回答。sourceId必须为本次input.sourceId，quote必须是input.text里逐字连续的原文，不删否定词，不把协调文字或旧对白冒充玩家答应；wake/coordination不得新增玩家决定。当玩家在本次原话中对schema授权的原有责任明确确认、分工答应（如“好，就这么办”、“没问题”、“交给我”）或明确拒绝、暂缓时，必须在related_reply对应责任的decision中准确记录；玩家新提问或新请求不是对旧责任的答复；你本人拒绝玩家请求，也不是玩家拒绝了你的旧责任。此时选择new_request或topic_change，不得把自己的同意或拒绝写成玩家决定；不能仅因原话包含“可以”“不方便”就判定旧事项。无关闲聊或换话题不得误判为accepted或declined。责任与目标的完成结果只由内核执行并保存，模型不输出fulfilled、resolutionResultId或虚构回执；没有合法到期来源不提expired。`,

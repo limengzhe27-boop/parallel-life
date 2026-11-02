@@ -834,6 +834,7 @@ export function npcAgentAdvanceServices(
               if (
                 prior &&
                 (['invalid_output', 'stale_discarded'].includes(prior.status) ||
+                  (prior.status === 'unknown_after_send' && !prior.hasResponse) ||
                   (prior.status === 'cancelled_before_send' && prior.paid))
               )
                 blockers.push({

@@ -21,8 +21,9 @@ export async function readEpisodeLifecycleContext(
   if (!identities.length) return [];
   const rows = (
     await sql.query(
-      `SELECT r.*,er.choice,er.reason,er.source_ids,er.world_version,e.payload
+      `SELECT r.*,er.choice,er.reason,er.source_ids,er.world_version,e.payload,ep.document->>'status' AS episode_status
  FROM parallel_life.agent_episode_requests r
+ JOIN parallel_life.shared_episodes ep ON ep.world_id=r.world_id AND ep.owner_id=r.owner_id AND ep.id=r.episode_id
  JOIN parallel_life.agent_runtime_worlds c ON c.world_id=r.world_id AND c.owner_id=r.owner_id AND c.engine_epoch=r.engine_epoch
  JOIN parallel_life.agent_episode_receipts er ON er.world_id=r.world_id AND er.owner_id=r.owner_id AND er.id=r.receipt_id AND er.request_id=r.id AND er.input_receipt_id=r.input_receipt_id
  JOIN parallel_life.agent_attempts a ON a.world_id=er.world_id AND a.owner_id=er.owner_id AND a.id=er.attempt_id AND a.status='committed' AND a.actor_id=r.actor_id AND a.input_receipt_id=er.input_receipt_id AND a.engine_epoch=r.engine_epoch AND a.event_id=er.source_event_id
@@ -119,7 +120,7 @@ export async function readEpisodeLifecycleContext(
       requestId: request.id,
       episodeId: request.episodeId,
       choice: decision.choice,
-      followUp: view.followUp,
+      followUp: ['resolved', 'withdrawn'].includes(row.episode_status) ? 'terminal' : view.followUp,
       goalIds: view.goals.map((g) => g.id),
       planIds: view.plans.map((p) => p.id),
       responsibilityIds: view.responsibilities.map((r) => r.id),

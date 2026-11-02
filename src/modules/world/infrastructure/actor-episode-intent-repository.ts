@@ -518,7 +518,12 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
       if (
         observations.some(
           (observation) =>
-            observation.text !== '此来源支持本人已保存的目标、计划或决定；原私聊不在本次上下文中。',
+            observation.text !==
+              '此来源支持本人已保存的目标、计划或决定；原私聊不在本次上下文中。' &&
+            !(
+              retainedActorEpisodeRequestIds(snapshot).includes(id) &&
+              isDeepStrictEqual(observation, view.observation)
+            ),
         )
       )
         return conflict();
@@ -541,4 +546,46 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
     )
       return conflict();
   }
+}
+
+/** Keep an already accepted personal brief available, without re-opening participation. */
+export function retainedActorEpisodeRequestIds(snapshot: AgentSnapshot): string[] {
+  if (snapshot.channel.kind !== 'private') return [];
+  return (snapshot.episodeFollowUps ?? [])
+    .filter(
+      (followup) =>
+        ['engage', 'defer', 'need_information'].includes(followup.choice) &&
+        followup.followUp !== 'terminal',
+    )
+    .map((followup) => followup.requestId);
+}
+
+export async function readRetainedActorEpisodeBriefs(
+  sql: SqlClient,
+  owner: string,
+  snapshot: AgentSnapshot,
+): Promise<AgentSnapshot['observations']> {
+  const retained = new Set(retainedActorEpisodeRequestIds(snapshot));
+  const ids = snapshot.sources
+    .filter(
+      (s) =>
+        s.kind === 'director_intent' &&
+        s.usage === 'private_strategy' &&
+        retained.has(s.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length)),
+    )
+    .map((s) => s.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length));
+  if (!ids.length) return [];
+  const views = await readActorEpisodeIntentsInTransaction(
+    sql,
+    owner,
+    {
+      worldId: snapshot.state.worldId,
+      actorId: snapshot.state.actorId,
+      worldVersion: snapshot.worldVersion,
+      storyAt: snapshot.storyAt,
+    },
+    ids,
+    { historical: true },
+  );
+  return [...views.values()].flatMap((view) => (view ? [view.observation] : []));
 }

@@ -977,7 +977,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v83-scoped-instructions');
+  assert.equal(payload.promptVersion, 'npc-agent-v84-retained-event-continuity');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /本轮和自动唤醒不再提该事项，直到玩家主动重提/);
   assert.match(system, /安慰、道歉或对方认真难过时不以嘲讽图代替回应/);

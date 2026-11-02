@@ -1,3 +1,4 @@
+import { readRetainedActorEpisodeBriefs } from './actor-episode-intent-repository.ts';
 import { summaryReplacedMessages } from '../../memory/infrastructure/conversation-summary.ts';
 import {
   canEstablishInitialPosition,
@@ -999,6 +1000,11 @@ async function attachAgentWorldContextInTransaction(
     );
   }
   contextual.episodeFollowUps = await readEpisodeLifecycleContext(sql, ownerId, contextual);
+  const retainedBriefs = await readRetainedActorEpisodeBriefs(sql, ownerId, contextual);
+  if (retainedBriefs.length) {
+    const bySource = new Map(retainedBriefs.map((o) => [o.sourceId, o]));
+    contextual.observations = contextual.observations.map((o) => bySource.get(o.sourceId) ?? o);
+  }
   contextual.episodeResults = await readActorEpisodeResults(sql, ownerId, contextual, blocked);
   return contextual;
 }
