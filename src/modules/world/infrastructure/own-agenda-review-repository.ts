@@ -111,7 +111,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
                   AND sg.attempt_id=a.id AND sg.status='committed' AND sg.message_id=m.id AND sg.source_event_id=me.id AND sg.source_version=me.version))
                 AND m.document->>'role'='assistant'
                 AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(me.payload#>'{data,effects}')='array' THEN me.payload#>'{data,effects}' ELSE '[]'::jsonb END) effect
-                  WHERE effect->>'type'='message.received' AND effect->>'id'=m.id::text AND effect->>'actorId'=a.actor_id AND effect->>'text'=m.document->>'text'))
+                  WHERE effect->>'type'='message.received' AND effect->>'id'=m.id::text AND effect->>'actorId'=a.actor_id AND parallel_life.retire_text_sticker(effect)->>'text'=parallel_life.retire_text_sticker(m.document)->>'text'))
               WHEN i.document->>'channel'='group' THEN
               (SELECT count(*) FROM parallel_life.world_group_messages m WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.group_id::text=i.document->>'threadId' AND m.source_event_id=e.id AND m.source_version=e.version AND m.document#>>'{sender,actorId}'=a.actor_id AND m.document#>>'{sender,kind}'='actor')
               WHEN i.document->>'channel'='scene' THEN

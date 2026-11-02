@@ -35,7 +35,7 @@ export function readDirectorObservation(
           AND e.payload->'data'->>'actorId'=actor.id AND m.document->>'role'='assistant'
           AND m.document->>'actorId'=actor.id AND m.document->'sourceVersion'=to_jsonb(e.version)
           AND NOT (m.document ? 'history') AND EXISTS(SELECT 1 FROM jsonb_array_elements(e.payload->'data'->'effects') effect
-            WHERE effect->>'type'='message.received' AND effect->>'id'=m.id AND effect->>'actorId'=actor.id AND effect->>'text'=m.document->>'text')
+            WHERE effect->>'type'='message.received' AND effect->>'id'=m.id AND effect->>'actorId'=actor.id AND parallel_life.retire_text_sticker(effect)->>'text'=parallel_life.retire_text_sticker(m.document)->>'text')
           AND NOT EXISTS(SELECT 1 FROM parallel_life.memory_records r WHERE r.owner_id=e.owner_id AND r.status='forgotten'
             AND ((r.scope_type='character' AND r.character_id=actor.id) OR (r.scope_type='branch' AND r.scope_id=$1))
             AND (r.source_ids ? e.id OR r.source_ids ? m.id))
@@ -109,7 +109,7 @@ export function readDirectorObservation(
               AND (m.document->>'at')::timestamptz <= $7::timestamptz
               AND e.payload->>'type'='turn.resolved' AND e.payload->'data'->>'actorId'=$4
               AND ((m.document->>'role'='user' AND coalesce(e.payload->'data'->>'origin','user')<>'director' AND m.document->>'text'=e.payload->'data'->>'userText')
-                OR (m.document->>'role'='assistant' AND EXISTS(SELECT 1 FROM jsonb_array_elements(e.payload->'data'->'effects') x WHERE x->>'type'='message.received' AND x->>'id'=m.id AND x->>'actorId'=$4 AND x->>'text'=m.document->>'text')))
+                OR (m.document->>'role'='assistant' AND EXISTS(SELECT 1 FROM jsonb_array_elements(e.payload->'data'->'effects') x WHERE x->>'type'='message.received' AND x->>'id'=m.id AND x->>'actorId'=$4 AND parallel_life.retire_text_sticker(x)->>'text'=parallel_life.retire_text_sticker(m.document)->>'text')))
               AND NOT EXISTS(SELECT 1 FROM parallel_life.memory_records r WHERE r.owner_id=e.owner_id AND r.status='forgotten'
                 AND ((r.scope_type='character' AND r.character_id=$4) OR (r.scope_type='branch' AND r.scope_id=$1))
                 AND (r.source_ids ? e.id OR r.source_ids ? m.id))`,

@@ -38,7 +38,7 @@ test('explicit effort reaches complete and stream without adding retries or chan
   assert.equal(bodies.length, 3);
 });
 
-test('fast NPC and scene selection leave director, base and authoring model parameters intact', () => {
+test('role selection does not infer unsupported reasoning settings from model names', () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -58,7 +58,7 @@ test('fast NPC and scene selection leave director, base and authoring model para
     await m.complete(messages);
     await createSceneTextModel().complete(messages);
     await createManuscriptTextModel().complete(messages);
-    assert.deepEqual(seen.map(x=>[x.model,x.reasoning_effort]),[['grok-4.7','none'],['grok-4.7',undefined],['grok-4.7',undefined],['grok-4.3','none'],['fixture-preparation',undefined]]);
+    assert.deepEqual(seen.map(x=>[x.model,x.reasoning_effort]),[['grok-4.7',undefined],['grok-4.7',undefined],['grok-4.7',undefined],['grok-4.3',undefined],['fixture-preparation',undefined]]);
   `,
     ],
     {

@@ -208,11 +208,9 @@ async function priorityWork(
   f: NonNullable<Awaited<ReturnType<typeof frame>>>,
   snapshot: AgentSnapshot,
 ) {
-  const pending = await sql.query(
-    "SELECT 1 FROM parallel_life.agent_episode_requests WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND status='pending' LIMIT 1",
-    [snapshot.state.worldId, owner, snapshot.state.actorId],
-  );
-  if (pending.rowCount) return true;
+  // Pending episode eligibility is checked once by hasPendingEpisodeWork below,
+  // in every phase. A raw pending row may already own a terminal paid attempt;
+  // treating it as runnable here permanently cancels otherwise eligible agenda work.
   const history = (
     await sql.query(
       `SELECT a.command_id,a.status,a.sent_at,a.response_hash,r.document->>'text' text FROM parallel_life.agent_attempts a

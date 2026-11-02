@@ -3425,3 +3425,5 @@ HOME-TASKS-UNREAD-12 build44本地交付：check4159/build通过，原4953真实
 |XGEN-REPO-SYNC-13|[x] 已完成（公司main远端核验）|root-xgen-sync-20261027；主目录main唯一推送|公司xgen远程https://github.com/XGEN-Labs/parallel-world-demo.git、专属report/本任务登记；不改应用或部署配置|用户明确要求把当前项目更新到公司仓库；核对远程分叉/新提交、密钥忽略、工作流触发，正常ff推送不强推，核验远程SHA；保留个人origin及现有数据，不另行部署|
 
 XGEN-REPO-SYNC-13：已验证a32829e6当前项目快照正常更新公司main=468d4895，保留92cf3fac初始历史，无force push；ls-remote一致，源码tree完全相同，未上传.local/.env.local/私有素材库。无业务修改/生产部署，专属报告记录。
+
+|PROACTIVE-ROOT-15|[ ] 进行中|root-proactive-root15；主目录唯一集成|own-agenda-review-repository.ts、own-agenda-review-authority.ts、director-observation-repository.ts、director-agent-model.ts、director-context-references.ts、server/composition.ts、grok-fast-config.test.ts及专属tests/report；scheduler只读诊断；本地3218/3219|查原2fb/4953实际持续推进阻断，已见6141失败/6576领取/messages0；按证据修历史依据与导演重复上下文，不强制发言、不重买unknown；必要PG/真实验收及本地更新|2026-11-02：四项根因修复已本地构建运行：旧表情认证、导演引用冗余、pending重复资格判断、Grok不支持none参数。check4163/PG8/config2通过；原档实际派发85秒超时、最小模型探针30秒超时，主动体验仍未通过，见PROACTIVE-ROOT-15报告。|

@@ -1,3 +1,4 @@
+import { compactDirectorContextReferences } from './director-context-references.ts';
 import { validAuthoredOpportunityCast } from '../domain/authored-opportunity-cast.ts';
 import { OpeningContextReviewSchema } from './opening-context-schema.ts';
 import { validateOpeningContextReview } from '../domain/narrative-opening-context.ts';
@@ -41,7 +42,7 @@ import { authoredSourceExcerpt } from '../domain/authored-source-excerpt.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
-export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v33-complete-state-view';
+export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v34-scoped-reference-view';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
 const Output = z.strictObject({
@@ -333,6 +334,7 @@ actorKnownTopics是本人授权的待办主题，不是成果。actorTopics可�
 其它合法机会：returnContext是真实最近联系记录，不是新事实或玩家同意。某NPC最后主动消息仍未获回应、确有实质间隔且对应source在目录时，可给本人低压力、不重复、可拒绝的continuity交流机会；origin.sourceRefs引用该source，由本人决定是否联系，不能冒充新事或重复同一请求。刚发过或无source则quiet。无作者事件/returnContext时，可依本人definition source、人设关系和长期职责考虑少数相关人物的contact/follow_up，不声称玩家说过/同意过，不制造事故或全员轮番联系。
 nativeTurn仍最多选一个候选，只协调该条已接受群聊/现场玩家发言：按明确对象、上一提问者、上下文和责任，从现有conversation候选最多选一位，也可quiet；不按默认首位选人，不创建opportunity/nudge，不泄露私聊。
 
+输入中的身份/来源字段可能复用wireCatalog的actor:/place:/source:/candidate:短引用，含义与目录中的原ID完全相同；记录原话不作替换。
 输出仅一个符合json_schema的director-wire-v15对象。顶层为protocol、openingContext、authoredChoices、candidates、opportunities、audit；不输出mode/events。candidate:/actor:/place:/source:/event:引用不可互换，身份和机械来源由代码绑定。
 - authoredChoices按wireCatalog.events.ref逐键填写一次：{kind:"defer",reason:"当前具体依据"}或{kind:"consider",opportunity:单一对象}。作者机会内不填id/origin/eventRef/actors/stagingIntents；作者opportunity含title/description/playerImpact/places/activity/actorTasks/actorTopics，不含id/origin/eventRef/nodeHash/authoredEventKey/sourceId/actors/stagingIntents；来源和局部id由所属事件键绑定。一个事件一次机会，多个人物写在同一actorTasks，不按人物复制机会，不能同时defer和consider或再抄到顶层。
 - candidates覆盖全部wireCatalog.candidates且不重复，每项{ref,decision:"select"}或{ref,decision:"defer",reason}；select可带目录允许的nudge枚举continue_own_plan/reassess_own_responsibility/respond_to_player/consider_opportunity，不填actorId/basisSourceIds/任意intent或台词，代码绑定原候选授权来源。没有候选时candidates必须[]，不把参与人物当candidate。
@@ -737,7 +739,11 @@ function request(snapshot: DirectorSnapshot) {
     focus: snapshot.focus,
     conversationWithoutTarget: snapshot.conversationWithoutTarget ?? false,
   };
-  const fitted = fitWithinBudget(payload);
+  const bounded = fitWithinBudget(payload);
+  const fitted =
+    JSON.stringify(bounded).length > CONTEXT_BUDGET
+      ? compactDirectorContextReferences(bounded)
+      : bounded;
   const text = JSON.stringify(fitted);
   if (text.length + SYSTEM.length > CONTEXT_LIMIT) {
     const contextSizes = Object.fromEntries(
