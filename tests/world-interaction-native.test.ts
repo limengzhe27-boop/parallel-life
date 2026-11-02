@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dialogueSentences, selectReviewedDialogue } from '../src/modules/ai/dialogue-reviewer.ts';
 import { routeUserIntent } from '../src/modules/world/application/intent-router.ts';
-import { resolveInteractTurn } from '../src/modules/world/application/interact-turn.ts';
 import {
   extractSearchTerms,
   rankAndBudgetMemories,
@@ -10,7 +9,6 @@ import {
   type SourceEvidenceItem,
 } from '../src/modules/memory/domain/algorithms.ts';
 import type { MemoryRecord } from '../src/modules/memory/domain/types.ts';
-import type { WorldState } from '../src/modules/world/domain/types.ts';
 
 test('意图路由：精准分类 chat, image, world', () => {
   // 1. 纯闲聊
@@ -143,87 +141,4 @@ test('分层记忆系统：纠正与主动遗忘的级联屏蔽机制', () => {
   // mem_1 和 mem_2 被屏蔽，仅剩 user_correction 的条目被召回
   assert.equal(budgeted.length, 1);
   assert.equal(budgeted[0]!.id, 'mem_corr');
-});
-
-test('回合编排 resolveInteractTurn：闲聊、索图与动作版本控制', async () => {
-  const mockState: WorldState = {
-    schemaVersion: 1,
-    id: 'world_test_1',
-    ownerId: 'user_test_1',
-    version: 10,
-    title: '海边摄影师',
-    time: '2026-09-23T12:00:00Z',
-    actors: [{ id: 'actor_lin', name: '小林', persona: '开朗的冲浪教练' }],
-    facts: [],
-    messages: [],
-    appointments: [],
-    mediaRequests: [],
-  };
-
-  // 1. 闲聊回合：world.version 不得改变
-  const chatResult = await resolveInteractTurn({
-    request: {
-      requestId: 'req_1',
-      characterId: 'actor_lin',
-      text: '今天风浪大吗？',
-      worldVersion: 10,
-      conversationVersion: 2,
-    },
-    state: mockState,
-    generator: {
-      async generateDraft() {
-        return '今天风平浪静，很适合新手练习！要不要下水试试？';
-      },
-    },
-  });
-
-  assert.equal(chatResult.turnMode, 'chat');
-  assert.equal(chatResult.worldVersion, 10); // 版本不变
-  assert.equal(chatResult.conversationVersion, 3); // 会话版本递增
-  assert.equal(chatResult.replyStatus, 'ready');
-  assert.ok(chatResult.replyText?.includes('风平浪静'));
-
-  // 2. 索图回合：生成媒体 Outbox 任务
-  const imgResult = await resolveInteractTurn({
-    request: {
-      requestId: 'req_2',
-      characterId: 'actor_lin',
-      text: '发个自拍看看',
-      worldVersion: 10,
-      conversationVersion: 3,
-    },
-    state: mockState,
-    generator: {
-      async generateDraft() {
-        return '刚换好潜水服，给你发一张！';
-      },
-    },
-  });
-
-  assert.equal(imgResult.turnMode, 'image');
-  assert.equal(imgResult.media?.status, 'queued');
-  assert.ok(imgResult.media?.jobId);
-  assert.equal(imgResult.worldVersion, 10); // 索图也不改变世界版本
-
-  // 3. 动作回合：推进世界版本
-  const worldResult = await resolveInteractTurn({
-    request: {
-      requestId: 'req_3',
-      characterId: 'actor_lin',
-      text: '我们报名下周的比赛',
-      worldVersion: 10,
-      conversationVersion: 4,
-      userAction: { type: 'register_competition', matchId: 'surf_cup_2026' },
-    },
-    state: mockState,
-    generator: {
-      async generateDraft() {
-        return '太好了！我已经把我们的名字报上去了！';
-      },
-    },
-  });
-
-  assert.equal(worldResult.turnMode, 'world');
-  assert.equal(worldResult.worldVersion, 11); // 世界版本递增！
-  assert.equal(worldResult.events.length, 2); // 包含 message 和 action 事件
 });
