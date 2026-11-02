@@ -465,6 +465,44 @@ export function shareNpcConditionSchema(schema: Record<string, unknown>): Record
   };
   return factored;
 }
+/** Keep the transitive closure of definitions still used by the final, channel-scoped grammar. */
+export function pruneUnusedNpcSchemaDefinitions(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = structuredClone(schema);
+  const definitions = result.$defs;
+  if (!definitions || typeof definitions !== 'object' || Array.isArray(definitions)) return result;
+  const defs = definitions as Record<string, unknown>;
+  const needed = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    const node = value as Record<string, unknown>;
+    if (typeof node.$ref === 'string' && node.$ref.startsWith('#/$defs/')) {
+      const key = node.$ref
+        .slice('#/$defs/'.length)
+        .split('/')[0]!
+        .replace(/~1/g, '/')
+        .replace(/~0/g, '~');
+      if (!needed.has(key) && Object.hasOwn(defs, key)) {
+        needed.add(key);
+        visit(defs[key]);
+      }
+    }
+    Object.values(node).forEach(visit);
+  };
+  // Do not start traversal at $defs: unreachable definitions may reference one another.
+  const { $defs: _, ...root } = result;
+  visit(root);
+  const retained = Object.fromEntries(Object.entries(defs).filter(([key]) => needed.has(key)));
+  if (Object.keys(retained).length) result.$defs = retained;
+  else delete result.$defs;
+  return result;
+}
+
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
 export function npcResponseFormat(
   state: Pick<AgentValidationContext['state'], 'goals' | 'questions'> &
@@ -994,7 +1032,7 @@ export function npcResponseFormat(
     }
   }
   requireAll(finalized);
-  return { ...NPC_RESPONSE_FORMAT, schema: finalized };
+  return { ...NPC_RESPONSE_FORMAT, schema: pruneUnusedNpcSchemaDefinitions(finalized) };
 }
 
 const optionalNullKeys = new Set([
