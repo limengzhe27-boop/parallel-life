@@ -3439,3 +3439,9 @@ MEMORY-SIMPLIFY-19续接：root独占NEW memory/infrastructure/conversation-summ
 |CODE-CLEANUP-20|[x] 已集成本地验收|code-cleanup20-01a1334b；独立grok-image-20261023/人生剧本，codex/code-cleanup20自013dfc1b；root唯一集成|删除未接入interact-turn与专属契约/测试、auto-advance/local-initiative旧实现、五个空置UI及专属测试；npc-agent-model.ts命名指令片段/独立表情目录、专属test/report；不碰记忆/worker/内核|用户授权清理并验证合入main；不新增业务字段、不换模型、不删有效功能历史，check/build及静态引用/真实请求构建回归，0付费调用/DB/端口；集成人已确认world-interaction.ts专属旧契约删除归本任务；基线快进ed20dcb4保留记忆接线。|
 
 CODE-CLEANUP-20冻结1077d7e9（基于ed20dcb4）：删确定无入口回合/旧调度/五UI及专属契约，保留混合测试有效部分；命名指令336组合逐字等价，12实际请求捕获除版本/表情外业务payload及schema一致；完整目录60不绑任务，原10目录请求+4468bytes，非提速声称。check4158/4158/build过；0模型/原档/公共端口。详CODE-CLEANUP-20报告；root已合入695c59be，主目录check4158/build与真实PG摘要回归通过，3218/3219及两worker已更新。0新付费调用，未部署生产。
+
+|NPC-CONTEXT-SLIM-21|[x] 本批本地交付，整体精简待续|root-context21唯一集成；主目录main551e69fa|npc-agent-model.ts、npc-model-protocol.ts及专属tests/report；actor-situation.ts新增仅运行时完全相同模块去重、专属tests；记忆保持只读；不改用户原稿/内核/SQL|合并重复system/wire说明、精简等价schema结构；同原档快照前后完整请求测量，任务/人格/拒绝/工具/来源不丢；check/build、真实模型有限回放、本地3218/3219更新。原档长期自主推进另在PROACTIVE-ROOT-15，不以本批冒充。|
+
+|NPC-SCHEMA-SLIM-21|[x] 已集成本地验收|schema21；root-context21集成；独立npc-schema21/codex/npc-schema21自551e69fa|npc-model-protocol.ts、NEW tests/npc-schema-size21.test.ts、专属报告；不改npc-agent-model.ts|冻结e4f5e0cb；仅最终schema不可达defs闭包清理，72组合展开前后deepEqual；expressionOnly schema3902→1793B或4858→1793B，full/compact不变。聚焦42/typecheck/boundaries通过；无通用大去重器，不改业务/状态/来源/权限；0模型/DB/端口。|
+
+NPC-CONTEXT-SLIM-21验收：check4162/build、PG2通过；4次真实只读模型回放，原输入供应商prompt_tokens19403→16420（-15.4%），单样本21.178→16.563秒不宣称SLA。原稿不改，仅逐字重复模块共享原文；实际payload展开后等价。3218/3219 PID99200/99201与worker99202/99203已更新。普通full schema14KB仍保留、原档重复催问/长期主动未解决，详专属报告。schema21已合入97ed4d90。

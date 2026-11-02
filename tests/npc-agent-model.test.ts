@@ -298,7 +298,7 @@ test('capability list and current input are sent exactly; policy separates claim
   assert.match(system, /dependsOnActionIds/);
   assert.match(system, /结果只由内核执行并保存/);
   assert.match(system, /undecided/);
-  assert.match(system, /沉默不是拒绝/);
+  assert.match(system, /沉默不当同意\/拒绝\/违约/);
   assert.match(system, /玩家普通输入应有自然回复/);
   assert.match(system, /wake或coordination无值得表达的变化时/);
   assert.match(system, /wake或coordination无值得表达的变化时可安静/);
@@ -330,11 +330,11 @@ test('recording plans or proposing invitations cannot declare external goals com
   assert(!('revision' in payload.state.responsibilities[0]));
   assert(!('responsibilityRevision' in payload.state.decisions[0]));
   assert.match(system, /能力结果成功不等于目标完成/);
-  assert.match(system, /plan\.record仅保存计划/);
-  assert.match(system, /appointment\.propose仅建立尚待回应的邀请/);
-  assert.match(system, /普通resultId或succeeded标签不足以完成goal/);
-  assert.match(system, /completedGoalIds只由可信内核能力执行器维护/);
-  assert.match(system, /提案对象不要输出revision或responsibilityRevision/);
+  assert.match(system, /plan\.record只保存计划/);
+  assert.match(system, /appointment\.propose只建立待答邀请/);
+  assert.match(system, /普通resultId\/succeeded不足以完成goal/);
+  assert.match(system, /completedGoalIds.*由内核按有资格的真实回执维护/);
+  assert.match(system, /responsibilityRevision由内核.*模型不输出或编造/);
   assert.equal(calls.length, 1);
 });
 
@@ -739,7 +739,7 @@ test('episode follow-up references are private context and do not grant completi
       payload.episodeFollowUps,
       channel === 'private' ? input.episodeFollowUps : undefined,
     );
-    assert.match(calls[0]!.messages[0]!.content, /不代表整段世界事件完成/);
+    assert.match(calls[0]!.messages[0]!.content, /不把子步骤、就绪或说法当整体完成/);
   }
 });
 
@@ -970,20 +970,20 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   await adapter.decide(input);
   const system = calls[0]!.messages[0]!.content;
   assert.match(system, /明确区分愿望与承诺/);
-  assert.match(system, /普通闲聊、试探、愿望或条件性设想/);
-  assert.match(system, /不构成玩家实质承诺/);
-  assert.match(system, /需要跨轮持续跟进的本人安排才建立目标与计划/);
-  assert.match(system, /即时生图不建目标与计划/);
-  assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
-  assert.match(system, /已安排成功/);
+  assert.match(system, /闲聊、试探、条件设想/);
+  assert.match(system, /不构成玩家承诺/);
+  assert.match(system, /只为跨轮安排建立目标\/计划/);
+  assert.match(system, /即时生图免建计划/);
+  assert.match(system, /已有对象沿用id和完整sourceIds/);
+  assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v81-scoped-instructions');
-  assert.match(system, /玩家明确说忙、晚点、想休息或暂时不想谈时/);
-  assert.match(system, /之后的自动唤醒都不再提同一邀约、计划或问题/);
-  assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
-  assert.match(system, /不能用一个不合时宜的图代替安慰/);
-  assert.match(system, /只有executions这一个动作通道/);
-  assert.match(system, /不只是口头答应/);
+  assert.equal(payload.promptVersion, 'npc-agent-v82-lean-instructions');
+  assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
+  assert.match(system, /本轮和自动唤醒不再提该事项，直到玩家主动重提/);
+  assert.match(system, /安慰、道歉或对方认真难过时不以嘲讽图代替回应/);
+  assert.match(system, /无合适图可不发/);
+  assert.match(system, /只有executions一个动作通道/);
+  assert.match(system, /不要口头答应立即做却漏执行/);
 });
 
 test('a sticker-only turn retains task context without permission to mutate it', async () => {
@@ -1014,7 +1014,7 @@ test('prompt instructions specify player decision tracking on responsibilities w
   assert.match(system, /当前玩家输入只用inputInterpretation作一次语义判断/);
   assert.match(system, /quote必须是input.text里逐字连续的原文/);
   assert.match(system, /无关闲聊或换话题不得误判为accepted/);
-  assert.match(system, /计划置blocked/);
+  assert.match(system, /能力不足记录blocked及缺项/);
   assert.match(system, /只遵从下方最终传输协议/);
 });
 

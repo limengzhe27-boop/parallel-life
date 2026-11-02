@@ -27,6 +27,38 @@ const moduleLimits = {
   relationships: 1400,
 };
 
+/** Wire-only compaction: keep every dimension and one verbatim copy of identical material. */
+export function shareIdenticalPersonaModules(source: string): string {
+  let persona: { modules?: Modules };
+  try {
+    persona = JSON.parse(source);
+  } catch {
+    return source;
+  }
+  if (
+    !persona ||
+    typeof persona !== 'object' ||
+    !persona.modules ||
+    typeof persona.modules !== 'object' ||
+    Array.isArray(persona.modules)
+  )
+    return source;
+  const seen = new Map<string, keyof Modules>();
+  let changed = false;
+  // Keep the stable core as the reference target when biography duplicates it.
+  for (const key of ['traits', 'drives', 'behavior', 'relationships', 'lifeContext'] as const) {
+    const text = persona.modules[key];
+    if (typeof text !== 'string' || text.length < 200) continue;
+    const previous = seen.get(text);
+    if (previous) {
+      persona.modules[key] =
+        `本维度与 modules.${previous} 共用完全相同的原文，请同时按两种维度理解。`;
+      changed = true;
+    } else seen.set(text, key);
+  }
+  return changed ? JSON.stringify(persona) : source;
+}
+
 const stablePersonaKey =
   /^(?:traits|drives|behavior|relationships|personality|motivation|性格|核心性格|动机|长期动机|行为|表达习惯|关系|关键关系)$/iu;
 /** Core personality must not oscillate with a new topic; only biography is topical. */
