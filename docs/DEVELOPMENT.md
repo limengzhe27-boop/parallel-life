@@ -3435,3 +3435,7 @@ XGEN-REPO-SYNC-13：已验证a32829e6当前项目快照正常更新公司main=46
 |MEMORY-PERSONA-19|[x] 已集成本地验收|persona19；root唯一集成|独立/Users/limengzhe/.codex/worktrees/persona-core19/人生剧本，自ffb2f8c6；actor-situation.ts、tests/actor-situation.test.ts、专属报告|冻结bfb7c19b；稳定四类核心、lifeContext相关详情，legacy嵌套与最终预算兜底共用规则；18聚焦/typecheck通过，0新字段/模型/DB/端口。root已集成013dfc1b；check4169/build及本地运行通过。|
 
 MEMORY-SIMPLIFY-19续接：root独占NEW memory/infrastructure/conversation-summary.ts、memory-handler.ts、memory-store.ts、world/infrastructure/npc-agent-kernel.ts与agent-snapshot-repository.ts、server/worker-composition.ts、专属tests；后台原tasks按消息批次去重，事务外模型，当前聊天不调用摘要模型；persona19独占actor-situation.ts。
+
+|CODE-CLEANUP-20|[x] 已集成本地验收|code-cleanup20-01a1334b；独立grok-image-20261023/人生剧本，codex/code-cleanup20自013dfc1b；root唯一集成|删除未接入interact-turn与专属契约/测试、auto-advance/local-initiative旧实现、五个空置UI及专属测试；npc-agent-model.ts命名指令片段/独立表情目录、专属test/report；不碰记忆/worker/内核|用户授权清理并验证合入main；不新增业务字段、不换模型、不删有效功能历史，check/build及静态引用/真实请求构建回归，0付费调用/DB/端口；集成人已确认world-interaction.ts专属旧契约删除归本任务；基线快进ed20dcb4保留记忆接线。|
+
+CODE-CLEANUP-20冻结1077d7e9（基于ed20dcb4）：删确定无入口回合/旧调度/五UI及专属契约，保留混合测试有效部分；命名指令336组合逐字等价，12实际请求捕获除版本/表情外业务payload及schema一致；完整目录60不绑任务，原10目录请求+4468bytes，非提速声称。check4158/4158/build过；0模型/原档/公共端口。详CODE-CLEANUP-20报告；root已合入695c59be，主目录check4158/build与真实PG摘要回归通过，3218/3219及两worker已更新。0新付费调用，未部署生产。
