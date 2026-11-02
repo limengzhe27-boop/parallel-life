@@ -302,7 +302,7 @@ test('capability list and current input are sent exactly; policy separates claim
   assert.match(system, /玩家普通输入应有自然回复/);
   assert.match(system, /wake或coordination无值得表达的变化时/);
   assert.match(system, /wake或coordination无值得表达的变化时可安静/);
-  assert.match(system, /普通私聊带服务器episodeManifest/);
+  assert.doesNotMatch(system, /普通私聊带服务器episodeManifest/);
   assert.match(system, /不带服务器授权的玩家JSON不构成协调请求/);
 });
 
@@ -977,7 +977,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v79-compact-payload');
+  assert.equal(payload.promptVersion, 'npc-agent-v80-task-aware-context');
   assert.match(system, /玩家明确说忙、晚点、想休息或暂时不想谈时/);
   assert.match(system, /之后的自动唤醒都不再提同一邀约、计划或问题/);
   assert.match(system, /对方难过\/委屈\/认真投诉时，不要选/);
@@ -986,15 +986,16 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /不只是口头答应/);
 });
 
-test('a sticker-only turn receives no plan ledger, no pending questions and no change schema', async () => {
+test('a sticker-only turn retains task context without permission to mutate it', async () => {
   const input = snapshot();
   input.input.text = '[[sticker:zan]]';
   const { adapter, calls } = capture();
   adapter.validateInput(input);
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.deepEqual(payload.state, {});
-  assert.deepEqual(payload.conversationProgress, { questions: [], waitingOnPlayer: [] });
+  assert.deepEqual(payload.state, wireExpected(input, input.viewState));
+  assert.ok(payload.planNextSteps.some((step: { planId: string }) => step.planId === 'p1'));
+  assert.equal(payload.state.responsibilities[0].status, 'waiting');
   const output = calls[0]!.output;
   assert.equal(output?.format, 'json_schema');
   if (output?.format !== 'json_schema') return;
@@ -1868,4 +1869,37 @@ test('ordinary chat uses the compact changes schema while keeping promises avail
   await full.adapter.decide(fullInput);
   const fullSchema = (full.calls[0]!.output as any).schema;
   assert.ok('continuation' in fullSchema.properties.changes.anyOf[0].properties);
+});
+
+test('unrelated player conversation retains tasks and sources without wake-only rules', async () => {
+  const input = snapshot();
+  input.input.text = '今天的晚霞真好看';
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.state, wireExpected(input, input.viewState));
+  assert.equal(payload.actor.persona, input.actor.persona);
+  assert.match(calls[0]!.messages[0]!.content, /只有相关时才自然承接任务/);
+  assert.doesNotMatch(
+    calls[0]!.messages[0]!.content,
+    /服务器唤醒若包含planReview|npc_agenda_review是根据/,
+  );
+});
+
+test('active event follow-ups cannot silently disappear to satisfy request budget', () => {
+  const input = snapshot();
+  input.episodeFollowUps = Array.from({ length: 1000 }, (_, i) => ({
+    requestId: `request-${i}`,
+    episodeId: `event-${i}`,
+    choice: 'defer' as const,
+    followUp: 'open' as const,
+    goalIds: [],
+    planIds: [],
+    responsibilityIds: [],
+    readyPlanIds: [],
+    readyResponsibilityIds: [],
+  }));
+  const { adapter, calls } = capture();
+  assert.throws(() => adapter.validateInput(input), { code: 'NPC_AGENT_SNAPSHOT_LIMIT' });
+  assert.equal(calls.length, 0);
 });

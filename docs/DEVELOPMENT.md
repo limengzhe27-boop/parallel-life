@@ -3427,3 +3427,5 @@ HOME-TASKS-UNREAD-12 build44本地交付：check4159/build通过，原4953真实
 XGEN-REPO-SYNC-13：已验证a32829e6当前项目快照正常更新公司main=468d4895，保留92cf3fac初始历史，无force push；ls-remote一致，源码tree完全相同，未上传.local/.env.local/私有素材库。无业务修改/生产部署，专属报告记录。
 
 |PROACTIVE-ROOT-15|[ ] 进行中|root-proactive-root15；主目录唯一集成|own-agenda-review-repository.ts、own-agenda-review-authority.ts、director-observation-repository.ts、director-agent-model.ts、director-context-references.ts、server/composition.ts、grok-fast-config.test.ts及专属tests/report；scheduler只读诊断；本地3218/3219|查原2fb/4953实际持续推进阻断，已见6141失败/6576领取/messages0；按证据修历史依据与导演重复上下文，不强制发言、不重买unknown；必要PG/真实验收及本地更新|2026-11-02：四项根因修复已本地构建运行：旧表情认证、导演引用冗余、pending重复资格判断、Grok不支持none参数。check4163/PG8/config2通过；原档实际派发85秒超时、最小模型探针30秒超时，主动体验仍未通过，见PROACTIVE-ROOT-15报告。|
+
+|NPC-TASK-CONTEXT-18|[x] 本批本地交付，整体精简待续|root-task-context18 唯一集成；task_context_review18只读审查|main 7de1b344；npc-agent-model.ts、tests/npc-agent-model.test.ts、专属报告；不改记忆压缩、actor-context、persona、SQL|保留任务输入与回应自由，按本轮触发裁剪无关规则，修复表情清空任务和预算丢事件。check4165、聚焦58、build通过；3218/3219已更新。1次真实只读模型回放23.7s，仍拉回工作话题，不宣称自然度/提速解决；整体schema精简与原档主动调度待续。其他会话负责记忆压缩。|
