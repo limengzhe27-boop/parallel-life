@@ -1,3 +1,5 @@
+import type { TextModel } from '../../ai/application/ports.ts';
+import { summarizeConversation } from './conversation-summary.ts';
 import { z } from 'zod';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
@@ -60,8 +62,12 @@ const MemoryTaskInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export function memoryHandler(queue: PostgresTaskQueue) {
+export function memoryHandler(queue: PostgresTaskQueue, model?: () => TextModel) {
   return async (lease: TaskLease, signal: AbortSignal) => {
+    if ((lease.input as { action?: string })?.action === 'summarize') {
+      if (!model) throw Error('SUMMARY_MODEL_UNAVAILABLE');
+      return summarizeConversation(queue, lease, signal, model);
+    }
     const started = Date.now();
     try {
       if (signal.aborted) {

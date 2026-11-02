@@ -1,3 +1,4 @@
+import { summaryReplacedMessages } from '../../memory/infrastructure/conversation-summary.ts';
 import {
   canEstablishInitialPosition,
   INITIAL_POSITION_POLICY,
@@ -379,6 +380,8 @@ export async function readPrivateAgentSnapshot(
               q.sourceId,
               ...(q.resolution ? [q.resolution.sourceId] : []),
             ]),
+            state.decisions.map((decision) => decision.sourceId),
+            state.focus?.questionSourceId ? [state.focus.questionSourceId] : [],
           )
       : [];
     const privateProofIds = [
@@ -422,6 +425,14 @@ export async function readPrivateAgentSnapshot(
             at: proof.at,
           });
       }
+    const preservedMessages = new Set(
+      world.messages
+        .filter((m) => m.actorId === actorId)
+        .slice(-12)
+        .map((m) => m.id),
+    );
+    for (const handle of stateHandles)
+      if (handle.startsWith('message:')) preservedMessages.add(handle.slice(8));
     const recalledIds = new Set((context.retrievedMemories ?? []).map((record) => record.id));
     for (const memory of ownMemories)
       if (memory.sourceIds.length && memory.sourceIds.every((id) => proofs.has(id))) {
@@ -446,6 +457,23 @@ export async function readPrivateAgentSnapshot(
               memory.kind === 'commitment' || memory.kind === 'correction' ? 'exact' : 'fuzzy',
           });
       }
+    const summaryCovered = summaryReplacedMessages(
+      ownMemories,
+      new Set(
+        observations
+          .filter((o) => o.sourceId.startsWith('memory:'))
+          .map((o) => o.sourceId.slice(7)),
+      ),
+      preservedMessages,
+    );
+    // Keep source authority and structured task references. Replace old prose only when its summary is present.
+    for (let index = observations.length - 1; index >= 0; index--) {
+      if (
+        summaryCovered.has(observations[index]!.sourceId.replace(/^message:/, '')) &&
+        observations[index]!.sourceId.startsWith('message:')
+      )
+        observations.splice(index, 1);
+    }
     if (situation)
       add(
         `opening:${situation.opening.sourceMessageId}`,

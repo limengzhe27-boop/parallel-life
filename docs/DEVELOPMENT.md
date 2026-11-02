@@ -3430,4 +3430,8 @@ XGEN-REPO-SYNC-13：已验证a32829e6当前项目快照正常更新公司main=46
 
 |NPC-TASK-CONTEXT-18|[x] 本批本地交付，整体精简待续|root-task-context18 唯一集成；task_context_review18只读审查|main 7de1b344；npc-agent-model.ts、tests/npc-agent-model.test.ts、专属报告；不改记忆压缩、actor-context、persona、SQL|保留任务输入与回应自由，按本轮触发裁剪无关规则，修复表情清空任务和预算丢事件。check4165、聚焦58、build通过；3218/3219已更新。1次真实只读模型回放23.7s，仍拉回工作话题，不宣称自然度/提速解决；整体schema精简与原档主动调度待续。其他会话负责记忆压缩。|
 
-|MEMORY-SIMPLIFY-19|[ ] 第一批本地交付，第二三步未完成|root-memory19唯一集成|memory-store.ts、memory-handler.ts、tests/integration/memory-write.test.ts、专属报告；人设/摘要等待其他会话归属确认|统一持久化、正文去重与同key替代、来源双表示原子一致；真实PG2/check4165/build通过；3218/3219与两worker已更新。人设/后台摘要接续未完成；无新表字段，不改生产数据。|
+|MEMORY-SIMPLIFY-19|[x] 三步本地交付|root-memory19唯一集成|memory-store/handler/conversation-summary、npc-agent-kernel/snapshot、worker-composition、workers/main、memory-worker-lane、local-runtime-worker、专属tests/report；persona19已合入013dfc1b|统一持久化、正文去重与同key替代、来源双表示原子一致；真实PG2/check4165/build通过；3218/3219与两worker已更新。人设稳定核心及后台摘要已接线；check4169/build、PG3、真实摘要1次8.713s通过；3218/3219与workers已更新。实际摘要输入6023→6284字节，补回旧事而非证明提速；无新表字段，不改生产数据。|
+
+|MEMORY-PERSONA-19|[x] 已集成本地验收|persona19；root唯一集成|独立/Users/limengzhe/.codex/worktrees/persona-core19/人生剧本，自ffb2f8c6；actor-situation.ts、tests/actor-situation.test.ts、专属报告|冻结bfb7c19b；稳定四类核心、lifeContext相关详情，legacy嵌套与最终预算兜底共用规则；18聚焦/typecheck通过，0新字段/模型/DB/端口。root已集成013dfc1b；check4169/build及本地运行通过。|
+
+MEMORY-SIMPLIFY-19续接：root独占NEW memory/infrastructure/conversation-summary.ts、memory-handler.ts、memory-store.ts、world/infrastructure/npc-agent-kernel.ts与agent-snapshot-repository.ts、server/worker-composition.ts、专属tests；后台原tasks按消息批次去重，事务外模型，当前聊天不调用摘要模型；persona19独占actor-situation.ts。

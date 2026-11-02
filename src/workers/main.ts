@@ -1,3 +1,4 @@
+import { memoryWorkerLane } from '../modules/tasks/application/memory-worker-lane.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createWorker } from '../server/worker-composition.ts';
 import { createOutboxWorker } from '../server/outbox-worker.ts';
@@ -5,6 +6,10 @@ import { getServices } from '../server/services.ts';
 import { runLoop } from '../modules/tasks/application/run-loop.ts';
 import { runOne } from '../modules/tasks/application/run-worker.ts';
 const { queue, handlers } = createWorker();
+const memory = memoryWorkerLane(handlers.memory!);
+const foreground = Object.fromEntries(
+  Object.entries(handlers).filter(([kind]) => kind !== 'memory'),
+);
 const outbox = createOutboxWorker();
 const shutdown = new AbortController();
 process.on('SIGINT', () => shutdown.abort());
@@ -20,7 +25,8 @@ try {
         // A temporary discovery/dispatch outage must not freeze already queued work.
         console.warn('Outbox dispatch temporarily unavailable; durable tasks remain active.');
       }
-      return signal.aborted ? false : runOne(queue, handlers, signal);
+      if (!signal.aborted) memory.tick(queue);
+      return signal.aborted ? false : runOne(queue, foreground, signal);
     },
     sleep: (ms, signal) => delay(ms, undefined, { signal }),
     log: (message) => console.warn(message),
@@ -31,5 +37,6 @@ try {
       : `Worker stopped after ${result.tasksRun} task(s); in-flight work was cancelled and recorded as unknown.`,
   );
 } finally {
+  await memory.close();
   await Promise.allSettled([queue.close(), outbox.close(), getServices().db.close()]);
 }

@@ -93,6 +93,7 @@ if (args.includes('--status')) {
     excludedTasks: selected.excludedTaskIds.length,
     excludedOutbox: selected.excludedOutboxIds.length,
   };
+  let memory;
   let writing = false;
   const publish = async () => {
     if (writing) return;
@@ -127,6 +128,12 @@ if (args.includes('--status')) {
       await import('../src/modules/tasks/infrastructure/postgres-outbox.ts');
     const { dispatchOutbox } = await import('../src/modules/tasks/application/dispatch-outbox.ts');
     const worker = createWorker();
+    const { memoryWorkerLane } =
+      await import('../src/modules/tasks/application/memory-worker-lane.ts');
+    memory = memoryWorkerLane(worker.handlers.memory);
+    const foreground = Object.fromEntries(
+      Object.entries(worker.handlers).filter(([kind]) => kind !== 'memory'),
+    );
     queue = worker.queue;
     db = getServices().db;
     const excludedCommands = selected.excludedOutboxIds.map(taskCommandId);
@@ -161,18 +168,16 @@ if (args.includes('--status')) {
           });
           await dispatchOutbox({ ...ports, limit: 2 });
         }
-        const ran = await runOne(
-          {
-            claim: async (kinds) => {
-              const next = await selectNewTask(admin, selected, kinds, excludedCommands);
-              return next ? queue.claimForOwner(next.id, next.owner_id, kinds) : null;
-            },
-            renew: (lease) => queue.renew(lease),
-            finish: (lease, outcome) => queue.finish(lease, outcome),
+        const selectedQueue = {
+          claim: async (kinds) => {
+            const next = await selectNewTask(admin, selected, kinds, excludedCommands);
+            return next ? queue.claimForOwner(next.id, next.owner_id, kinds) : null;
           },
-          worker.handlers,
-          signal,
-        );
+          renew: (lease) => queue.renew(lease),
+          finish: (lease, outcome) => queue.finish(lease, outcome),
+        };
+        memory.tick(selectedQueue);
+        const ran = await runOne(selectedQueue, foreground, signal);
         if (ran) health.tasksRun++;
         health.lastError = null;
         return ran;
@@ -187,6 +192,7 @@ if (args.includes('--status')) {
   } finally {
     if (heartbeat) clearInterval(heartbeat);
     await publish().catch(() => {});
+    await memory?.close();
     await queue?.close().catch(() => {});
     await db?.close().catch(() => {});
     await admin?.end().catch(() => {});

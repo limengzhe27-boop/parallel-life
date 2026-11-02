@@ -272,7 +272,7 @@ export function createWorker() {
             readStore,
           ),
       ),
-      memory: memoryHandler(queue),
+      memory: memoryHandler(queue, () => new YibuTextModel(config)),
       media: mediaHandler(queue, readMediaService),
     },
   };

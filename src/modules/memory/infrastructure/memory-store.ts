@@ -337,7 +337,7 @@ export async function loadActorMemories(
       `SELECT * FROM parallel_life.memory_records
         WHERE owner_id=$1
           AND scope_type IN ('character','branch')
-          AND ((scope_type='character' AND character_id=$2) OR (scope_type='branch' AND scope_id=$3 AND kind<>'episode'))
+          AND ((scope_type='character' AND character_id=$2 AND (branch_id=$3 OR branch_id IS NULL)) OR (scope_type='branch' AND scope_id=$3 AND kind<>'episode'))
         ORDER BY importance DESC, created_at DESC
         LIMIT 200`,
       [ownerId, params.actorId, params.worldId],

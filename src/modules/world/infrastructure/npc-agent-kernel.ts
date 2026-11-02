@@ -1,3 +1,4 @@
+import { enqueueConversationSummary } from '../../memory/infrastructure/conversation-summary.ts';
 import { joinCurrentAgentSceneInTransaction } from './agent-scene-presence-repository.ts';
 import {
   planInitialPosition,
@@ -2111,6 +2112,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         });
       await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       await this.afterCommit?.(sql, { attempt, eventId });
+      if (snapshot.channel.kind === 'private')
+        await enqueueConversationSummary(sql, ownerId, attempt.worldId, attempt.actorId);
       await requireActiveAgentDeliveryInTransaction(
         sql,
         ownerId,
