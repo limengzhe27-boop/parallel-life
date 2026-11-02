@@ -34,13 +34,44 @@ export async function deriveAndStoreMemories(
   const summary: StorageSummary = { created: 0, merged: 0 };
   for (const item of items) {
     const derived = deriveMemory(item);
+    MemoryRecordSchema.parse(derived);
+    // Short transaction scope serializes empty-set checks too; no new lock table.
+    await lockMemoryScope(sql, derived.ownerId, derived.scopeType, derived.scopeId);
     const normalized = normalizeMemoryText(derived.text);
+    const protection = (
+      await sql.query(
+        `SELECT status, source_type FROM parallel_life.memory_records
+       WHERE owner_id=$1 AND scope_type=$2 AND scope_id=$3
+       AND branch_id IS NOT DISTINCT FROM $4 AND character_id IS NOT DISTINCT FROM $5
+       AND ((status='forgotten' AND source_ids ?| $6::text[])
+         OR ($7::text IS NOT NULL AND key=$7 AND source_type='user_correction')
+         OR (status='superseded' AND key IS NOT DISTINCT FROM $7 AND source_ids @> to_jsonb($6::text[])))`,
+        [
+          derived.ownerId,
+          derived.scopeType,
+          derived.scopeId,
+          derived.branchId ?? null,
+          derived.characterId ?? null,
+          derived.sourceIds,
+          derived.key ?? null,
+        ],
+      )
+    ).rows;
+    if (protection.some((r) => r.status === 'forgotten')) derived.status = 'forgotten';
+    else if (
+      protection.some((r) => r.status === 'superseded') ||
+      (derived.sourceType !== 'user_correction' && protection.length)
+    )
+      derived.status = 'superseded';
     const existing = (
       await sql.query(
         `SELECT id, source_ids FROM parallel_life.memory_records
-          WHERE owner_id=$1 AND scope_type=$2 AND scope_id=$3 AND kind=$4 AND status='active'
-            AND (($5::text IS NOT NULL AND key = $5)
-                 OR lower(regexp_replace(text, '\\s+', ' ', 'g')) = $6)
+          WHERE owner_id=$1 AND scope_type=$2 AND scope_id=$3 AND kind=$4 AND status=$11
+            AND key IS NOT DISTINCT FROM $5
+            AND lower(btrim(regexp_replace(text, '\\s+', ' ', 'g'))) = $6
+            AND branch_id IS NOT DISTINCT FROM $7 AND character_id IS NOT DISTINCT FROM $8
+            AND source_type=$9
+            AND (SELECT count(DISTINCT s) FROM jsonb_array_elements_text(source_ids || $10::jsonb) AS refs(s)) <= 32
           ORDER BY created_at ASC LIMIT 1`,
         [
           derived.ownerId,
@@ -49,45 +80,84 @@ export async function deriveAndStoreMemories(
           derived.kind,
           derived.key ?? null,
           normalized,
+          derived.branchId ?? null,
+          derived.characterId ?? null,
+          derived.sourceType,
+          JSON.stringify(derived.sourceIds),
+          derived.status,
         ],
       )
     ).rows[0];
     if (existing) {
-      await addSourceRefs(
-        sql,
-        String(existing.id),
-        derived.ownerId,
-        derived.scopeType,
-        derived.sourceIds,
+      const sources = [...new Set([...(existing.source_ids as string[]), ...derived.sourceIds])];
+      await sql.query(
+        'UPDATE parallel_life.memory_records SET source_ids=$3 WHERE owner_id=$1 AND id=$2',
+        [derived.ownerId, existing.id, JSON.stringify(sources)],
       );
+      await addSourceRefs(sql, String(existing.id), derived.ownerId, derived.scopeType, sources);
       summary.merged += 1;
       continue;
     }
-    await sql.query(
-      `INSERT INTO parallel_life.memory_records
-        (id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status,importance,created_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [
-        derived.id,
-        derived.ownerId,
-        derived.scopeType,
-        derived.scopeId,
-        derived.branchId ?? null,
-        derived.characterId ?? null,
-        derived.kind,
-        derived.text,
-        derived.key ?? null,
-        derived.sourceType,
-        JSON.stringify(derived.sourceIds),
-        derived.status,
-        derived.importance,
-        derived.createdAt,
-      ],
-    );
-    await addSourceRefs(sql, derived.id, derived.ownerId, derived.scopeType, derived.sourceIds);
+    // Only replace the same scoped assertion class. Inference never replaces a user correction.
+    if (derived.key && derived.status === 'active')
+      await sql.query(
+        `UPDATE parallel_life.memory_records SET status='superseded'
+       WHERE owner_id=$1 AND scope_type=$2 AND scope_id=$3 AND key=$4 AND status='active'
+       AND kind=$5 AND source_type=$6
+       AND branch_id IS NOT DISTINCT FROM $7 AND character_id IS NOT DISTINCT FROM $8
+       AND lower(btrim(regexp_replace(text, '\\s+', ' ', 'g'))) <> $9`,
+        [
+          derived.ownerId,
+          derived.scopeType,
+          derived.scopeId,
+          derived.key,
+          derived.kind,
+          derived.sourceType,
+          derived.branchId ?? null,
+          derived.characterId ?? null,
+          normalized,
+        ],
+      );
+    await insertMemory(sql, derived);
     summary.created += 1;
   }
   return summary;
+}
+
+async function insertMemory(sql: SqlClient, record: MemoryRecord) {
+  await sql.query(
+    `INSERT INTO parallel_life.memory_records
+        (id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status,importance,created_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    [
+      record.id,
+      record.ownerId,
+      record.scopeType,
+      record.scopeId,
+      record.branchId ?? null,
+      record.characterId ?? null,
+      record.kind,
+      record.text,
+      record.key ?? null,
+      record.sourceType,
+      JSON.stringify(record.sourceIds),
+      record.status,
+      record.importance,
+      record.createdAt,
+    ],
+  );
+  await addSourceRefs(sql, record.id, record.ownerId, record.scopeType, record.sourceIds);
+}
+
+async function lockMemoryScope(
+  sql: SqlClient,
+  ownerId: string,
+  scope: MemoryScope,
+  scopeId: string,
+) {
+  await sql.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [
+    JSON.stringify(['memory', ownerId, scope, scopeId]),
+  ]);
 }
 
 async function addSourceRefs(
@@ -155,13 +225,18 @@ export async function correctMemoryInStore(
     playerVisibleOnly?: boolean;
   },
 ): Promise<MemoryRecord> {
+  await lockMemoryScope(sql, input.ownerId, input.scopeType, input.scopeId);
   const playerVisibleOnly = input.playerVisibleOnly ?? true;
   if (playerVisibleOnly && input.scopeType === 'character') throw new DomainError('FORBIDDEN');
   const { newRecord, supersededRecords } = correctMemory({
     ...input,
     ...(input.scopeType === 'branch' ? { branchId: input.scopeId } : {}),
     existingRecords: (await loadMemoryRecords(sql, input.ownerId, playerVisibleOnly)).filter(
-      (record) => record.scopeType === input.scopeType && record.scopeId === input.scopeId,
+      (record) =>
+        record.scopeType === input.scopeType &&
+        record.scopeId === input.scopeId &&
+        record.characterId === input.characterId &&
+        record.branchId === (input.scopeType === 'branch' ? input.scopeId : input.branchId),
     ),
   });
   for (const superseded of supersededRecords)
@@ -169,34 +244,7 @@ export async function correctMemoryInStore(
       "UPDATE parallel_life.memory_records SET status='superseded' WHERE owner_id=$1 AND id=$2",
       [input.ownerId, superseded.id],
     );
-  await sql.query(
-    `INSERT INTO parallel_life.memory_records
-      (id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status,importance,created_at)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-    [
-      newRecord.id,
-      newRecord.ownerId,
-      newRecord.scopeType,
-      newRecord.scopeId,
-      newRecord.branchId ?? null,
-      newRecord.characterId ?? null,
-      newRecord.kind,
-      newRecord.text,
-      newRecord.key ?? null,
-      newRecord.sourceType,
-      JSON.stringify(newRecord.sourceIds),
-      newRecord.status,
-      newRecord.importance,
-      newRecord.createdAt,
-    ],
-  );
-  await addSourceRefs(
-    sql,
-    newRecord.id,
-    newRecord.ownerId,
-    newRecord.scopeType,
-    newRecord.sourceIds,
-  );
+  await insertMemory(sql, newRecord);
   return newRecord;
 }
 

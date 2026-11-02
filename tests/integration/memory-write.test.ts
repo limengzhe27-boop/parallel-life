@@ -13,6 +13,9 @@ import {
   listMemories,
   normalizeMemoryText,
 } from '../../src/modules/memory/infrastructure/memory-store.ts';
+import { memoryHandler } from '../../src/modules/memory/infrastructure/memory-handler.ts';
+import type { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
+import type { TaskLease } from '../../src/modules/tasks/domain/types.ts';
 import type { DeriveMemoryInput } from '../../src/modules/memory/application/derive-memory.ts';
 
 /**
@@ -84,6 +87,63 @@ test('memory write path deduplicates, merges sources, and honours correction and
     ).rows.map((row) => row.source_id);
     assert.deepEqual(refs.sort(), [firstMessage, secondMessage].sort(), 'both sources kept');
 
+    const storedSources = (
+      await admin.query('SELECT source_ids FROM parallel_life.memory_records WHERE id=$1', [
+        records[0]!.id,
+      ])
+    ).rows[0].source_ids;
+    assert.deepEqual(storedSources.sort(), refs.sort(), 'both source representations agree');
+    const keyed = { ...item('周五愿意见面', firstMessage), key: 'meeting-choice' };
+    await db.transaction(owner, (sql) => deriveAndStoreMemories(sql, [keyed]));
+    await db.transaction(owner, (sql) =>
+      deriveAndStoreMemories(sql, [
+        {
+          ...keyed,
+          text: '周五不见面',
+          sourceIds: [secondMessage],
+          evidence: item('周五不见面', secondMessage).evidence,
+        },
+      ]),
+    );
+    const changed = (
+      await admin.query(
+        "SELECT text,status FROM parallel_life.memory_records WHERE owner_id=$1 AND key='meeting-choice' ORDER BY created_at",
+        [owner],
+      )
+    ).rows;
+    assert.deepEqual(
+      changed.map((r) => r.status),
+      ['superseded', 'active'],
+    );
+    assert.equal(changed[1].text, '周五不见面');
+    await admin.query(
+      "DELETE FROM parallel_life.memory_records WHERE owner_id=$1 AND key='meeting-choice'",
+      [owner],
+    );
+
+    await Promise.all(
+      Array.from({ length: 4 }, () =>
+        db.transaction(owner, (sql) =>
+          deriveAndStoreMemories(sql, [item('喜欢在雨天拍街头照片', firstMessage)]),
+        ),
+      ),
+    );
+    const fakeQueue = {
+      commit: async (_lease: unknown, fn: (sql: any) => Promise<any>) => db.transaction(owner, fn),
+      finish: async (_lease: unknown, outcome: unknown) => assert.fail(JSON.stringify(outcome)),
+    } as unknown as PostgresTaskQueue;
+    const { ownerId: ignoredOwner, ...taskInput } = item('喜欢在雨天拍街头照片', firstMessage);
+    await memoryHandler(fakeQueue)(
+      { ownerId: owner, input: { action: 'derive', ...taskInput } } as unknown as TaskLease,
+      new AbortController().signal,
+    );
+    assert.equal(
+      (await db.transaction(owner, (sql) => listMemories(sql, owner, { scopeType: 'profile' })))
+        .length,
+      1,
+      'handler and concurrent direct writes share dedupe',
+    );
+
     /* A different statement is a separate memory. */
     await db.transaction(owner, (sql) =>
       deriveAndStoreMemories(sql, [item('想把这个系列做成一本摄影志', thirdMessage)]),
@@ -118,6 +178,20 @@ test('memory write path deduplicates, merges sources, and honours correction and
       )
     ).rows;
     assert.ok(superseded.every((row) => row.status === 'superseded'));
+
+    await db.transaction(owner, (sql) =>
+      deriveAndStoreMemories(sql, [item('喜欢在雨天拍街头照片', firstMessage)]),
+    );
+    assert.equal(
+      (
+        await admin.query(
+          "SELECT count(*)::int n FROM parallel_life.memory_records WHERE owner_id=$1 AND text='喜欢在雨天拍街头照片' AND status='active'",
+          [owner],
+        )
+      ).rows[0].n,
+      0,
+      'old conclusion cannot revive after correction',
+    );
 
     /* Forgetting hides the record but never deletes it. */
     const target = afterCorrection.find((m) => m.text.includes('清晨'))!;
