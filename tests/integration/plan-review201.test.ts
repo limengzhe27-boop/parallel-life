@@ -21,7 +21,7 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 import type { TextModel } from '../../src/modules/ai/application/ports.ts';
 
 for (const outcome of ['succeeded', 'failed'] as const) {
-  test(`44-201 real ${outcome} action result wakes one plan review, not episode completion`, async () => {
+  test(`44-201 real ${outcome} action result preserves current terminal-goal review semantics`, async () => {
     const cfg = await localConfig();
     const admin = await adminClient('parallel_life_test');
     await migrate(admin);
@@ -31,7 +31,8 @@ for (const outcome of ['succeeded', 'failed'] as const) {
     try {
       const owner = randomUUID(),
         worldId = randomUUID(),
-        actorId = randomUUID();
+        actorId = randomUUID(),
+        targetActorId = randomUUID();
       await new IdentityRepository(db).ensureGuest(owner);
       const world: WorldState = {
         schemaVersion: 1,
@@ -40,7 +41,10 @@ for (const outcome of ['succeeded', 'failed'] as const) {
         version: 0,
         title: '44-201 result reconsideration',
         time: new Date().toISOString(),
-        actors: [{ id: actorId, name: 'A', persona: 'An independent fictional shopkeeper' }],
+        actors: [
+          { id: actorId, name: 'A', persona: 'An independent fictional shopkeeper' },
+          { id: targetActorId, name: 'B', persona: 'Another fictional shopkeeper' },
+        ],
         facts: [],
         messages: [],
         appointments: [],
@@ -54,6 +58,15 @@ for (const outcome of ['succeeded', 'failed'] as const) {
           owner,
           emptyActorAgentState({ worldId, actorId }, agentDefinitionRef(world, actorId), 0),
         );
+        await initializeActorAgentStateInTransaction(
+          sql,
+          owner,
+          emptyActorAgentState(
+            { worldId, actorId: targetActorId },
+            agentDefinitionRef(world, targetActorId),
+            0,
+          ),
+        );
         await switchAgentEngineEpochInTransaction(sql, owner, {
           worldId,
           expectedEpoch: 1,
@@ -66,7 +79,7 @@ for (const outcome of ['succeeded', 'failed'] as const) {
       const model: TextModel = {
         async complete(messages) {
           const p = JSON.parse(messages[1]!.content);
-          if (p.promptVersion.startsWith('director-'))
+          if (p.promptVersion?.startsWith('director-'))
             return JSON.stringify({
               protocol: 'director-wire-v14',
               candidates: p.wireCatalog.candidates.map((c: { ref: string }) => ({
@@ -81,57 +94,33 @@ for (const outcome of ['succeeded', 'failed'] as const) {
             });
           actorCalls++;
           if (p.input.origin === 'player') {
-            const accepted = (
-              await admin.query(
-                "SELECT id FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND document->>'recipientActorId'=$3 AND document->>'text'=$4 ORDER BY created_at DESC LIMIT 1",
-                [worldId, owner, actorId, p.input.text],
-              )
-            ).rows[0];
-            assert.ok(accepted, 'accepted input source exists');
-            const source = String(accepted.id);
+            const source = p.wireCatalog.inputSourceRef;
             return JSON.stringify({
+              protocol: 'npc-wire-v16',
               statements: [{ text: 'I will record the next step.', dependsOnActionIds: [] }],
-              goals: [
+              executions: [
                 {
-                  id: 'g-result',
-                  summary: 'Keep my own shop in order',
-                  status: 'active',
-                  sourceIds: [source],
-                  resultIds: [],
+                  ref: 'result',
+                  goal: { kind: 'new', summary: 'Keep my own shop in order', sourceIds: [source] },
+                  plan: { summary: 'Record the next step', sourceIds: [source] },
+                  action: {
+                    capability: outcome === 'succeeded' ? 'moment.publish' : 'relationship.bond',
+                    targetIds: [],
+                    parameters:
+                      outcome === 'succeeded'
+                        ? [{ name: 'text', value: '整理好了今天的店铺清单。' }]
+                        : [
+                            { name: 'targetActorId', value: actorId },
+                            { name: 'relationship', value: 'colleague' },
+                          ],
+                    sourceIds: [source],
+                    preconditions: [],
+                    dependsOnActionIds: [],
+                    handlesResponsibilityIds: [],
+                  },
                 },
               ],
-              plans: [
-                {
-                  id: 'p-result',
-                  goalId: 'g-result',
-                  summary: 'Record the next step',
-                  status: 'active',
-                  sourceIds: [source],
-                  actionIds: ['a-result'],
-                  nextActionId: 'a-result',
-                  triggers: [],
-                  missingConditions: [],
-                },
-              ],
-              actions: [
-                {
-                  id: 'a-result',
-                  goalId: 'g-result',
-                  capability: outcome === 'succeeded' ? 'plan.record' : 'appointment.cancel',
-                  targetIds: [],
-                  parameters:
-                    outcome === 'succeeded'
-                      ? { planId: 'p-result' }
-                      : { appointmentId: randomUUID(), reason: 'synthetic missing booking' },
-                  sourceIds: [source],
-                  preconditions: [],
-                  dependsOnActionIds: [],
-                  handlesResponsibilityIds: [],
-                  status: 'ready',
-                },
-              ],
-              responsibilities: [],
-              decisions: [],
+              changes: null,
             });
           }
           const wake = JSON.parse(p.input.text);
@@ -144,18 +133,20 @@ for (const outcome of ['succeeded', 'failed'] as const) {
             });
           assert.equal(wake.source, 'actor_plan');
           reviewCalls++;
-          assert.equal(wake.planReview?.planId, 'p-result');
-          assert.equal(wake.planReview?.goalId, 'g-result');
-          assert.equal(wake.planReview?.result?.actionId, 'a-result');
+          const saved = await new PostgresAgentRuntimeRepository(db).read(owner, {
+            worldId,
+            actorId,
+          });
+          assert.equal(wake.planReview?.planId, saved!.plans[0]!.id);
+          assert.equal(wake.planReview?.goalId, saved!.goals[0]!.id);
+          assert.equal(wake.planReview?.result?.actionId, saved!.actions[0]!.id);
           assert.equal(wake.planReview?.result?.outcome, outcome);
           assert.ok(wake.planReview?.result?.id);
           return JSON.stringify({
+            protocol: 'npc-wire-v16',
             statements: [],
-            goals: [],
-            plans: [],
-            actions: [],
-            responsibilities: [],
-            decisions: [],
+            executions: [],
+            changes: null,
           });
         },
       };
@@ -186,9 +177,17 @@ for (const outcome of ['succeeded', 'failed'] as const) {
         new PostgresDirectorSnapshotRepository(db),
       );
       await advance.advanceIfEnabled(owner, worldId);
-      assert.equal(reviewCalls, 1, 'one result-driven reconsideration');
+      assert.equal(
+        reviewCalls,
+        outcome === 'failed' ? 1 : 0,
+        'only an unfinished goal needs result reconsideration',
+      );
       await advance.advanceIfEnabled(owner, worldId);
-      assert.equal(reviewCalls, 1, 'same terminal result must not buy another review');
+      assert.equal(
+        reviewCalls,
+        outcome === 'failed' ? 1 : 0,
+        'same terminal result must not buy another review',
+      );
       const directorStates = (
         await admin.query(
           'SELECT status FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
@@ -202,8 +201,8 @@ for (const outcome of ['succeeded', 'failed'] as const) {
       );
       const afterWake = await store.read(owner, { worldId, actorId });
       assert.ok(afterWake);
-      assert.equal(afterWake.goals[0]!.status, 'active');
-      assert.deepEqual(afterWake.goals[0]!.resultIds, []);
+      assert.equal(afterWake.goals[0]!.status, outcome === 'failed' ? 'active' : 'fulfilled');
+      assert.equal(afterWake.goals[0]!.resultIds.length, outcome === 'failed' ? 0 : 1);
       assert.equal(afterWake.actions[0]!.status, outcome);
     } finally {
       await db.close();

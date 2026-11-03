@@ -432,6 +432,138 @@ test('player chat considers a server-bound pending episode without extra NPC cal
     for (const sentinel of prohibited) assert.ok(!JSON.stringify(p).includes(sentinel));
     return m;
   }
+
+  await t.test(
+    '27 episode actionless plan uses service scheduling and retains its original receipt',
+    async () => {
+      const f = await fixture('invitation');
+      const c = await command(f, '请自己整理一下想法，不需要等我的回答。');
+      let calls = 0,
+        reviews = 0;
+      const model = {
+        async complete(messages: ModelMessage[]) {
+          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          if (Array.isArray(p.candidates))
+            return JSON.stringify({
+              protocol: 'director-wire-v14',
+              openingContext: null,
+              candidates: p.wireCatalog.candidates.map((x: any) => ({
+                ref: x.ref,
+                decision: p.candidates.some(
+                  (c: any) => c.id === x.candidateId && c.source === 'actor_plan',
+                )
+                  ? 'select'
+                  : 'defer',
+                reason: 'Continue the existing own plan',
+              })),
+              authoredChoices: Object.fromEntries(
+                p.wireCatalog.events.map((e: any) => [
+                  e.ref,
+                  { kind: 'defer', reason: 'No new opportunity' },
+                ]),
+              ),
+              opportunities: [],
+              audit: { reason: 'Existing plan only', sourceRefs: [] },
+            });
+          calls++;
+          if (p.input.origin === 'player') {
+            assert.ok(p.episodeManifest);
+            const source = p.wireCatalog.inputSourceRef;
+            const basis = [source, p.episodeManifest.sourceId];
+            return JSON.stringify({
+              protocol: 'npc-wire-v16',
+              statements: [{ text: '我先自己整理思路。', dependsOnActionIds: [] }],
+              executions: [],
+              changes: {
+                consideration: {
+                  choice: 'engage',
+                  reason: '本人愿意先整理安排',
+                  basisSourceIds: basis,
+                },
+                planIntents: [
+                  {
+                    kind: 'create',
+                    ref: 'self-plan',
+                    goal: { kind: 'new', summary: '本人整理安排', sourceIds: basis },
+                    summary: '先自行梳理想法',
+                    sourceIds: basis,
+                  },
+                ],
+              },
+            });
+          }
+          const wake = JSON.parse(p.input.text);
+          if (wake.source === 'actor_plan') {
+            reviews++;
+            assert.equal(wake.actionId, null);
+            assert.equal(p.episodeFollowUps[0].episodeId, f.requests[0]!.episodeId);
+          }
+          return JSON.stringify({
+            protocol: 'npc-wire-v16',
+            statements: [],
+            executions: [],
+            changes: null,
+          });
+        },
+      };
+      const service = npcAgentServices(app, () => model);
+      const reply = await service.sendMessageIfEnabled(f.owner, c);
+      assert.equal(reply?.status, 'committed');
+      const initialRequest = await requestState(f);
+      assert.equal(initialRequest.status, 'consumed');
+      const state = await actors.read(f.owner, { worldId: f.id, actorId: c.actorId });
+      assert.equal(state!.plans.length, 1);
+      assert.equal(state!.actions.length, 0);
+      const w = await worlds.get({ userId: f.owner }, f.id);
+      const ss = (await readPrivateAgentSnapshot(app, f.owner, w, c.actorId, null, w.time, state))
+        .snapshot;
+      const direct = (
+        await Promise.all(
+          createAgentScheduleSources({
+            worldId: f.id,
+            engineEpoch: 2,
+            worldVersion: w.version,
+            storyAt: w.time,
+            actors: [{ snapshot: ss, trustedResults: [], appointments: [] }],
+            activeAttempts: [],
+            consumedCandidateIds: [],
+          }).map((x) => x.source.collect(f.owner, f.id)),
+        )
+      ).flatMap((x) => x.candidates);
+      assert.ok(
+        direct.some((x) => x.planReview),
+        JSON.stringify(direct),
+      );
+      await clocks.write(f.owner, f.id, {
+        storyNow: w.time,
+        speed: 12,
+        paused: false,
+        lastTickAt: new Date().toISOString(),
+        missedBeats: 0,
+        summary: null,
+      });
+      const advance = npcAgentAdvanceServices(app, () => model, snapshots);
+      await advance.advanceIfEnabled(f.owner, f.id);
+      // Initial placement is separate legitimate work and may take this actor's first batch slot.
+      if (!reviews) await advance.advanceIfEnabled(f.owner, f.id);
+      assert.equal(reviews, 1);
+      const rows = (
+        await admin.query(
+          'SELECT review_count FROM parallel_life.agent_plan_reviews WHERE world_id=$1',
+          [f.id],
+        )
+      ).rows;
+      assert.equal(rows.length, 1);
+      assert.equal(Number(rows[0].review_count), 1);
+      await advance.advanceIfEnabled(f.owner, f.id);
+      assert.equal(reviews, 1);
+      const beforeReplay = calls;
+      const replay = await service.sendMessageIfEnabled(f.owner, c);
+      assert.equal(replay?.status, 'committed');
+      assert.equal(calls, beforeReplay);
+      assert.deepEqual(await requestState(f), initialRequest);
+    },
+  );
   await t.test(
     'ordinary player input and explicit actor choice share one NPC call and original receipt',
     async () => {
