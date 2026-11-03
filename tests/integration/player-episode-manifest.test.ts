@@ -620,6 +620,66 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       assert.equal(receipt.length, 1);
       assert.equal(receipt[0].choice, 'engage');
       assert.equal(receipt[0].input_receipt_id, inputId);
+      const world = await worlds.get({ userId: f.owner }, f.id);
+      const fresh = (
+        await readPrivateAgentSnapshot(
+          app,
+          f.owner,
+          world,
+          f.requests[0]!.actorId,
+          null,
+          world.time,
+          await actors.read(f.owner, { worldId: f.id, actorId: f.requests[0]!.actorId }),
+        )
+      ).snapshot;
+      assert.equal(fresh.episodeFollowUps![0]!.choice, 'engage');
+      const brief = fresh.observations.find((o) => o.text.startsWith('你已自主选择参与以下事项'));
+      assert.ok(brief, 'fresh read retains confirmed participation rather than asking again');
+      await app.transaction(f.owner, async (sql) => {
+        const {
+          readActorEpisodeIntentsInTransaction,
+          validateActorEpisodeIntentSnapshotInTransaction,
+        } =
+          await import('../../src/modules/world/infrastructure/actor-episode-intent-repository.ts');
+        const original = (
+          await readActorEpisodeIntentsInTransaction(
+            sql,
+            f.owner,
+            {
+              worldId: f.id,
+              actorId: f.requests[0]!.actorId,
+              worldVersion: world.version,
+              storyAt: world.time,
+            },
+            [f.requests[0]!.id],
+            { historical: true },
+          )
+        ).get(f.requests[0]!.id)!;
+        const { usage: _usage, ...identity } = fresh.sources.find(
+          (source) => source.id === brief.sourceId,
+        )!;
+        assert.deepEqual(identity, original.source, 'source evidence/hash remain immutable');
+        const materialStart = original.observation.text.indexOf('{');
+        assert.ok(materialStart >= 0);
+        assert.ok(
+          brief.text.endsWith(original.observation.text.slice(materialStart)),
+          'author material and place hints are unchanged',
+        );
+        await validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, fresh);
+        const historical = structuredClone(fresh);
+        historical.observations = historical.observations.map((o) =>
+          o.sourceId === brief.sourceId ? original.observation : o,
+        );
+        await validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, historical);
+        const tampered = structuredClone(fresh);
+        tampered.observations.find((o) => o.sourceId === brief.sourceId)!.text +=
+          ' fabricated fact';
+        await assert.rejects(
+          validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, tampered),
+          /AGENT_REVISION_CONFLICT/,
+        );
+      });
+
       await service.sendMessageIfEnabled(f.owner, c);
       assert.equal(calls, 1, 'committed replay cannot purchase another NPC reply');
     },

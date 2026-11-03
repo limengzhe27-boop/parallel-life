@@ -29,6 +29,13 @@ export type ActorEpisodeIntentView = {
   source: AgentSource;
   observation: AgentSnapshot['observations'][number];
 };
+const EPISODE_BRIEF_INTRO = [
+  'Director-created future interaction proposal addressed only to you. This is NOT a report, known fact, completed action, private attitude, player decision or obligation. Use only your own authorized knowledge and persona to decide whether/how to participate; ask rather than assume unknown information. You may refuse, defer or stay quiet: ',
+  '当前可考虑的个人互动机会及本人已有议程。ownKnownTopics保留各自contentHash与状态，只代表本人目标/计划/责任；opportunity是可提出的内容，不是已发生事实、玩家同意或必须行动的命令。由你决定参与、调整、暂缓或拒绝：',
+  '导演建议你自行考虑跟进以下本人已知事项。它不是命令、已经发生的事实或玩家同意；你可以调整、暂缓或不参与：',
+  'Author suggestion addressed only to you. Consider it using your own position; it is not an event, verified fact, obligation, deadline or player agreement: ',
+] as const;
+
 const conflict = (): never => {
   throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
 };
@@ -236,9 +243,7 @@ export async function readActorEpisodeIntentsInTransaction(
       observation: {
         sourceId: id,
         kind: 'plan',
-        text:
-          'Director-created future interaction proposal addressed only to you. This is NOT a report, known fact, completed action, private attitude, player decision or obligation. Use only your own authorized knowledge and persona to decide whether/how to participate; ask rather than assume unknown information. You may refuse, defer or stay quiet: ' +
-          JSON.stringify(directive),
+        text: EPISODE_BRIEF_INTRO[0] + JSON.stringify(directive),
       },
     });
   }
@@ -306,9 +311,7 @@ export async function readActorEpisodeIntentsInTransaction(
           sourceId: id,
           kind: 'plan',
           text:
-            (combined
-              ? '当前可考虑的个人互动机会及本人已有议程。ownKnownTopics保留各自contentHash与状态，只代表本人目标/计划/责任；opportunity是可提出的内容，不是已发生事实、玩家同意或必须行动的命令。由你决定参与、调整、暂缓或拒绝：'
-              : '导演建议你自行考虑跟进以下本人已知事项。它不是命令、已经发生的事实或玩家同意；你可以调整、暂缓或不参与：') +
+            (combined ? EPISODE_BRIEF_INTRO[1] : EPISODE_BRIEF_INTRO[2]) +
             JSON.stringify(directive) +
             opportunityPlaceHint(
               opportunity.placeIds,
@@ -409,7 +412,7 @@ export async function readActorEpisodeIntentsInTransaction(
         sourceId: id,
         kind: 'plan',
         text:
-          'Author suggestion addressed only to you. Consider it using your own position; it is not an event, verified fact, obligation, deadline or player agreement: ' +
+          EPISODE_BRIEF_INTRO[3] +
           JSON.stringify(directive) +
           opportunityPlaceHint(
             opportunity.placeIds,
@@ -522,7 +525,11 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
               '此来源支持本人已保存的目标、计划或决定；原私聊不在本次上下文中。' &&
             !(
               retainedActorEpisodeRequestIds(snapshot).includes(id) &&
-              isDeepStrictEqual(observation, view.observation)
+              (isDeepStrictEqual(observation, view.observation) ||
+                isDeepStrictEqual(
+                  observation,
+                  retainedActorEpisodeObservation(snapshot, id, view.observation),
+                ))
             ),
         )
       )
@@ -587,5 +594,29 @@ export async function readRetainedActorEpisodeBriefs(
     ids,
     { historical: true },
   );
-  return [...views.values()].flatMap((view) => (view ? [view.observation] : []));
+  return [...views.entries()].flatMap(([id, view]) =>
+    view ? [retainedActorEpisodeObservation(snapshot, id, view.observation)] : [],
+  );
+}
+
+/** Current presentation only: immutable directive evidence and paid historical snapshots stay intact. */
+export function retainedActorEpisodeObservation(
+  snapshot: AgentSnapshot,
+  requestId: string,
+  observation: AgentSnapshot['observations'][number],
+): AgentSnapshot['observations'][number] {
+  const participation = snapshot.episodeFollowUps?.find((f) => f.requestId === requestId);
+  if (
+    !retainedActorEpisodeRequestIds(snapshot).includes(requestId) ||
+    participation?.choice !== 'engage'
+  )
+    return observation;
+  const intro = EPISODE_BRIEF_INTRO.find((text) => observation.text.startsWith(text));
+  if (!intro) return observation;
+  return {
+    ...observation,
+    text:
+      '你已自主选择参与以下事项，当前尚未结束；这不是重新询问你是否参与。结合本人目标、已有安排、可见事实和当前条件考虑如何承接，也可调整或退出。仅相关步骤等待玩家答复，不阻止你处理独立的自身安排；无需为了交差强行发消息或创建计划。followUp=none只表示尚未登记后续安排，不表示已完成。以下保留原始机会材料与本人可知内容；材料不代表实际发生、玩家同意、到场或行动成功，未知信息仍须核实：' +
+      observation.text.slice(intro.length),
+  };
 }
