@@ -1,3 +1,4 @@
+import { readActorDefinitionSources } from './actor-definition-sources.ts';
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import {
   readVerifiedPublicationGenesisEvidence,
@@ -134,7 +135,22 @@ export async function readActorStrategyBasis(
       })
     : null;
   if (initial) {
-    add(`definition:${state.definitionRef}`, 'authored', state.definitionRef, 0, initial.time);
+    if (handles.some((id) => id.startsWith('definition:')))
+      for (const definition of await readActorDefinitionSources(
+        sql,
+        ownerId,
+        state.worldId,
+        state.actorId,
+        worldVersion,
+        initial,
+      ))
+        add(
+          definition.id,
+          definition.kind,
+          definition.recordId,
+          definition.worldVersion,
+          definition.at,
+        );
     // Publication messages use exactly the same authenticated display-time
     // projection as the private snapshot. Legacy genesis retains its old times.
     const initialMessages = [

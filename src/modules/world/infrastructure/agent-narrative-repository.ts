@@ -1,3 +1,4 @@
+import { readActorDefinitionSources } from './actor-definition-sources.ts';
 import { readInvalidAuthoredEpisodeIds } from './authored-episode-scope-read.ts';
 import { shouldWithdrawDeclinedEpisode } from '../domain/episode-participation-lifecycle.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
@@ -359,7 +360,12 @@ export function parseEpisodeConsiderationIntent(text: string) {
     return invalid();
   }
 }
-function checkedInput(body: AgentInputReceipt, r: AgentEpisodeRequest, definitionRef: string) {
+function checkedInput(
+  body: AgentInputReceipt,
+  r: AgentEpisodeRequest,
+  definitionRef: string,
+  historicalRefs: readonly string[] = [],
+) {
   const intent = parseEpisodeConsiderationIntent(body.text);
   if (
     body.origin !== 'coordination' ||
@@ -369,7 +375,8 @@ function checkedInput(body: AgentInputReceipt, r: AgentEpisodeRequest, definitio
     body.threadId !== r.actorId ||
     intent.requestId !== r.id ||
     intent.activity !== r.activity ||
-    intent.basisSourceIds[0] !== `definition:${definitionRef}`
+    (intent.basisSourceIds[0] !== `definition:${definitionRef}` &&
+      !historicalRefs.includes(intent.basisSourceIds[0]!))
   )
     invalid();
   return intent;
@@ -401,7 +408,20 @@ export async function validateEpisodeConsiderationInputInTransaction(
     )
   ).rows[0]?.document;
   if (!isDeepStrictEqual(saved, body)) invalid();
-  checkedInput(body, r, definitionRef);
+  checkedInput(
+    body,
+    r,
+    definitionRef,
+    (
+      await readActorDefinitionSources(
+        sql,
+        owner,
+        body.worldId,
+        r.actorId,
+        body.expectedWorldVersion,
+      )
+    ).map((s) => s.id),
+  );
   return r;
 }
 /** Send-only fence. Reading a consumed source remains valid for the actor's own history. */
@@ -558,7 +578,21 @@ export async function projectEpisodeRequestInTransaction(
     )
       invalid();
     await requirePlayerEpisodeBinding(sql, owner, a, committed.snapshot);
-  } else checkedInput(body, r, rt.stateAfter.definitionRef);
+  } else
+    checkedInput(
+      body,
+      r,
+      rt.stateAfter.definitionRef,
+      (
+        await readActorDefinitionSources(
+          sql,
+          owner,
+          body.worldId,
+          r.actorId,
+          body.expectedWorldVersion,
+        )
+      ).map((s) => s.id),
+    );
   if (!isDeepStrictEqual(rt.proposal?.episodeDecision, rt.episodeDecision)) invalid();
   const choice =
     rt.episodeDecision === undefined ? undefined : choiceSchema.safeParse(rt.episodeDecision);

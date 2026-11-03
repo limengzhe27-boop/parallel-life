@@ -48,16 +48,9 @@ import {
 } from './agent-narrative-repository.ts';
 import { readActorEpisodeIntentsInTransaction } from './actor-episode-intent-repository.ts';
 
-export function agentDefinitionRef(
-  world: Pick<WorldState, 'id' | 'actors'>,
-  actorId: string,
-): string {
-  const actor = world.actors.find((item) => item.id === actorId);
-  if (!actor) throw new DomainError('INVALID_COMMAND');
-  return createHash('sha256')
-    .update(JSON.stringify([world.id, actor.id, actor.persona, actor.relationship]))
-    .digest('hex');
-}
+export { actorDefinitionRef as agentDefinitionRef } from './actor-definition-ref.ts';
+import { actorDefinitionRef as agentDefinitionRef } from './actor-definition-ref.ts';
+import { readActorDefinitionSources } from './actor-definition-sources.ts';
 
 /** Explicit migration input, never a side effect of reading a character context. */
 export function seedAgentFromVerifiedContext(
@@ -569,22 +562,13 @@ export async function readPrivateAgentSnapshot(
           });
         }
     }
-    const initialAt =
-      publicationGenesis?.at ??
-      (
-        await sql.query(
-          "SELECT state->>'time' AS time FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2",
-          [world.id, ownerId],
-        )
-      ).rows[0]?.time;
     const definitionSourceId = `definition:${definitionRef}`;
-    sources.set(definitionSourceId, {
-      id: definitionSourceId,
-      kind: 'authored',
-      recordId: definitionRef,
-      worldVersion: 0,
-      at: initialAt ?? world.time,
-    });
+    const definitionSource = (
+      await readActorDefinitionSources(sql, ownerId, world.id, actorId, world.version)
+    ).find((s) => s.id === definitionSourceId);
+    if (!definitionSource) throw new DomainError('VERSION_CONFLICT', '人物定义来源需要同步。');
+    sources.set(definitionSourceId, definitionSource);
+
     if (input && isEpisodeConsiderationInput(input)) {
       const intent = parseEpisodeConsiderationIntent(input.text);
       await validateEpisodeConsiderationInputInTransaction(sql, ownerId, input, definitionRef);

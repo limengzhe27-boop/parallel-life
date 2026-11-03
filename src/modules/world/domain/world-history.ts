@@ -1,4 +1,11 @@
-import { applyNarrativeContextEvent, type NarrativeContextConfirmedEvent } from './narrative-opening-context.ts';
+import {
+  applyActorDefinitionRevision,
+  type ActorDefinitionRevisedEvent,
+} from './actor-definition-revision.ts';
+import {
+  applyNarrativeContextEvent,
+  type NarrativeContextConfirmedEvent,
+} from './narrative-opening-context.ts';
 import { resultAckText } from './matter-progression.ts';
 import { applyAgentArrivalEvent, type AgentArrivalCommittedEvent } from './agent-arrival-event.ts';
 import {
@@ -49,6 +56,7 @@ type SceneWorldEvent = {
 };
 /** Stored event union is separate from the existing private-turn command contract. */
 export type WorldHistoryEvent =
+  | ActorDefinitionRevisedEvent
   | NarrativeContextConfirmedEvent
   | AgentArrivalCommittedEvent
   | AgentStateCommittedEvent
@@ -73,7 +81,10 @@ export function applyWorldHistoryEvent(
   validateEventId(event.id);
   validateEventId(event.commandId);
   isoInstant(event.occurredAt);
-  if (event.type === 'narrative.context_confirmed') return { state: applyNarrativeContextEvent(current, event), jobs: [] };
+  if (event.type === 'actor.definition_revised')
+    return { state: applyActorDefinitionRevision(current, event), jobs: [] };
+  if (event.type === 'narrative.context_confirmed')
+    return { state: applyNarrativeContextEvent(current, event), jobs: [] };
   if (event.type === 'agent.arrival_committed')
     return { state: applyAgentArrivalEvent(current, event), jobs: [] };
   if (event.type === 'agent.state_committed')

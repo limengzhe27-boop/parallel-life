@@ -1,3 +1,4 @@
+import { readActorDefinitionSources } from './actor-definition-sources.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -253,6 +254,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       fail('receipt');
     byId.set(r.id, r);
   }
+  let historicalDefinitions: Map<string, number> | undefined;
   const anchors = new Map<string, { anchor: OwnAgendaReviewAnchor; version: number }>();
   const commits: {
     version: number;
@@ -369,6 +371,34 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       Date.parse(e.payload.storyAt) > Date.parse(frame.story_at)
     )
       fail('committed_source');
+    if (after.definitionRef !== input.definitionRef) {
+      if (!historicalDefinitions) {
+        historicalDefinitions = new Map();
+        for (const source of await readActorDefinitionSources(
+          sql,
+          ownerId,
+          input.worldId,
+          input.actorId,
+          frame.version,
+        ))
+          if (!historicalDefinitions.has(source.recordId))
+            historicalDefinitions.set(source.recordId, source.worldVersion);
+      }
+      const sourceVersion = historicalDefinitions.get(after.definitionRef);
+      if (sourceVersion === undefined || sourceVersion > e.version) fail('committed_source');
+    }
+    if (privateCommit && !r.incomplete_stream)
+      anchors.set(r.id, {
+        version: e.version,
+        anchor: {
+          ...input,
+          definitionRef: after.definitionRef,
+          attemptId: r.id,
+          eventId: e.id,
+          committedStoryAt: e.payload.storyAt,
+          committedRealAt: new Date(e.realAt).toISOString(),
+        },
+      });
     if (after.definitionRef !== input.definitionRef) continue;
     const previous = commits.at(-1);
     const unchanged =
@@ -386,17 +416,6 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         Number(rt.effectCount) === 0 &&
         unchanged,
       presentedRealAt: rt.statementCount > 0 ? new Date(e.realAt).toISOString() : null,
-    });
-    if (!privateCommit || r.incomplete_stream) continue;
-    anchors.set(r.id, {
-      version: e.version,
-      anchor: {
-        ...input,
-        attemptId: r.id,
-        eventId: e.id,
-        committedStoryAt: e.payload.storyAt,
-        committedRealAt: new Date(e.realAt).toISOString(),
-      },
     });
   }
   let quietStreak = 0;
@@ -418,7 +437,10 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       .map((commit) => commit.presentedRealAt)
       .filter((at): at is string => at !== null)
       .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
-  const latest = [...anchors.values()].sort((a, b) => b.version - a.version)[0]?.anchor ?? null;
+  const latest =
+    [...anchors.values()]
+      .filter((x) => x.anchor.definitionRef === input.definitionRef)
+      .sort((a, b) => b.version - a.version)[0]?.anchor ?? null;
   const familyId = latest ? ownAgendaReviewFamilyId(input, latest, digest) : null;
   const attempts: OwnAgendaReviewAttemptEvidence[] = [];
   const actorBlockers: OwnAgendaReviewActorBlocker[] = [];
@@ -469,8 +491,11 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
           predecessor.version > body.expectedWorldVersion ||
           Date.parse(predecessor.anchor.committedStoryAt) > Date.parse(body.storyAt) ||
           Date.parse(predecessor.anchor.committedRealAt) > Date.parse(body.receivedAt) ||
-          !isDeepStrictEqual(envelope.basisSourceIds, [`definition:${input.definitionRef}`]) ||
-          ownAgendaReviewFamilyId(input, predecessor.anchor, digest) !== envelope.grantId
+          !isDeepStrictEqual(envelope.basisSourceIds, [
+            `definition:${predecessor.anchor.definitionRef}`,
+          ]) ||
+          ownAgendaReviewFamilyId(predecessor.anchor, predecessor.anchor, digest) !==
+            envelope.grantId
         )
           fail('envelope');
         recordFamily = envelope.grantId;

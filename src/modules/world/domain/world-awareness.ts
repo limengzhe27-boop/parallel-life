@@ -1,3 +1,4 @@
+import { validActorDefinitionRevision } from './actor-definition-revision.ts';
 import { questionProgressReason } from './question-progress-proof.ts';
 import type { AgentInputReceipt } from './agent-runtime.ts';
 import {
@@ -360,6 +361,11 @@ export function committedAwarenessDelta(
         });
     }
     reason('new_condition', { kind: 'event', id: event.id });
+  }
+  if (event.type === 'actor.definition_revised') {
+    if (!validActorDefinitionRevision(event) || !actorIds.has(event.data.actorId))
+      throw Error('INVALID_ACTOR_DEFINITION_REVISION');
+    reason('cross_impact', { kind: 'event', id: event.id });
   }
   if (event.type === 'agent.arrival_committed') {
     // Arrival is a server physical continuation, not another goal-bound NPC action.
