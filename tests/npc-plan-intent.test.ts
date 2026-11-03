@@ -350,3 +350,25 @@ test('unchanged plan echo does not append a wake source, while new evidence is r
   );
   assert.equal(c.viewState!.plans[0]!.sourceIds.length, 1);
 });
+
+test('current standalone plans keep their own purpose without manufacturing a goal and remain editable', () => {
+  const context = fixture();
+  const { goal: _goal, ...intent } = create();
+  const compiled = compileNpcPlanIntents(context, [intent], { standalone: true });
+  assert.deepEqual(compiled.goals, []);
+  assert.equal(compiled.plans[0]!.goalId, null);
+  validateAgentProposal(context, AgentProposalSchema.parse({
+    statements: [{ text: 'I will check when you decide.', dependsOnActionIds: [] }], ...compiled,
+  }));
+  context.state.plans = compiled.plans;
+  context.viewState = structuredClone(context.state);
+  const updated = compileNpcPlanIntents(context, [{
+    kind: 'update', planId: compiled.plans[0]!.id, summary: 'Changed arrangement', sourceIds: ['input'],
+  }], { standalone: true });
+  assert.equal(updated.plans[0]!.goalId, null);
+  assert.deepEqual(updated.goals, []);
+  // A historical paid response retains its original compiled identity and goal.
+  const legacy = compileNpcPlanIntents(fixture(), [intent]);
+  assert.equal(legacy.goals.length, 1);
+  assert.equal(legacy.plans[0]!.goalId, legacy.goals[0]!.id);
+});

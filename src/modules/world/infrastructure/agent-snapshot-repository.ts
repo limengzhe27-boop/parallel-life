@@ -13,7 +13,7 @@ import {
 } from './verified-publication-genesis-evidence.ts';
 import { readActorObservationInbox } from './actor-observation-inbox.ts';
 import { readActorEpisodeResults } from './episode-result-context-repository.ts';
-import { readEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
+import { readEpisodeLifecycleContext, readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { selectPlayerEpisodeManifest } from './player-episode-manifest-repository.ts';
 import { createHash } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -181,7 +181,9 @@ export async function readPrivateAgentSnapshot(
   )
     throw new DomainError('INVALID_COMMAND');
   const definitionRef = agentDefinitionRef(world, actorId);
+  const storedState = state;
   return db.transaction(ownerId, async (sql) => {
+    if (storedState) state = { ...storedState, episodeParticipations: await readActorEpisodeParticipations(sql, ownerId, storedState) };
     const txDb = singleTransactionDb(ownerId, sql, db);
     const memories = await loadActorMemories(sql, ownerId, { worldId: world.id, actorId });
     // Forget authorization is not capped by the recall/ranking window.
@@ -611,7 +613,7 @@ export async function readPrivateAgentSnapshot(
     const result: { seed: ActorAgentState | null; snapshot: AgentSnapshot } = {
       seed: state ? null : seeded,
       snapshot: {
-        state: seeded,
+        state: storedState ?? seeded,
         ...(playerEpisode ? { episodeManifest: playerEpisode.manifest } : {}),
         ...authorizedAgentState(seeded, new Set(sources.keys())),
         worldVersion: world.version,
@@ -902,7 +904,7 @@ async function attachAgentWorldContextInTransaction(
           (cap !== 'activity.participate' || snapshot.channel.kind !== 'private'),
       ),
     },
-    ...authorizedAgentState(snapshot.state, new Set(sources.map((s) => s.id))),
+    ...authorizedAgentState({ ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations }, new Set(sources.map((s) => s.id))),
     sources: [...new Map(sources.map((s) => [s.id, s])).values()],
     observations,
     worldContext: {
@@ -934,7 +936,7 @@ async function attachAgentWorldContextInTransaction(
     contextual.actorObservationInbox = inbox.context;
     Object.assign(
       contextual,
-      authorizedAgentState(snapshot.state, new Set(contextual.sources.map((s) => s.id))),
+      authorizedAgentState({ ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations }, new Set(contextual.sources.map((s) => s.id))),
     );
   }
   // A consumed notification remains known. Recall does not create inbox work or a new wake.
@@ -956,7 +958,7 @@ async function attachAgentWorldContextInTransaction(
     ];
     Object.assign(
       contextual,
-      authorizedAgentState(snapshot.state, new Set(contextual.sources.map((s) => s.id))),
+      authorizedAgentState({ ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations }, new Set(contextual.sources.map((s) => s.id))),
     );
   }
   const media = await readActorMediaCompletionContextInTransaction(sql, ownerId, contextual, {
@@ -980,7 +982,7 @@ async function attachAgentWorldContextInTransaction(
     ];
     Object.assign(
       contextual,
-      authorizedAgentState(snapshot.state, new Set(contextual.sources.map((s) => s.id))),
+      authorizedAgentState({ ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations }, new Set(contextual.sources.map((s) => s.id))),
     );
   }
   contextual.episodeFollowUps = await readEpisodeLifecycleContext(sql, ownerId, contextual);

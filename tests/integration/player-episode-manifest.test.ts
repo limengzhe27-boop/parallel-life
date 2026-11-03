@@ -811,7 +811,8 @@ test('player chat considers a server-bound pending episode without extra NPC cal
               await actors.read(f.owner, { worldId: f.id, actorId: f.requests[0]!.actorId }),
             )
           ).snapshot;
-          assert.equal(next.state.episodeParticipations!.length, 26);
+          assert.equal(next.state.episodeParticipations, undefined);
+          assert.equal(next.viewState.episodeParticipations!.length, 26);
           assert.ok(
             next.episodeFollowUps!.some(
               (x) => x.requestId === f.requests[0]!.id && x.followUp !== 'terminal',

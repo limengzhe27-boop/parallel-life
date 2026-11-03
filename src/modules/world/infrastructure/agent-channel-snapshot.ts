@@ -1,3 +1,4 @@
+import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { readActorGroupObservationSourcesInTransaction } from './actor-group-observation-sources.ts';
 import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
 import { isDeepStrictEqual } from 'node:util';
@@ -132,6 +133,7 @@ export async function readNativeAgentSnapshot(
   const actor = world.actors.find((a) => a.id === actorId);
   if (!actor) forbidden();
   const modules = await readPublicationActorModules(db, ownerId, world.id, actorId);
+  const originalState = state;
   const snapshot = await db.transaction(ownerId, async (sql): Promise<AgentSnapshot> => {
     const current = (
       await sql.query('SELECT version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
@@ -147,6 +149,7 @@ export async function readNativeAgentSnapshot(
       )
     ).rows[0]?.document;
     if (!isDeepStrictEqual(state, storedState)) throw new DomainError('VERSION_CONFLICT');
+    state = { ...state, episodeParticipations: await readActorEpisodeParticipations(sql, ownerId, state) };
     const stored = (
       await sql.query(
         'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND id=$3',
@@ -385,7 +388,7 @@ export async function readNativeAgentSnapshot(
         sources.set(basis.id, basis);
     }
     return {
-      state,
+      state: originalState,
       ...authorizedAgentState(state, new Set(sources.keys())),
       worldVersion: world.version,
       storyAt,

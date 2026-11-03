@@ -1273,7 +1273,7 @@ test('private result evidence survives presentation separation with exact source
       observation: wireExpected(input, input.observations[1]),
     },
   ]);
-  assert.equal(payload.responseContract.protocol, 'npc-wire-v18');
+  assert.equal(payload.responseContract.protocol, 'npc-wire-v19');
 });
 
 test('internal private recall uses the same bounded pool and final supplied-context manifest', async () => {

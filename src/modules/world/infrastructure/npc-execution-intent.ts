@@ -206,7 +206,9 @@ export function compileNpcExecutionIntents(
 }
 
 /** Current immediate tools bind mechanical identity/provenance once, without a fake life plan. */
-export function compileNpcExecutionProposal(context: AgentValidationContext, raw: unknown) {
+export function compileNpcExecutionProposal(
+  context: AgentValidationContext, raw: unknown, options: { standaloneTools?: boolean } = {},
+) {
   if (!Array.isArray(raw) || raw.length > 1) invalid('NPC_EXECUTION_INTENT_SHAPE');
   const proposal: z.infer<typeof AgentProposalSchema> = {
     statements: [],
@@ -218,7 +220,22 @@ export function compileNpcExecutionProposal(context: AgentValidationContext, raw
   };
   const actionIdsByRef: Record<string, string> = Object.create(null);
   for (const item of raw) {
-    if (item && typeof item === 'object' && !('goal' in item) && !('plan' in item)) {
+    if (options.standaloneTools && item && typeof item === 'object' &&
+      !('goal' in item) && !('plan' in item) &&
+      !['media.generate_image', 'position.establish'].includes((item as any).action?.capability)) {
+      const immediate = z.strictObject({ ref: Id, action: NativeExecutionIntentSchema.shape.action }).parse(item);
+      if (!context.channel.allowedCapabilities.includes(immediate.action.capability) || immediate.action.capability === 'plan.record')
+        invalid('NPC_EXECUTION_INTENT_CAPABILITY');
+      const id = nativeExecutionIntentIds(context, immediate.ref).actionId;
+      if (context.state.actions.some((a) => a.id === id)) invalid('NPC_EXECUTION_INTENT_ID_CONFLICT');
+      const names = immediate.action.parameters.map(p => p.name);
+      if (new Set(names).size !== names.length) invalid('NPC_EXECUTION_INTENT_PARAMETERS');
+      proposal.actions.push({
+        ...immediate.action, id, goalId: null, status: 'proposed',
+        parameters: Object.fromEntries(immediate.action.parameters.map(p => [p.name, p.value])),
+      });
+      actionIdsByRef[immediate.ref] = id;
+    } else if (item && typeof item === 'object' && !('goal' in item) && !('plan' in item)) {
       const immediate = z
         .strictObject({
           ref: Id,

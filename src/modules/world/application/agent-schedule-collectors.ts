@@ -386,9 +386,8 @@ async function plans(view: SchedulingView, context: ActorContext) {
     const goal = state.goals.find((g) => g.id === plan.goalId);
     if (
       !action ||
-      !goal ||
+      (plan.goalId !== null && (!goal || !context.basis(goal))) ||
       !context.basis(action) ||
-      !context.basis(goal) ||
       !conditionTimesValid(action.preconditions) ||
       !context.snapshot.channel.allowedCapabilities.includes(action.capability) ||
       (context.snapshot.worldContext &&
@@ -419,7 +418,7 @@ async function plans(view: SchedulingView, context: ActorContext) {
     const proof = evidence(context, conditions, action.dependsOnActionIds);
     const sourceIds = sorted([
       ...related.flatMap((p) => p.sourceIds),
-      ...goal.sourceIds,
+      ...(goal?.sourceIds ?? []),
       ...action.sourceIds,
       ...responsibilities.flatMap((r) => r.sourceIds),
       ...proof.sourceIds,
@@ -446,12 +445,12 @@ async function plans(view: SchedulingView, context: ActorContext) {
             dependsOnActionIds: sorted(action.dependsOnActionIds),
             handlesResponsibilityIds: sorted(action.handlesResponsibilityIds),
           },
-          goal: {
+          goal: goal ? {
             id: goal.id,
             summary: goal.summary,
             status: goal.status,
             sourceIds: sorted(goal.sourceIds),
-          },
+          } : null,
           responsibilities: ordered(responsibilities.map(responsibilitySemantic)),
           evidence: proof.values,
         },
@@ -539,12 +538,10 @@ async function planReconsiderations(
       (!savedReview || Date.parse(savedReview.nextReviewAt) <= Date.parse(view.storyAt)) &&
       ['active', 'waiting', 'blocked'].includes(plan.status) &&
       context.basis(plan) &&
-      goal &&
-      ['active', 'deferred'].includes(goal.status) &&
-      context.basis(goal) &&
+      (plan.goalId === null || (goal && ['active', 'deferred'].includes(goal.status) && context.basis(goal))) &&
       !existing.some((c) => c.planReview?.planId === plan.id)
     ) {
-      const sourceIds = sorted([...plan.sourceIds, ...goal.sourceIds]);
+      const sourceIds = sorted([...plan.sourceIds, ...(goal?.sourceIds ?? [])]);
       if (sourceIds.every((id) => context.sources.has(id)))
         out.push(
           await candidate(view, context, {
@@ -590,9 +587,7 @@ async function planReconsiderations(
       !['active', 'waiting', 'blocked'].includes(plan.status) ||
       !context.basis(plan) ||
       !conditionTimesValid(plan.triggers) ||
-      !goal ||
-      !['active', 'deferred'].includes(goal.status) ||
-      !context.basis(goal) ||
+      (plan.goalId !== null && (!goal || !['active', 'deferred'].includes(goal.status) || !context.basis(goal))) ||
       (plan.nextActionId && existing.some((c) => c.actionId === plan.nextActionId)) ||
       !agentConditionsReady(
         context.snapshot,
@@ -606,7 +601,7 @@ async function planReconsiderations(
     const proof = evidence(context, reviewConditions);
     const sourceIds = sorted([
       ...plan.sourceIds,
-      ...(refs.length ? [] : goal.sourceIds),
+      ...(refs.length ? [] : (goal?.sourceIds ?? [])),
       ...proof.sourceIds,
     ]);
     if (sourceIds.some((id) => !context.sources.has(id))) continue;

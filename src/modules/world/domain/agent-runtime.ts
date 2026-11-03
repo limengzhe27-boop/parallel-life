@@ -37,7 +37,8 @@ export type AgentGoal = AgentBasis & {
 };
 export type AgentPlan = AgentBasis & {
   id: string;
-  goalId: string;
+  /** Optional long-term purpose; a concrete plan does not need a duplicate goal. */
+  goalId: string | null;
   summary: string;
   status: 'active' | 'waiting' | 'blocked' | 'finished' | 'withdrawn';
   actionIds: string[];
@@ -70,21 +71,13 @@ export type AgentResponsibility = AgentBasis & {
   resolutionResultId?: string;
   endReason?: string;
 };
-/** Only supported immediate operations can omit a goal; this is not an execution grant. */
-export function isStandaloneAgentAction(action: {
-  goalId: string | null;
-  capability: string;
-}): boolean {
-  return (
-    action.goalId === null &&
-    ['media.generate_image', 'media.generate_video', 'media.share', 'position.establish'].includes(
-      action.capability,
-    )
-  );
+/** Absence of a long-term goal is not an execution grant; capability and prerequisites still apply. */
+export function isStandaloneAgentAction(action: { goalId: string | null }): boolean {
+  return action.goalId === null;
 }
 export type AgentAction = AgentBasis & {
   id: string;
-  /** Immediate media may execute without inventing a persistent goal or plan. */
+  /** Immediate operations may execute without inventing a persistent goal or plan. */
   goalId: string | null;
   /** Registered kernel capability; never a story-specific natural-language execution sentence. */
   capability: string;
@@ -157,6 +150,7 @@ export type ActorAgentState = AgentIdentity & {
   actions: AgentAction[];
   responsibilities: AgentResponsibility[];
   decisions: AgentPlayerDecision[];
+  /** Read projection from episode receipts; legacy snapshots may contain a stored copy. */
   episodeParticipations?: import('./agent-narrative.ts').ActorEpisodeParticipation[];
   /** Persistent pending questions are separate from the current channel/topic focus. */
   questions?: import('./agent-questions.ts').AgentQuestion[];
@@ -283,7 +277,7 @@ export type AgentCandidate = AgentIdentity & {
   wakeCue?: string;
   requiresCoordination: boolean;
   /** The exact private plan/result selected by the existing scheduler. */
-  planReview?: { planId: string; goalId: string; result?: AgentActionResult };
+  planReview?: { planId: string; goalId: string | null; result?: AgentActionResult };
 };
 
 export function emptyActorAgentState(

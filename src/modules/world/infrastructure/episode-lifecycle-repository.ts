@@ -10,6 +10,34 @@ import {
 } from '../domain/episode-participation-lifecycle.ts';
 import { agentConditionsReady } from '../application/agent-condition-checks.ts';
 
+/** Participation is a read projection of committed receipts, never a second mutable ledger. */
+export async function readActorEpisodeParticipations(
+  sql: SqlClient, owner: string,
+  state: import('../domain/agent-runtime.ts').ActorAgentState,
+): Promise<NonNullable<import('../domain/agent-runtime.ts').ActorAgentState['episodeParticipations']>> {
+  const rows = (await sql.query(`SELECT r.id,er.choice,er.reason,er.source_ids,er.world_version,
+    e.payload#>'{data,agentRuntime,episodeDecision}' AS decision
+    FROM parallel_life.agent_episode_requests r
+    JOIN parallel_life.agent_episode_receipts er ON er.world_id=r.world_id AND er.owner_id=r.owner_id
+      AND er.id=r.receipt_id AND er.request_id=r.id AND er.input_receipt_id=r.input_receipt_id
+    JOIN parallel_life.agent_attempts a ON a.world_id=er.world_id AND a.owner_id=er.owner_id
+      AND a.id=er.attempt_id AND a.status='committed' AND a.actor_id=r.actor_id
+      AND a.input_receipt_id=er.input_receipt_id AND a.engine_epoch=r.engine_epoch AND a.event_id=er.source_event_id
+    JOIN parallel_life.world_events e ON e.world_id=er.world_id AND e.owner_id=er.owner_id
+      AND e.id=er.source_event_id AND e.version=er.world_version
+    JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id
+      AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+    WHERE r.world_id=$1 AND r.owner_id=$2 AND r.actor_id=$3 AND r.status='consumed'
+      AND er.world_version<=$4 ORDER BY er.world_version,r.id`,
+    [state.worldId,owner,state.actorId,state.projectedWorldVersion])).rows;
+  return rows.map(row => {
+    const decision = { requestId: row.id, choice: row.choice, reason: row.reason, sourceIds: row.source_ids };
+    if (!isDeepStrictEqual(row.decision, decision))
+      throw Object.assign(Error('EPISODE_LIFECYCLE_SOURCE_CONFLICT'), { code: 'EPISODE_LIFECYCLE_SOURCE_CONFLICT' });
+    return { id: row.id, choice: row.choice, reason: row.reason, sourceIds: row.source_ids, recordedAtVersion: row.world_version };
+  });
+}
+
 /** Read-only, from real committed consideration receipts and the already authorized actor view. */
 export async function readEpisodeLifecycleContext(
   sql: SqlClient,
@@ -167,7 +195,8 @@ export async function projectActiveEpisodeWithdrawalInTransaction(
     state: import('../domain/agent-runtime.ts').ActorAgentState;
   },
 ): Promise<void> {
-  const { attempt, state, eventId } = input;
+  const { attempt, eventId } = input;
+  const state = { ...input.state, episodeParticipations: await readActorEpisodeParticipations(sql, owner, input.state) };
   if (
     !state.episodeParticipations?.length ||
     (![...state.goals, ...state.responsibilities].some((item) => item.status === 'withdrawn') &&

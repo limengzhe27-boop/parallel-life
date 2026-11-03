@@ -199,7 +199,7 @@ export function actorStateContextPayload(
     })),
     plans: objects(state.plans).map((p) => ({
       id: text(p.id),
-      goalId: text(p.goalId),
+      goalId: nullableText(p.goalId),
       summary: text(p.summary),
       status: text(p.status) as typeof p.status,
       sourceIds: strings(p.sourceIds),

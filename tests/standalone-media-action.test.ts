@@ -109,10 +109,9 @@ test('immediate media executes without invented goal or plan and retains unrelat
   }
 });
 
-test('null goal is not a general bypass for other capabilities or missing permission/source', () => {
+test('standalone operations omit synthetic goals but retain permission and source checks', () => {
   const { context, proposal } = fixture('travel.begin');
-  assert.throws(() => validateAgentProposal(context, proposal), /UNKNOWN_GOAL/);
-  assert.equal(eligibility(context, proposal).status, 'blocked');
+  assert.doesNotThrow(() => validateAgentProposal(context, proposal));
   proposal.actions[0]!.capability = 'media.generate_image';
   context.channel.allowedCapabilities = [];
   assert.throws(() => validateAgentProposal(context, proposal), /UNAUTHORIZED_CAPABILITY/);

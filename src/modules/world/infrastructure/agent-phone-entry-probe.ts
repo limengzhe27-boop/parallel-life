@@ -233,9 +233,9 @@ export async function readAgentPhoneEntryProbe(
           .filter(
             (p: any) =>
               ['active', 'waiting', 'blocked'].includes(p.status) &&
-              (state.goals ?? []).some(
+              (p.goalId === null || (state.goals ?? []).some(
                 (g: any) => g.id === p.goalId && ['active', 'deferred'].includes(g.status),
-              ) &&
+              )) &&
               (p.nextActionId || p.triggers?.length),
           )
           .map((p: any) => ({

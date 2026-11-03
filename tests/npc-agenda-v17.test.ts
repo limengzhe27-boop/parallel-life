@@ -168,7 +168,7 @@ test('paid v16 keeps classification semantics rather than being decoded as v17',
 test('v17 and purchased v16 streaming preserve each original execution envelope', async () => {
   const { NpcStreamParser } =
     await import('../src/modules/world/infrastructure/npc-stream-parser.ts');
-  for (const protocol of ['npc-wire-v18', 'npc-wire-v17', 'npc-wire-v16', 'npc-wire-v15']) {
+  for (const protocol of ['npc-wire-v19', 'npc-wire-v17', 'npc-wire-v16', 'npc-wire-v15']) {
     const parser = new NpcStreamParser({
       channelKind: 'private',
       inputOrigin: 'wake',
@@ -191,7 +191,7 @@ test('v18 scheduled work has one decision: messages/actions/plans, no private re
   const { c } = fixture();
   for (const speaks of [false, true]) {
     const raw = {
-      protocol: 'npc-wire-v18',
+      protocol: 'npc-wire-v19',
       statements: speaks ? [{ text: '我先整理自己的安排。', dependsOnActionIds: [] }] : [],
       executions: [],
       changes: null,
@@ -202,7 +202,7 @@ test('v18 scheduled work has one decision: messages/actions/plans, no private re
     assert.equal('agendaReview' in p, false);
   }
   const raw = wire();
-  raw.protocol = 'npc-wire-v18';
+  raw.protocol = 'npc-wire-v19';
   raw.changes = {
     planIntents: [
       { kind: 'create', ref: 'next', summary: '准备本人材料', sourceIds: ['source:2'] },
@@ -223,7 +223,7 @@ test('v18 does not force changes merely because the input is a scheduled review'
   assert.equal(format.format, 'json_schema');
   if (format.format !== 'json_schema') return;
   const schema = format.schema as any;
-  assert.equal(schema.properties.protocol.enum[0], 'npc-wire-v18');
+  assert.equal(schema.properties.protocol.enum[0], 'npc-wire-v19');
   const choices = schema.properties.changes.anyOf;
   assert.ok(choices.some((x: any) => x.type === 'null'));
   assert.equal(choices.find((x: any) => x.type === 'object').properties.agendaReview, undefined);

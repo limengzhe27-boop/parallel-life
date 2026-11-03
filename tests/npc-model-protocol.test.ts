@@ -740,38 +740,23 @@ test('v2 media choice reaches the original proposal with scoped source and state
   );
 });
 
-test('native goal and superseded plan are scoped together, never cross-goal', () => {
+test('immediate tool grammar does not multiply with the actor goal graph', () => {
   const { c } = fixture();
-  c.state.goals = ['a', 'b', 'deferred'].map((id) => ({
-    id,
-    summary: id,
-    status: id === 'deferred' ? ('deferred' as const) : ('active' as const),
-    sourceIds: ['input'],
-    resultIds: [],
+  const before: any = npcResponseFormat(c.state, 'forbidden', c);
+  c.state.goals = ['a', 'b', 'deferred'].map(id => ({
+    id, summary: id, status: id === 'deferred' ? 'deferred' as const : 'active' as const,
+    sourceIds: ['input'], resultIds: [],
   }));
-  c.state.plans = ['a', 'b', 'deferred'].map((id) => ({
-    id: `plan-${id}`,
-    goalId: id,
-    summary: id,
-    sourceIds: ['input'],
-    status: 'active' as const,
-    actionIds: [],
-    nextActionId: null,
-    triggers: [],
-    missingConditions: [],
+  c.state.plans = ['a', 'b', 'deferred'].map(id => ({
+    id: `plan-${id}`, goalId: id, summary: id, sourceIds: ['input'], status: 'active' as const,
+    actionIds: [], nextActionId: null, triggers: [], missingConditions: [],
   }));
-  const format: any = npcResponseFormat(c.state, 'forbidden', c);
-  const branches = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array')
-    .items.anyOf;
-  assert.equal(branches.length, 3);
-  const fresh = branches.find((b: any) => b.properties.goal.properties.kind.enum[0] === 'new');
-  assert.deepEqual(fresh.properties.plan.properties.supersedesPlanId, { type: 'null' });
-  for (const id of ['a', 'b']) {
-    const branch = branches.find((b: any) => b.properties.goal.properties.id?.enum?.[0] === id);
-    assert.deepEqual(branch.properties.plan.properties.supersedesPlanId.anyOf[0].enum, [
-      `plan-${id}`,
-    ]);
-  }
+  const after: any = npcResponseFormat(c.state, 'forbidden', c);
+  const encoded = JSON.stringify(after.schema.properties.executions);
+  assert(!encoded.includes('supersedesPlanId'));
+  assert(!encoded.includes('"goal"'));
+  assert(!encoded.includes('"plan"'));
+  assert.equal(executionBranches(before).length, executionBranches(after).length);
 });
 
 test('v2 refusal does not generate an action or satisfy a media dependency', () => {
@@ -862,8 +847,9 @@ test('native grammar uses one execution channel and advertises current channel c
   const planned = branches.find(({ action }) =>
     action.properties.capability.enum.includes('appointment.propose'),
   )!.execution;
-  assert.ok(planned.required.includes('goal'));
-  assert.ok(planned.required.includes('plan'));
+  assert.deepEqual(planned.required, ['ref', 'action']);
+  assert.equal(planned.properties.goal, undefined);
+  assert.equal(planned.properties.plan, undefined);
   assert.equal((format.schema.properties as any).mediaDecision, undefined);
   assert.deepEqual(Object.keys(format.schema.properties as object), [
     'protocol',
@@ -1115,11 +1101,11 @@ test('native new work cannot reference terminal goals or replace terminal plans'
   const execution = format.schema.properties.executions.anyOf.find(
     (node: any) => node.type === 'array',
   ).items.properties;
-  const existing = execution.goal.anyOf.find(
-    (node: any) => node.properties.kind.enum[0] === 'existing',
-  );
-  assert.deepEqual(existing.properties.id.enum, ['active-goal']);
-  assert.deepEqual(execution.plan.properties.supersedesPlanId, { type: 'null' });
+  assert.equal(execution.goal, undefined);
+  assert.equal(execution.plan, undefined);
+  const changes = format.schema.properties.changes.anyOf.find((node: any) => node.type === 'object');
+  assert(!JSON.stringify(changes.properties.planIntents).includes('finished-plan'));
+  assert(!JSON.stringify(changes.properties.planIntents).includes('terminal-goal'));
 });
 
 test('native player decision identifiers bind current input and visible responsibility without rewriting history', () => {

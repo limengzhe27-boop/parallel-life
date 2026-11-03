@@ -41,7 +41,7 @@ export function hasHandoffFollowup(state: ScopedState | null, scope: Scope): boo
       active: !['finished', 'withdrawn'].includes(p.status),
       seed: based(p.sourceIds) || conditionBased(p.triggers),
       links: [
-        key('goal', p.goalId),
+        ...(p.goalId ? [key('goal', p.goalId)] : []),
         ...(p.actionIds ?? []).map((id) => key('action', id)),
         ...(p.nextActionId ? [key('action', p.nextActionId)] : []),
         ...conditionLinks(p.triggers),

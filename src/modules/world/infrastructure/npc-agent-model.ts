@@ -116,12 +116,12 @@ const WIRE_SYSTEM = {
 最终模型传输格式：protocol:"${NPC_WIRE_PROTOCOL}"，statements、executions、changes。所有状态判断字段放入changes；没有需要记录的变化时changes:null，不为闲聊填完整状态。明确玩家决定、待处理事件选择、本人持续计划改变时才提供changes对象。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。`,
 
   sourcesAndActions: `所有sourceId/sourceIds/basisSourceIds/questionSourceId使用wireCatalog.sources的本轮短ref（如source:1）；当前输入用wireCatalog.inputSourceRef，不猜编号、hash或raw ID。目录同时说明来源类型/时间/范围，usage省略为channel_context，private_strategy不授权公开披露。旧来源完整保留，服务端附加当前输入不增加权限。
-只有executions一个动作通道，最多当前一步；其它安排保留在计划里，不在goals/planIntents重复同一执行。代码只分配机械编号，已有目标/计划用本人可见id，supersedesPlanId仅同目标旧计划或null；targetIds/preconditions/dependsOnActionIds/handlesResponsibilityIds省略默认空。依赖成功的statement用dependsOnActionIds:["execution:本轮ref"]，必须有对应执行。
+只有executions一个动作通道，最多当前一步；其它安排保留在计划里，不在goals/planIntents重复同一执行。代码只分配机械编号，即时动作只输出ref和action，不建goal/plan；持续安排使用planIntents，已有目标/计划用本人可见id；targetIds/preconditions/dependsOnActionIds/handlesResponsibilityIds省略默认空。依赖成功的statement用dependsOnActionIds:["execution:本轮ref"]，必须有对应执行。
 即时图片格式：executions:[{ref:"action_1",action:{capability:"media.generate_image",parameters:{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence中一个"}}}]，不建goal/plan，不填机械来源。拍照、留影、场景、插画、草图和设计构想均可描述；构想用scene，不冒充已施工/已核实。新肖像不要求旧照片或实体相机，外观按人设、有依据的场景或中性背景。
 愿意本轮发图时，先输出符合本人性格的一条正常准备消息，同次提出图片动作；不照抄交付模板、不假称拍好/发出、不额外要求确认。准备消息的dependsOnActionIds必须为空数组[]，因为意愿不依赖生成成功。真实图片由后台单独投递到聊天/相册，入队不等于交付。可以按本人立场拒绝。历史own_media_completion、pending或failed均不授权重复生成；无关聊天executions=[]，再要现在的照片须新动作，不能用旧结果冒充。
 appointment.reschedule专用parameters:{appointmentId,at,placeId:已有id或null,reason:说明或null}，不写title或猜id。其余能力用{name,value}数组。media.generate_video用actionDescription及purpose(scene_moment|character_action)，仍须授权。moment.publish是公开动态，item.deliver是实体交接，不能冒充私发/生图；没有既有可分享图片目录，不猜assetId/链接。计划增量原本就会事务保存，不使用plan.record代替实际工作。
-没有即时执行、但持续安排确实改变时才用planIntents。create.goal可省略，由summary建立目标；replace沿用原目标并引用旧planId；update只改本人已有计划；close仅关闭计划。create/replace省略nextStep表示未完成active，update省略则保留。nextStep仅wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}或blocked:{kind:"blocked",missing:[缺能力/证据]}。
-goals仅更新本人可见非终态已有目标的summary/status/sourceIds/endReason，不手写新goalId/resultIds；新目标从create.goal或executions.goal表达。goals未变[]或null，planIntents未变[]。不要在不同通道同时改同一目标/计划，不以update/close抹去执行中动作，不改finished/withdrawn旧计划。`,
+没有即时执行、但持续安排确实改变时才用planIntents。create.goal可省略，计划summary本身表达目的，不自动建立重复目标；replace沿用原目标并引用旧planId；update只改本人已有计划；close仅关闭计划。create/replace省略nextStep表示未完成active，update省略则保留。nextStep仅wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}或blocked:{kind:"blocked",missing:[缺能力/证据]}。
+goals仅更新本人可见非终态已有目标的summary/status/sourceIds/endReason，不手写新goalId/resultIds；确有独立长期目标时从create.goal表达。goals未变[]或null，planIntents未变[]。不要在不同通道同时改同一目标/计划，不以update/close抹去执行中动作，不改finished/withdrawn旧计划。`,
   inputInterpretation: `当前输入只用inputInterpretation表达一次：{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。reply只选playerReplyTargets的targetRef（如reply:1），给relation和decision，代码绑定问题来源、责任和修订，不抄机械字段。仅处理本渠道/会话确实相关的问题；无关/不确定保持未决，拒绝回答不等于拒绝邀请。收到所需答复后转本人工作或真实剩余等待，不复制旧等待。`,
   consideration: `consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时必须在同次changes.consideration给出选择，不相关用quiet而非null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。`,
   replyAndFocus: `appointment.propose用{name,value}参数title、at、已有placeId；按世界当地时间和明确依据给带时区时间，responseContract.timeInput不是约定；缺时间才问，不凭空加“两小时后”，发邀约不等于答应或到场。
@@ -889,7 +889,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       goals?: { id: string; status: string }[];
       plans?: {
         id: string;
-        goalId: string;
+        goalId: string | null;
         status: string;
         actionIds?: string[];
         nextActionId?: string | null;

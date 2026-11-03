@@ -80,6 +80,7 @@ export function nativePlanIntentIds(
 export function compileNpcPlanIntents(
   context: AgentValidationContext,
   raw: unknown,
+  options: { standalone?: boolean } = {},
 ): { goals: AgentGoal[]; plans: AgentPlan[] } {
   // No null/default semantics here: v6 owns whether an absent optional array is [].
   const parsed = NativePlanIntentsSchema.safeParse(raw);
@@ -129,7 +130,7 @@ export function compileNpcPlanIntents(
     const plan = matches[0];
     if (matches.length !== 1 || !plan || ['finished', 'withdrawn'].includes(plan.status))
       invalid('NPC_PLAN_INTENT_PLAN');
-    knownGoal(plan.goalId);
+    if (plan.goalId !== null) knownGoal(plan.goalId);
     if (targets.has(id)) invalid('NPC_PLAN_INTENT_DUPLICATE_TARGET');
     targets.add(id);
     for (const actionId of plan.actionIds) {
@@ -187,7 +188,7 @@ export function compileNpcPlanIntents(
       const ids = nativePlanIntentIds(context, intent.ref);
       reserve(ids.planId);
       id = ids.planId;
-      if (intent.kind === 'create' && (!intent.goal || intent.goal.kind === 'new')) {
+      if (intent.kind === 'create' && (intent.goal?.kind === 'new' || (!intent.goal && !options.standalone))) {
         const goal = intent.goal;
         const goalSources = goal?.kind === 'new' ? goal.sourceIds : intent.sourceIds;
         basis(goalSources);
@@ -239,7 +240,7 @@ export function compileNpcPlanIntents(
     const preserveStep = intent.kind === 'update' && !next;
     const plan: AgentPlan = {
       id,
-      goalId: resolvedGoalId!,
+      goalId: resolvedGoalId ?? null,
       summary: intent.summary,
       sourceIds,
       status: preserveStep

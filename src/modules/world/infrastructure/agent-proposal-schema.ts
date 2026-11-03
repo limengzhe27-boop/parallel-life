@@ -114,7 +114,7 @@ export const AgentProposalSchema = z.strictObject({
       z.strictObject({
         ...Basis,
         id: Id,
-        goalId: Id,
+        goalId: Id.nullable(),
         summary: Text,
         status: z.enum(['active', 'waiting', 'blocked', 'finished', 'withdrawn']),
         actionIds: z.array(Id).max(32).default([]),

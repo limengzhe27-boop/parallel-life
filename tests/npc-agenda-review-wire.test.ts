@@ -186,7 +186,7 @@ test('v7 provider grammar binds review scope and source validation remains expli
     player = fixture(false);
   const a: any = npcResponseFormat(own.c.viewState!, 'forbidden', own.c),
     b: any = npcResponseFormat(player.c.viewState!, 'forbidden', player.c);
-  assert.deepEqual(a.schema.properties.protocol.enum, ['npc-wire-v18']);
+  assert.deepEqual(a.schema.properties.protocol.enum, ['npc-wire-v19']);
   assert.equal(npcChangeObject(a.schema).properties.agendaReview, undefined);
   assert.equal(npcChangeObject(b.schema).properties.agendaReview, undefined);
   reject(own.c, { ...own.wire, agendaReview: null });

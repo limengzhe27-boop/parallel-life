@@ -87,7 +87,7 @@ export function authorizedAgentState(
     viewState.plans = viewState.plans.filter(
       (item) =>
         based(item) &&
-        goals.has(item.goalId) &&
+        (item.goalId === null || goals.has(item.goalId)) &&
         item.actionIds.every((id) => actions.has(id)) &&
         (item.nextActionId === null ||
           (item.actionIds.includes(item.nextActionId) && actions.has(item.nextActionId))) &&
@@ -287,7 +287,7 @@ export function validateAgentProposal(
             context.channel.threadId === context.state.actorId &&
             decision.requestId === context.episodeManifest.requestId &&
             decision.sourceIds.includes(context.episodeManifest.sourceId))) &&
-        !context.state.episodeParticipations?.some((p) => p.id === decision.requestId) &&
+        !(context.viewState ?? context.state).episodeParticipations?.some((p) => p.id === decision.requestId) &&
         ['engage', 'decline', 'defer', 'need_information', 'quiet'].includes(decision.choice) &&
         typeof decision.reason === 'string' &&
         decision.reason.trim().length > 0 &&
@@ -413,7 +413,7 @@ export function validateAgentProposal(
       );
       superseded.add(old!.id);
     }
-    requireValid(goals.has(plan.goalId), 'UNKNOWN_GOAL');
+    requireValid(plan.goalId === null || goals.has(plan.goalId), 'UNKNOWN_GOAL');
     for (const id of plan.actionIds)
       requireValid(actions.get(id)?.goalId === plan.goalId, 'INVALID_PLAN_ACTION');
     requireValid(
@@ -428,7 +428,7 @@ export function validateAgentProposal(
       );
     conditions(plan.triggers);
     if (plan.status === 'active')
-      requireValid(goals.get(plan.goalId)?.status === 'active', 'PLAN_GOAL_NOT_ACTIVE');
+      requireValid(plan.goalId === null || goals.get(plan.goalId)?.status === 'active', 'PLAN_GOAL_NOT_ACTIVE');
     // Do not retroactively invalidate unchanged historical plans on ordinary dialogue.
     if (!previous || !sameValue(previous, plan)) {
       const missing = plan.missingConditions.some((text) => text.trim().length > 0);
@@ -808,24 +808,12 @@ export function reduceActorAgentState(
     context.input.origin !== 'player' || statements.length > 0 || proposal.recallLast === true,
     'REPLY_DEPENDS_ON_UNEXECUTED_ACTION',
   );
+  // Participation is derived from the authoritative episode receipt on the next read.
+  const { episodeParticipations: _historicalParticipation, ...persistentState } = context.state;
   return {
     questionChanges: applyAgentQuestionChanges(context, proposal).applied,
     state: {
-      ...context.state,
-      ...(proposal.episodeDecision
-        ? {
-            episodeParticipations: [
-              ...(context.state.episodeParticipations ?? []),
-              {
-                id: proposal.episodeDecision.requestId,
-                choice: proposal.episodeDecision.choice,
-                reason: proposal.episodeDecision.reason,
-                sourceIds: [...proposal.episodeDecision.sourceIds],
-                recordedAtVersion: worldVersion,
-              },
-            ],
-          }
-        : {}),
+      ...persistentState,
       ...(context.state.questions !== undefined ||
       proposal.replyAssessments?.length ||
       proposal.questionWithdrawals?.length

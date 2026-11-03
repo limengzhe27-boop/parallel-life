@@ -50,9 +50,9 @@ export function questionProgressReason(
   const waitingPlan = previous.plans.some(
     (p) =>
       ['waiting', 'blocked'].includes(p.status) &&
-      previous.goals.some(
+      (p.goalId === null || previous.goals.some(
         (g) => g.id === p.goalId && !['fulfilled', 'withdrawn'].includes(g.status),
-      ),
+      )),
   );
   const changes = runtime.questionChanges.filter((change: any) => {
     if (

@@ -36,7 +36,8 @@ import {
 } from './npc-media-intent.ts';
 
 export const NPC_WIRE_PROTOCOL = 'npc-wire-v14'; // historical decoder identifier
-export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v18';
+export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v19';
+export const PREVIOUS_IMPLICIT_GOAL_WIRE_PROTOCOL = 'npc-wire-v18';
 export const PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL = 'npc-wire-v17';
 export const PREVIOUS_INCREMENTAL_WIRE_PROTOCOL = 'npc-wire-v16';
 export const PREVIOUS_DELTA_WIRE_PROTOCOL = 'npc-wire-v15';
@@ -566,7 +567,7 @@ export function npcResponseFormat(
   const planVariants = properties.planIntents!.items!.anyOf!;
   const validPlans = (state.plans ?? []).filter(
     (p) =>
-      editableGoals.includes(p.goalId) &&
+      (p.goalId === null || editableGoals.includes(p.goalId)) &&
       !['finished', 'withdrawn'].includes(p.status) &&
       p.actionIds.every((id) =>
         state.actions?.some(
@@ -616,7 +617,7 @@ export function npcResponseFormat(
           scopeGoal(p, editableGoals);
         } else if (goal) {
           // No visible existing goal: the optional goal is omitted and the
-          // compiler derives one from the plan summary/source.
+          // plan itself carries its purpose; no duplicate goal is created.
           delete p.properties!.goal;
           if (Array.isArray(p.required)) p.required = p.required.filter((f) => f !== 'goal');
         }
@@ -634,7 +635,7 @@ export function npcResponseFormat(
   const replaceablePlanIds = (state.plans ?? [])
     .filter(
       (plan) =>
-        goalIds.includes(plan.goalId) &&
+        (plan.goalId !== null && goalIds.includes(plan.goalId)) &&
         !['finished', 'withdrawn'].includes(plan.status) &&
         !plan.actionIds.some((id) =>
           state.actions?.some((a) => a.id === id && a.status === 'executing'),
@@ -898,6 +899,26 @@ export function npcResponseFormat(
         anyOf: [immediate, ...(executionArray.items.anyOf ?? [executionArray.items])],
       };
   }
+  // Tools already identify the operation. Do not manufacture a parallel goal/plan
+  // for an immediate action; explicit lasting intentions use planIntents.
+  if (executionArray?.items) {
+    const branches = executionArray.items.anyOf ?? [executionArray.items];
+    const seen = new Set<string>();
+    const immediateBranches = branches.map((node) => {
+      const copy = structuredClone(node);
+      if (copy.properties) {
+        delete copy.properties.goal;
+        delete copy.properties.plan;
+        if (Array.isArray(copy.required)) copy.required = copy.required.filter((key: string) => key !== 'goal' && key !== 'plan');
+      }
+      return copy;
+    }).filter(node => {
+      const key = JSON.stringify(node);
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+    executionArray.items = immediateBranches.length === 1 ? immediateBranches[0] : { anyOf: immediateBranches };
+  }
   const changes = Object.fromEntries(
     Object.entries(schema.properties!).filter(
       ([key]) => !['protocol', 'statements', 'executions'].includes(key),
@@ -1091,6 +1112,7 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     'protocol' in raw &&
     [
       CURRENT_NPC_WIRE_PROTOCOL,
+      PREVIOUS_IMPLICIT_GOAL_WIRE_PROTOCOL,
       PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
       PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
       PREVIOUS_DELTA_WIRE_PROTOCOL,
@@ -1764,7 +1786,8 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     .strictObject({
       protocol: z.enum([
         CURRENT_NPC_WIRE_PROTOCOL,
-        PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
+        PREVIOUS_IMPLICIT_GOAL_WIRE_PROTOCOL,
+      PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
         PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
         PREVIOUS_DELTA_WIRE_PROTOCOL,
       ]),
@@ -1853,7 +1876,8 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
   );
   const executions = mapped.executions.map((item) => {
     if (!item || typeof item !== 'object') throw Error('NPC_EXECUTION_INTENT_SHAPE');
-    if (!('goal' in item) && !('plan' in item)) return item;
+    if (!('goal' in item) && !('plan' in item) &&
+      (envelope.protocol !== CURRENT_NPC_WIRE_PROTOCOL || ['media.generate_image', 'position.establish'].includes(item.action?.capability))) return item;
     const intent = structuredClone(item);
     if (intent.plan?.supersedesPlanId && touched.has(intent.plan.supersedesPlanId))
       throw Error('NPC_V14_DUPLICATE_PLAN_REPLACEMENT');
@@ -1868,14 +1892,14 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     const normalized = normalizeNpcImageExecutionParameters([intent])[0] as any;
     for (const part of [
       normalized.action,
-      normalized.plan,
+      ...(normalized.plan ? [normalized.plan] : []),
       ...(normalized.goal?.kind === 'new' ? [normalized.goal] : []),
     ])
       part.sourceIds = basis(part.sourceIds ?? []);
     return normalized;
   });
-  const compiled = compileNpcExecutionProposal(context, executions);
-  const plans = compileNpcPlanIntents(context, planIntents);
+  const compiled = compileNpcExecutionProposal(context, executions, { standaloneTools: envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL });
+  const plans = compileNpcPlanIntents(context, planIntents, { standalone: envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL });
   const occupied = new Set(
     [...compiled.proposal.goals, ...compiled.proposal.plans, ...compiled.proposal.actions].map(
       (p) => p.id,
@@ -1885,7 +1909,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     if (
       compiled.proposal.plans.some(
         (p) =>
-          p.goalId === plan.goalId ||
+          (plan.goalId !== null && p.goalId === plan.goalId) ||
           p.id === plan.id ||
           p.supersedesPlanId === plan.id ||
           (plan.supersedesPlanId &&
@@ -1991,7 +2015,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
   );
   // New turns use the same proposal path for player, director and scheduled input.
   // Historical paid responses keep their original review validation below.
-  if (envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL) return proposal;
+  if ([CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_IMPLICIT_GOAL_WIRE_PROTOCOL].includes(envelope.protocol)) return proposal;
   const agenda = change.agendaReview ?? null;
   if (isOwnAgendaReviewInput(context.input) !== (agenda !== null))
     throw Error('NPC_AGENDA_REVIEW_SCOPE');
