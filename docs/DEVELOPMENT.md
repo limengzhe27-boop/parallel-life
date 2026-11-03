@@ -3553,3 +3553,17 @@ ARCHITECTURE-SIMPLIFY-37 2026-11-03 独立审查38并入原任务（仅清单更
 ARCHITECTURE-SIMPLIFY-37-R 2026-11-03集成：R1/R2-T/R3-C及episodeunknown准入已合并；已提交回执直读、原task定向恢复、当前工作视图、媒体observedAtStory退休。最终check4189/build通过，kernel PG15、recovery+manifest18、media4、bounded1；原2fb正常advance真实3调用全部quiet，1原blocked事件交接consumed但0消息/0计划，主动演绎仍未通过。F9/F10和长历史决定超预算、无attempt跨版本task仍待续；详见37报告。本地3218切换待记录，无Vercel。
 
 37-R本地收口：b8545058已构建更新3218/build-simplify39；web10568、queue10618、proactive10621均健康，3219未动，无生产部署。R1/R2-T/R3-C技术子任务按限定范围完成；39-episodeunknown已接线及原档证明不同事件可执行，原unknown记录不重买。原2fb仍0新消息，整体主动演绎未完成，不勾选37总任务。
+
+|ACTOR-QUIET-DIAGNOSIS-40|[ ] 待验收（独立诊断完成，修复未实施）|astra-quiet-diagnosis40-20261103；非37集成人，诊断自审完成|主目录98c89d7a未改业务；[诊断报告](task-reports/ACTOR-QUIET-DIAGNOSIS-40.md)及忽略.local/quiet-diagnosis40-*证据；本轮报告范围停写交接|原3调用/导演原raw/最初engage及本地克隆READ ONLY交叉取证：旧等待被再次派成新机会；问题与followUp未关联；导演漏接迁移后的参与回执。原raw纯解析复现新ID、真实快照合成答复无关联拒绝/关联后通过；113/113聚焦测试、31证据链接检查通过。0新增模型/业务与存档修改/服务启动/生产/部署，未全量check/build或真实演绎；后两次空输出无理由，不补造心理解释。修复建议待37集成人采用，37总任务不代勾。|
+
+|ACTOR-EVENT-CONTINUITY-41|[ ] 三处技术接线完成，原档主动推进待续|root-episode41唯一集成；41-A导演回执/41-B提问关联并行|main98c89d7a；root独占director-agent-model.ts、director-model-protocol.ts、agent-narrative-repository.ts、npc-agent-kernel.ts及必要现有领域/恢复接线与tests/report；子任务独占范围另登记|先导演认证参与读取，再提问-责任-答复，最后同事项新依据准入；保留原档未接受状态，不新建重复状态账；必要check/build/PG、原2fb有限真实验收、3218更新，未完成记录。|
+
+|41-A|[ ] 待验收|current-work41-a；root集成|current-work39/codex/director-participation41；director-snapshot-repository.ts、新专属tests/report|导演读取认证人物参与回执，保持choice/reason，0模型及原档/进程修改；共享helper仅root接线。|
+
+|41-B|[ ] 待验收|codex-41-b；root唯一集成|独立followup-question41-b，98c89d7a；仅npc-model-protocol.ts（已冻结）、新tests/npc-followup-question41.test.ts（已冻结）、新增独占tests/integration/followup-question41.test.ts、docs/task-reports/41-B.md|统一followup责任与同轮唯一问题绑定；新7+回归53/53/type0/boundaries766/build通过；codex/followup-question41-b冻结；追加PG55641原私聊流式/非流式四种决定9/9、重复receipt不重买/问题不重复/prefix不可变，追加SHA5cc6d545；旧canonical无关联事件下一轮原service派生并持久关联undecided、raw/event保持不变，10/10/type0；后继5c9e1e36；流式final归root、旧档读投影归41-C，0新字段/模型/原档修改。|
+
+|41-C|[ ] 待验收|wake-recovery39；root集成|state-prune37/codex/episode-question-links41；仅新增episode-question-links.ts、专属tests/report|只读认证旧同轮提问与唯一player followup；3/3+typecheck/边界通过；原2fb只读PG仅v63问题派生关联、原档不变；root接snapshot/kernel，0模型。|
+
+41-A 冻结3ce27d1b；导演接原认证参与读取，不写JSON。独立PG55641 4/4、boundaries766/typecheck通过（依赖root helper当前epoch JOIN+runtime投影一致性WIP，未包含本提交）；0模型/用户档修改；N人物增加N认证读，未批量。报告DIRECTOR-PARTICIPATION-41-A.md。
+
+ACTOR-EVENT-CONTINUITY-41集成收口：41-A/41-B/41-C技术验收通过，主目录业务d420e16d、最终旧档测试8c1a93a1；check4201/build、导演PG4、followup PG10（含旧结构下一轮正常保存未决定）通过。原2fb完整snapshot恢复v63问题-责任关联，raw及未接受状态不变；正常advance no_candidates/0模型/0消息，持续主动推进未通过。3218 build-episode41已更新，web26899/queue27014/proactive26936健康，3219未动，无生产部署。详细剩余和证据见ACTOR-EVENT-CONTINUITY-41.md；37历史精简其余项不取消。
