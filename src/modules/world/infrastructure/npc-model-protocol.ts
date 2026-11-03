@@ -36,7 +36,8 @@ import {
 } from './npc-media-intent.ts';
 
 export const NPC_WIRE_PROTOCOL = 'npc-wire-v14'; // historical decoder identifier
-export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v16';
+export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v17';
+export const PREVIOUS_INCREMENTAL_WIRE_PROTOCOL = 'npc-wire-v16';
 export const PREVIOUS_DELTA_WIRE_PROTOCOL = 'npc-wire-v15';
 const PREVIOUS_NOOP_GOAL_PROTOCOL = 'npc-wire-v13';
 const PREVIOUS_CONTINUATION_PROTOCOL = 'npc-wire-v12';
@@ -303,6 +304,7 @@ const AgendaReview = z.strictObject({
   reason: Text.max(2000),
   basisSourceIds: z.array(Id).min(1).max(64),
 });
+const CurrentAgendaReview = AgendaReview.omit({ decision: true });
 const PreviousReviewWire = PreviousPlanWire.extend({
   protocol: z.literal(PREVIOUS_REVIEW_PROTOCOL),
   agendaReview: AgendaReview.nullable(),
@@ -539,6 +541,12 @@ export function npcResponseFormat(
   properties.agendaReview = reviewScope
     ? review.anyOf!.find((node) => node.type === 'object')!
     : { type: 'null' };
+  if (reviewScope) {
+    delete properties.agendaReview.properties!.decision;
+    properties.agendaReview.required = (properties.agendaReview.required as string[]).filter(
+      (key) => key !== 'decision',
+    );
+  }
   const goalIds = state.goals.filter((goal) => goal.status === 'active').map((g) => g.id);
   const scopeGoal = (execution: SchemaNode, allowedIds = goalIds) => {
     const alternatives = execution.properties?.goal?.anyOf;
@@ -1088,7 +1096,11 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   if (!raw || typeof raw !== 'object') return raw;
   if (
     'protocol' in raw &&
-    [CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_DELTA_WIRE_PROTOCOL].includes(raw.protocol as string)
+    [
+      CURRENT_NPC_WIRE_PROTOCOL,
+      PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
+      PREVIOUS_DELTA_WIRE_PROTOCOL,
+    ].includes(raw.protocol as string)
   )
     return decodeCurrentNpcWire(context, raw);
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
@@ -1756,7 +1768,11 @@ function bindNpcConsideration(
 function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
   const envelope = z
     .strictObject({
-      protocol: z.enum([CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_DELTA_WIRE_PROTOCOL]),
+      protocol: z.enum([
+        CURRENT_NPC_WIRE_PROTOCOL,
+        PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
+        PREVIOUS_DELTA_WIRE_PROTOCOL,
+      ]),
       statements: AgentProposalSchema.shape.statements,
       executions: z.array(z.unknown()).max(1).nullable().optional(),
       changes: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -1768,7 +1784,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     'decode',
   ) as { executions: any[]; changes: Record<string, unknown> };
   if (
-    envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL &&
+    envelope.protocol !== PREVIOUS_DELTA_WIRE_PROTOCOL &&
     playerReplyTargets({
       state: context.viewState ?? context.state,
       input: context.input,
@@ -1797,6 +1813,10 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     .extend({
       planIntents: NativePlanIntentsSchema.optional(),
       inputInterpretation: CurrentInterpretation.optional(),
+      agendaReview: (envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL
+        ? CurrentAgendaReview
+        : AgendaReview
+      ).optional(),
     });
   const change = changeSchema.parse(
     Object.fromEntries(Object.entries(mapped.changes).filter(([, value]) => value !== null)),
@@ -1977,9 +1997,13 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     throw Error('NPC_AGENDA_REVIEW_SCOPE');
   if (agenda) {
     basis(agenda.basisSourceIds);
-    if (agenda.decision !== 'contact' && proposal.statements.length)
+    // Current output has one operational decision: its actual messages and changes.
+    // Historical paid responses retain their original classification checks.
+    if (envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL) return proposal;
+    const legacyAgenda = AgendaReview.parse(agenda);
+    if (legacyAgenda.decision !== 'contact' && proposal.statements.length)
       throw Error('NPC_AGENDA_REVIEW_PRIVATE_REPORT');
-    if (agenda.decision === 'contact' && !proposal.statements.length)
+    if (legacyAgenda.decision === 'contact' && !proposal.statements.length)
       throw Error('NPC_AGENDA_REVIEW_CONTACT_EMPTY');
     const changed =
       ['goals', 'plans', 'responsibilities', 'actions', 'decisions'].some((key) =>
@@ -1993,9 +2017,10 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
       ) ||
       !!proposal.questionWithdrawals?.length ||
       (proposal.focus !== undefined && !isDeepStrictEqual(proposal.focus, context.state.focus));
-    if (agenda.decision === 'quiet' && changed) throw Error('NPC_AGENDA_REVIEW_QUIET_CHANGED');
+    if (legacyAgenda.decision === 'quiet' && changed)
+      throw Error('NPC_AGENDA_REVIEW_QUIET_CHANGED');
     if (
-      agenda.decision === 'update_plan' &&
+      legacyAgenda.decision === 'update_plan' &&
       !['goals', 'plans', 'responsibilities'].some((key) =>
         (proposal as any)[key].some((p: any) => {
           const strip = (x: any) => {

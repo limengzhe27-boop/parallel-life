@@ -4,6 +4,7 @@ import { AgentProposalSchema, STICKER_IDS } from './agent-proposal-schema.ts';
 import {
   decodeNpcWire,
   CURRENT_NPC_WIRE_PROTOCOL,
+  PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
   PREVIOUS_DELTA_WIRE_PROTOCOL,
 } from './npc-model-protocol.ts';
 import type { AgentProposal } from '../domain/agent-runtime.ts';
@@ -100,7 +101,11 @@ function normalizeExpressionMarkers(value: unknown): unknown {
   );
   if (
     recall &&
-    [CURRENT_NPC_WIRE_PROTOCOL, PREVIOUS_DELTA_WIRE_PROTOCOL].includes(object.protocol as string)
+    [
+      CURRENT_NPC_WIRE_PROTOCOL,
+      PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
+      PREVIOUS_DELTA_WIRE_PROTOCOL,
+    ].includes(object.protocol as string)
   ) {
     const changes =
       object.changes && typeof object.changes === 'object' && !Array.isArray(object.changes)
