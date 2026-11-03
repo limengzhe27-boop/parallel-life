@@ -42,7 +42,7 @@ import { authoredSourceExcerpt } from '../domain/authored-source-excerpt.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
-export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v34-scoped-reference-view';
+export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v35-opportunity-entry';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
 const Output = z.strictObject({
@@ -321,7 +321,7 @@ const SYSTEM = `你是有明确边界的虚构世界导演，统筹人物动机�
 节奏与持续推进：先承接现有选择、责任、计划和结果，再考虑合格事件。尚未呈现的作者开场有可演内容，不必等玩家先发话或新结果；多入口可给多个相关人物各自不同的任务，不必等一人谈完，也不强制全员发消息。历史对话不能重发当新变化。已提出且未获回答的问题没有新的联系理由，不能换NPC或新建同主题机会重复确认；有真实新信息、安排变化或本人合理调整才考虑后续。拒绝、暂缓、沉默不同，不能把沉默当同意、失约或自动扣好感。
 quiet是正常决定，保持安静是合法判断：说明本轮具体依据，不复制示例。此前quiet只暂缓当时判断，不等于事件完成或人物永久拒绝。一人的quiet不冻结其他人的合法工作。轻量检查窗口不证明玩家无聊，不要求造事故、惩罚、无依据危机或紧迫期限。focus是服务端确认的当前交谈渠道和对象，阅读/思考仍可属于交谈；conversationWithoutTarget不能用最近消息猜对象。优先承接深入互动，其余人物仍可处理自身事项；注意力不等于位置或承诺。
 
-作者材料：authoredMaterials只含本轮deliberationWindow，窗口外事件不评估、不defer、不消耗资格。editorialIntent/script/sceneText/参考台词/预期结局是创作意图；prerequisites/conditions/timeline是待核对前提。participantRefs只映射人物，不赋予知情或实际参与。仅authoredEligibility为eligible且不在occupiedAuthoredEventKeys的事件可提出机会；不得用emergent绕过blocked/expired前提。作者来源只用于导演审计/作者机会，不进入nudge或作为NPC已知原稿秘密的证明。候选、机会、人物考虑/参与、实际发生和结束是不同阶段。
+作者材料：authoredMaterials只含本轮deliberationWindow，窗口外事件不评估、不defer、不消耗资格。editorialIntent/script/sceneText/参考台词/预期结局是创作意图；prerequisites/conditions/timeline是待核对前提。participantRefs只映射人物，不赋予知情或实际参与。仅authoredEligibility为eligible且不在occupiedAuthoredEventKeys的事件可提出机会；不得用emergent绕过blocked/expired前提。作者来源只用于导演审计/作者机会，不进入nudge或作为NPC已知原稿秘密的证明。候选、机会、人物考虑/参与、实际发生和结束是不同阶段。对于已合格的原稿，先区分此刻能发起的互动与接受后才能发生的后续：邀请尚未提出时，可以把邀请机会交给本人考虑；不能要求玩家先接受一个尚未发出的邀请。原稿明确要求已接受、已到达或已完成的后续阶段仍须等对应证据，不得提前演。某个事件挂起只限制其依赖步骤，不要求所有事件依次完成；按各人物实际请求、决定和计划协调其他合格事件。
 evaluationCause=bootstrap仅允许一次初始协调，不重置开场或覆盖已有回应；有合格作者opening时本轮只考虑开场，不能顶层emergent另开开场。authored_eligibility表示首次合格或有内核认证的相关新信息、决定、计划、结果而可重评；结合当前实际状态判断，仍可quiet，不强迫人物或玩家。
 
 开场信息归属与安排互动是独立判断。有openingInformationCatalog时，先逐片段确认作者明确赋予谁的初始虚构信息/请求。第三人称写“某人邀请/让主角来”可确定发起者本人的请求认知，无需先有运行消息或Persona重复；但不证明消息已实际发出、主角同意、任何人到达或内容外部真实。先核对原片段和服务器人物身份映射，不自选新身份。无论当下是否互动、是否等待玩家，都不能代替归属判断。

@@ -662,6 +662,9 @@ test('output reference catalogue keeps empty candidates separate from actors and
   assert.equal(ref.authoredEventKey, 'opening_plan');
   assert.match(ref.sourceId, /^authored:[a-f0-9]{64}$/);
   assert.match(system, /没有候选时candidates必须\[\]/);
+  assert(system.includes('不能要求玩家先接受一个尚未发出的邀请'));
+  assert(system.includes('后续阶段仍须等对应证据'));
+  assert(system.includes('不得用emergent绕过blocked/expired前提'));
   assert(system.includes('作者机会内不填id/origin/eventRef/actors/stagingIntents'));
   const decision = {
     ...f.bounded,

@@ -1,3 +1,4 @@
+import { validActorDefinitionRevision } from '../domain/actor-definition-revision.ts';
 import { readQuestionProgressReasons } from './question-progress-repair.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { DirectorPendingReason } from '../domain/world-awareness.ts';
@@ -152,6 +153,7 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
     await sql.query(
       `SELECT DISTINCT ON (
         CASE
+          WHEN e.payload->>'type' = 'actor.definition_revised' THEN 'definition:' || (e.payload->'data'->>'actorId')
           WHEN e.payload->>'type' = 'agent.arrival_committed' THEN 'actor:' || (e.payload->'data'->>'actorId')
           WHEN e.payload->'data'->>'actorId' IS NOT NULL THEN 'actor:' || (e.payload->'data'->>'actorId')
           ELSE 'player'
@@ -187,10 +189,12 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
       WHERE r.world_id = $1
         AND r.owner_id = $2
         AND r.source_version <= $3
-        AND r.document->>'kind' = 'new_condition'
-        AND e.payload->>'type' IN ('travel.completed', 'agent.arrival_committed', 'scene.entered')
+        AND ((r.document->>'kind' = 'new_condition'
+          AND e.payload->>'type' IN ('travel.completed', 'agent.arrival_committed', 'scene.entered'))
+          OR (r.document->>'kind' = 'cross_impact' AND e.payload->>'type' = 'actor.definition_revised'))
       ORDER BY
         CASE
+          WHEN e.payload->>'type' = 'actor.definition_revised' THEN 'definition:' || (e.payload->'data'->>'actorId')
           WHEN e.payload->>'type' = 'agent.arrival_committed' THEN 'actor:' || (e.payload->'data'->>'actorId')
           WHEN e.payload->'data'->>'actorId' IS NOT NULL THEN 'actor:' || (e.payload->'data'->>'actorId')
           ELSE 'player'
@@ -212,7 +216,7 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
       r.id !== row.id ||
       r.eventId !== row.source_event_id ||
       r.worldVersion !== row.source_version ||
-      r.kind !== 'new_condition' ||
+      r.kind !== (e.type === 'actor.definition_revised' ? 'cross_impact' : 'new_condition') ||
       r.ref?.kind !== 'event' ||
       r.ref.id !== e.id ||
       e.id !== r.eventId ||
@@ -220,6 +224,12 @@ async function readAuthoredReconsiderationEvidenceUnsafe(
       e.version !== r.worldVersion
     )
       return reject();
+    if (e.type === 'actor.definition_revised') {
+      if (!validActorDefinitionRevision(e)) return reject();
+      // An owner-authenticated definition correction changes this actor's planning
+      // basis. It does not report a story action or disclose it to other actors.
+      return { ...r, actorId: e.data.actorId };
+    }
     if (e.type === 'travel.completed') {
       if (
         typeof data?.toPlaceId !== 'string' ||
