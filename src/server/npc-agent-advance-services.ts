@@ -1165,7 +1165,7 @@ export function npcAgentAdvanceServices(
           emptyDirectorRecovery ||
           wake.cause ||
           (wake.hasPendingDirector && !wake.deferred) ||
-          (scheduled.selected.length > 0 && observed.needsEvaluation))
+          observed.needsEvaluation)
       ) {
         let decision: DirectorDecision | null;
         try {
