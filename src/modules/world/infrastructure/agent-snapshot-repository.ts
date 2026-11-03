@@ -1,3 +1,4 @@
+import { readEpisodeQuestionLinksInTransaction } from './episode-question-links.ts';
 import { currentActorWorkState } from '../application/agent-state-context.ts';
 import { readRetainedActorEpisodeBriefs } from './actor-episode-intent-repository.ts';
 import { summaryReplacedMessages } from '../../memory/infrastructure/conversation-summary.ts';
@@ -704,6 +705,10 @@ async function attachAgentWorldContextInTransaction(
   >,
   extraReferencedSourceIds?: readonly string[],
 ): Promise<AgentSnapshot> {
+  const projectedState = {
+    ...(await readEpisodeQuestionLinksInTransaction(sql, ownerId, snapshot.state)),
+    episodeParticipations: snapshot.viewState.episodeParticipations,
+  };
   const awareness = await new PostgresWorldAwarenessRepository(txDb).readActorAwareness(
     ownerId,
     snapshot.state.worldId,
@@ -919,10 +924,7 @@ async function attachAgentWorldContextInTransaction(
           (cap !== 'activity.participate' || snapshot.channel.kind !== 'private'),
       ),
     },
-    ...authorizedAgentState(
-      { ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations },
-      new Set(sources.map((s) => s.id)),
-    ),
+    ...authorizedAgentState(projectedState, new Set(sources.map((s) => s.id))),
     sources: [...new Map(sources.map((s) => [s.id, s])).values()],
     observations,
     worldContext: {
@@ -954,10 +956,7 @@ async function attachAgentWorldContextInTransaction(
     contextual.actorObservationInbox = inbox.context;
     Object.assign(
       contextual,
-      authorizedAgentState(
-        { ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations },
-        new Set(contextual.sources.map((s) => s.id)),
-      ),
+      authorizedAgentState(projectedState, new Set(contextual.sources.map((s) => s.id))),
     );
   }
   // A consumed notification remains known. Recall does not create inbox work or a new wake.
@@ -979,10 +978,7 @@ async function attachAgentWorldContextInTransaction(
     ];
     Object.assign(
       contextual,
-      authorizedAgentState(
-        { ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations },
-        new Set(contextual.sources.map((s) => s.id)),
-      ),
+      authorizedAgentState(projectedState, new Set(contextual.sources.map((s) => s.id))),
     );
   }
   const media = await readActorMediaCompletionContextInTransaction(sql, ownerId, contextual, {
@@ -1006,10 +1002,7 @@ async function attachAgentWorldContextInTransaction(
     ];
     Object.assign(
       contextual,
-      authorizedAgentState(
-        { ...snapshot.state, episodeParticipations: snapshot.viewState.episodeParticipations },
-        new Set(contextual.sources.map((s) => s.id)),
-      ),
+      authorizedAgentState(projectedState, new Set(contextual.sources.map((s) => s.id))),
     );
   }
   contextual.episodeFollowUps = await readEpisodeLifecycleContext(sql, ownerId, contextual);

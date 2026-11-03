@@ -1152,3 +1152,58 @@ test('canonical Director audit accepts only definition sources from the same exp
     audit: { reason: '伪造其它人物来源', basisSourceIds: ['definition:foreign-persona'] },
   });
 });
+
+test('old proposal alone cannot buy another handoff by changing attempt or local opportunity identity', () => {
+  const f = fixture();
+  f.snapshot.episodes.push({
+    schemaVersion: 1,
+    worldId: 'world',
+    id: 'existing-episode',
+    revision: 0,
+    origin: { kind: 'director', sourceId: 'previous:decision' },
+    status: 'active',
+    title: 'existing',
+    description: 'existing',
+    participantActorIds: ['a'],
+    placeIds: [],
+    sourceEventIds: [],
+    resultIds: [],
+    unresolvedResponsibilityIds: ['waiting'],
+  });
+  f.bounded.opportunities[0]!.basisSourceIds = ['previous:decision'];
+  for (const id of ['first-attempt', 'second-attempt']) {
+    const result = parseDirectorDecision(f.snapshot, JSON.stringify(f.bounded), {
+      ...f.attempt,
+      id,
+    });
+    assert.equal(result.mode, 'quiet');
+    assert.deepEqual(result.opportunities, []);
+  }
+  f.bounded.opportunities[0]!.basisSourceIds.push('a-source');
+  assert.equal(
+    f.parse(JSON.stringify(f.bounded)).opportunities.length,
+    1,
+    'real independent evidence remains eligible',
+  );
+});
+
+test('existing episode identity is continued through existing work, never renamed into a new episode', () => {
+  const f = fixture();
+  f.snapshot.episodes.push({
+    schemaVersion: 1,
+    worldId: 'world',
+    id: 'op1',
+    revision: 0,
+    origin: { kind: 'director', sourceId: 'previous:decision' },
+    status: 'active',
+    title: 'existing',
+    description: 'existing',
+    participantActorIds: ['a'],
+    placeIds: [],
+    sourceEventIds: [],
+    resultIds: [],
+    unresolvedResponsibilityIds: [],
+  });
+  assert.deepEqual(f.parse(JSON.stringify(f.bounded)).opportunities, []);
+  assert.equal(f.snapshot.episodes[0]!.status, 'active');
+});

@@ -23,6 +23,8 @@ export async function readActorEpisodeParticipations(
       `SELECT r.id,er.choice,er.reason,er.source_ids,er.world_version,
     e.payload#>'{data,agentRuntime,episodeDecision}' AS decision
     FROM parallel_life.agent_episode_requests r
+    JOIN parallel_life.agent_runtime_worlds rw ON rw.world_id=r.world_id AND rw.owner_id=r.owner_id
+      AND rw.engine_epoch=r.engine_epoch
     JOIN parallel_life.agent_episode_receipts er ON er.world_id=r.world_id AND er.owner_id=r.owner_id
       AND er.id=r.receipt_id AND er.request_id=r.id AND er.input_receipt_id=r.input_receipt_id
     JOIN parallel_life.agent_attempts a ON a.world_id=er.world_id AND a.owner_id=er.owner_id

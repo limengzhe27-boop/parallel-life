@@ -13,6 +13,12 @@ export async function readEpisodeQuestionLinksInTransaction(
   ownerId: string,
   state: ActorAgentState,
 ): Promise<ActorAgentState> {
+  const waitingRequests = state.responsibilities
+    .filter(
+      (r) => r.status === 'waiting' && r.waitingOn === 'player' && r.subject.kind === 'request',
+    )
+    .map((r) => r.subject.id);
+  if (!waitingRequests.length) return state;
   const questions = (state.questions ?? []).filter(
     (q) =>
       q.status === 'open' &&
@@ -40,6 +46,7 @@ export async function readEpisodeQuestionLinksInTransaction(
      JOIN parallel_life.agent_input_receipts r ON r.world_id=a.world_id AND r.owner_id=a.owner_id
        AND r.id=a.input_receipt_id AND r.input_hash=a.input_hash
      WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id=ANY($4::text[])
+       AND e.payload#>>'{data,agentRuntime,proposal,episodeDecision,requestId}'=ANY($6::text[])
        AND e.version<=$5 AND e.payload#>>'{data,actorId}'=$3
        AND e.payload#>>'{data,agentRuntime,inputReceiptId}'=r.id
        AND e.payload#>>'{data,agentRuntime,engineEpoch}'=a.engine_epoch::text
@@ -53,6 +60,7 @@ export async function readEpisodeQuestionLinksInTransaction(
         state.actorId,
         [...new Set(identities.map((i) => i.eventId))],
         state.projectedWorldVersion,
+        waitingRequests,
       ],
     )
   ).rows;

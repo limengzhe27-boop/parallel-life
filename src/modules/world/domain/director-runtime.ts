@@ -288,3 +288,16 @@ export function validNativeTurnDecision(
     )
   );
 }
+
+/** A previous proposal is context, never fresh causal evidence for another request.
+ * Existing matters continue through their own candidates and responsibilities.
+ * Content similarity and model-local IDs are not business identity.
+ */
+export function directorOpportunityHasIndependentBasis(
+  snapshot: DirectorSnapshot,
+  opportunity: DirectorOpportunity,
+): boolean {
+  if (snapshot.episodes.some((episode) => episode.id === opportunity.id)) return false;
+  const proposalSources = new Set(snapshot.episodes.map((episode) => episode.origin.sourceId));
+  return opportunity.basisSourceIds.some((id) => !proposalSources.has(id));
+}

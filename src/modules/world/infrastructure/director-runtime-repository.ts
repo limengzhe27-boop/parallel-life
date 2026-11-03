@@ -1,3 +1,4 @@
+import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { validAuthoredOpportunityCast } from '../domain/authored-opportunity-cast.ts';
 import { directorDecisionSourceIds } from './director-model-protocol.ts';
 import { isReceivedModelTruncation } from '../../ai/application/model-output-truncation.ts';
@@ -13,7 +14,10 @@ import {
   readOpeningContextAuthority,
   commitOpeningContextInTransaction,
 } from './opening-context-repository.ts';
-import { validDirectorDeliberationWindow } from '../domain/director-runtime.ts';
+import {
+  directorOpportunityHasIndependentBasis,
+  validDirectorDeliberationWindow,
+} from '../domain/director-runtime.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
 import { AuthoredLifeModulesSchema } from '../../../contracts/authored-social.ts';
@@ -836,6 +840,14 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         [world.id, owner],
       )
     ).rows.map((r) => r.document as ActorAgentState);
+    for (const state of states) {
+      if (
+        s.actorStates.find((actor) => actor.actorId === state.actorId)?.episodeParticipations !==
+        undefined
+      )
+        state.episodeParticipations = await readActorEpisodeParticipations(sql, owner, state);
+      else delete state.episodeParticipations; // Legacy snapshots retain their original read shape.
+    }
     if (
       !equal(
         ordered(states, (v) => v.actorId),
@@ -1600,6 +1612,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       fail('DIRECTOR_EPISODE_ID_CONFLICT');
     for (const o of d.opportunities)
       if (
+        !directorOpportunityHasIndependentBasis(s, o) ||
         !validActorTopicSelection(o, s.actorKnownTopics ?? []) ||
         !validActorStagingIntents(o) ||
         !validAuthoredOpportunityCast(

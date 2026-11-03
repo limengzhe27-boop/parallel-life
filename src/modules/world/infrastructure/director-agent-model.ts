@@ -34,6 +34,7 @@ import type {
   DirectorSnapshot,
 } from '../domain/director-runtime.ts';
 import {
+  directorOpportunityHasIndependentBasis,
   canConsiderAuthoredEvent,
   validNativeTurnDecision,
   validDirectorAuthoredAssessments,
@@ -212,9 +213,13 @@ export function parseDirectorDecision(
   if (namespacedOpportunities)
     value.opportunities = value.opportunities.map((opportunity) => ({
       ...opportunity,
-      id: `director-opportunity:${createHash('sha256')
-        .update(JSON.stringify([attempt.worldId, attempt.engineEpoch, attempt.id, opportunity.id]))
-        .digest('hex')}`,
+      id: snapshot.episodes.some((episode) => episode.id === opportunity.id)
+        ? opportunity.id
+        : `director-opportunity:${createHash('sha256')
+            .update(
+              JSON.stringify([attempt.worldId, attempt.engineEpoch, attempt.id, opportunity.id]),
+            )
+            .digest('hex')}`,
     }));
   if (
     !validNativeTurnDecision(snapshot, value) ||
@@ -300,6 +305,18 @@ export function parseDirectorDecision(
     invalid();
   if (value.mode === 'coordinate' && value.opportunities.length) invalid();
   if (value.mode === 'bounded_opportunity' && !value.opportunities.length) invalid();
+  // Suppress an ineligible handoff after full format/source validation. The raw
+  // response remains protected; no extra NPC call or replacement model is bought.
+  const eligible = value.opportunities.filter((o) =>
+    directorOpportunityHasIndependentBasis(snapshot, o),
+  );
+  if (eligible.length !== value.opportunities.length) {
+    value.opportunities = eligible;
+    if (!eligible.length) value.mode = selected.size ? 'coordinate' : 'quiet';
+    value.audit.reason = (
+      value.audit.reason + '；旧事项沿原责任续接，未派发仅凭旧提议的重复机会。'
+    ).slice(0, 2000);
+  }
   return {
     schemaVersion: 1,
     id: `${attempt.id}:decision`,
@@ -338,7 +355,7 @@ nativeTurn仍最多选一个候选，只协调该条已接受群聊/现场玩家
 输出仅一个符合json_schema的director-wire-v15对象。顶层为protocol、openingContext、authoredChoices、candidates、opportunities、audit；不输出mode/events。candidate:/actor:/place:/source:/event:引用不可互换，身份和机械来源由代码绑定。
 - authoredChoices按wireCatalog.events.ref逐键填写一次：{kind:"defer",reason:"当前具体依据"}或{kind:"consider",opportunity:单一对象}。作者机会内不填id/origin/eventRef/actors/stagingIntents；作者opportunity含title/description/playerImpact/places/activity/actorTasks，不含id/origin/eventRef/nodeHash/authoredEventKey/sourceId/actors/stagingIntents；来源和局部id由所属事件键绑定。一个事件一次机会，多个人物写在同一actorTasks，不按人物复制机会，不能同时defer和consider或再抄到顶层。
 - candidates覆盖全部wireCatalog.candidates且不重复，每项{ref,decision:"select"}或{ref,decision:"defer",reason}；select可带目录允许的nudge枚举continue_own_plan/reassess_own_responsibility/respond_to_player/consider_opportunity，不填actorId/basisSourceIds/任意intent或台词，代码绑定原候选授权来源。没有候选时candidates必须[]，不把参与人物当candidate。
-- 顶层opportunities只放有依据的即兴机会：{id,title,description,playerImpact,actorTasks,places:[place引用],activity,origin:{kind:"emergent",sourceRefs:[非作者来源引用]}}，人物任务同上。id本轮唯一即可，不需UUID。不得借即兴绕过作者资格或窥取私密。
+- 顶层opportunities只放有依据的即兴机会：{id,title,description,playerImpact,actorTasks,places:[place引用],activity,origin:{kind:"emergent",sourceRefs:[非作者来源引用]}}，人物任务同上。id本轮唯一即可，不需UUID。已有episode不能作为新机会重建；原事项通过现有candidate/责任接续，旧导演decision本身不构成新的联系依据。不得借即兴绕过作者资格或窥取私密。
 - 作者和即兴合计最多2个机会。每个作者窗口事件预留一槽，即兴最多max(0,2-wireCatalog.events条数)，defer不释放槽；无作者窗口最多2个即兴。nativeTurn不产生机会/nudge。
 - audit={reason:"本轮实际判断",sourceRefs:[]}，来源仅选wireCatalog.sources/events，确无来源可[]。保持安静时所有候选defer、每个作者键defer并说明具体依据、顶层opportunities=[]。不为格式占位编造理由、事实或结局。`;
 function evaluationCauseView(snapshot: DirectorSnapshot) {

@@ -1,3 +1,4 @@
+import { readEpisodeQuestionLinksInTransaction } from './episode-question-links.ts';
 import { enqueueConversationSummary } from '../../memory/infrastructure/conversation-summary.ts';
 import { joinCurrentAgentSceneInTransaction } from './agent-scene-presence-repository.ts';
 import {
@@ -1438,7 +1439,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         });
       }
       const accepted = reduceActorAgentState(
-        { ...snapshot, knownActionResults: [...historicalResults, ...earlyResults] },
+        {
+          ...snapshot,
+          state: await readEpisodeQuestionLinksInTransaction(sql, ownerId, snapshot.state),
+          knownActionResults: [...historicalResults, ...earlyResults],
+        },
         proposal,
         results,
         frame.commitVersion,
@@ -1745,6 +1750,23 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           questionSourceId,
           replyToActorId: attempt.actorId,
         };
+        const existingQuestion = accepted.state.questions?.find(
+          (q) =>
+            q.sourceId === questionSourceId &&
+            q.channel === snapshot.channel.kind &&
+            q.threadId === snapshot.channel.threadId,
+        );
+        if (existingQuestion) {
+          if (statement.questionForResponsibilityId !== undefined) {
+            if (
+              existingQuestion.responsibilityId !== undefined &&
+              existingQuestion.responsibilityId !== statement.questionForResponsibilityId
+            )
+              throw new AgentValidationError('QUESTION_RESPONSIBILITY_CONFLICT');
+            existingQuestion.responsibilityId = statement.questionForResponsibilityId;
+          }
+          continue;
+        }
         (accepted.state.questions ??= []).push({
           id: `${eventId}_question_${questionIndex}`,
           channel: snapshot.channel.kind,
