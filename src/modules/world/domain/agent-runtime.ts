@@ -143,8 +143,6 @@ export type ActorAgentState = AgentIdentity & {
   definitionRef: string;
   /** References only. Snapshot construction separately authorizes each piece of private information. */
   knowledgeSourceIds: string[];
-  memoryIds: string[];
-  relationshipIds: string[];
   goals: AgentGoal[];
   plans: AgentPlan[];
   actions: AgentAction[];
@@ -292,8 +290,6 @@ export function emptyActorAgentState(
     projectedWorldVersion: worldVersion,
     definitionRef,
     knowledgeSourceIds: [],
-    memoryIds: [],
-    relationshipIds: [],
     goals: [],
     plans: [],
     actions: [],

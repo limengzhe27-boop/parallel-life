@@ -18,8 +18,6 @@ function fixture(): ActorAgentState {
   const state = emptyActorAgentState({ worldId: 'world', actorId: 'actor' }, 'definition', 9);
   state.revision = 3;
   state.knowledgeSourceIds = ['public', 'private'];
-  state.memoryIds = ['memory'];
-  state.relationshipIds = ['relationship'];
   const conditions: AgentCondition[] = [
     { kind: 'at_or_after', at, sourceId: 'public' },
     { kind: 'result', actionId: 'action', outcome: 'succeeded' },
@@ -251,8 +249,6 @@ test('all arrays and nested objects detach; modifying payload never changes sour
     before = structuredClone(state),
     p = actorStateContextPayload(state, { includeRequestRevisions: true });
   p.knowledgeSourceIds.push('x');
-  p.memoryIds.push('x');
-  p.relationshipIds.push('x');
   p.goals[0]!.sourceIds.push('x');
   p.goals[0]!.resultIds.push('x');
   p.plans[0]!.actionIds.push('x');
@@ -348,4 +344,15 @@ test('empty state/null focus/optional fields and long closed history are retaine
   assert.equal(payload.decisions.at(-1)?.responsibilityRevision, 1199);
   assert.equal(payload.goals[0]?.status, 'fulfilled');
   assert.equal(payload.plans[0]?.status, 'finished');
+});
+
+test('legacy derived memory/relationship indexes never expand the current model payload', () => {
+  const state = fixture();
+  Object.assign(state, { memoryIds: ['memory-old'], relationshipIds: ['tie-old'] });
+  const before = structuredClone(state);
+  const payload = actorStateContextPayload(state, { includeRequestRevisions: true });
+  assert.equal(Object.hasOwn(payload, 'memoryIds'), false);
+  assert.equal(Object.hasOwn(payload, 'relationshipIds'), false);
+  assert.deepEqual(payload.knowledgeSourceIds, state.knowledgeSourceIds);
+  assert.deepEqual(state, before);
 });

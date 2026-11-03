@@ -96,8 +96,6 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:lin',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],
@@ -114,8 +112,6 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:qingqing',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: likeGoalId,

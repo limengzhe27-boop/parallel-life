@@ -808,8 +808,10 @@ export function reduceActorAgentState(
     context.input.origin !== 'player' || statements.length > 0 || proposal.recallLast === true,
     'REPLY_DEPENDS_ON_UNEXECUTED_ACTION',
   );
-  // Participation is derived from the authoritative episode receipt on the next read.
+  // Retire derived indexes only with a real transition; immutable snapshots stay untouched.
   const { episodeParticipations: _historicalParticipation, ...persistentState } = context.state;
+  Reflect.deleteProperty(persistentState, 'memoryIds');
+  Reflect.deleteProperty(persistentState, 'relationshipIds');
   return {
     questionChanges: applyAgentQuestionChanges(context, proposal).applied,
     state: {

@@ -187,8 +187,6 @@ export function actorStateContextPayload(
     projectedWorldVersion: revision(state.projectedWorldVersion),
     definitionRef: text(state.definitionRef),
     knowledgeSourceIds: strings(state.knowledgeSourceIds),
-    memoryIds: strings(state.memoryIds),
-    relationshipIds: strings(state.relationshipIds),
     goals: objects(state.goals).map((g) => ({
       id: text(g.id),
       summary: text(g.summary),

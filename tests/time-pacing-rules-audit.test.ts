@@ -131,8 +131,6 @@ test('Task 44-130 / R11: Time pacing, day transition and completion rules audit'
       projectedWorldVersion: 6,
       definitionRef: 'author:actor:actor-1',
       knowledgeSourceIds: [],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: 'goal-1',

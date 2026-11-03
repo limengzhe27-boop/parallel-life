@@ -444,3 +444,17 @@ test('processing a reply or changing a recheck condition does not turn the same 
   assert.equal(next.state.responsibilities[0]!.revision, 2);
   assert.equal(next.state.decisions[0]!.kind, 'declined');
 });
+
+test('a real transition retires legacy derived indexes without mutating its recovery snapshot', () => {
+  const { context, proposal } = fixture();
+  Object.assign(context.state, { memoryIds: ['memory-old'], relationshipIds: ['tie-old'] });
+  const before = structuredClone(context.state);
+  const next = reduceActorAgentState(context, proposal, [], 5).state;
+  assert.equal(Object.hasOwn(next, 'memoryIds'), false);
+  assert.equal(Object.hasOwn(next, 'relationshipIds'), false);
+  assert.deepEqual(context.state, before);
+  assert.deepEqual(next.knowledgeSourceIds, before.knowledgeSourceIds);
+  assert.deepEqual(next.responsibilities, before.responsibilities);
+  assert.equal(next.revision, before.revision + 1);
+  assert.equal(next.projectedWorldVersion, 5);
+});

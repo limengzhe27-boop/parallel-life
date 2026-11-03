@@ -86,8 +86,6 @@ test('actor capability chain: relationship.bond end-to-end execution, self-bondi
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:lin',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: bondGoalId,
@@ -123,8 +121,6 @@ test('actor capability chain: relationship.bond end-to-end execution, self-bondi
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:qingqing',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],
@@ -141,8 +137,6 @@ test('actor capability chain: relationship.bond end-to-end execution, self-bondi
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:wang',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],
@@ -481,7 +475,7 @@ test('actor capability chain: relationship.bond end-to-end execution, self-bondi
     assert.equal(failedAction.failureCode, 'TARGET_ACTOR_NOT_FOUND');
   });
 
-  await t.test('3. execution: relationship.bond succeeds, updates world.actorTies, saves relationshipIds, and fulfills goal & responsibility', async () => {
+  await t.test('3. execution: relationship.bond succeeds, updates world.actorTies, omits redundant relationship indexes, and fulfills goal & responsibility', async () => {
     const f = await fixture();
     const kernel = new PostgresNpcAgentKernel(app, worlds);
 
@@ -638,15 +632,14 @@ test('actor capability chain: relationship.bond end-to-end execution, self-bondi
     assert.equal(tie.mayShare, true);
 
     const qingqingActor = updatedWorld.actors.find((a) => a.id === f.actorQingqingId);
-    assert.equal(qingqingActor?.relationship, '手作工坊合伙人');
+    // An NPC-to-NPC tie must not overwrite this character's relationship to the player.
+    assert.equal(qingqingActor?.relationship, undefined);
 
     // Verify Lin's ActorAgentState
     const linState1 = (await store.read(f.owner, { worldId: f.worldId, actorId: f.actorLinId }))!;
     assert.ok(linState1, 'Lin state must be persisted');
-    assert.ok(
-      linState1.relationshipIds.includes(`${f.actorLinId}:${f.actorQingqingId}`),
-      'relationshipIds must include newly formed tie key',
-    );
+    assert.equal(Object.hasOwn(linState1, 'relationshipIds'), false);
+    assert.equal(Object.hasOwn(linState1, 'memoryIds'), false);
 
     const goal = linState1.goals.find((g) => g.id === f.bondGoalId);
     assert.equal(goal?.status, 'fulfilled', 'Goal must be fulfilled');

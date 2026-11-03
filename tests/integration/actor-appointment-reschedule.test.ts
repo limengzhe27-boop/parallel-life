@@ -111,8 +111,6 @@ test('actor capability chain: appointment.reschedule end-to-end execution, preco
       projectedWorldVersion: 1,
       definitionRef: `author:actor:${actorId}`,
       knowledgeSourceIds: [],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: goalId,

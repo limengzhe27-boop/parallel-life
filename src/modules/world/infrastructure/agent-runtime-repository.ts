@@ -220,8 +220,6 @@ function stateShape(state: ActorAgentState) {
     !state.definitionRef.trim() ||
     [
       'knowledgeSourceIds',
-      'memoryIds',
-      'relationshipIds',
       'goals',
       'plans',
       'actions',

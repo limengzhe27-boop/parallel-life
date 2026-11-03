@@ -81,8 +81,6 @@ test('actor capability chain: moment.publish end-to-end execution, parameter gua
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:lin',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: publishGoalId,
@@ -118,8 +116,6 @@ test('actor capability chain: moment.publish end-to-end execution, parameter gua
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:qingqing',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],

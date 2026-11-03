@@ -113,8 +113,6 @@ test('actor capability chain: item.use end-to-end execution, precondition enforc
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:doctor',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: unlockGoalId,
@@ -167,8 +165,6 @@ test('actor capability chain: item.use end-to-end execution, precondition enforc
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:assistant',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],

@@ -125,8 +125,6 @@ test('actor narrative advancement & perception closure: first-entry, continuous 
       projectedWorldVersion: 1,
       definitionRef: agentDefinitionRef(worldState, actorA),
       knowledgeSourceIds: ['fact_public_1'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: 'goal_a_1',
@@ -174,8 +172,6 @@ test('actor narrative advancement & perception closure: first-entry, continuous 
       projectedWorldVersion: 1,
       definitionRef: agentDefinitionRef(worldState, actorB),
       knowledgeSourceIds: ['fact_public_1', 'fact_private_b'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],

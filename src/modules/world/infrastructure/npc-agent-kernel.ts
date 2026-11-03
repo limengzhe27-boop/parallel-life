@@ -1434,16 +1434,6 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         }
       }
       for (const result of results) {
-        const action = proposal.actions.find((a) => a.id === result.actionId);
-        if (action?.capability === 'relationship.bond' && result.outcome === 'succeeded') {
-          for (const output of result.outputRefs ?? []) {
-            if (output.kind === 'relationship') {
-              if (!accepted.state.relationshipIds.includes(output.id)) {
-                accepted.state.relationshipIds.push(output.id);
-              }
-            }
-          }
-        }
         if (result.outcome === 'succeeded') {
           const isCancel = effects.some(
             (e) =>

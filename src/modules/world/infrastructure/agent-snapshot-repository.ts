@@ -67,7 +67,6 @@ export function seedAgentFromVerifiedContext(
   state.knowledgeSourceIds = context.facts
     .map((fact) => `fact:${fact.id}`)
     .filter((id) => available.has(id));
-  state.memoryIds = (context.retrievedMemories ?? []).map((memory) => memory.id);
   for (const appointment of context.appointments) {
     const sourceId = `appointment:${appointment.id}`;
     if (!available.has(sourceId) || !['proposed', 'confirmed'].includes(appointment.status ?? ''))

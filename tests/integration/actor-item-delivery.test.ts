@@ -91,8 +91,6 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:sender',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: goalId,
@@ -128,8 +126,6 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:recipient',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],

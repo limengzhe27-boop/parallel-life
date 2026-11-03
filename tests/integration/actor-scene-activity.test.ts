@@ -81,8 +81,6 @@ test('actor capability chain: activity.participate end-to-end execution, physica
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:lin',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: teaGoalId,
@@ -118,8 +116,6 @@ test('actor capability chain: activity.participate end-to-end execution, physica
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:qingqing',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],
@@ -136,8 +132,6 @@ test('actor capability chain: activity.participate end-to-end execution, physica
       projectedWorldVersion: 1,
       definitionRef: 'author:actor:wang',
       knowledgeSourceIds: ['source_init'],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],

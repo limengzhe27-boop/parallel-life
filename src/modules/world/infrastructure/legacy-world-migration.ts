@@ -243,8 +243,6 @@ export async function migrateLegacyWorldInTransaction(
       projectedWorldVersion: w.version,
       definitionRef,
       knowledgeSourceIds: [],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [],
       plans: [],
       actions: [],

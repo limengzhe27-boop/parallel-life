@@ -100,8 +100,6 @@ test('actor capability chain: appointment.fulfill end-to-end execution, precondi
       projectedWorldVersion: 1,
       definitionRef: `author:actor:${actorId}`,
       knowledgeSourceIds: [],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: goalId,

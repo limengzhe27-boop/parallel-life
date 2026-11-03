@@ -81,8 +81,6 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
       projectedWorldVersion: 1,
       definitionRef: `author:actor:${actorId}`,
       knowledgeSourceIds: [],
-      memoryIds: [],
-      relationshipIds: [],
       goals: [
         {
           id: goalId,

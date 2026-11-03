@@ -222,8 +222,9 @@ const State = z
     projectedWorldVersion: Int,
     definitionRef: Key,
     knowledgeSourceIds: keys,
-    memoryIds: keys,
-    relationshipIds: keys,
+    // Read-only compatibility for saved director snapshots; new states omit these indexes.
+    memoryIds: keys.optional(),
+    relationshipIds: keys.optional(),
     goals: z.array(z.unknown()),
     plans: z.array(z.unknown()),
     actions: z.array(z.unknown()),
