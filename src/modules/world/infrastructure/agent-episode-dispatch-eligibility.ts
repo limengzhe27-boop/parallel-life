@@ -7,6 +7,10 @@ export type EpisodeDispatchAttempt = {
   commandId: string;
   status: string;
   paid: boolean;
+  sent?: boolean;
+  leaseExpired?: boolean;
+  hasResponse?: boolean;
+  hasEvent?: boolean;
   playerManifest?: boolean;
   requestId: string | null;
 };
@@ -17,6 +21,9 @@ export function episodeDispatchAttempt(row: {
   status: string;
   sent_at: unknown;
   response_hash: unknown;
+  lease_expired?: boolean;
+  has_response?: boolean;
+  has_event?: boolean;
   document: { origin: string; text: string };
 }): EpisodeDispatchAttempt {
   let requestId: string | null = row.bound_request_id ?? null;
@@ -36,6 +43,15 @@ export function episodeDispatchAttempt(row: {
     status: row.status,
     paid: row.sent_at != null || row.response_hash != null,
     requestId,
+    ...(typeof row.lease_expired === 'boolean'
+      ? {
+          sent: row.sent_at != null,
+          leaseExpired: row.lease_expired,
+          hasResponse:
+            row.response_hash != null || row.has_response === true ? true : row.has_response,
+          hasEvent: row.has_event,
+        }
+      : {}),
   };
 }
 
@@ -54,6 +70,25 @@ export function episodeRequestWorkState(
   )
     return 'in_flight';
   return prior.some((a) => a.paid) ? 'paid_terminal' : 'available';
+}
+
+/** Same expired unanswered-call boundary used by claim. The original request
+ * remains fenced by episodeRequestWorkState; only independent work may proceed.
+ * Missing proof is conservative, especially old readers without lease fields. */
+export function episodeActorAttemptBlocks(attempt: EpisodeDispatchAttempt): boolean {
+  if (
+    !['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
+      attempt.status,
+    )
+  )
+    return false;
+  return !(
+    attempt.status === 'unknown_after_send' &&
+    attempt.sent === true &&
+    attempt.leaseExpired === true &&
+    attempt.hasResponse === false &&
+    attempt.hasEvent === false
+  );
 }
 
 /** One eligibility calculation for dispatch and the read-only phone hint. No claim or execution. */
@@ -80,15 +115,7 @@ export function eligibleEpisodeDispatches(
           (!a.paid && ['stale_discarded', 'cancelled_before_send'].includes(a.status)),
       );
     if (state !== 'available' && !freshKnownInvalid) return [];
-    if (
-      attempts.some(
-        (a) =>
-          a.actorId === request.actorId &&
-          ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
-            a.status,
-          ),
-      )
-    )
+    if (attempts.some((a) => a.actorId === request.actorId && episodeActorAttemptBlocks(a)))
       return [];
     const hash = createHash('sha256')
       .update(

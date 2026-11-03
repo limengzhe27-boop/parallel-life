@@ -401,3 +401,28 @@ test('paid terminal does not occupy work, but cannot be dispatched again; unknow
   );
   assert.equal(episodeRequestWorkState('request-a', [attempt()]), 'available');
 });
+
+test('expired unanswered unknown only releases actor slot for a different request', () => {
+  const old = episodeDispatchAttempt(
+    row({
+      status: 'unknown_after_send',
+      sent_at: '2026-01-01',
+      lease_expired: true,
+      has_response: false,
+      has_event: false,
+    }),
+  );
+  assert.equal(eligible([request()], [old]).length, 0);
+  assert.equal(eligible([request('new-request')], [old]).length, 1);
+  for (const patch of [
+    { leaseExpired: undefined },
+    { leaseExpired: false },
+    { hasResponse: true },
+    { hasResponse: undefined },
+    { hasEvent: true },
+    { hasEvent: undefined },
+    { sent: false },
+  ]) {
+    assert.equal(eligible([request('new-request')], [{ ...old, ...patch }]).length, 0);
+  }
+});

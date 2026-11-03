@@ -12,6 +12,7 @@ import {
 } from './agent-narrative-repository.ts';
 import {
   eligibleEpisodeDispatches,
+  episodeActorAttemptBlocks,
   episodeDispatchAttempt,
 } from './agent-episode-dispatch-eligibility.ts';
 import { collectActorMediaResultCandidates } from '../application/agent-schedule-collectors.ts';
@@ -55,7 +56,7 @@ export async function readAgentPhoneEntryProbe(
     await sql.query(
       // Never select a.response: protected model responses are TOAST-heavy and this
       // probe runs under world/clock share locks on every entry. Only presence matters.
-      `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,(a.response IS NOT NULL) AS has_response,a.event_id,
+      `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,(a.response IS NOT NULL) AS has_response,(a.event_id IS NOT NULL) AS has_event,(a.lease_until<=clock_timestamp()) AS lease_expired,a.event_id,
     a.expected_world_version,a.expected_actor_revision,a.lease_until,r.document,s.revision,b.request_id AS bound_request_id
     FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
       ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
@@ -76,19 +77,7 @@ export async function readAgentPhoneEntryProbe(
   if (raw) return ready('npc_raw', raw.id);
   const blockedActors = new Set(
     actors
-      .filter(
-        (a) =>
-          ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
-            a.status,
-          ) &&
-          !(
-            a.status === 'unknown_after_send' &&
-            a.sent_at &&
-            !a.has_response &&
-            !a.response_hash &&
-            new Date(a.lease_until).getTime() <= now
-          ),
-      )
+      .filter((a) => episodeActorAttemptBlocks(episodeDispatchAttempt(a)))
       .map((a) => String(a.actor_id)),
   );
   // This is only an entry hint. The original NPC collector and kernel own spatial authority.
@@ -233,9 +222,10 @@ export async function readAgentPhoneEntryProbe(
           .filter(
             (p: any) =>
               ['active', 'waiting', 'blocked'].includes(p.status) &&
-              (p.goalId === null || (state.goals ?? []).some(
-                (g: any) => g.id === p.goalId && ['active', 'deferred'].includes(g.status),
-              )) &&
+              (p.goalId === null ||
+                (state.goals ?? []).some(
+                  (g: any) => g.id === p.goalId && ['active', 'deferred'].includes(g.status),
+                )) &&
               (p.nextActionId || p.triggers?.length),
           )
           .map((p: any) => ({
