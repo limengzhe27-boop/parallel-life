@@ -43,32 +43,6 @@ export function wakeCandidateIdFromInputText(text: unknown): string | undefined 
   }
 }
 
-/**
- * A wake receipt with no attempt can be left behind by an interrupted advance.
- * It is not a fresh request: replaying it after the world version moved on can
- * never commit and makes the scheduler spend a full operation every tick.
- * Treat its semantic candidate as already consumed unless the exact receipt
- * version is still current.
- */
-export function orphanedWakeCandidateIds(
-  rows: readonly { expectedWorldVersion: number; inputText: string }[],
-  currentWorldVersion: number,
-): Set<string> {
-  const ids = new Set<string>();
-  if (!Number.isSafeInteger(currentWorldVersion) || currentWorldVersion < 0) return ids;
-  for (const row of rows) {
-    if (
-      !Number.isSafeInteger(row.expectedWorldVersion) ||
-      row.expectedWorldVersion < 0 ||
-      row.expectedWorldVersion >= currentWorldVersion
-    )
-      continue;
-    const candidateId = wakeCandidateIdFromInputText(row.inputText);
-    if (candidateId) ids.add(candidateId);
-  }
-  return ids;
-}
-
 /** Never rewrites an attempt or authorizes another paid execution. */
 export function agentWakeRecovery(
   prior: AgentWakeRecoveryPrior,
