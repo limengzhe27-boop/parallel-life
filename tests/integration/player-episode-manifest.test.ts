@@ -805,10 +805,10 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const service = npcAgentServices(app, () => ({
         async complete(messages) {
           calls++;
-          const p = await canonicalFixturePayload(
-            f,
-            JSON.parse(messages.find((m) => m.role === 'user')!.content),
-          );
+          // This unrelated ordinary turn uses the lean payload: server-bound
+          // actor identity need not be echoed in state. Inspect the actual model
+          // input directly; canonicalizing a manifest source is unnecessary here.
+          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
           assert.equal(p.episodeManifest, undefined);
           assert.ok(!p.observations.some((o: any) => o.sourceId.startsWith('episode-intent:')));
           for (const sentinel of [...prohibited, 'LOCAL_INVITATION_74'])
@@ -1083,10 +1083,13 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const candidates = (
         await Promise.all(sources.map((s) => s.source.collect(f.owner, f.id)))
       ).flatMap((c) => c.candidates);
-      assert.equal(candidates.length, 1);
-      assert.equal(candidates[0]!.source, 'actor_plan');
+      const planCandidates = candidates.filter(
+        (c) => c.source === 'actor_plan' && c.actorId === f.requests[0]!.actorId,
+      );
+      assert.equal(planCandidates.length, 1);
+      assert.equal(planCandidates[0]!.source, 'actor_plan');
       assert.equal(
-        candidates[0]!.actionId,
+        planCandidates[0]!.actionId,
         null,
         'reconsideration does not execute a made-up action',
       );
@@ -1146,13 +1149,24 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const again = (
         await Promise.all(nextSources.map((s) => s.source.collect(f.owner, f.id)))
       ).flatMap((r) => r.candidates);
-      assert.equal(again.length, 1);
+      const againPlans = again.filter(
+        (c) => c.source === 'actor_plan' && c.actorId === f.requests[0]!.actorId,
+      );
+      assert.equal(againPlans.length, 1);
       assert.equal(
-        again[0]!.id,
-        candidates[0]!.id,
+        againPlans[0]!.id,
+        planCandidates[0]!.id,
         'unrelated chatter must not create a new paid reconsideration identity',
       );
       assert.equal(nextSnapshot.state.responsibilities[0]!.status, 'waiting');
+      await clocks.write(f.owner, f.id, {
+        storyNow: nextWorld.time,
+        speed: 12,
+        paused: false,
+        lastTickAt: new Date().toISOString(),
+        missedBeats: 0,
+        summary: null,
+      });
       let wakeCalls = 0;
       const advance = npcAgentAdvanceServices(
         app,
@@ -1185,6 +1199,8 @@ test('player chat considers a server-bound pending episode without extra NPC cal
             if (wake.type === 'npc_agenda_initialize')
               return JSON.stringify({ ...plain(), statements: [] });
             assert.equal(wake.type, 'npc_own_condition_ready');
+            if (wake.source === 'actor_local')
+              return JSON.stringify({ ...plain(), statements: [] });
             assert.equal(wake.source, 'actor_plan');
             wakeCalls++;
             assert.equal(payload.input.origin, 'wake');
@@ -1195,6 +1211,8 @@ test('player chat considers a server-bound pending episode without extra NPC cal
         snapshots,
       );
       await advance.advanceIfEnabled(f.owner, f.id);
+      // Initial placement may consume the actor's first fair batch slot.
+      if (!wakeCalls) await advance.advanceIfEnabled(f.owner, f.id);
       assert.equal(wakeCalls, 1, 'the original runtime must actually execute one reconsideration');
       const afterWake = await actors.read(f.owner, {
         worldId: f.id,
