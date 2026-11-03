@@ -1,7 +1,10 @@
+import { runNpcAgent } from '../../src/modules/world/application/run-agent.ts';
+import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
+import type { AgentInputReceipt } from '../../src/modules/world/domain/agent-runtime.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
@@ -44,7 +47,6 @@ import { parseDirectorDecision } from '../../src/modules/world/infrastructure/di
 import { PostgresNpcAgentKernel } from '../../src/modules/world/infrastructure/npc-agent-kernel.ts';
 import { createEpisodeRequestsInTransaction } from '../../src/modules/world/infrastructure/agent-narrative-repository.ts';
 
-import type { AgentInputReceipt } from '../../src/modules/world/domain/agent-runtime.ts';
 import type { AgentAttemptStore } from '../../src/modules/world/application/agent-runtime-ports.ts';
 test('41-B final followup question projection and next-turn player decisions', async (t) => {
   const cfg = await localConfig();
@@ -371,6 +373,158 @@ test('41-B final followup question projection and next-turn player decisions', a
     return { owner, id, world, requests };
   }
 
+  await t.test(
+    'old committed unlinked question is derived on next input and persists without rewriting original evidence',
+    async () => {
+      const f = await fixture('message');
+      const request = f.requests[0]!;
+      const world = await worlds.get({ userId: f.owner }, f.id);
+      const actorId = request.actorId;
+      const state = (await actors.read(f.owner, { worldId: f.id, actorId }))!;
+      const text = '先问我是否参加吧。';
+      const input: AgentInputReceipt = {
+        id: randomUUID(),
+        worldId: f.id,
+        commandId: randomUUID(),
+        channel: 'private',
+        threadId: actorId,
+        recipientActorId: actorId,
+        expectedWorldVersion: world.version,
+        receivedAt: new Date().toISOString(),
+        storyAt: world.time,
+        origin: 'player',
+        text,
+        inputHash: createHash('sha256').update(text).digest('hex'),
+      };
+      await actors.accept(f.owner, input);
+      const { snapshot } = await readPrivateAgentSnapshot(
+        app,
+        f.owner,
+        world,
+        actorId,
+        input,
+        world.time,
+        state,
+      );
+      const manifest = snapshot.episodeManifest!;
+      assert.ok(manifest);
+      const claim = {
+        id: randomUUID(),
+        worldId: f.id,
+        actorId,
+        commandId: input.commandId,
+        inputReceiptId: input.id,
+        inputHash: input.inputHash,
+        engineEpoch: 2,
+        expectedWorldVersion: world.version,
+        expectedActorRevision: state.revision,
+        token: randomUUID(),
+        leaseUntil: new Date(Date.now() + 120000).toISOString(),
+      };
+      // Canonical historical proposal intentionally predates wire followup binding.
+      // Produce it once through the original runner/kernel; never edit saved raw/events.
+      const raw = JSON.stringify({
+        statements: [
+          { text: '这次活动你愿意参加吗？', dependsOnActionIds: [], requestsPlayerReply: true },
+        ],
+        goals: [],
+        plans: [],
+        actions: [],
+        decisions: [],
+        responsibilities: [
+          {
+            id: manifest.requestId + ':followup',
+            subject: { kind: 'request', id: manifest.requestId },
+            summary: '等玩家明确是否参加',
+            status: 'waiting',
+            waitingOn: 'player',
+            sourceIds: [input.id, manifest.sourceId],
+            nextCheck: [],
+          },
+        ],
+        episodeDecision: {
+          requestId: manifest.requestId,
+          choice: 'engage',
+          reason: '先确认玩家意愿',
+          sourceIds: [input.id, manifest.sourceId],
+        },
+      });
+      let firstCalls = 0;
+      await runNpcAgent(
+        {
+          attempts: actors,
+          kernel,
+          model: {
+            async decide() {
+              firstCalls++;
+              return raw;
+            },
+          },
+        },
+        f.owner,
+        claim,
+        snapshot,
+      );
+      assert.equal(firstCalls, 1);
+      const oldState = (await actors.read(f.owner, { worldId: f.id, actorId }))!;
+      assert.equal(oldState.questions?.length, 1);
+      assert.equal(oldState.questions![0]!.responsibilityId, undefined);
+      const oldEvidence = (
+        await admin.query(
+          `SELECT a.response,a.response_hash,e.payload FROM parallel_life.agent_attempts a
+      JOIN parallel_life.world_events e ON e.id=a.event_id WHERE a.id=$1`,
+          [claim.id],
+        )
+      ).rows[0];
+      assert.equal(oldEvidence.response.response, raw);
+      let nextCalls = 0;
+      const service = npcAgentServices(app, () => ({
+        async complete(messages) {
+          nextCalls++;
+          const p = JSON.parse(messages[1]!.content);
+          return JSON.stringify({
+            protocol: 'npc-wire-v19',
+            statements: [{ text: '你先了解细节，不急着决定。', dependsOnActionIds: [] }],
+            executions: [],
+            changes: {
+              inputInterpretation: {
+                kind: 'related_reply',
+                sourceId: p.wireCatalog.inputSourceRef,
+                quote: p.input.text,
+                replies: [
+                  { targetRef: 'reply:1', relation: 'defer_answer', decision: 'undecided' },
+                ],
+              },
+            },
+          });
+        },
+      }));
+      const command = {
+        id: randomUUID(),
+        worldId: f.id,
+        actorId,
+        expectedVersion: (await worlds.get({ userId: f.owner }, f.id)).version,
+        text: '具体是什么活动？我还没有决定参加。',
+      };
+      const result = await service.sendMessageIfEnabled(f.owner, command);
+      assert.equal(result?.status, 'committed');
+      const current = (await actors.read(f.owner, { worldId: f.id, actorId }))!;
+      assert.equal(current.questions?.length, 1);
+      assert.equal(current.questions![0]!.responsibilityId, manifest.requestId + ':followup');
+      assert.equal(current.decisions.at(-1)?.kind, 'undecided');
+      assert.equal(current.decisions.at(-1)?.responsibilityId, manifest.requestId + ':followup');
+      await service.sendMessageIfEnabled(f.owner, command);
+      assert.equal(nextCalls, 1);
+      const after = (
+        await admin.query(
+          `SELECT a.response,a.response_hash,e.payload FROM parallel_life.agent_attempts a
+      JOIN parallel_life.world_events e ON e.id=a.event_id WHERE a.id=$1`,
+          [claim.id],
+        )
+      ).rows[0];
+      assert.deepEqual(after, oldEvidence);
+    },
+  );
   for (const streaming of [false, true]) {
     for (const [decision, text, relation] of [
       ['accepted', '好，我愿意参加。', 'answer'],
