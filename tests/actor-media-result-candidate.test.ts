@@ -124,3 +124,33 @@ test('original registered observation collector honours actual consumedCandidate
   view.consumedCandidateIds = [candidates[0]!.id];
   assert.deepEqual(await collect(view), []);
 });
+
+test('authenticated failed media has one stable review identity and cannot masquerade as delivery', async () => {
+  const current = input();
+  const result = {
+    kind: 'own_media_completion',
+    requestId: 'request',
+    phase: 'failed',
+    mediaType: 'image',
+    sourceStoryAt: at,
+    observedAtStory: at,
+    failedAtReal: '2026-10-20T10:00:00.000Z',
+    errorCode: 'GENERATION_FAILED',
+    provenance: { taskId: 'task', outboxId: 'outbox' },
+  };
+  current.observations[0]!.text = JSON.stringify(result);
+  const first = await collectActorMediaResultCandidates(current);
+  assert.equal(first.length, 1);
+  current.worldVersion += 1;
+  current.actorRevision += 1;
+  assert.equal((await collectActorMediaResultCandidates(current))[0]!.id, first[0]!.id);
+  for (const invalid of [
+    { ...result, provenance: {} },
+    { ...result, failedAtReal: null },
+    { ...result, asset: { id: 'invented' } },
+    { ...result, chatProjection: 'eligible' },
+  ]) {
+    current.observations[0]!.text = JSON.stringify(invalid);
+    assert.deepEqual(await collectActorMediaResultCandidates(current), []);
+  }
+});

@@ -1347,17 +1347,24 @@ export async function collectActorMediaResultCandidates(input: {
     if (
       !result ||
       result.kind !== 'own_media_completion' ||
-      result.phase !== 'completed' ||
+      !['completed', 'failed'].includes(result.phase) ||
       result.requestId !== source.recordId ||
       !['image', 'video'].includes(result.mediaType) ||
       result.sourceStoryAt !== source.at ||
       result.observedAtStory !== input.storyAt ||
-      !instant(result.completedAtReal) ||
-      !id(result.asset?.id) ||
-      !integer(result.asset?.revision) ||
-      result.asset.revision < 1 ||
-      !['image/png', 'image/jpeg', 'image/webp', 'video/mp4'].includes(result.asset.mimeType) ||
-      !['eligible', 'suppressed', 'no_message'].includes(result.chatProjection)
+      (result.phase === 'completed'
+        ? !instant(result.completedAtReal) ||
+          !id(result.asset?.id) ||
+          !integer(result.asset?.revision) ||
+          result.asset.revision < 1 ||
+          !['image/png', 'image/jpeg', 'image/webp', 'video/mp4'].includes(result.asset.mimeType) ||
+          !['eligible', 'suppressed', 'no_message'].includes(result.chatProjection)
+        : !instant(result.failedAtReal) ||
+          !/^[A-Z][A-Z0-9_]{0,79}$/.test(result.errorCode ?? '') ||
+          !id(result.provenance?.taskId) ||
+          !id(result.provenance?.outboxId) ||
+          result.asset !== undefined ||
+          result.chatProjection !== undefined)
     )
       continue;
     candidates.push({
@@ -1385,7 +1392,9 @@ export async function collectActorMediaResultCandidates(input: {
       priority: 40,
       requiresCoordination: false,
       reason:
-        '本人请求的媒体已有真实生成结果；据此考虑自己的后续计划或保持安静，不再次购买同一生成，不推定玩家已读或整个目标完成。',
+        result.phase === 'failed'
+          ? '本人生成任务已确认失败；考虑调整安排或保持安静，不自动重生成，不假称图片已发送。'
+          : '本人请求的媒体已有真实生成结果；据此考虑自己的后续计划或保持安静，不再次购买同一生成，不推定玩家已读或整个目标完成。',
     });
   }
   return candidates;
