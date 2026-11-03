@@ -1155,6 +1155,7 @@ test('actionless plan with a missing condition or an open question does not re-a
   assert.equal((await collect(missing, 'actor_plan')).candidates.length, 0);
 
   const asked = structuredClone(base);
+  asked.actors[0]!.snapshot.sources.find((source) => source.id === 's')!.kind = 'private_message';
   asked.actors[0]!.snapshot.state.questions = [
     {
       id: 'q1',

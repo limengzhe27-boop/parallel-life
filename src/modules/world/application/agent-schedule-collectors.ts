@@ -509,14 +509,25 @@ async function planReconsiderations(
     // trigger. It still deserves a bounded review opportunity: the actor can
     // speak, wait, revise or close it. This is deliberately separate from the
     // action path below, which remains condition-gated.
-    // A plan that already names a missing condition, or whose thread has an
-    // unanswered question, has no new evidence to review. Re-opening it every
-    // story hour only repeats the same ask and pressures a silent player.
+    // Waiting belongs to the specific request, not every plan in this thread.
+    const relatedResponsibilityIds = new Set([
+      ...refs.flatMap((ref) => ref.responsibilityIds),
+      ...state.actions
+        .filter((action) => plan.actionIds.includes(action.id))
+        .flatMap((action) => action.handlesResponsibilityIds),
+    ]);
+    const planSources = new Set([...plan.sourceIds, ...(goal?.sourceIds ?? [])]);
     const pendingQuestion = state.questions?.some(
       (question) =>
         question.status === 'open' &&
         question.channel === context.snapshot.channel.kind &&
-        question.threadId === context.snapshot.channel.threadId,
+        question.threadId === context.snapshot.channel.threadId &&
+        ((question.responsibilityId !== undefined &&
+          relatedResponsibilityIds.has(question.responsibilityId)) ||
+          (planSources.has(question.sourceId) &&
+            ['private_message', 'group_message', 'scene_entry'].includes(
+              context.sources.get(question.sourceId)?.kind ?? '',
+            ))),
     );
     const savedReview = view.planReviews?.get(plan.id);
     if (
@@ -525,7 +536,6 @@ async function planReconsiderations(
       !plan.missingConditions.length &&
       !pendingQuestion &&
       !completedStep &&
-      !refs.length &&
       (!savedReview || Date.parse(savedReview.nextReviewAt) <= Date.parse(view.storyAt)) &&
       ['active', 'waiting', 'blocked'].includes(plan.status) &&
       context.basis(plan) &&
@@ -541,13 +551,18 @@ async function planReconsiderations(
             source: 'actor_plan',
             actionId: null,
             planReview: { planId: plan.id, goalId: plan.goalId },
+            episodeIds: refs.map((ref) => ref.episodeId),
             sourceIds,
             responsibilities: [],
             semantic: {
               planId: plan.id,
               goalId: plan.goalId,
-              summary: plan.summary,
               status: plan.status,
+              episodeRefs: refs.map((ref) => ({
+                requestId: ref.requestId,
+                episodeId: ref.episodeId,
+                choice: ref.choice,
+              })),
               // One bounded review window per story hour. This is a cadence,
               // not a new source or an authorization to execute.
               reviewWindow: Math.floor(Date.parse(view.storyAt) / 3_600_000),
