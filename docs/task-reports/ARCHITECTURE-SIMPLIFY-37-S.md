@@ -20,6 +20,7 @@
 - 新用例加入4200条已取消旧运输记录；返回证据history小于10条、当前anchor/family完全不变、无新增模型调用；collect在 `SET TRANSACTION READ ONLY` 下产生合法候选。
 - `tests/integration/local-proactive-worker.test.ts`：1/1。原SQL公平领取、两进程争用唯一租约、暂停保护、presence-only领取0/advanced0，进程生命周期通过。
 - `tests/local-proactive-worker.test.ts` + `proactive-scheduler.test.ts`：5/5。共享默认参数及有界不重叠循环通过。
+- `proactive-scheduler199`：1/1；100个合格世界分两批领取，无遗漏、重复或越权，60秒冷却边界通过（受控执行，不是模型吞吐）。
 - `typecheck`：通过；`check:boundaries`：765 files通过；涉及文件Prettier、diff check通过。
 - 未重复全量check/build；由root集成后执行。未运行真实模型、未部署、未重启3218/3219。
 
