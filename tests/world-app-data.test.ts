@@ -537,7 +537,7 @@ test('legacy recall marker still replaces the previous assistant bubble with a r
   assert.equal(data.messages[0]?.text, '对方撤回了一条消息');
 });
 
-test('stale pending media is omitted instead of forever generating or showing a broken card', () => {
+test('virtual message dates never expire actual pending media or fabricate failure', () => {
   const pending = (at: string) => ({
     ...world,
     messages: [
@@ -551,12 +551,21 @@ test('stale pending media is omitted instead of forever generating or showing a 
       },
     ],
   });
-  const stale = worldAppData(pending('2026-09-22T00:00:00Z') as Parameters<typeof worldAppData>[0]);
-  assert.equal(stale.messages.length, 0);
-  const fresh = worldAppData(
-    pending(new Date().toISOString()) as Parameters<typeof worldAppData>[0],
-  );
-  assert.equal(fresh.messages[0]?.photo?.status, 'generating');
+  for (const at of ['2000-01-01T00:00:00Z', '2099-12-31T23:59:00Z']) {
+    const result = worldAppData(pending(at) as Parameters<typeof worldAppData>[0]);
+    assert.equal(result.messages.length, 1);
+    assert.equal(result.messages[0]?.photo?.status, 'generating');
+    assert.equal(result.messages[0]?.at, at);
+    const ready = pending(at);
+    ready.messages[0] = {
+      ...ready.messages[0]!,
+      photoId: 'actual-image',
+      mediaStatus: 'ready',
+    } as any;
+    const completed = worldAppData(ready as Parameters<typeof worldAppData>[0]);
+    assert.equal(completed.messages[0]?.photo?.status, 'ready');
+    assert.equal(completed.messages[0]?.at, at);
+  }
 });
 
 test('contact unread and notification projection share visible runtime IDs across recalls, duplicates and failed media', async () => {
@@ -574,14 +583,7 @@ test('contact unread and notification projection share visible runtime IDs acros
       { ...world.messages[0]!, id: 'live', text: '新来信' },
     ],
   };
-  const data = worldAppData(
-    source as Parameters<typeof worldAppData>[0],
-    new Set(),
-    [],
-    undefined,
-    undefined,
-    Date.parse(world.time),
-  );
+  const data = worldAppData(source as Parameters<typeof worldAppData>[0], new Set(), []);
   const notifications = projectMessageNotifications(
     data.messages,
     data.contacts,
@@ -593,14 +595,7 @@ test('contact unread and notification projection share visible runtime IDs acros
     notifications.map((n) => n.id),
     ['live'],
   );
-  const read = worldAppData(
-    source as Parameters<typeof worldAppData>[0],
-    new Set(['live']),
-    [],
-    undefined,
-    undefined,
-    Date.parse(world.time),
-  );
+  const read = worldAppData(source as Parameters<typeof worldAppData>[0], new Set(['live']), []);
   assert.equal(read.contacts[0]!.unread, 0);
   assert.equal(
     projectMessageNotifications(read.messages, read.contacts, new Set(['live']), (at) => at).length,

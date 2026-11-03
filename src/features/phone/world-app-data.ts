@@ -2,8 +2,6 @@ import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { resolveAvatarArt } from './avatar-art.ts';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import type { PhoneAppsData, PhoneMessage, PhonePhoto } from './apps/types.ts';
-/** A pending media projection older than this is honestly shown as unfinished, not forever "generating". */
-export const STALE_PENDING_MEDIA_MS = 5 * 60 * 1000;
 /**
  * Map the authorized opening projection only; no private interview or inferred events.
  *
@@ -24,7 +22,6 @@ export function worldAppData(
     revision,
   ) =>
     `/api/v1/assets/${encodeURIComponent(assetId)}?worldId=${encodeURIComponent(worldId)}&revision=${revision}`,
-  now: number = Date.now(),
 ): PhoneAppsData {
   const history = world.historyLinks ?? [];
   const historyLinks = (entry: (typeof history)[number]) => [
@@ -117,11 +114,8 @@ export function worldAppData(
       ...world.messages
         .filter((message) => {
           const hasText = message.text.trim().length > 0;
-          const stalePending =
-            message.mediaStatus === 'pending' &&
-            now - Date.parse(message.at) > STALE_PENDING_MEDIA_MS;
           const silentMediaFailure =
-            (message.mediaStatus === 'failed' || stalePending) &&
+            message.mediaStatus === 'failed' &&
             !hasText &&
             !message.stickerId &&
             !message.photoId &&
@@ -162,21 +156,18 @@ export function worldAppData(
               };
             }
           } else if (message.mediaStatus === 'pending') {
-            const stale = now - Date.parse(message.at) > STALE_PENDING_MEDIA_MS;
-            // A failed image is omitted from the chat instead of leaving a
-            // broken card mixed into the character's spoken reply.
-            if (!stale)
-              photo = {
-                id: `pending_${message.id}`,
-                date: message.at,
-                title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
-                description: isVideo
-                  ? 'AI 视频片段生成中，完成后将在此展示'
-                  : 'AI 摄影记录中，生成后将在此展示并同步至相册',
-                status: 'generating' as const,
-                tag: 'event' as const,
-                mediaType: isVideo ? 'video' : 'image',
-              };
+            // Server media state is authoritative; message.at is virtual story time.
+            photo = {
+              id: `pending_${message.id}`,
+              date: message.at,
+              title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
+              description: isVideo
+                ? 'AI 视频片段生成中，完成后将在此展示'
+                : 'AI 摄影记录中，生成后将在此展示并同步至相册',
+              status: 'generating' as const,
+              tag: 'event' as const,
+              mediaType: isVideo ? 'video' : 'image',
+            };
           } else if (message.text) {
             const match = message.text.match(/^\[分享了相册照片：《(.+?)》\]$/);
             if (match) {

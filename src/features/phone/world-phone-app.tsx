@@ -40,7 +40,7 @@ import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { MessageReceiptClient } from '../api/message-receipt-client.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
-import { notePollFailure, notePollSuccess, pollingAllowed } from './poll-guard.ts';
+import { notePollFailure, notePollSuccess, pollingAllowed, worldPollDelay } from './poll-guard.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import { CharacterPhoneShell as PhoneShell } from './character-phone-shell.tsx';
@@ -56,7 +56,7 @@ import type {
   PhoneNote,
   PhoneRecordsState,
 } from './apps/types.ts';
-import { STALE_PENDING_MEDIA_MS, worldAppData } from './world-app-data.ts';
+import { worldAppData } from './world-app-data.ts';
 import { mergeNoteReceipt } from './world-receipts.ts';
 import { dialogueText, formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage, PhonePhoto } from './apps/types.ts';
@@ -578,7 +578,7 @@ export function WorldPhoneApp({
     setStatusMessage('正在打开你的手机…');
     try {
       const next = await client.world(worldId);
-      notePollSuccess();
+      notePollSuccess('world');
       if (currentRequest === request.current) {
         setData((current) =>
           current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
@@ -587,7 +587,7 @@ export function WorldPhoneApp({
       }
       return;
     } catch (e) {
-      notePollFailure(e);
+      notePollFailure('world', e);
       if (currentRequest !== request.current) return;
       try {
         const resolved = await resolveInterruptedBuild(currentRequest);
@@ -738,40 +738,34 @@ export function WorldPhoneApp({
   // Other workers/tabs can commit messages even when this page's advance is quiet.
   // Read projections even during a send/advance batch. Actor leases remain server-owned;
   // committed messages merge by version without touching route, drafts or stream state.
-  const hasPendingMedia = data?.messages.some(
-    (message) =>
-      message.mediaStatus === 'pending' &&
-      Date.now() - Date.parse(message.at) <= STALE_PENDING_MEDIA_MS,
-  );
+  const hasPendingMedia =
+    data?.messages.some((message) => message.mediaStatus === 'pending') ?? false;
   const liveWorldReady = data?.id === worldId;
   useEffect(() => {
     if (!liveWorldReady || (!automatic && !hasPendingMedia)) return;
     let active = true;
-    let reading = false;
-    const timer = window.setInterval(
-      async () => {
-        if (!active || reading || document.visibilityState !== 'visible') return;
-        if (!pollingAllowed()) return;
-        reading = true;
-        try {
-          const next = await client.world(worldId);
-          notePollSuccess();
-          if (active)
-            setData((current) =>
-              current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
-            );
-        } catch (error) {
-          // A transient read failure never changes a committed message into a failed send.
-          notePollFailure(error);
-        } finally {
-          reading = false;
-        }
-      },
-      hasPendingMedia ? 3000 : 10000,
-    );
+    const observedAt = Date.now();
+    let timer: number;
+    const read = async () => {
+      try {
+        if (!active || document.visibilityState !== 'visible' || !pollingAllowed('world')) return;
+        const next = await client.world(worldId);
+        notePollSuccess('world');
+        if (active)
+          setData((current) =>
+            current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
+          );
+      } catch (error) {
+        // Read failures never change a committed message into a failed send.
+        notePollFailure('world', error);
+      } finally {
+        if (active) timer = window.setTimeout(read, worldPollDelay(hasPendingMedia, observedAt));
+      }
+    };
+    timer = window.setTimeout(read, worldPollDelay(hasPendingMedia, observedAt));
     return () => {
       active = false;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
   }, [automatic, hasPendingMedia, liveWorldReady, client, worldId]);
   useEffect(() => {
@@ -919,6 +913,7 @@ export function WorldPhoneApp({
               return;
             setOpeningWorking(true);
             const next = await client.advanceWorldOpening(worldId);
+            notePollSuccess('advance');
             if (isCurrent()) {
               setOpening(next.opening);
               const previous = observedOpening.current;
@@ -958,7 +953,7 @@ export function WorldPhoneApp({
         // and banner show the real incoming reply while this screen stays open.
         if (active && (result.changed || result.played > 0)) await load();
       } catch (error) {
-        notePollFailure(error);
+        notePollFailure('advance', error);
         // Operation failures retain their original queryable identity. Read failures
         // do not imply that a Director/NPC operation failed or authorize a resend.
         if (active && advancing) void advanceRecoveryRef.current.reconcile();
@@ -970,7 +965,7 @@ export function WorldPhoneApp({
       }
     }
     directorCheck.current = () => {
-      if (!pollingAllowed()) return;
+      if (!pollingAllowed('advance')) return;
       // Same-origin tabs share a cheap-check/execution transport lock. A lost lock never
       // authorizes a new paid attempt: all source and unknown fences remain server-side.
       if (navigator.locks) {

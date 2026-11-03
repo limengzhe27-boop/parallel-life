@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { notePollFailure, notePollSuccess, pollingAllowed } from './poll-guard.ts';
 import type { LifeClient } from '../api/client.ts';
 import type { AdvanceOperationReceipt } from '../../contracts/advance-operation.ts';
 import {
@@ -76,7 +77,7 @@ export function useAdvanceRecovery(
   );
   const advance = useCallback(
     async (key: string) => {
-      if (current.current.worldId !== worldId) return;
+      if (current.current.worldId !== worldId || !pollingAllowed('advance')) return;
       const existing = current.current.items.find((i) => i.key === key);
       if (existing) return existing.receipt?.result;
       // Recovery bookkeeping cannot veto unrelated scheduler work. Exact paid
@@ -91,9 +92,11 @@ export function useAdvanceRecovery(
       persist([...current.current.items, item]);
       try {
         const receipt = await client.advanceOperation(worldId, item.id, 'start');
+        notePollSuccess('advance');
         accept(item.id, receipt);
         return receipt.result;
-      } catch {
+      } catch (error) {
+        notePollFailure('advance', error);
         if (current.current.worldId === worldId)
           persist(
             current.current.items.map((i) => (i.id === item.id ? { ...i, state: 'checking' } : i)),
@@ -104,7 +107,7 @@ export function useAdvanceRecovery(
     [worldId, client, persist, accept],
   );
   const reconcile = useCallback(async () => {
-    if (busy.current || current.current.worldId !== worldId) return;
+    if (busy.current || current.current.worldId !== worldId || !pollingAllowed('advance')) return;
     const item = [...current.current.items]
       .filter((i) => advanceRecoveryAction(i, Date.now()))
       .sort((a, b) => a.nextCheckAt - b.nextCheckAt)[0];
@@ -130,6 +133,7 @@ export function useAdvanceRecovery(
       // A not-yet-accepted transport may use the SAME idempotent operation identity.
       if (receipt.status === 'absent' && item.attempts < 3)
         receipt = await client.advanceOperation(worldId, item.id, 'start');
+      notePollSuccess('advance');
       accept(item.id, receipt);
       if (
         item.state === 'recoverable' ||
@@ -138,7 +142,8 @@ export function useAdvanceRecovery(
         receipt.result?.played
       )
         await onChanged();
-    } catch {
+    } catch (error) {
+      notePollFailure('advance', error);
       /* Leave the same receipt pending; bounded backoff never sends another model. */
     } finally {
       busy.current = false;

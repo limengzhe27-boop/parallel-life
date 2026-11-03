@@ -148,6 +148,7 @@ export function useWorldTime(
       phoneTimeMode(busyRef.current, readRoute(location.hash, worldId), lockedRef.current);
     const update = () => {
       if (
+        !pollingAllowed('clock') ||
         document.visibilityState !== 'visible' ||
         s.returning ||
         waiting.current ||
@@ -155,9 +156,9 @@ export function useWorldTime(
       )
         return;
       void sync(mode(), s.resumeRequired)
-        .then(() => notePollSuccess())
+        .then(() => notePollSuccess('clock'))
         .catch((error) => {
-          notePollFailure(error);
+          notePollFailure('clock', error);
           if (s.active) setNotice('时间暂时未同步，稍后重试。');
         });
     };
@@ -195,9 +196,7 @@ export function useWorldTime(
       }
     };
     update();
-    const heartbeat = setInterval(() => {
-      if (pollingAllowed()) update();
-    }, 15_000);
+    const heartbeat = setInterval(update, 15_000);
     const display = setInterval(() => {
       setNow(Date.now());
       if (!s.returning && mode() !== s.mode) update();
