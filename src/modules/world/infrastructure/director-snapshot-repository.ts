@@ -36,6 +36,8 @@ export type DirectorSnapshotReadInput = {
   worldVersion: number;
   candidates: DirectorSnapshot['candidates'];
   nativeTurn?: DirectorSnapshot['nativeTurn'];
+  /** Transient owner-authorized recovery identity; never a world state field. */
+  retryCommandId?: string;
   blockers: DirectorSnapshot['blockers'];
   /** Optional expected-value assertion; persisted authorized leases remain the sole authority. */
   focus?: DirectorSnapshot['focus'];
@@ -1018,6 +1020,7 @@ export class PostgresDirectorSnapshotRepository {
             engineEpoch: h.epoch,
             worldVersion: h.world.version,
             storyAt: h.storyAt,
+            retryCommandId: input.retryCommandId,
           },
           authored,
           undefined,

@@ -1125,29 +1125,6 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
         sourceRefs: array(refs(values(catalog.sources))),
       }),
     );
-  const topics = (snapshot.actorKnownTopics ?? []).filter((topic) =>
-    snapshot.boundary.actorIds.includes(topic.actorId),
-  );
-  const topicSelections: Schema[] = catalog.actors.flatMap(({ ref, actorId }) => {
-    const own = topics.filter((topic) => topic.actorId === actorId);
-    if (!own.length) return [];
-    return [
-      object({
-        actorRef: { type: 'string', enum: [ref] },
-        refs: array({
-          anyOf: own.map((topic) =>
-            object({
-              id: { type: 'string', enum: [topic.id] },
-              contentHash: { type: 'string', enum: [topic.contentHash] },
-            }),
-          ),
-        }),
-      }),
-    ];
-  });
-  const topicSchema: Schema = topicSelections.length
-    ? { anyOf: [array({ anyOf: topicSelections }), { type: 'null' }] }
-    : { type: 'null' };
   const schema = object({
     protocol: { type: 'string', enum: [DIRECTOR_WIRE_PROTOCOL] },
     events: {
@@ -1190,7 +1167,6 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
           }),
           !catalog.actors.length,
         ),
-        actorTopics: topicSchema,
       }),
       !origins.length || !!snapshot.nativeTurn,
     ),
@@ -1229,7 +1205,8 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       type: 'string',
       minLength: 1,
       maxLength: 140,
-      description: '建议本人向玩家提出的具体信息、请求或选择；不是预制对白或已发生事实。',
+      description:
+        '本人现在可以发起的下一步互动。邀请阶段提出可拒绝的邀请；已发出的请求按实际回应承接；不把接受后的行动提前执行。',
     },
   });
   authorProperties.actorTasks = object(
@@ -1244,7 +1221,14 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     ),
   );
   const authorItem = object(authorProperties);
-  const deferChoice = object({ kind: { type: 'string', enum: ['defer'] }, reason: text });
+  const deferChoice = object({
+    kind: { type: 'string', enum: ['defer'] },
+    reason: {
+      ...text,
+      description:
+        '阻止当前入口互动的具体前提或节奏依据。若等待玩家，说明已经向玩家提出的本事项请求；未来接受后才能执行的步骤不阻止首次邀请。',
+    },
+  });
   schema.$defs = {
     director_actor_task: actorTaskSchema,
     director_author_opportunity: authorItem,

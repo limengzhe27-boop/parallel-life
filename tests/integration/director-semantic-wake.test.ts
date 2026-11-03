@@ -1,3 +1,4 @@
+import { directorExplicitRetryCommandId } from '../../src/modules/world/infrastructure/director-trial-recovery.ts';
 import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
 import { migrateLegacyWorldInTransaction } from '../../src/modules/world/infrastructure/legacy-world-migration.ts';
 import { readAgentPhoneEntryProbe } from '../../src/modules/world/infrastructure/agent-phone-entry-probe.ts';
@@ -580,6 +581,109 @@ test('actual publication semantic wake advances use one protected Director bound
     assert.equal(saved.decision_id, null);
     return saved;
   }
+  await t.test(
+    'explicit retry retains failed authored scope with current eligibility and one receipt',
+    async () => {
+      const f = await fixture();
+      const { directorWireCatalog, directorOpeningOwnerCatalog } =
+        await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
+      function wireQuiet(s: DirectorSnapshot) {
+        return JSON.stringify({
+          protocol: 'director-wire-v15',
+          openingContext: s.openingContextAuthority
+            ? {
+                informationOwners: Object.fromEntries(
+                  directorOpeningOwnerCatalog(s).information.map((i) => [
+                    i.ref,
+                    {
+                      actorRef: null,
+                      reason: 'Fixture public scene, no private actor information',
+                    },
+                  ]),
+                ),
+              }
+            : null,
+          authoredChoices: Object.fromEntries(
+            directorWireCatalog(s).events.map((e) => [
+              e.ref,
+              { kind: 'defer', reason: 'Bounded fixture decision' },
+            ]),
+          ),
+          candidates: [],
+          opportunities: [],
+          audit: { reason: 'Fixture decision', sourceRefs: [] },
+        });
+      }
+      const initial = await snap(f);
+      await runDirectorAgent(
+        {
+          attempts: directors,
+          model: {
+            async decide() {
+              return wireQuiet(initial);
+            },
+          },
+          parse: parseDirectorDecision,
+        },
+        f.owner,
+        claim(initial),
+        initial,
+      );
+      await at(f, time(10));
+      const frame = await snap(f);
+      assert.equal(frame.evaluationCause?.kind, 'authored_eligibility');
+      const failed = claim(frame);
+      await assert.rejects(
+        runDirectorAgent(
+          {
+            attempts: directors,
+            model: {
+              async decide() {
+                return 'invalid fixture output';
+              },
+            },
+            parse: parseDirectorDecision,
+          },
+          f.owner,
+          failed,
+          frame,
+        ),
+      );
+      assert.equal((await wake(f)).cause, null);
+      const retryCommandId = directorExplicitRetryCommandId(f.id, failed.id);
+      const readRetry = (command = retryCommandId) =>
+        snapshots.read(f.owner, {
+          worldId: f.id,
+          engineEpoch: 2,
+          worldVersion: frame.worldVersion,
+          candidates: [],
+          blockers: [],
+          retryCommandId: command,
+        });
+      const retry = await readRetry();
+      assert.deepEqual(retry.deliberationWindow, frame.deliberationWindow);
+      assert.equal(retry.evaluationCause?.id, `director-explicit-retry:${retryCommandId}`);
+      await assert.rejects(readRetry(randomUUID()));
+      const retryClaim = { ...claim(retry), commandId: retryCommandId };
+      let calls = 0;
+      const deps = {
+        attempts: directors,
+        model: {
+          async decide() {
+            calls++;
+            return wireQuiet(retry);
+          },
+        },
+        parse: parseDirectorDecision,
+      };
+      await runDirectorAgent(deps, f.owner, retryClaim, retry);
+      await runDirectorAgent(deps, f.owner, retryClaim, retry);
+      assert.equal(calls, 1);
+      assert.equal((await wake(f)).cause, null);
+      assert.equal((await attempts(f)).find((a) => a.id === failed.id).status, 'invalid_output');
+    },
+  );
+
   await t.test(
     'verified zero-send bootstrap gets one stable successor without rewriting old rejection',
     async () => {

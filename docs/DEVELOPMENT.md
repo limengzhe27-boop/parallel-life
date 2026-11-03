@@ -3497,3 +3497,6 @@ ACTOR-CONTINUITY-33 root独占 authored-reconsideration-evidence.ts（接已认�
 ACTOR-CONTINUITY-33 2026-11-03 root收口：6da97e02/21237652/d2ac0593集成；check4176、PG15、隔离build通过；本地clone0121，原2fb两人资料v384/v385修正、草稿1→2，历史进度保留；3218及原worker更新，3219未重启，未生产部署。原档4导演+11人物调用截至v396仍0新消息/0计划，主动演绎验收失败。余项：导演邀请入口误判及v393 DIRECTOR_GROUP_TASK_SCOPE（actorTasks/actorTopics归属重复），不重试旧paid。详ACTOR-CONTINUITY-33报告；总体继续进行中。
 
 EPISODE-CONTEXT-33 / ACTOR-DEFINITION-29：root已集成验证对应源码和原档资料修订；组件范围验收通过，不能代替ACTOR-CONTINUITY-33主动演绎总体验收。
+
+|DIRECTOR-HANDOFF-34|[ ] 部分完成，主动推进未通过|root-director34唯一集成|main a55d0a0e；director-model-protocol/director-agent-model及对应应用/恢复必要接线、聚焦tests/report；先核因再扩围|精简人物任务与主题重复归属；区分邀请机会与接受后行动；原2fb主动消息及后续计划真实验收，本地3218更新，保留原档与付费回执，不强制/不重复调用刷结果。|
+DIRECTOR-HANDOFF-34：已精简actorTopics并修复显式失败恢复原窗口；check4177/build/新增PG通过，3218及workers已更新。原2fb真实1导演+1NPC后仍140消息、0新计划，不称跑通。导演邀请入口等待、审计人物错称、旧集成夹具保留未完成，见docs/task-reports/DIRECTOR-HANDOFF-34.md。

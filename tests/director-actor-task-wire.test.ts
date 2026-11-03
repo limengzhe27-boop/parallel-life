@@ -1151,3 +1151,44 @@ test('v14 rejects missing or foreign ownership keys and actors without protected
   );
   assert.equal(f.parse(f.wire).openingContext!.disposition, 'defer');
 });
+
+test('current tasks carry one actor owner without a second topic selection contract', () => {
+  const f = consider();
+  f.s.actorKnownTopics = [
+    {
+      id: 'topic-b',
+      actorId: 'b',
+      kind: 'goal',
+      itemId: 'goal-b',
+      summary: 'B has a separate ongoing goal',
+      status: 'active',
+      contentHash: 'a'.repeat(64),
+      proofSourceIds: ['known'],
+    },
+  ];
+  f.wire.protocol = 'director-wire-v15';
+  Object.assign(f.wire, { openingContext: null });
+  const o = f.wire.authoredChoices[f.events[0]!.ref].opportunity;
+  delete o.actorTopics;
+  o.actorTasks = {
+    'actor:1': {
+      topic: 'An optional visit',
+      personalObjective: 'Ask whether a visit suits the player',
+      proposedInteraction: 'Offer a visit before arranging attendance',
+    },
+    'actor:2': null,
+  };
+  const format = directorResponseFormat(f.s);
+  assert.equal(format.format, 'json_schema');
+  if (format.format !== 'json_schema') throw Error('schema');
+  assert(!JSON.stringify(format.schema).includes('actorTopics'));
+  assert(!JSON.stringify(format.schema).includes('topic-b'));
+  const decision = f.parse(f.wire);
+  assert.deepEqual(decision.opportunities[0]!.participantActorIds, ['a']);
+  assert.equal(decision.opportunities[0]!.stagingIntents![0]!.actorId, 'a');
+  assert.equal(decision.opportunities[0]!.actorTopics, undefined);
+  // Historical paid envelopes remain readable, but cross-person ownership is
+  // still invalid. Dropping the outgoing field must never sanitize old output.
+  o.actorTopics = [{ actorRef: 'actor:2', refs: [{ id: 'topic-b', contentHash: 'a'.repeat(64) }] }];
+  assert.throws(() => f.parse(f.wire));
+});

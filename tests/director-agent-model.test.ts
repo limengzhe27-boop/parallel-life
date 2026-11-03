@@ -861,7 +861,7 @@ test('Director strict response grammar binds each reference namespace to this im
   assert.deepEqual(opportunity.actorTasks.required, ['actor:1', 'actor:2']);
   assert.equal(root.$defs.director_author_opportunity.properties.origin, undefined);
   assert.deepEqual(root.properties.authoredChoices.required, ['event:1']);
-  assert.equal(opportunity.actorTopics.type, 'null');
+  assert.equal(opportunity.actorTopics, undefined);
   const walk = (schema: any) => {
     if (!schema || typeof schema !== 'object') return;
     if (schema.type === 'object') {

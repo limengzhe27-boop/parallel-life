@@ -535,6 +535,7 @@ export function npcAgentAdvanceServices(
             worldVersion: world.version,
             candidates,
             blockers,
+            ...(retryCommandId ? { retryCommandId } : {}),
           });
           const openingKey = snapshot.authoredMaterials?.openingEventKey;
           const admissionScope = admitDirectorCandidates({
@@ -556,6 +557,7 @@ export function npcAgentAdvanceServices(
               engineEpoch,
               worldVersion: world.version,
               candidates: admissionScope.candidates,
+              ...(retryCommandId ? { retryCommandId } : {}),
               blockers,
             });
           if (retryCommandId && (snapshot.conversationWithoutTarget || snapshot.focus.length))

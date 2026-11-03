@@ -1,3 +1,4 @@
+import { directorExplicitRetryCommandId } from './director-trial-recovery.ts';
 import { readInvalidAuthoredEpisodeIds } from './authored-episode-scope-read.ts';
 import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
 import { hasPendingEpisodeWork } from './episode-pending-work-repository.ts';
@@ -29,7 +30,13 @@ const token = (q: AuthoredWakeQualification) =>
 export async function readDirectorNarrativeWakeInTransaction(
   sql: SqlClient,
   ownerId: string,
-  input: { worldId: string; engineEpoch: number; worldVersion: number; storyAt: string },
+  input: {
+    worldId: string;
+    engineEpoch: number;
+    worldVersion: number;
+    storyAt: string;
+    retryCommandId?: string;
+  },
   prepared?: AuthoredEligibilityView,
   allowAttemptId?: string,
   readOpening?: () => ReturnType<typeof readOpeningContextAuthority>,
@@ -113,6 +120,45 @@ export async function readDirectorNarrativeWakeInTransaction(
       nodeHash: e.ref.nodeHash,
       qualificationKey: e.qualificationKey,
     }));
+  // Explicit recovery keeps the failed authored window, not the next unseen one.
+  // The command is derived from an authenticated known failure; ordinary polling
+  // never supplies it and unknown/committed calls cannot grant this authority.
+  if (input.retryCommandId) {
+    const failed = attempts.find(
+      (a) =>
+        a.status === 'invalid_output' &&
+        a.sent_at &&
+        a.response_hash &&
+        !a.snapshot?.nativeTurn &&
+        directorExplicitRetryCommandId(input.worldId, a.id) === input.retryCommandId,
+    );
+    if (!failed) throw new DomainError('INVALID_COMMAND');
+    const prior = failed.snapshot as import('../domain/director-runtime.ts').DirectorSnapshot;
+    const retryKeys = new Set(prior.deliberationWindow?.nodeKeys ?? []);
+    const retained =
+      prior.authoredMaterials?.source?.sourceHash === view.catalog.source.sourceHash
+        ? qualifications.filter(
+            (q) =>
+              retryKeys.has(q.nodeKey) &&
+              prior.authoredEligibility?.some(
+                (old) => old.status === 'eligible' && token(old) === token(q),
+              ),
+          )
+        : [];
+    return {
+      cause: retained.length
+        ? {
+            id: `director-explicit-retry:${input.retryCommandId}`,
+            kind: 'authored_eligibility',
+            genesisHash: admission.genesis_hash,
+            admittedAtVersion: admission.admitted_at_version,
+            qualifications: retained,
+          }
+        : null,
+      hasPendingDirector,
+      deferred: false,
+    };
+  }
   const semanticReasons = await readAuthoredReconsiderationEvidence(
     sql,
     ownerId,

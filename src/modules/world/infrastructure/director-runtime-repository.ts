@@ -769,6 +769,11 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
           engineEpoch: s.engineEpoch,
           worldVersion: world.version,
           storyAt: new Date(latest).toISOString(),
+          ...(s.evaluationCause?.id.startsWith('director-explicit-retry:')
+            ? {
+                retryCommandId: s.evaluationCause.id.slice('director-explicit-retry:'.length),
+              }
+            : {}),
         },
         qualified,
         allowAttemptId,
@@ -1118,6 +1123,11 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
   ) {
     input = { ...input };
     const snapshot = snapshotShape(rawSnapshot);
+    if (
+      snapshot.evaluationCause?.id.startsWith('director-explicit-retry:') &&
+      snapshot.evaluationCause.id !== `director-explicit-retry:${input.commandId}`
+    )
+      fail('DIRECTOR_COMMAND_CONFLICT');
     for (const v of [input.id, input.worldId, input.commandId, input.token])
       if (!Key.safeParse(v).success) fail('INVALID_DIRECTOR_INPUT');
     if (
