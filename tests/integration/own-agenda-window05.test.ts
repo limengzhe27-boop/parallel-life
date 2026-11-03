@@ -132,7 +132,7 @@ test('complete quiet reviews advance only into a due authenticated successor win
     text: string,
     commandId: string,
     review: boolean,
-    mode: 'quiet' | 'unknown' | 'invalid' = 'quiet',
+    mode: 'quiet' | 'unknown' | 'invalid' | 'current' = 'quiet',
   ) {
     const world = await worlds.get({ userId: f.owner }, f.worldId),
       clock = await clocks.read(f.owner, f.worldId);
@@ -179,6 +179,13 @@ test('complete quiet reviews advance only into a due authenticated successor win
           f.calls++;
           if (mode === 'unknown') throw Error('SYNTHETIC_LOST_RESPONSE');
           if (mode === 'invalid') return '{invalid';
+          if (mode === 'current')
+            return JSON.stringify({
+              protocol: 'npc-wire-v18',
+              statements: [],
+              executions: [],
+              changes: null,
+            });
           const p = JSON.parse(messages.find((m) => m.role === 'user')!.content),
             ref = p.wireCatalog.inputSourceRef;
           return JSON.stringify({
@@ -292,6 +299,34 @@ test('complete quiet reviews advance only into a due authenticated successor win
         assert.equal(state!.questions?.length ?? 0, waiting ? 1 : 0);
       },
     );
+  await t.test(
+    'current single-decision review commits without a duplicate report and retains one successor',
+    async () => {
+      const f = await fixture();
+      await due(f);
+      const first = await work(f);
+      assert.ok(first);
+      const saved = await perform(
+        f,
+        ownAgendaReviewInputText(first.grant),
+        first.commandId,
+        true,
+        'current',
+      );
+      const after = await evidence(f);
+      assert.equal(after.anchor!.attemptId, saved.claim.id);
+      assert.equal(await work(f), null);
+      await runNpcAgent(saved.deps, f.owner, saved.claim, saved.snapshot);
+      assert.equal(f.calls, 2, 'one initialization + one review, no second paid review');
+      await due(f);
+      const next = await work(f);
+      assert.ok(next);
+      assert.equal(next.grant.anchorAttemptId, saved.claim.id);
+      const state = await store.read(f.owner, { worldId: f.worldId, actorId: f.actorId });
+      assert.equal(state!.plans.length, 0);
+      assert.equal('agendaReview' in state!, false);
+    },
+  );
   for (const mode of ['unknown', 'invalid'] as const)
     await t.test(
       mode + ' original paid family is not repurchased after the time window',

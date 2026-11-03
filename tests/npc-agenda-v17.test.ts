@@ -168,7 +168,7 @@ test('paid v16 keeps classification semantics rather than being decoded as v17',
 test('v17 and purchased v16 streaming preserve each original execution envelope', async () => {
   const { NpcStreamParser } =
     await import('../src/modules/world/infrastructure/npc-stream-parser.ts');
-  for (const protocol of ['npc-wire-v17', 'npc-wire-v16', 'npc-wire-v15']) {
+  for (const protocol of ['npc-wire-v18', 'npc-wire-v17', 'npc-wire-v16', 'npc-wire-v15']) {
     const parser = new NpcStreamParser({
       channelKind: 'private',
       inputOrigin: 'wake',
@@ -185,4 +185,46 @@ test('v17 and purchased v16 streaming preserve each original execution envelope'
     );
     assert.ok(events.some((e) => e.kind === 'execution_intents' && e.protocol === protocol));
   }
+});
+
+test('v18 scheduled work has one decision: messages/actions/plans, no private review report', () => {
+  const { c } = fixture();
+  for (const speaks of [false, true]) {
+    const raw = {
+      protocol: 'npc-wire-v18',
+      statements: speaks ? [{ text: '我先整理自己的安排。', dependsOnActionIds: [] }] : [],
+      executions: [],
+      changes: null,
+    };
+    const p = parseAgentProposal(c, raw);
+    assert.equal(p.statements.length, speaks ? 1 : 0);
+    assert.equal(p.plans.length, 0);
+    assert.equal('agendaReview' in p, false);
+  }
+  const raw = wire();
+  raw.protocol = 'npc-wire-v18';
+  raw.changes = {
+    planIntents: [
+      { kind: 'create', ref: 'next', summary: '准备本人材料', sourceIds: ['source:2'] },
+    ],
+  };
+  assert.equal(parseAgentProposal(c, raw).plans.length, 1);
+  raw.changes = {
+    planIntents: [{ kind: 'create', ref: 'next', summary: '准备本人材料', sourceIds: ['unknown'] }],
+  };
+  assert.throws(() => parseAgentProposal(c, raw));
+  raw.changes = { agendaReview: { reason: 'redundant', basisSourceIds: ['source:2'] } };
+  assert.throws(() => parseAgentProposal(c, raw));
+});
+
+test('v18 does not force changes merely because the input is a scheduled review', () => {
+  const { c } = fixture();
+  const format = npcResponseFormat(c.state, 'forbidden', c);
+  assert.equal(format.format, 'json_schema');
+  if (format.format !== 'json_schema') return;
+  const schema = format.schema as any;
+  assert.equal(schema.properties.protocol.enum[0], 'npc-wire-v18');
+  const choices = schema.properties.changes.anyOf;
+  assert.ok(choices.some((x: any) => x.type === 'null'));
+  assert.equal(choices.find((x: any) => x.type === 'object').properties.agendaReview, undefined);
 });

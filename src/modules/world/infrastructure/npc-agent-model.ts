@@ -1,6 +1,5 @@
 import { SELECTABLE_STICKERS } from '../domain/stickers.ts';
 import { isStickerOnlyMessage, stickerMessageMeaning } from '../domain/sticker-expression.ts';
-import { actorSelfAgendaContext } from '../domain/actor-self-agenda-context.ts';
 import { projectNpcConversationProgress } from './npc-conversation-progress.ts';
 import { playerReplyTargetCatalog } from '../domain/player-reply-target-catalog.ts';
 import { npcPresentationContext } from './npc-presentation-context.ts';
@@ -31,7 +30,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v85-single-agenda-intent';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v86-single-decision';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -81,7 +80,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
 【表达】private/group是手机文字，不混旁白；scene是当面台词，不让眼前玩家再赶来。按behavior自然发1至3条短句，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
-selfAgendaContext是本人已授权职责、愿望和议程，不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
+actor.persona提供本人已授权职责和愿望，state提供已有安排；动机不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
   agendaReview: `npc_agenda_review是根据你本人真实提交状态和经过时间获得的有界自主复盘，不是玩家新请求，也不是要求你发消息。先看本人已知事实、目标、计划、等待条件、已回答/拒绝的问题，再决定保持安静、调整自己安排、提出具体的新信息或机会。没有新依据不要重复已有问题，不把沉默当同意或违约，不以换一个目标/问题编号绕过旧拒绝，已消费请求只表示参与选择已记录，不表示事件结束：对本人已engage且未结束的事件，承接原说明决定下一步，不重复作参与选择；已拒绝的请求不重开。未收到玩家回复只限制依赖该答复的步骤，不冻结本人的其他安排。推进已有安排不要求先出现新消息；若选择等待或调整计划，用planIntents记录真实缺失条件；没有依据不发明硬期限或已完成行动。`,
   commitments: `明确区分愿望与承诺：闲聊、试探、条件设想、拒绝、暂缓或换话题不构成玩家承诺，不给玩家新增责任；已有问题的真实回答和选择仍须记录。本人可基于人设/职责规划自己的议程，agenda_initialize/npc_agenda_review也不要求玩家先许诺。
 只为跨轮安排建立目标/计划；即时执行用executions，即时生图免建计划。不要口头答应立即做却漏执行。没有下一步的计划保持未完成，不伪造动作/期限；能力不足记录blocked及缺项，个人意愿仍可表达。已有对象沿用id和完整sourceIds，只输出必要增量。依赖执行成功的台词绑定该动作，失败时不展示成功。withdrawn须endReason；deadline只能逐字等于来源deadlineAt，未提供则省略；没有合法到期依据不提expired。`,
@@ -115,7 +114,7 @@ const WIRE_SYSTEM = {
   continuation: `continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：执行下一步直接用executions或planIntents，不再用continuation重复声明act；普通提问期待回答时用await_response，可由本轮requestsPlayerReply=true的消息承载，无需虚构计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。`,
   envelope: `输出JSON必须以protocol、statements、executions依次开头，然后才输出其它状态字段，不按字母排序；完整的文字会先呈现，完整且合法的生图动作会立即交给原后台生成队列，不必等待其余状态字段。自拍画面必须明确是本人手持前置相机的臂长自拍视角或本人持手机对镜自拍，保留人物外观与当前场景；不要把自拍描述成由旁人拍摄的全身写真、棚拍或电影人像。
 最终模型传输格式：protocol:"${NPC_WIRE_PROTOCOL}"，statements、executions、changes。所有状态判断字段放入changes；没有需要记录的变化时changes:null，不为闲聊填完整状态。明确玩家决定、待处理事件选择、本人持续计划改变时才提供changes对象。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。`,
-  agendaReview: `只有服务器npc_agenda_review唤醒时agendaReview必须为{reason:"本人对当前事项和下一步的具体判断，仅供内部使用",basisSourceIds:[本人合法来源]}，不再另选行为分类。用statements表达要说的话、executions表达本轮实际行动、planIntents表达持续安排；三者可以组合，也可以全部为空。可以安静地调整安排或执行合法行动，不必为了行动附带消息。对已参与未结束事项说明实际去向：当前交流已处理、仍需本人行动、等待什么或不再继续；需要持续跟进时使用已有计划或责任，不把参与本身当成完成。没有新意图时可保持安静，不强造计划。内部判断不作为消息发给玩家。普通玩家消息、事件考虑及其它输入agendaReview为null。持续安排和执行的当前输入来源由服务端绑定；你只声明本人真实合法的语义来源，旧来源完整保留。`,
+
   sourcesAndActions: `所有sourceId/sourceIds/basisSourceIds/questionSourceId使用wireCatalog.sources的本轮短ref（如source:1）；当前输入用wireCatalog.inputSourceRef，不猜编号、hash或raw ID。目录同时说明来源类型/时间/范围，usage省略为channel_context，private_strategy不授权公开披露。旧来源完整保留，服务端附加当前输入不增加权限。
 只有executions一个动作通道，最多当前一步；其它安排保留在计划里，不在goals/planIntents重复同一执行。代码只分配机械编号，已有目标/计划用本人可见id，supersedesPlanId仅同目标旧计划或null；targetIds/preconditions/dependsOnActionIds/handlesResponsibilityIds省略默认空。依赖成功的statement用dependsOnActionIds:["execution:本轮ref"]，必须有对应执行。
 即时图片格式：executions:[{ref:"action_1",action:{capability:"media.generate_image",parameters:{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence中一个"}}}]，不建goal/plan，不填机械来源。拍照、留影、场景、插画、草图和设计构想均可描述；构想用scene，不冒充已施工/已核实。新肖像不要求旧照片或实体相机，外观按人设、有依据的场景或中性背景。
@@ -161,7 +160,6 @@ function wireSystemFor(snapshot: AgentSnapshot, compact: boolean): string {
     WIRE_SYSTEM.conversation,
     ...(!compact ? [WIRE_SYSTEM.continuation] : []),
     WIRE_SYSTEM.envelope,
-    ...(!compact && snapshot.input.origin !== 'player' ? [WIRE_SYSTEM.agendaReview] : []),
     WIRE_SYSTEM.sourcesAndActions,
     ...(!compact ? [WIRE_SYSTEM.inputInterpretation] : []),
     ...(opportunity ? [WIRE_SYSTEM.consideration] : []),
@@ -241,7 +239,7 @@ function hasLiveNpcState(state: AgentSnapshot['viewState']): boolean {
     (state.actions ?? []).some((action) =>
       ['proposed', 'ready', 'waiting', 'blocked', 'executing'].includes(action.status),
     ) ||
-    state.continuation !== undefined
+    state.continuation?.decision === 'await_condition'
   );
 }
 
@@ -582,13 +580,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
           }
         : {}),
     })),
-    selfAgendaContext: actorSelfAgendaContext({
-      input: snapshot.input,
-      persona: snapshot.actor.persona,
-      definitionRef: snapshot.actor.definitionRef,
-      sources: snapshot.sources,
-      state: snapshot.viewState ?? snapshot.state,
-    }),
     stickerCatalog: Object.fromEntries(
       SELECTABLE_STICKERS.map(({ id, label, description }) => [id, `${label}；${description}`]),
     ),

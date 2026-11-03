@@ -3500,3 +3500,9 @@ EPISODE-CONTEXT-33 / ACTOR-DEFINITION-29：root已集成验证对应源码和原
 
 |DIRECTOR-HANDOFF-34|[ ] 部分完成，主动推进未通过|root-director34唯一集成|main a55d0a0e；director-model-protocol/director-agent-model及对应应用/恢复必要接线、聚焦tests/report；先核因再扩围|精简人物任务与主题重复归属；区分邀请机会与接受后行动；原2fb主动消息及后续计划真实验收，本地3218更新，保留原档与付费回执，不强制/不重复调用刷结果。|
 DIRECTOR-HANDOFF-34：已精简actorTopics并修复显式失败恢复原窗口；check4177/build/新增PG通过，3218及workers已更新。原2fb真实1导演+1NPC后仍140消息、0新计划，不称跑通。导演邀请入口等待、审计人物错称、旧集成夹具保留未完成，见docs/task-reports/DIRECTOR-HANDOFF-34.md。
+
+|STATE-SIMPLIFY-35|[ ] 四层审计及首批精简已验收，整体合并待续|root-state35唯一集成；接续root协议范围|主目录e8a60caa；npc-model-protocol/npc-agent-model/stream/parser、actor-self-agenda-context及专属测试；数据库只读审计、报告；必要迁移另登记|联合检查代码/实际模型输入/原档状态/调度消费者；删除重复议程报告与重复材料，按消费者证据处理持久重复，不删除历史回执/unknown；check/build及本地验收。|
+
+STATE-SIMPLIFY-35范围补充：root接管已集成的tests/integration/own-agenda-window05.test.ts，仅增加v18无重复报告的原入口持久化/接续验证；不改旧历史协议断言。
+
+STATE-SIMPLIFY-35收口：v18删除agendaReview与selfAgendaContext；历史安静状态不再扩张普通聊天schema。check4176、PG7、build通过；6人同快照减少1715–2281字符（非token）；原档正常advance no_candidates、0模型/0消息，主动推进未通过。3218/queue/proactive更新PID85384/85385/85386，3219未动；无DB删除/迁移。目标-计划/参与回执/continuation统一与旧请求恢复明确保留未完成，见专属报告。

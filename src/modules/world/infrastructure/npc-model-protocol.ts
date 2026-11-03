@@ -36,7 +36,8 @@ import {
 } from './npc-media-intent.ts';
 
 export const NPC_WIRE_PROTOCOL = 'npc-wire-v14'; // historical decoder identifier
-export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v17';
+export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v18';
+export const PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL = 'npc-wire-v17';
 export const PREVIOUS_INCREMENTAL_WIRE_PROTOCOL = 'npc-wire-v16';
 export const PREVIOUS_DELTA_WIRE_PROTOCOL = 'npc-wire-v15';
 const PREVIOUS_NOOP_GOAL_PROTOCOL = 'npc-wire-v13';
@@ -536,17 +537,9 @@ export function npcResponseFormat(
     if (!object) throw Error('NPC_RESPONSE_SCHEMA');
     properties.consideration = object;
   }
-  const reviewScope = !!current && isOwnAgendaReviewInput(current.input);
-  const review = properties.agendaReview!;
-  properties.agendaReview = reviewScope
-    ? review.anyOf!.find((node) => node.type === 'object')!
-    : { type: 'null' };
-  if (reviewScope) {
-    delete properties.agendaReview.properties!.decision;
-    properties.agendaReview.required = (properties.agendaReview.required as string[]).filter(
-      (key) => key !== 'decision',
-    );
-  }
+  // The wake receipt already records why this turn ran. Messages, executions and
+  // planIntents are its actual decision; do not require a second review report.
+  delete properties.agendaReview;
   const goalIds = state.goals.filter((goal) => goal.status === 'active').map((g) => g.id);
   const scopeGoal = (execution: SchemaNode, allowedIds = goalIds) => {
     const alternatives = execution.properties?.goal?.anyOf;
@@ -982,7 +975,7 @@ export function npcResponseFormat(
       ...current,
       authorizedSourceIds: current.sources ? new Set(current.sources.map((s) => s.id)) : undefined,
     }).length > 0;
-  if (considerationScope === 'required' || reviewScope || replyRequired)
+  if (considerationScope === 'required' || replyRequired)
     schema.properties.changes = schema.properties.changes!.anyOf![0]!;
   else if (changesScope === 'compact') {
     // Ordinary chat may still recall/focus/report a location, but must not
@@ -1098,6 +1091,7 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     'protocol' in raw &&
     [
       CURRENT_NPC_WIRE_PROTOCOL,
+      PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
       PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
       PREVIOUS_DELTA_WIRE_PROTOCOL,
     ].includes(raw.protocol as string)
@@ -1770,6 +1764,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     .strictObject({
       protocol: z.enum([
         CURRENT_NPC_WIRE_PROTOCOL,
+        PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
         PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
         PREVIOUS_DELTA_WIRE_PROTOCOL,
       ]),
@@ -1814,8 +1809,10 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
       planIntents: NativePlanIntentsSchema.optional(),
       inputInterpretation: CurrentInterpretation.optional(),
       agendaReview: (envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL
-        ? CurrentAgendaReview
-        : AgendaReview
+        ? z.never()
+        : envelope.protocol === PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL
+          ? CurrentAgendaReview
+          : AgendaReview
       ).optional(),
     });
   const change = changeSchema.parse(
@@ -1992,6 +1989,9 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
       ...(change.recallLast === undefined ? {} : { recallLast: change.recallLast }),
     }),
   );
+  // New turns use the same proposal path for player, director and scheduled input.
+  // Historical paid responses keep their original review validation below.
+  if (envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL) return proposal;
   const agenda = change.agendaReview ?? null;
   if (isOwnAgendaReviewInput(context.input) !== (agenda !== null))
     throw Error('NPC_AGENDA_REVIEW_SCOPE');
@@ -1999,7 +1999,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     basis(agenda.basisSourceIds);
     // Current output has one operational decision: its actual messages and changes.
     // Historical paid responses retain their original classification checks.
-    if (envelope.protocol === CURRENT_NPC_WIRE_PROTOCOL) return proposal;
+    if (envelope.protocol === PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL) return proposal;
     const legacyAgenda = AgendaReview.parse(agenda);
     if (legacyAgenda.decision !== 'contact' && proposal.statements.length)
       throw Error('NPC_AGENDA_REVIEW_PRIVATE_REPORT');

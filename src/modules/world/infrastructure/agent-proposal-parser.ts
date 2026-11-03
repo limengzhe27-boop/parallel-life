@@ -4,6 +4,7 @@ import { AgentProposalSchema, STICKER_IDS } from './agent-proposal-schema.ts';
 import {
   decodeNpcWire,
   CURRENT_NPC_WIRE_PROTOCOL,
+  PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
   PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
   PREVIOUS_DELTA_WIRE_PROTOCOL,
 } from './npc-model-protocol.ts';
@@ -103,6 +104,7 @@ function normalizeExpressionMarkers(value: unknown): unknown {
     recall &&
     [
       CURRENT_NPC_WIRE_PROTOCOL,
+      PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
       PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
       PREVIOUS_DELTA_WIRE_PROTOCOL,
     ].includes(object.protocol as string)

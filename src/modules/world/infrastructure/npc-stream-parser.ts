@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   NPC_WIRE_PROTOCOL,
   CURRENT_NPC_WIRE_PROTOCOL,
+  PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
   PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
   PREVIOUS_DELTA_WIRE_PROTOCOL,
 } from './npc-model-protocol.ts';
@@ -335,6 +336,7 @@ export class NpcStreamParser {
       ![
         NPC_WIRE_PROTOCOL,
         CURRENT_NPC_WIRE_PROTOCOL,
+        PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL,
         PREVIOUS_INCREMENTAL_WIRE_PROTOCOL,
         PREVIOUS_DELTA_WIRE_PROTOCOL,
       ].includes(this.protocol ?? '') ||
