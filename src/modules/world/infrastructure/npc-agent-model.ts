@@ -22,7 +22,10 @@ import type {
   AgentSnapshot,
   NpcAgentModel as NpcAgentModelPort,
 } from '../application/agent-runtime-ports.ts';
-import { actorStateContextPayload } from '../application/agent-state-context.ts';
+import {
+  actorStateContextPayload,
+  currentActorWorkState,
+} from '../application/agent-state-context.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt, shareIdenticalPersonaModules } from '../domain/actor-situation.ts';
 import {
@@ -388,7 +391,30 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       ))
   )
     invalid('NPC_AGENT_INVALID_SNAPSHOT', 'world_context');
-  const contextState = viewState;
+  let wakeObservationBasis: string[] = [];
+  if (snapshot.input.origin === 'wake') {
+    try {
+      const wake = JSON.parse(snapshot.input.text);
+      if (
+        wake.type === 'npc_own_condition_ready' &&
+        (wake.source === 'observation' || wake.source === 'actor_plan') &&
+        Array.isArray(wake.basisSourceIds)
+      )
+        wakeObservationBasis = wake.basisSourceIds.filter(
+          (id: unknown): id is string =>
+            typeof id === 'string' &&
+            (wake.source === 'actor_plan'
+              ? snapshot.sources.some((s) => s.id === id)
+              : !!snapshot.actorObservationInbox?.sourceIds.includes(id)),
+        );
+    } catch {
+      /* An ordinary wake is not permission to protect arbitrary material. */
+    }
+  }
+  const contextState = currentActorWorkState(
+    viewState,
+    new Set([...wakeObservationBasis, ...(snapshot.actorObservationInbox?.sourceIds ?? [])]),
+  );
   const responseFormat = responseFormatFor(snapshot);
   const responseFormatSize = JSON.stringify(responseFormat).length;
   const considerationRequired =
@@ -442,7 +468,10 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
         }
       : {}),
     state:
-      compact && !hasLiveNpcState(contextState)
+      compact &&
+      !hasLiveNpcState(contextState) &&
+      !contextState.decisions.length &&
+      !contextState.questions?.length
         ? contextState.focus
           ? { focus: contextState.focus }
           : {}
@@ -474,7 +503,11 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       : {}),
     planNextSteps: contextState.plans.map((plan) => ({
       planId: plan.id,
-      readiness: agentPlanNextStep(plan, viewState.actions, snapshot.channel.allowedCapabilities),
+      readiness: agentPlanNextStep(
+        plan,
+        contextState.actions,
+        snapshot.channel.allowedCapabilities,
+      ),
     })),
     worldVersion: snapshot.worldVersion,
     storyAt: snapshot.storyAt,
@@ -654,7 +687,11 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     contextSelection: {
       personaExcerpt: false,
       omittedObservationSourceIds: [] as string[],
-      stateDetailsWithheld: snapshot.redactedStateIds.length > 0,
+      stateDetailsWithheld:
+        snapshot.redactedStateIds.length > 0 ||
+        (['goals', 'plans', 'actions', 'responsibilities', 'questions'] as const).some(
+          (key) => (contextState[key]?.length ?? 0) !== (viewState[key]?.length ?? 0),
+        ),
     },
   };
   const sourceCatalog = npcSourceReferences(snapshot.sources);
@@ -802,26 +839,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     payload.actor.persona = legacyPersonaExcerpt(snapshot.actor.persona, snapshot.input.text, 4000);
     payload.contextSelection.personaExcerpt = payload.actor.persona !== snapshot.actor.persona;
   }
-  let wakeObservationBasis: string[] = [];
-  if (snapshot.input.origin === 'wake') {
-    try {
-      const wake = JSON.parse(snapshot.input.text);
-      if (
-        wake.type === 'npc_own_condition_ready' &&
-        (wake.source === 'observation' || wake.source === 'actor_plan') &&
-        Array.isArray(wake.basisSourceIds)
-      )
-        wakeObservationBasis = wake.basisSourceIds.filter(
-          (id: unknown): id is string =>
-            typeof id === 'string' &&
-            (wake.source === 'actor_plan'
-              ? snapshot.sources.some((s) => s.id === id)
-              : !!snapshot.actorObservationInbox?.sourceIds.includes(id)),
-        );
-    } catch {
-      /* An ordinary wake is not permission to protect arbitrary material. */
-    }
-  }
   const protectedSources = new Set([
     ...wakeObservationBasis,
     snapshot.input.sourceId,
@@ -878,52 +895,6 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
         state.episodeParticipations = retained;
         payload.contextSelection.stateDetailsWithheld = true;
       }
-    }
-  }
-  // Long-lived actors accumulate terminal goals/plans/actions/responsibilities
-  // and old decisions. They are history, not current authority; keep the active
-  // plan graph and drop terminal records before failing the player's send.
-  if (!fits()) {
-    const state = optional.state as {
-      goals?: { id: string; status: string }[];
-      plans?: {
-        id: string;
-        goalId: string | null;
-        status: string;
-        actionIds?: string[];
-        nextActionId?: string | null;
-      }[];
-      actions?: { id: string; status: string }[];
-      responsibilities?: { id: string; status: string; responsibilityId?: string }[];
-      decisions?: { responsibilityId: string }[];
-    } | null;
-    if (state) {
-      const activePlans = (state.plans ?? []).filter((plan) =>
-        ['active', 'waiting', 'blocked'].includes(plan.status),
-      );
-      const activePlanGoalIds = new Set(activePlans.map((plan) => plan.goalId));
-      const referencedActionIds = new Set(
-        activePlans.flatMap((plan) => [
-          ...(plan.actionIds ?? []),
-          ...(plan.nextActionId ? [plan.nextActionId] : []),
-        ]),
-      );
-      state.goals = (state.goals ?? []).filter(
-        (goal) =>
-          !['fulfilled', 'withdrawn'].includes(goal.status) || activePlanGoalIds.has(goal.id),
-      );
-      state.plans = activePlans;
-      state.actions = (state.actions ?? []).filter(
-        (action) =>
-          !['succeeded', 'failed', 'withdrawn'].includes(action.status) ||
-          referencedActionIds.has(action.id),
-      );
-      state.responsibilities = (state.responsibilities ?? []).filter(
-        (responsibility) => !['fulfilled', 'withdrawn', 'expired'].includes(responsibility.status),
-      );
-      // Terminal requests still carry meaningful acceptances and refusals.
-      // Keep those choices; omission of history must not erase consent.
-      payload.contextSelection.stateDetailsWithheld = true;
     }
   }
   if (!fits(NPC_AGENT_REQUEST_LIMIT))

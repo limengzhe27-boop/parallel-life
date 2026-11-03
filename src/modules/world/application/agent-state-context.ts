@@ -292,3 +292,117 @@ export function actorStateContextPayload(
         }),
   };
 }
+
+/** Read-only working set. Persistence and recovery retain the original state.
+ * Explicit references and dependency edges, never summary text, retain history.
+ * Decisions keep their responsibility scope, including terminal refusals.
+ */
+export function currentActorWorkState(
+  state: ActorAgentState,
+  referencedSourceIds: ReadonlySet<string> = new Set(),
+): ActorAgentState {
+  const collections = {
+    goals: state.goals,
+    plans: state.plans,
+    actions: state.actions,
+    responsibilities: state.responsibilities,
+    questions: state.questions ?? [],
+  };
+  type Kind = keyof typeof collections;
+  const indexes = Object.fromEntries(
+    Object.entries(collections).map(([kind, rows]) => [
+      kind,
+      new Map(rows.map((row) => [row.id, row])),
+    ]),
+  ) as {
+    [K in Kind]: Map<string, (typeof collections)[K][number]>;
+  };
+  const selected: Record<Kind, Set<string>> = {
+    goals: new Set(),
+    plans: new Set(),
+    actions: new Set(),
+    responsibilities: new Set(),
+    questions: new Set(),
+  };
+  const queue: [Kind, string][] = [];
+  const add = (kind: Kind, id: string | null | undefined) => {
+    if (id && indexes[kind].has(id) && !selected[kind].has(id)) {
+      selected[kind].add(id);
+      queue.push([kind, id]);
+    }
+  };
+  const conditions = (items: AgentCondition[]) => {
+    for (const c of items) {
+      if (c.kind === 'result') add('actions', c.actionId);
+      if (c.kind === 'player_decision') add('responsibilities', c.responsibilityId);
+    }
+  };
+  for (const g of state.goals)
+    if (!['fulfilled', 'withdrawn'].includes(g.status)) add('goals', g.id);
+  for (const p of state.plans)
+    if (!['finished', 'withdrawn'].includes(p.status)) add('plans', p.id);
+  for (const a of state.actions)
+    if (!['succeeded', 'failed', 'withdrawn'].includes(a.status)) add('actions', a.id);
+  for (const r of state.responsibilities)
+    if (
+      !['fulfilled', 'withdrawn', 'expired'].includes(r.status) ||
+      r.subject.id === state.focus?.subjectId
+    )
+      add('responsibilities', r.id);
+  for (const q of state.questions ?? [])
+    if (
+      !['answered', 'withdrawn'].includes(q.status) ||
+      q.resolution?.kind === 'decline_to_answer' ||
+      q.sourceId === state.focus?.questionSourceId ||
+      referencedSourceIds.has(q.sourceId)
+    )
+      add('questions', q.id);
+  for (const d of state.decisions) add('responsibilities', d.responsibilityId);
+  for (const kind of ['goals', 'plans', 'actions', 'responsibilities'] as const)
+    for (const row of collections[kind])
+      if (row.sourceIds.some((id) => referencedSourceIds.has(id))) add(kind, row.id);
+  if (state.continuation) {
+    for (const id of state.continuation.planIds) add('plans', id);
+    for (const id of state.continuation.questionIds) add('questions', id);
+    conditions(state.continuation.conditions);
+  }
+  // Indexed adjacency avoids repeatedly scanning accumulated history for each dependency.
+  const questionsByResponsibility = new Map<string, string[]>();
+  for (const q of state.questions ?? [])
+    if (q.responsibilityId) {
+      const ids = questionsByResponsibility.get(q.responsibilityId) ?? [];
+      ids.push(q.id);
+      questionsByResponsibility.set(q.responsibilityId, ids);
+    }
+  for (let i = 0; i < queue.length; i++) {
+    const [kind, id] = queue[i]!;
+    if (kind === 'plans') {
+      const p = indexes.plans.get(id)!;
+      add('goals', p.goalId);
+      add('plans', p.supersedesPlanId);
+      for (const id of p.actionIds) add('actions', id);
+      add('actions', p.nextActionId);
+      conditions(p.triggers);
+    } else if (kind === 'actions') {
+      const a = indexes.actions.get(id)!;
+      add('goals', a.goalId);
+      for (const id of a.dependsOnActionIds) add('actions', id);
+      for (const id of a.handlesResponsibilityIds) add('responsibilities', id);
+      conditions(a.preconditions);
+    } else if (kind === 'responsibilities') {
+      conditions(indexes.responsibilities.get(id)!.nextCheck);
+      for (const q of questionsByResponsibility.get(id) ?? []) add('questions', q);
+    } else if (kind === 'questions')
+      add('responsibilities', indexes.questions.get(id)!.responsibilityId);
+  }
+  return {
+    ...state,
+    goals: state.goals.filter((x) => selected.goals.has(x.id)),
+    plans: state.plans.filter((x) => selected.plans.has(x.id)),
+    actions: state.actions.filter((x) => selected.actions.has(x.id)),
+    responsibilities: state.responsibilities.filter((x) => selected.responsibilities.has(x.id)),
+    ...(state.questions === undefined
+      ? {}
+      : { questions: state.questions.filter((x) => selected.questions.has(x.id)) }),
+  };
+}
