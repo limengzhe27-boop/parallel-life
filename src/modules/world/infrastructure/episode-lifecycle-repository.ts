@@ -17,7 +17,7 @@ export async function readEpisodeLifecycleContext(
   snapshot: AgentSnapshot,
 ): Promise<EpisodeFollowUpContext[]> {
   const state = snapshot.viewState;
-  const identities = (state.episodeParticipations ?? []).slice(-24);
+  const identities = state.episodeParticipations ?? [];
   if (!identities.length) return [];
   const rows = (
     await sql.query(
@@ -139,10 +139,17 @@ export async function validateEpisodeLifecycleContext(
   snapshot: AgentSnapshot,
 ) {
   if (snapshot.episodeFollowUps === undefined) return; // Old protected paid results keep their original protocol.
+  const expected = await readEpisodeLifecycleContext(sql, owner, snapshot);
+  // Already-paid historical snapshots used the last 24 participation identities.
+  // Validate that exact legacy projection, never an arbitrary omitted subset.
+  const legacyIds = new Set(
+    (snapshot.viewState.episodeParticipations ?? []).slice(-24).map((p) => p.id),
+  );
   if (
+    !isDeepStrictEqual(snapshot.episodeFollowUps, expected) &&
     !isDeepStrictEqual(
       snapshot.episodeFollowUps,
-      await readEpisodeLifecycleContext(sql, owner, snapshot),
+      expected.filter((f) => legacyIds.has(f.requestId)),
     )
   )
     throw Object.assign(Error('EPISODE_LIFECYCLE_SOURCE_CONFLICT'), {

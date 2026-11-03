@@ -576,7 +576,8 @@ export async function readRetainedActorEpisodeBriefs(
   const ids = snapshot.sources
     .filter(
       (s) =>
-        s.kind === 'director_intent' &&
+        ['director_intent', 'authored'].includes(s.kind) &&
+        s.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX) &&
         s.usage === 'private_strategy' &&
         retained.has(s.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length)),
     )

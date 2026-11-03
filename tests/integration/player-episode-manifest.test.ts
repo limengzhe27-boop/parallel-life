@@ -164,6 +164,7 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       | 'editorial'
       | 'improvised'
       | 'known' = 'message',
+    legacyAuthored = false,
   ) {
     const content = structuredClone(base);
     content.history = [];
@@ -274,6 +275,7 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       candidates: [],
       blockers: [],
     });
+    if (legacyAuthored) delete snapshot.deliberationWindow; // Historical v1 snapshot predates assessment partition.
     let calls = 0;
     const decision = await runDirectorAgent(
       {
@@ -293,6 +295,25 @@ test('player chat considers a server-bound pending episode without extra NPC cal
                 ? a.actorId === world.actors[0]!.id
                 : true,
             );
+            if (legacyAuthored)
+              return JSON.stringify({
+                protocol: 'director-wire-v1',
+                mode: 'bounded_opportunity',
+                candidates: [],
+                opportunities: [
+                  {
+                    id: 'legacy-author-brief',
+                    title: '原作者邀约',
+                    description: '保留原作者材料',
+                    playerImpact: '玩家自行决定',
+                    actors: selectedActors.map((a: any) => a.ref),
+                    places: [],
+                    activity: 'conversation',
+                    origin: { kind: 'authored', eventRef: e.ref },
+                  },
+                ],
+                audit: { reason: '保留旧协议的作者原稿路径', sourceRefs: [e.ref] },
+              });
             const wire = {
               protocol: 'director-wire-v14',
               openingContext: null,
@@ -564,126 +585,266 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       assert.deepEqual(await requestState(f), initialRequest);
     },
   );
-  await t.test(
-    'ordinary player input and explicit actor choice share one NPC call and original receipt',
-    async () => {
-      const f = await fixture('invitation'),
-        c = await command(f, '请先回答我的问题，再考虑你自己的安排。');
-      let calls = 0;
-      let inputId = '';
-      const service = npcAgentServices(app, () => ({
-        async complete(messages) {
-          calls++;
-          const p = await canonicalFixturePayload(
-            f,
-            JSON.parse(messages.find((m) => m.role === 'user')!.content),
-          );
-          assert.equal(p.input.text, c.text);
-          inputId = p.input.sourceId;
-          const manifest = verifyManifest(f, p);
-          return JSON.stringify({
-            ...plain(),
-            episodeDecision: {
-              requestId: manifest.requestId,
-              choice: 'engage',
-              reason: 'My own considered decision',
-              sourceIds: [p.input.sourceId, manifest.sourceId],
-            },
-          });
-        },
-      }));
-      const result = await service.sendMessageIfEnabled(f.owner, c);
-      assert.equal(result?.status, 'committed');
-      assert.equal(calls, 1);
-      const r = await requestState(f);
-      assert.equal(r.status, 'consumed');
-      assert.equal(r.input_receipt_id, inputId);
-      assert.ok(r.receipt_id);
-      const saved = (
-        await app.transaction(f.owner, (sql) =>
-          sql.query(
-            'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND id=$2',
-            [f.id, inputId],
-          ),
-        )
-      ).rows[0].document;
-      assert.equal(saved.origin, 'player');
-      assert.equal(saved.text, c.text);
-      const receipt = (
-        await app.transaction(f.owner, (sql) =>
-          sql.query(
-            'SELECT choice,input_receipt_id FROM parallel_life.agent_episode_receipts WHERE world_id=$1 AND request_id=$2',
-            [f.id, f.requests[0]!.id],
-          ),
-        )
-      ).rows;
-      assert.equal(receipt.length, 1);
-      assert.equal(receipt[0].choice, 'engage');
-      assert.equal(receipt[0].input_receipt_id, inputId);
-      const world = await worlds.get({ userId: f.owner }, f.id);
-      const fresh = (
-        await readPrivateAgentSnapshot(
-          app,
-          f.owner,
-          world,
-          f.requests[0]!.actorId,
-          null,
-          world.time,
-          await actors.read(f.owner, { worldId: f.id, actorId: f.requests[0]!.actorId }),
-        )
-      ).snapshot;
-      assert.equal(fresh.episodeFollowUps![0]!.choice, 'engage');
-      const brief = fresh.observations.find((o) => o.text.startsWith('你已自主选择参与以下事项'));
-      assert.ok(brief, 'fresh read retains confirmed participation rather than asking again');
-      await app.transaction(f.owner, async (sql) => {
-        const {
-          readActorEpisodeIntentsInTransaction,
-          validateActorEpisodeIntentSnapshotInTransaction,
-        } =
-          await import('../../src/modules/world/infrastructure/actor-episode-intent-repository.ts');
-        const original = (
-          await readActorEpisodeIntentsInTransaction(
-            sql,
-            f.owner,
-            {
-              worldId: f.id,
-              actorId: f.requests[0]!.actorId,
-              worldVersion: world.version,
-              storyAt: world.time,
-            },
-            [f.requests[0]!.id],
-            { historical: true },
+  for (const legacyAuthored of [false, true])
+    await t.test(
+      'ordinary player input and explicit actor choice retain original receipt and brief ' +
+        legacyAuthored,
+      async () => {
+        const f = await fixture('invitation', legacyAuthored),
+          c = await command(f, '请先回答我的问题，再考虑你自己的安排。');
+        let calls = 0;
+        let inputId = '';
+        const service = npcAgentServices(app, () => ({
+          async complete(messages) {
+            calls++;
+            const p = await canonicalFixturePayload(
+              f,
+              JSON.parse(messages.find((m) => m.role === 'user')!.content),
+            );
+            assert.equal(p.input.text, c.text);
+            inputId = p.input.sourceId;
+            const manifest = verifyManifest(f, p);
+            return JSON.stringify({
+              ...plain(),
+              episodeDecision: {
+                requestId: manifest.requestId,
+                choice: 'engage',
+                reason: 'My own considered decision',
+                sourceIds: [p.input.sourceId, manifest.sourceId],
+              },
+            });
+          },
+        }));
+        const result = await service.sendMessageIfEnabled(f.owner, c);
+        assert.equal(result?.status, 'committed');
+        assert.equal(calls, 1);
+        const r = await requestState(f);
+        assert.equal(r.status, 'consumed');
+        assert.equal(r.input_receipt_id, inputId);
+        assert.ok(r.receipt_id);
+        const saved = (
+          await app.transaction(f.owner, (sql) =>
+            sql.query(
+              'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND id=$2',
+              [f.id, inputId],
+            ),
           )
-        ).get(f.requests[0]!.id)!;
-        const { usage: _usage, ...identity } = fresh.sources.find(
-          (source) => source.id === brief.sourceId,
-        )!;
-        assert.deepEqual(identity, original.source, 'source evidence/hash remain immutable');
-        const materialStart = original.observation.text.indexOf('{');
-        assert.ok(materialStart >= 0);
-        assert.ok(
-          brief.text.endsWith(original.observation.text.slice(materialStart)),
-          'author material and place hints are unchanged',
-        );
-        await validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, fresh);
-        const historical = structuredClone(fresh);
-        historical.observations = historical.observations.map((o) =>
-          o.sourceId === brief.sourceId ? original.observation : o,
-        );
-        await validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, historical);
-        const tampered = structuredClone(fresh);
-        tampered.observations.find((o) => o.sourceId === brief.sourceId)!.text +=
-          ' fabricated fact';
-        await assert.rejects(
-          validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, tampered),
-          /AGENT_REVISION_CONFLICT/,
-        );
-      });
+        ).rows[0].document;
+        assert.equal(saved.origin, 'player');
+        assert.equal(saved.text, c.text);
+        const receipt = (
+          await app.transaction(f.owner, (sql) =>
+            sql.query(
+              'SELECT choice,input_receipt_id FROM parallel_life.agent_episode_receipts WHERE world_id=$1 AND request_id=$2',
+              [f.id, f.requests[0]!.id],
+            ),
+          )
+        ).rows;
+        assert.equal(receipt.length, 1);
+        assert.equal(receipt[0].choice, 'engage');
+        assert.equal(receipt[0].input_receipt_id, inputId);
+        const world = await worlds.get({ userId: f.owner }, f.id);
+        const fresh = (
+          await readPrivateAgentSnapshot(
+            app,
+            f.owner,
+            world,
+            f.requests[0]!.actorId,
+            null,
+            world.time,
+            await actors.read(f.owner, { worldId: f.id, actorId: f.requests[0]!.actorId }),
+          )
+        ).snapshot;
+        assert.equal(fresh.episodeFollowUps![0]!.choice, 'engage');
+        const brief = fresh.observations.find((o) => o.text.startsWith('你已自主选择参与以下事项'));
+        assert.ok(brief, 'fresh read retains confirmed participation rather than asking again');
+        await app.transaction(f.owner, async (sql) => {
+          const {
+            readActorEpisodeIntentsInTransaction,
+            validateActorEpisodeIntentSnapshotInTransaction,
+          } =
+            await import('../../src/modules/world/infrastructure/actor-episode-intent-repository.ts');
+          const original = (
+            await readActorEpisodeIntentsInTransaction(
+              sql,
+              f.owner,
+              {
+                worldId: f.id,
+                actorId: f.requests[0]!.actorId,
+                worldVersion: world.version,
+                storyAt: world.time,
+              },
+              [f.requests[0]!.id],
+              { historical: true },
+            )
+          ).get(f.requests[0]!.id)!;
+          const { usage: _usage, ...identity } = fresh.sources.find(
+            (source) => source.id === brief.sourceId,
+          )!;
+          assert.deepEqual(identity, original.source, 'source evidence/hash remain immutable');
+          const materialStart = original.observation.text.indexOf('{');
+          assert.ok(materialStart >= 0);
+          assert.ok(
+            brief.text.endsWith(original.observation.text.slice(materialStart)),
+            'author material and place hints are unchanged',
+          );
+          await validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, fresh);
+          const historical = structuredClone(fresh);
+          historical.observations = historical.observations.map((o) =>
+            o.sourceId === brief.sourceId ? original.observation : o,
+          );
+          await validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, historical);
+          const tampered = structuredClone(fresh);
+          tampered.observations.find((o) => o.sourceId === brief.sourceId)!.text +=
+            ' fabricated fact';
+          await assert.rejects(
+            validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, tampered),
+            /AGENT_REVISION_CONFLICT/,
+          );
+        });
 
-      await service.sendMessageIfEnabled(f.owner, c);
-      assert.equal(calls, 1, 'committed replay cannot purchase another NPC reply');
-    },
-  );
+        await service.sendMessageIfEnabled(f.owner, c);
+        assert.equal(calls, 1, 'committed replay cannot purchase another NPC reply');
+        if (legacyAuthored) {
+          // Genuine later director requests and committed quiet receipts must not evict
+          // the earlier still-active author participation from the actor's context.
+          for (let i = 0; i < 25; i++) {
+            const current = await worlds.get({ userId: f.owner }, f.id);
+            const ds = await snapshots.read(f.owner, {
+              worldId: f.id,
+              engineEpoch: 2,
+              worldVersion: current.version,
+              candidates: [],
+              blockers: [],
+            });
+            delete ds.deliberationWindow; // Exercise recovery-compatible v1 history.
+            const d = await runDirectorAgent(
+              {
+                attempts: directors,
+                parse: parseDirectorDecision,
+                model: new WorldDirectorAgentModel({
+                  async complete(messages) {
+                    const p = JSON.parse(messages[1]!.content);
+                    const a = p.wireCatalog.actors.find(
+                      (x: any) => x.actorId === f.requests[0]!.actorId,
+                    );
+                    const ref = p.wireCatalog.sources[0].ref;
+                    return JSON.stringify({
+                      protocol: 'director-wire-v1',
+                      mode: 'bounded_opportunity',
+                      candidates: [],
+                      opportunities: [
+                        {
+                          id: 'later-' + i,
+                          title: '其他可选话题' + i,
+                          description: '独立讨论机会' + i,
+                          playerImpact: '可自行选择是否讨论',
+                          actors: [a.ref],
+                          places: [],
+                          activity: 'conversation',
+                          origin: { kind: 'emergent', sourceRefs: [ref] },
+                          stagingIntents: [
+                            {
+                              actorRef: a.ref,
+                              kind: 'future_task',
+                              task: '自行考虑这个可选话题' + i,
+                            },
+                          ],
+                        },
+                      ],
+                      audit: { reason: '其他独立机会', sourceRefs: [ref] },
+                    });
+                  },
+                }),
+              },
+              f.owner,
+              {
+                id: randomUUID(),
+                worldId: f.id,
+                commandId: randomUUID(),
+                engineEpoch: 2,
+                expectedWorldVersion: current.version,
+                inputHash: directorSnapshotInputHash(ds),
+                token: randomUUID(),
+                leaseUntil: new Date(Date.now() + 120000).toISOString(),
+              },
+              ds,
+            );
+            await app.transaction(f.owner, (sql) =>
+              createEpisodeRequestsInTransaction(sql, f.owner, {
+                worldId: f.id,
+                engineEpoch: 2,
+                decision: d,
+              }),
+            );
+            const quiet = npcAgentServices(app, () => ({
+              async complete(messages) {
+                const p = await canonicalFixturePayload(f, JSON.parse(messages[1]!.content));
+                assert.ok(p.episodeManifest);
+                return JSON.stringify({
+                  ...plain(),
+                  episodeDecision: {
+                    requestId: p.episodeManifest.requestId,
+                    choice: 'quiet',
+                    reason: '本次不参与这个独立话题',
+                    sourceIds: [p.input.sourceId, p.episodeManifest.sourceId],
+                  },
+                });
+              },
+            }));
+            assert.equal(
+              (await quiet.sendMessageIfEnabled(f.owner, await command(f, '另一个独立话题' + i)))
+                ?.status,
+              'committed',
+            );
+          }
+          const latest = await worlds.get({ userId: f.owner }, f.id);
+          const next = (
+            await readPrivateAgentSnapshot(
+              app,
+              f.owner,
+              latest,
+              f.requests[0]!.actorId,
+              null,
+              latest.time,
+              await actors.read(f.owner, { worldId: f.id, actorId: f.requests[0]!.actorId }),
+            )
+          ).snapshot;
+          assert.equal(next.state.episodeParticipations!.length, 26);
+          assert.ok(
+            next.episodeFollowUps!.some(
+              (x) => x.requestId === f.requests[0]!.id && x.followUp !== 'terminal',
+            ),
+          );
+          assert.ok(
+            next.observations.some((x) => x.sourceId === brief.sourceId && x.text === brief.text),
+          );
+          await app.transaction(f.owner, async (sql) => {
+            const { validateEpisodeLifecycleContext } =
+              await import('../../src/modules/world/infrastructure/episode-lifecycle-repository.ts');
+            await validateEpisodeLifecycleContext(sql, f.owner, next);
+            const { readRetainedActorEpisodeBriefs } =
+              await import('../../src/modules/world/infrastructure/actor-episode-intent-repository.ts');
+            const terminal = structuredClone(next);
+            terminal.episodeFollowUps = terminal.episodeFollowUps!.map((x) => ({
+              ...x,
+              followUp: 'terminal' as const,
+            }));
+            assert.deepEqual(await readRetainedActorEpisodeBriefs(sql, f.owner, terminal), []);
+
+            const old = structuredClone(next);
+            const ids = new Set(old.viewState.episodeParticipations!.slice(-24).map((x) => x.id));
+            old.episodeFollowUps = old.episodeFollowUps!.filter((x) => ids.has(x.requestId));
+            await validateEpisodeLifecycleContext(sql, f.owner, old);
+            old.episodeFollowUps = old.episodeFollowUps.slice(1);
+            await assert.rejects(
+              validateEpisodeLifecycleContext(sql, f.owner, old),
+              /EPISODE_LIFECYCLE_SOURCE_CONFLICT/,
+            );
+          });
+        }
+      },
+    );
   await t.test(
     'bound episode survives unrelated actor reply while retaining its paid basis',
     async () => {
