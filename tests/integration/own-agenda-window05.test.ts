@@ -293,20 +293,23 @@ test('complete quiet reviews advance only into a due authenticated successor win
       },
     );
   for (const mode of ['unknown', 'invalid'] as const)
-    await t.test(mode + ' paid basis is not repurchased after the time window', async () => {
-      const f = await fixture();
-      await due(f);
-      const grant = await work(f);
-      assert.ok(grant);
-      await assert.rejects(
-        perform(f, ownAgendaReviewInputText(grant.grant), grant.commandId, true, mode),
-      );
-      await sleep(550);
-      assert.equal(await work(f), null);
-      assert.equal(f.calls, 2);
-      const e = await evidence(f);
-      assert.equal(e.paidContinuationBases.length, 1);
-    });
+    await t.test(
+      mode + ' original paid family is not repurchased after the time window',
+      async () => {
+        const f = await fixture();
+        await due(f);
+        const grant = await work(f);
+        assert.ok(grant);
+        await assert.rejects(
+          perform(f, ownAgendaReviewInputText(grant.grant), grant.commandId, true, mode),
+        );
+        await sleep(550);
+        assert.equal(await work(f), null);
+        assert.equal(f.calls, 2);
+        const e = await evidence(f);
+        assert.equal(e.familyId, grant.grant.grantId);
+      },
+    );
   await t.test(
     'an interrupted committed stream cannot become a full successor anchor',
     async () => {
@@ -326,7 +329,7 @@ test('complete quiet reviews advance only into a due authenticated successor win
       });
       const e = await evidence(f);
       assert.notEqual(e.anchor!.attemptId, saved.claim.id);
-      assert.equal(e.paidContinuationBases.length, 1);
+      assert.equal(e.familyId, first.grant.grantId);
       await due(f);
       assert.equal(await work(f), null);
       assert.equal(f.calls, 2);

@@ -40,7 +40,7 @@ import { recordStreamSegmentError } from '../../src/modules/world/infrastructure
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 
-test('only a later complete player turn renews a failed agenda basis', async (t) => {
+test('complete independent actor commits create successor families without retrying failed work', async (t) => {
   const cfg = await localConfig(),
     admin = await adminClient('parallel_life_test');
   await migrate(admin);
@@ -278,11 +278,32 @@ test('only a later complete player turn renews a failed agenda basis', async (t)
       perform(f, ownAgendaReviewInputText(grant.grant), grant.commandId, true, mode),
     );
     const attempt = (await store.lookup(f.owner, f.worldId, grant.commandId))!;
-    assert.equal((await evidence(f)).paidContinuationBases.length, 1);
     return { grant, attempt };
   }
   const row = async (id: string) =>
     (await admin.query('SELECT * FROM parallel_life.agent_attempts WHERE id=$1', [id])).rows[0];
+  async function assertOldRequestNotRepurchased(f: F, old: Awaited<ReturnType<typeof failed>>) {
+    const before = await row(old.attempt.id),
+      calls = f.calls;
+    const receipt = (
+      await admin.query('SELECT document FROM parallel_life.agent_input_receipts WHERE id=$1', [
+        old.attempt.inputReceiptId,
+      ])
+    ).rows[0].document;
+    await assert.rejects(
+      perform(
+        f,
+        ownAgendaReviewInputText(old.grant.grant),
+        old.grant.commandId,
+        true,
+        'quiet',
+        'wake',
+        receipt,
+      ),
+    );
+    assert.equal(f.calls, calls);
+    assert.deepEqual(await row(old.attempt.id), before);
+  }
   const player = (
     f: F,
     receipt?: import('../../src/modules/world/domain/agent-runtime.ts').AgentInputReceipt,
@@ -305,7 +326,6 @@ test('only a later complete player turn renews a failed agenda basis', async (t)
       const before = await row(old.attempt.id);
       const done = await player(f);
       const e = await evidence(f);
-      assert.equal(e.paidContinuationBases.length, 0);
       assert.equal(e.anchor!.attemptId, done.claim.id);
       await due(f);
       const next = await work(f);
@@ -318,32 +338,40 @@ test('only a later complete player turn renews a failed agenda basis', async (t)
     },
   );
 
-  await t.test('time and a later complete quiet wake do not renew a failed basis', async () => {
-    const f = await fixture();
-    await failed(f);
-    await due(f);
-    assert.equal(await work(f), null);
-    await perform(
-      f,
-      JSON.stringify({
-        type: 'npc_own_condition_ready',
-        candidateId: 'independent-context',
-        source: 'actor_local',
-        basisSourceIds: [],
-      }),
-      randomUUID(),
-      false,
-    );
-    assert.equal((await evidence(f)).paidContinuationBases.length, 1);
-    await due(f);
-    assert.equal(await work(f), null);
-  });
+  await t.test(
+    'time cannot retry a failed family; complete independent quiet wake creates successor',
+    async () => {
+      const f = await fixture();
+      const old = await failed(f);
+      await due(f);
+      assert.equal(await work(f), null);
+      const before = await row(old.attempt.id);
+      const done = await perform(
+        f,
+        JSON.stringify({
+          type: 'npc_own_condition_ready',
+          candidateId: 'independent-context',
+          source: 'actor_local',
+          basisSourceIds: [],
+        }),
+        randomUUID(),
+        false,
+      );
+      await due(f);
+      const next = await work(f);
+      assert.ok(next);
+      assert.equal(next.grant.anchorAttemptId, done.claim.id);
+      assert.notEqual(next.grant.grantId, old.grant.grant.grantId);
+      await perform(f, ownAgendaReviewInputText(next.grant), next.commandId, true);
+      assert.deepEqual(await row(old.attempt.id), before);
+      await assertOldRequestNotRepurchased(f, old);
+    },
+  );
 
   await t.test('another actor player conversation does not renew this actor basis', async () => {
     const f = await fixture(false, true);
     await failed(f);
     await player({ ...f, actorId: f.world.actors[1]!.id });
-    assert.equal((await evidence(f)).paidContinuationBases.length, 1);
     await due(f);
     assert.equal(await work(f), null);
   });
@@ -358,13 +386,12 @@ test('only a later complete player turn renews a failed agenda basis', async (t)
       segmentIndex: 0,
       text: '合成未完成片段',
     });
-    assert.equal((await evidence(f)).paidContinuationBases.length, 1);
     await due(f);
     assert.equal(await work(f), null);
   });
 
   await t.test(
-    'a player input accepted before the failed call cannot renew it by finishing late',
+    'late complete independent player turn creates successor without retrying failed work',
     async () => {
       const f = await fixture();
       const world = await worlds.get({ userId: f.owner }, f.worldId);
@@ -383,11 +410,17 @@ test('only a later complete player turn renews a failed agenda basis', async (t)
         origin: 'player',
         text,
       });
-      await failed(f);
-      await player(f, receipt);
-      assert.equal((await evidence(f)).paidContinuationBases.length, 1);
+      const old = await failed(f);
+      const before = await row(old.attempt.id);
+      const done = await player(f, receipt);
       await due(f);
-      assert.equal(await work(f), null);
+      const next = await work(f);
+      assert.ok(next);
+      assert.equal(next.grant.anchorAttemptId, done.claim.id);
+      assert.notEqual(next.grant.grantId, old.grant.grant.grantId);
+      await perform(f, ownAgendaReviewInputText(next.grant), next.commandId, true);
+      assert.deepEqual(await row(old.attempt.id), before);
+      await assertOldRequestNotRepurchased(f, old);
     },
   );
 
@@ -415,7 +448,6 @@ test('only a later complete player turn renews a failed agenda basis', async (t)
         'expected_actor_revision',
       ])
         assert.deepEqual(after[key], before[key]);
-      assert.equal((await evidence(f)).paidContinuationBases.length, 0);
       await due(f);
       const next = await work(f);
       assert.ok(next);
