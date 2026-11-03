@@ -3475,3 +3475,7 @@ NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s�
 |AGENDA-WIRE-29|[ ] 待验收|agenda_gap_review27；root集成|独立agenda-gap27；npc-model-protocol.ts、npc-stream-parser.ts、agent-proposal-parser.ts（root交接）、NEW tests/npc-agenda-v17.test.ts、tests/npc-agenda-review-wire.test.ts schema断言、专属报告|v17删除重复agendaReview.decision，保留scope/来源/v16解释与历史流式恢复；聚焦25/25、typecheck通过；root集成及真实验收；0模型/用户档。|
 
 |RETAINED-BRIEF-30|[x] 已集成本地验证|agenda-gap-review；root唯一集成|actor-episode-intent-repository.ts、retained与manifest测试、专属报告|集成9cb015ed；已engage说明不再重开选择，原内容/hash与旧恢复保留；PG10/10、check4178/4178、build通过；两端更新；原档只读呈现核对通过，持续主动演绎未通过|
+
+|AGENDA-ADMISSION-31|[x] 已集成验证（准入简化范围）|root-agenda31唯一集成；agenda_gap_review PG|0901873a删重复basis禁用/domain和playerContexts例外；051ae6c0两PG|check4176/4176、PG13/13、隔离build通过；原2fb两人合法评估committed仍quiet，无新增消息/计划；0新增字段/迁移，未重启端口/worker。持续主动演绎未通过，详见报告。|
+
+|AGENDA-FAMILY-31-PG|[ ] 待验收|agenda-gap-review|独立agenda-gap27；tests/integration/player-agenda-basis25.test.ts、own-agenda-window05.test.ts、专属报告|真实family防复购；完整独立anchor接续；unknown/partial/时间/他人不解锁。root拥有源码。|
