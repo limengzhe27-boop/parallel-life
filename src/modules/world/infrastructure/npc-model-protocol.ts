@@ -15,7 +15,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
-import type { ActorAgentState } from '../domain/agent-runtime.ts';
+import type { ActorAgentState, AgentProposal } from '../domain/agent-runtime.ts';
 import {
   interpretCurrentPlayerInput,
   type AgentValidationContext,
@@ -1667,6 +1667,61 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   });
 }
 
+/** Bind only a complete turn's unambiguous episode question, never a streaming guess.
+ * Prefix messages stay immutable; final projection may add this proven association.
+ */
+export function bindNpcFollowUpQuestion<
+  T extends Pick<AgentProposal, 'statements' | 'responsibilities' | 'episodeDecision'>,
+>(context: AgentValidationContext, proposal: T): T {
+  const decision = proposal.episodeDecision;
+  if (!decision || !['engage', 'defer', 'need_information'].includes(decision.choice))
+    return proposal;
+  let requestId: string | undefined;
+  if (isActorEpisodeConsiderationInput(context.input)) {
+    const request = JSON.parse(context.input.text);
+    if (request.revision === 0 && context.channel.kind === 'private') requestId = request.requestId;
+  } else if (
+    context.input.origin === 'player' &&
+    validPlayerEpisodeManifest(context.episodeManifest)
+  ) {
+    requestId = context.episodeManifest.requestId;
+  }
+  if (
+    !requestId ||
+    decision.requestId !== requestId ||
+    !decision.sourceIds.includes(context.input.sourceId)
+  )
+    return proposal;
+  const questions = proposal.statements.filter((s) => s.requestsPlayerReply === true);
+  if (questions.length !== 1 || questions[0]!.questionForResponsibilityId) return proposal;
+  const responsibility = proposal.responsibilities.find((r) => r.id === requestId + ':followup');
+  if (
+    !responsibility ||
+    responsibility.subject.kind !== 'request' ||
+    responsibility.subject.id !== requestId ||
+    responsibility.status !== 'waiting' ||
+    responsibility.waitingOn !== 'player' ||
+    !responsibility.sourceIds.includes(context.input.sourceId)
+  )
+    return proposal;
+  // Another live player wait makes the unlabelled question ambiguous. Do not use
+  // text similarity, question order, or an unrelated world's sole responsibility.
+  const live = new Map((context.viewState ?? context.state).responsibilities.map((r) => [r.id, r]));
+  for (const r of proposal.responsibilities) live.set(r.id, r);
+  if (
+    [...live.values()].filter(
+      (r) => ['open', 'waiting', 'deferred'].includes(r.status) && r.waitingOn === 'player',
+    ).length !== 1
+  )
+    return proposal;
+  return {
+    ...proposal,
+    statements: proposal.statements.map((s) =>
+      s === questions[0] ? { ...s, questionForResponsibilityId: responsibility.id } : s,
+    ),
+  };
+}
+
 function bindNpcConsideration(
   context: AgentValidationContext,
   consideration: z.infer<typeof Wire.shape.consideration>,
@@ -1734,7 +1789,7 @@ function bindNpcConsideration(
     )
   )
     throw Error('NPC_WIRE_FOLLOW_UP_DUPLICATE');
-  return {
+  return bindNpcFollowUpQuestion(context, {
     ...proposal,
     responsibilities: responsibility
       ? [...proposal.responsibilities, responsibility]
@@ -1757,7 +1812,7 @@ function bindNpcConsideration(
           },
         }
       : {}),
-  };
+  });
 }
 
 /** One source binding and one canonical compilation for new requests. No historical protocol recursion. */
