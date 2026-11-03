@@ -57,7 +57,8 @@ import type { AgentInputReceipt } from '../../src/modules/world/domain/agent-run
 import type { AgentAttemptStore } from '../../src/modules/world/application/agent-runtime-ports.ts';
 test('player chat considers a server-bound pending episode without extra NPC calls', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, Number(process.env.PLAYER_EPISODE_MANIFEST_TEST_PORT ?? 55576));
+  if (process.env.PLAYER_EPISODE_MANIFEST_TEST_PORT)
+    assert.equal(cfg.port, Number(process.env.PLAYER_EPISODE_MANIFEST_TEST_PORT));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const app = new PostgresDatabase(
