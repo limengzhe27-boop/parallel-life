@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
-import type { AgentInputReceipt } from '../domain/agent-runtime.ts';
+import type { AgentAttempt, AgentInputReceipt } from '../domain/agent-runtime.ts';
+import { resolveAgentCommitVersion } from './agent-commit-version.ts';
 import { nativeAgentCommandId } from './agent-native-ids.ts';
 import { requireInputAuthority } from './agent-runtime-repository.ts';
 import { requireActiveAgentDeliveryInTransaction } from './agent-delivery-activity.ts';
@@ -59,12 +60,47 @@ export async function recoverAgentTaskInTransaction(
     fail('IDEMPOTENCY_CONFLICT');
   if (!['failed', 'unknown', 'cancelled', 'conflict'].includes(task.status))
     fail('VERSION_CONFLICT');
-  const attempts = (
+  // Locate by the task's original input receipt before loading any paid response.
+  // Do not lock or hydrate unrelated attempts from this world.
+  const candidates = (
     await sql.query(
-      'SELECT * FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
-      [task.scope_id, ownerId],
+      `SELECT a.id,a.actor_id,a.command_id FROM parallel_life.agent_attempts a
+       JOIN parallel_life.agent_input_receipts r
+         ON r.id=a.input_receipt_id AND r.world_id=a.world_id AND r.owner_id=a.owner_id
+       JOIN parallel_life.world_events e
+         ON e.world_id=r.world_id AND e.owner_id=r.owner_id AND e.command_id=r.command_id
+       WHERE a.world_id=$1 AND a.owner_id=$2 AND e.version=$3
+         AND ((e.id=$4 AND r.document->>'channel'='group' AND r.document->>'threadId'=$5)
+           OR (r.document->>'channel'='scene' AND r.document->>'threadId'=$6
+             AND EXISTS(SELECT 1 FROM parallel_life.scene_items i
+               WHERE i.world_id=e.world_id AND i.owner_id=e.owner_id
+                 AND i.source_event_id=e.id AND i.scene_id=$6 AND i.id=$7)))`,
+      [
+        task.scope_id,
+        ownerId,
+        task.input.expectedVersion,
+        task.input.inputEventId ?? null,
+        task.input.groupId ?? null,
+        task.input.sceneId ?? null,
+        task.input.actionId ?? null,
+      ],
     )
   ).rows.filter((a) => a.command_id === nativeAgentCommandId(taskId, a.actor_id));
+  if (candidates.length > 1) fail('INVALID_COMMAND');
+  const attempts = candidates.length
+    ? (
+        await sql.query(
+          'SELECT * FROM parallel_life.agent_attempts WHERE id=$1 AND world_id=$2 AND owner_id=$3 AND actor_id=$4 AND command_id=$5 FOR UPDATE',
+          [
+            candidates[0].id,
+            task.scope_id,
+            ownerId,
+            candidates[0].actor_id,
+            candidates[0].command_id,
+          ],
+        )
+      ).rows
+    : [];
   if (attempts.length === 0) {
     // The task may have stopped on pause before an actor was selected or claimed.
     // Only the original, actually committed native input can be prepared again.
@@ -190,13 +226,34 @@ export async function recoverAgentTaskInTransaction(
       [task.scope_id, ownerId, attempt.actor_id],
     )
   ).rows[0];
+  const originalAttempt: AgentAttempt = {
+    id: attempt.id,
+    worldId: task.scope_id,
+    actorId: attempt.actor_id,
+    commandId: attempt.command_id,
+    inputReceiptId: attempt.input_receipt_id,
+    engineEpoch: attempt.engine_epoch,
+    expectedWorldVersion: attempt.expected_world_version,
+    expectedActorRevision: attempt.expected_actor_revision,
+    inputHash: attempt.input_hash,
+    token: attempt.token,
+    leaseUntil: new Date(attempt.lease_until).toISOString(),
+    status: attempt.status,
+  };
   let staleReason =
-    world.version !== attempt.expected_world_version
-      ? 'world_changed'
-      : Number(control.engine_epoch) !== attempt.engine_epoch
-        ? 'engine_changed'
-        : actor?.revision !== attempt.expected_actor_revision
-          ? 'actor_changed'
+    Number(control.engine_epoch) !== attempt.engine_epoch
+      ? 'engine_changed'
+      : actor?.revision !== attempt.expected_actor_revision
+        ? 'actor_changed'
+        : !(await resolveAgentCommitVersion(
+              sql,
+              ownerId,
+              originalAttempt,
+              world.version,
+              false,
+              zeroSend ? undefined : envelope.snapshot,
+            ))
+          ? 'world_changed'
           : null;
   if (!staleReason) {
     try {
