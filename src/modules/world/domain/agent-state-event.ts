@@ -247,10 +247,7 @@ export function applyAgentStateEvent(
       } else {
         state.actorTies.push(updatedTie);
       }
-      const targetActor = state.actors.find((a) => a.id === effect.toActorId);
-      if (targetActor) {
-        targetActor.relationship = effect.relationship;
-      }
+      // A directional NPC tie does not redefine the target's relationship to the player.
       continue;
     }
     if (effect.type === 'moment.published') {
