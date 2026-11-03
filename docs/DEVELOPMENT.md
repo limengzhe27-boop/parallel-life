@@ -3479,3 +3479,7 @@ NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s�
 |AGENDA-ADMISSION-31|[x] 已集成验证（准入简化范围）|root-agenda31唯一集成；agenda_gap_review PG|0901873a删重复basis禁用/domain和playerContexts例外；051ae6c0两PG|check4176/4176、PG13/13、隔离build通过；原2fb两人合法评估committed仍quiet，无新增消息/计划；0新增字段/迁移，未重启端口/worker。持续主动演绎未通过，详见报告。|
 
 |AGENDA-FAMILY-31-PG|[ ] 待验收|agenda-gap-review|独立agenda-gap27；tests/integration/player-agenda-basis25.test.ts、own-agenda-window05.test.ts、专属报告|真实family防复购；完整独立anchor接续；unknown/partial/时间/他人不解锁。root拥有源码。|
+
+|DIRECTOR-OBSERVATION-32|[x] 已集成验证（观察调度范围）|agenda-gap-review；root集成|eef88703/b9f26dd8/3c4f0e5c；advance、director-runtime原入口及专属PG/报告|真实变化无需NPC候选；原因身份防无关版本重买，保护旧paid invalid；PG3/3、check4176/4176、隔离build通过；0真实模型/原档写，未重启运行版；原档主动演绎仍未通过。|
+
+PERSONA-LINEAGE-01 2026-11-03 root只读补原作v15/v20首次错配证据；报告已更新，内容修订仍未完成。
