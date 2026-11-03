@@ -164,13 +164,22 @@ test('v8 adapter projects source handles without mutating canonical execution st
   const before = structuredClone(input);
   await model.decide(input);
   const actual = JSON.parse(captured.find((m) => m.role === 'user')!.content).state;
-  const payload = actorStateContextPayload(state, {
-    privateStrategySourceIds: new Set(['private']),
-  });
+  const payload = actorStateContextPayload(
+    { ...state, plans: [] },
+    {
+      privateStrategySourceIds: new Set(['private']),
+    },
+  );
   const catalog = npcSourceReferences(input.sources);
   assert.deepEqual(actual, mapNpcSourceFields(payload, catalog, 'encode'));
   assert.deepEqual(mapNpcSourceFields(actual, catalog, 'decode'), payload);
   assert.deepEqual(input, before);
+  assert.deepEqual(
+    (actual as { plans: unknown[] }).plans,
+    [],
+    'unreferenced finished plan stays in history, not current work',
+  );
+  assert.equal(state.plans.length, 1, 'canonical execution history is unchanged');
   assert.equal(payload.actions[0]?.status, 'succeeded');
   assert.equal(payload.actions[0]?.resultId, 'result');
   assert.equal(payload.actions[0]?.capability, 'future.unregistered');

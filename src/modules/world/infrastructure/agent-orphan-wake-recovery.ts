@@ -22,7 +22,7 @@ export async function readUnclaimedWakeInTransaction(
     visibleSourceIds: readonly string[];
     candidateSourceIds: readonly string[];
     candidateSource: string;
-    actionId?: string;
+    actionId?: string | null;
   },
 ): Promise<AgentInputReceipt | null> {
   const frame = (

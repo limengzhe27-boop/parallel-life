@@ -117,6 +117,56 @@ export class PostgresNpcAgentKernel implements AgentKernel {
     validateActorContinuation(snapshot, proposal);
     return proposal;
   }
+  async readCommitted(ownerId: string, attempt: import('../domain/agent-runtime.ts').AgentAttempt) {
+    return this.db.transaction(ownerId, async (sql) => {
+      const result = await this.committedInTransaction(sql, ownerId, attempt);
+      if (!result) throw Error('INVALID_AGENT_RECEIPT');
+      return result;
+    });
+  }
+  private async committedInTransaction(
+    sql: SqlClient,
+    ownerId: string,
+    attempt: import('../domain/agent-runtime.ts').AgentAttempt,
+  ) {
+    const replay = (
+      await sql.query(
+        `SELECT e.payload FROM parallel_life.agent_attempts a
+       JOIN parallel_life.world_events e ON e.id=a.event_id AND e.world_id=a.world_id AND e.owner_id=a.owner_id
+       JOIN parallel_life.commands c ON c.id=e.command_id AND c.world_id=e.world_id AND c.owner_id=e.owner_id
+         AND c.status='succeeded' AND c.result_event_id=e.id
+       JOIN parallel_life.agent_input_receipts r ON r.id=a.input_receipt_id AND r.world_id=a.world_id AND r.owner_id=a.owner_id
+       WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3 AND a.token=$4 AND a.status='committed'
+         AND a.actor_id=$5 AND a.command_id=$6 AND a.input_receipt_id=$7 AND a.input_hash=$8
+         AND a.engine_epoch=$9 AND a.expected_world_version=$10 AND a.expected_actor_revision=$11`,
+        [
+          attempt.worldId,
+          ownerId,
+          attempt.id,
+          attempt.token,
+          attempt.actorId,
+          attempt.commandId,
+          attempt.inputReceiptId,
+          attempt.inputHash,
+          attempt.engineEpoch,
+          attempt.expectedWorldVersion,
+          attempt.expectedActorRevision,
+        ],
+      )
+    ).rows[0]?.payload;
+    if (!replay) return null;
+    const accepted = replay.data?.agentRuntime as AgentRuntimeTransition | undefined;
+    if (
+      !accepted ||
+      accepted.inputReceiptId !== attempt.inputReceiptId ||
+      accepted.stateAfter.actorId !== attempt.actorId ||
+      accepted.stateAfter.worldId !== attempt.worldId
+    )
+      throw Error('INVALID_AGENT_RECEIPT');
+    await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId: replay.id });
+    await this.afterCommit?.(sql, { attempt, eventId: replay.id });
+    return { eventId: replay.id as string, state: accepted.stateAfter, results: accepted.results };
+  }
   /** The complete media intent uses the very same validators and executor as the final turn.
    * Only its irreversible prefix is committed; the attempt remains streaming. */
   async commitMediaPrefix(
@@ -204,28 +254,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
     options: { mediaPrefix?: boolean } = {},
   ) {
     const { attempt, snapshot } = input;
-    const proposal = parseAgentProposal(snapshot, input.proposal);
-    validateActorContinuation(snapshot, proposal);
     return this.db.transaction(ownerId, async (sql) => {
-      const replay = (
-        await sql.query(
-          `SELECT e.payload FROM parallel_life.agent_attempts a JOIN parallel_life.world_events e ON e.id=a.event_id AND e.world_id=a.world_id
-         WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3 AND a.token=$4 AND a.status='committed'`,
-          [attempt.worldId, ownerId, attempt.id, attempt.token],
-        )
-      ).rows[0]?.payload;
-      if (replay) {
-        const accepted = replay.data?.agentRuntime as AgentRuntimeTransition | undefined;
-        if (!accepted || accepted.inputReceiptId !== attempt.inputReceiptId)
-          throw Error('INVALID_AGENT_RECEIPT');
-        await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId: replay.id });
-        await this.afterCommit?.(sql, { attempt, eventId: replay.id });
-        return {
-          eventId: replay.id as string,
-          state: accepted.stateAfter,
-          results: accepted.results,
-        };
-      }
+      const replay = await this.committedInTransaction(sql, ownerId, attempt);
+      if (replay) return replay;
+      const proposal = parseAgentProposal(snapshot, input.proposal);
+      validateActorContinuation(snapshot, proposal);
       const frame = await beginAgentCommitFrameInTransaction(sql, ownerId, attempt, options);
       const current = frame.state;
       const receivedInput = frame.receipt;

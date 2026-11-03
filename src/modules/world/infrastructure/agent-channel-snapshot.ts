@@ -1,3 +1,4 @@
+import { currentActorWorkState } from '../application/agent-state-context.ts';
 import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { readActorGroupObservationSourcesInTransaction } from './actor-group-observation-sources.ts';
 import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
@@ -149,7 +150,10 @@ export async function readNativeAgentSnapshot(
       )
     ).rows[0]?.document;
     if (!isDeepStrictEqual(state, storedState)) throw new DomainError('VERSION_CONFLICT');
-    state = { ...state, episodeParticipations: await readActorEpisodeParticipations(sql, ownerId, state) };
+    state = {
+      ...state,
+      episodeParticipations: await readActorEpisodeParticipations(sql, ownerId, state),
+    };
     const stored = (
       await sql.query(
         'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND id=$3',
@@ -383,7 +387,16 @@ export async function readNativeAgentSnapshot(
     });
     // Own structured strategy can cross channels without importing private speech.
     // Existing channel sources retain their channel_context usage.
-    for (const basis of await readActorStrategyBasis(sql, ownerId, state, world.version, storyAt)) {
+    for (const basis of await readActorStrategyBasis(
+      sql,
+      ownerId,
+      currentActorWorkState(state),
+      world.version,
+      storyAt,
+      {
+        participations: state.episodeParticipations,
+      },
+    )) {
       if (!sources.has(basis.id) && !blocked.has(basis.id) && !blocked.has(basis.recordId))
         sources.set(basis.id, basis);
     }

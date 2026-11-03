@@ -247,6 +247,9 @@ test('runNpcAgent overlaps saveResponse with pure kernel.parse and records monot
         },
       },
       kernel: {
+        async readCommitted() {
+          throw Error('UNEXPECTED_COMMITTED_REPLAY');
+        },
         parse: (snap, resp) => {
           parseCalls += 1;
           // Attempt to mutate clone to verify original snapshot/response stay untouched
@@ -312,6 +315,9 @@ test('runNpcAgent fault injection: saveResponse failure prevents commit and mark
             decide: async () => ({ rawText: '{}', proposal }),
           },
           kernel: {
+            async readCommitted() {
+              throw Error('UNEXPECTED_COMMITTED_REPLAY');
+            },
             parse: () => proposal,
             commit: async () => {
               commitCalled = true;
@@ -369,6 +375,9 @@ test('runNpcAgent fault injection: parse failure still awaits in-flight saveResp
             decide: async () => ({ rawText: '{"bad":true}', proposal }),
           },
           kernel: {
+            async readCommitted() {
+              throw Error('UNEXPECTED_COMMITTED_REPLAY');
+            },
             parse: () => {
               throw new Error('SCHEMA_DECODE_FAILURE');
             },

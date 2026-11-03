@@ -31,7 +31,6 @@ function packet() {
         mediaType: 'image',
         asset: { id: 'asset', revision: 1, mimeType: 'image/png' },
         sourceStoryAt: at,
-        observedAtStory: at,
         completedAtReal: '2026-10-20T10:00:00.000Z',
         chatProjection: 'eligible',
       }),
@@ -62,9 +61,6 @@ test('external completion identity excludes clock and CAS revisions, and include
   later.worldVersion = 7;
   later.actorRevision = 9;
   later.storyAt = '2026-10-19T10:00:00.000Z';
-  const observed = JSON.parse(later.observations[0]!.text);
-  observed.observedAtStory = later.storyAt;
-  later.observations[0]!.text = JSON.stringify(observed);
   const second = await collectActorMediaResultCandidates(later);
   assert.equal(second[0]!.id, first[0]!.id);
   assert.equal(second[0]!.expectedWorldVersion, 7);
@@ -133,7 +129,6 @@ test('authenticated failed media has one stable review identity and cannot masqu
     phase: 'failed',
     mediaType: 'image',
     sourceStoryAt: at,
-    observedAtStory: at,
     failedAtReal: '2026-10-20T10:00:00.000Z',
     errorCode: 'GENERATION_FAILED',
     provenance: { taskId: 'task', outboxId: 'outbox' },

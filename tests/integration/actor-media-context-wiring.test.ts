@@ -191,11 +191,20 @@ test('own actual media completion enters native snapshots and revalidates indepe
     return { lease, assetId };
   }
 
-  async function snapshot(f: F, actorId = 'a') {
+  async function snapshot(f: F, actorId = 'a', storyAt?: string) {
     const world = (await worlds.get({ userId: f.owner }, f.worldId))!;
     const state = (await attempts.read(f.owner, { worldId: f.worldId, actorId }))!;
-    return (await readPrivateAgentSnapshot(db, f.owner, world, actorId, null, world.time, state))
-      .snapshot;
+    return (
+      await readPrivateAgentSnapshot(
+        db,
+        f.owner,
+        world,
+        actorId,
+        null,
+        storyAt ?? world.time,
+        state,
+      )
+    ).snapshot;
   }
   await t.test(
     'queued has no completion source; actual ready is visible without world version advance or state mutation',
@@ -225,7 +234,17 @@ test('own actual media completion enters native snapshots and revalidates indepe
       const content = JSON.parse(observation.text);
       assert.equal(content.phase, 'completed');
       assert.equal(content.asset.id, assetId);
-      assert.equal(content.observedAtStory, current.storyAt);
+      assert.equal('observedAtStory' in content, false);
+      const later = await snapshot(
+        f,
+        'a',
+        new Date(Date.parse(current.storyAt) + 60_000).toISOString(),
+      );
+      assert.deepEqual(
+        later.observations.find((o) => o.sourceId === source.id),
+        observation,
+        'reading the same media result later must not create new semantic evidence',
+      );
       assert.notEqual(content.completedAtReal, content.sourceStoryAt);
       assert.equal(content.chatProjection, 'eligible');
       assert.equal('prompt' in content, false);

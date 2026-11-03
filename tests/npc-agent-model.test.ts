@@ -496,7 +496,7 @@ test('oversized active questions fail free preflight rather than silently losing
   assert.deepEqual(input, before, 'preflight must not clear active questions to fit');
 });
 
-test('long-lived terminal history is compacted before preflight fails the send', async () => {
+test('terminal history cannot discard player decision scope merely to fit a budget', async () => {
   const input = snapshot();
   const long = '旧历史'.repeat(120);
   for (let index = 0; index < 120; index++) {
@@ -550,30 +550,9 @@ test('long-lived terminal history is compacted before preflight fails the send',
   }
   input.viewState = structuredClone(input.state);
   const { adapter, calls } = capture();
-  adapter.validateInput(input);
-  await adapter.decide(input);
-  assert.equal(calls.length, 1);
-  const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assertRequestBudget(calls[0]!);
-  assert.deepEqual(
-    payload.state.goals.map((goal: { id: string }) => goal.id),
-    ['g1'],
-  );
-  assert.deepEqual(
-    payload.state.plans.map((plan: { id: string }) => plan.id),
-    ['p1'],
-  );
-  assert.deepEqual(payload.state.actions, []);
-  assert.deepEqual(
-    payload.state.responsibilities.map((responsibility: { id: string }) => responsibility.id),
-    ['r1'],
-  );
-  assert.deepEqual(payload.state.decisions, wireExpected(input, input.viewState.decisions));
-  assert.equal(
-    payload.state.decisions.length,
-    120,
-    'accepted and declined choices survive terminal graph compaction',
-  );
+  assert.throws(() => adapter.validateInput(input), /NPC_AGENT_SNAPSHOT_LIMIT/);
+  await assert.rejects(adapter.decide(input), /NPC_AGENT_SNAPSHOT_LIMIT/);
+  assert.equal(calls.length, 0, 'do not pay for a context stripped of decision scope');
 });
 
 test('protected state or current input over budget fails in deterministic preflight with zero calls', async () => {

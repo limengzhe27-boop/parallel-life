@@ -1,3 +1,4 @@
+import { currentActorWorkState } from '../application/agent-state-context.ts';
 import { DomainError } from '../domain/errors.ts';
 import { mergeAppointments } from '../domain/genesis-links.ts';
 import { openingMessagesForDisplay } from '../domain/opening-time.ts';
@@ -202,7 +203,9 @@ export async function readChatContextWorld(
       : [];
     const initialTime = typeof row.initial_time === 'string' ? row.initial_time : state.time;
     const actorState = (row.actor_state as ActorAgentState | null) ?? null;
-    const stateHandles = collectActorHandles(actorState);
+    const stateHandles = collectActorHandles(
+      actorState ? currentActorWorkState(actorState, new Set(explicitRefs)) : null,
+    );
     const stateRequired = uniqueSourceIds(
       stateHandles.filter(
         (id) =>

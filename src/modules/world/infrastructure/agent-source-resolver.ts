@@ -31,6 +31,8 @@ export async function readActorStrategyBasis(
   storyAt: string,
   options: {
     omitEpisodeIntents?: boolean;
+    /** Authenticated from receipts in this same transaction, never copied from stored actor JSON. */
+    participations?: NonNullable<ActorAgentState['episodeParticipations']>;
     /** Same-transaction packet already read by the private snapshot reader. */
     narrative?: Awaited<ReturnType<typeof readActorNarrativeObservationSourcesInTransaction>>;
     blockedSources?: ReadonlySet<string>;
@@ -38,7 +40,8 @@ export async function readActorStrategyBasis(
     skipEmptyMediaHeadCheck?: boolean;
   } = {},
 ): Promise<AgentSource[]> {
-  const participations = await readActorEpisodeParticipations(sql, ownerId, state);
+  const participations =
+    options.participations ?? (await readActorEpisodeParticipations(sql, ownerId, state));
   const handles = [
     ...new Set([
       ...state.knowledgeSourceIds,
@@ -655,10 +658,7 @@ async function readNativeStrategyBasis(
 
 type MediaCompletionFrame = Pick<AgentSnapshot, 'state' | 'worldVersion' | 'storyAt'>;
 /** The enqueue's story timestamp is lineage, not the time this external result became known. */
-function mediaCompletionPacket(
-  result: ActorMediaResultContext | ActorMediaFailureContext,
-  observedAtStory: string,
-) {
+function mediaCompletionPacket(result: ActorMediaResultContext | ActorMediaFailureContext) {
   const source: AgentSource = {
     id: result.id,
     kind: 'action_result',
@@ -686,7 +686,6 @@ function mediaCompletionPacket(
             provenance: result.provenance,
           }),
       sourceStoryAt: result.source.sourceStoryAt,
-      observedAtStory,
       ...(result.phase === 'completed' ? { chatProjection: result.chatProjection.status } : {}),
       meaning:
         result.phase === 'failed'
@@ -781,7 +780,7 @@ export async function readActorMediaCompletionContextInTransaction(
         (!selected || selected.has(result.id)) &&
         Date.parse(result.source.sourceStoryAt) <= Date.parse(frame.storyAt),
     )
-    .map((result) => mediaCompletionPacket(result, frame.storyAt));
+    .map((result) => mediaCompletionPacket(result));
   return {
     sources: packets.map((packet) => packet.source),
     observations: packets.map((packet) => packet.observation),

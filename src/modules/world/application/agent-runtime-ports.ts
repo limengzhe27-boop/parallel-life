@@ -168,6 +168,15 @@ export interface DirectorAgent {
   }): Promise<DirectorCoordination>;
 }
 export interface AgentKernel {
+  /** Return the authenticated durable result; never decode or re-execute a committed response. */
+  readCommitted(
+    ownerId: string,
+    attempt: AgentAttempt,
+  ): Promise<{
+    eventId: string;
+    state: ActorAgentState;
+    results: AgentActionResult[];
+  }>;
   /** Strict parsing and deterministic validation, without executing anything. */
   parse(snapshot: AgentSnapshot, response: unknown): AgentProposal;
   /** No model calls; validates proposals/dependencies and executes only registered capabilities. */

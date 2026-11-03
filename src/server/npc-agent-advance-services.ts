@@ -1,9 +1,9 @@
+import { readUnclaimedWakeInTransaction } from '../modules/world/infrastructure/agent-orphan-wake-recovery.ts';
 import { readAgentObservationScheduleCandidatesInTransaction } from '../modules/world/infrastructure/agent-observation-schedule-read.ts';
 import { repairQuestionProgressReasonsInTransaction } from '../modules/world/infrastructure/question-progress-repair.ts';
 import { independentObservationWork } from '../modules/world/domain/independent-observation-work.ts';
 import {
   agentWakeRecovery,
-  orphanedWakeCandidateIds,
   wakeCandidateIdFromInputText,
 } from '../modules/world/domain/agent-wake-recovery.ts';
 import type { AdvanceWorkRef } from '../modules/world/domain/advance-operation.ts';
@@ -364,37 +364,12 @@ export function npcAgentAdvanceServices(
           wakeCandidateId:
             r.origin === 'wake' ? wakeCandidateIdFromInputText(r.input_text) : undefined,
         }));
-        // An interrupted wake can leave a receipt without any attempt. Once the
-        // world has moved on that receipt cannot be replayed, so exclude its
-        // semantic candidate instead of letting every scheduler tick conflict.
-        const staleWakeCandidateIds = orphanedWakeCandidateIds(
-          (
-            await sql.query(
-              `SELECT (r.document->>'expectedWorldVersion')::integer AS expected_world_version,
-                      r.document->>'text' AS input_text
-                 FROM parallel_life.agent_input_receipts r
-                WHERE r.world_id=$1 AND r.owner_id=$2
-                  AND r.document->>'origin'='wake'
-                  AND (r.document->>'expectedWorldVersion')::integer < $3
-                  AND NOT EXISTS (
-                    SELECT 1 FROM parallel_life.agent_attempts a
-                     WHERE a.world_id=r.world_id AND a.owner_id=r.owner_id
-                       AND a.input_receipt_id=r.id
-                  )`,
-              [worldId, ownerId, world.version],
-            )
-          ).rows.map((r) => ({
-            expectedWorldVersion: Number(r.expected_world_version),
-            inputText: String(r.input_text ?? ''),
-          })),
-          world.version,
-        );
         const agendaInitializeGrants = await readAgendaInitializeGrantsInTransaction(sql, ownerId, {
           worldId,
           engineEpoch,
           worldVersion: world.version,
         });
-        return { states, results, prior, staleWakeCandidateIds, agendaInitializeGrants };
+        return { states, results, prior, agendaInitializeGrants };
       });
       if (
         read.states.length !== world.actors.length ||
@@ -841,7 +816,6 @@ export function npcAgentAdvanceServices(
               if (prior?.status === 'committed') continue;
               // The receipt was accepted at an older world version but no attempt
               // was ever written. Replaying it can only fail the version CAS.
-              if (!prior && read.staleWakeCandidateIds.has(candidate.id)) continue;
               // An invalid/stale result is a known failed attempt, not permission to buy a replacement.
               // The blocker names only this semantic candidate, preserving other actors and matters.
               const resourceId = `wake:${candidate.id}`;
@@ -1365,20 +1339,63 @@ export function npcAgentAdvanceServices(
                   ...(candidate.planReview ? { planReview: candidate.planReview } : {}),
                   nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
                 });
-          const { receipt } = await attempts.accept(ownerId, {
-            id: randomUUID(),
-            worldId,
-            commandId,
-            inputHash: hash([worldId, candidate.actorId, candidate.id, text]),
-            channel: 'private',
-            threadId: candidate.actorId,
-            recipientActorId: candidate.actorId,
-            expectedWorldVersion: world.version,
-            receivedAt: new Date().toISOString(),
-            storyAt,
-            origin: 'wake',
-            text,
-          });
+          const readExistingReceipt = async (prior: AgentAttempt) =>
+            db.transaction(ownerId, async (sql) => {
+              const row = (
+                await sql.query(
+                  `SELECT r.document FROM parallel_life.agent_input_receipts r
+               JOIN parallel_life.agent_attempts a ON a.world_id=r.world_id AND a.owner_id=r.owner_id AND a.input_receipt_id=r.id
+               WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3 AND a.command_id=$4
+                 AND a.actor_id=$5 AND a.input_hash=$6`,
+                  [worldId, ownerId, prior.id, commandId, candidate.actorId, prior.inputHash],
+                )
+              ).rows[0];
+              if (!row) throw new DomainError('INVALID_COMMAND');
+              return row.document as import('../modules/world/domain/agent-runtime.ts').AgentInputReceipt;
+            });
+          const unclaimed =
+            !initialization && !agendaReview && !existing
+              ? await db.transaction(ownerId, (sql) =>
+                  readUnclaimedWakeInTransaction(sql, ownerId, {
+                    worldId,
+                    actorId: candidate.actorId,
+                    commandId,
+                    candidateId: candidate.id,
+                    worldVersion: world.version,
+                    engineEpoch,
+                    candidateSource: candidate.source,
+                    candidateSourceIds: candidate.sourceIds,
+                    actionId: candidate.actionId,
+                    visibleSourceIds: authorized.sources.map((source) => source.id),
+                  }),
+                )
+              : null;
+          const receipt = existing
+            ? await readExistingReceipt(existing)
+            : (unclaimed ??
+              (
+                await attempts
+                  .accept(ownerId, {
+                    id: randomUUID(),
+                    worldId,
+                    commandId,
+                    inputHash: hash([worldId, candidate.actorId, candidate.id, text]),
+                    channel: 'private',
+                    threadId: candidate.actorId,
+                    recipientActorId: candidate.actorId,
+                    expectedWorldVersion: world.version,
+                    receivedAt: new Date().toISOString(),
+                    storyAt,
+                    origin: 'wake',
+                    text,
+                  })
+                  .catch(async (error) => {
+                    if (error?.code !== 'COMMAND_CONFLICT') throw error;
+                    const raced = await attempts.lookup(ownerId, worldId, commandId);
+                    if (!raced) throw error;
+                    return { receipt: await readExistingReceipt(raced), replay: true };
+                  })
+              ).receipt);
           const prior = await attempts.lookup(ownerId, worldId, commandId);
           const snapshot =
             prior?.status === 'response_received'

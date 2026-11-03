@@ -479,6 +479,9 @@ test('agenda_initialize actual original advance/attempt/kernel flow, real PG syn
               },
             },
             kernel: {
+              async readCommitted() {
+                throw Error('unreachable');
+              },
               parse() {
                 throw Error('unreachable');
               },
@@ -573,6 +576,9 @@ test('agenda_initialize actual original advance/attempt/kernel flow, real PG syn
                 },
               },
               kernel: {
+                async readCommitted() {
+                  throw Error('unreachable');
+                },
                 parse() {
                   throw Error('unreachable');
                 },

@@ -445,12 +445,14 @@ async function plans(view: SchedulingView, context: ActorContext) {
             dependsOnActionIds: sorted(action.dependsOnActionIds),
             handlesResponsibilityIds: sorted(action.handlesResponsibilityIds),
           },
-          goal: goal ? {
-            id: goal.id,
-            summary: goal.summary,
-            status: goal.status,
-            sourceIds: sorted(goal.sourceIds),
-          } : null,
+          goal: goal
+            ? {
+                id: goal.id,
+                summary: goal.summary,
+                status: goal.status,
+                sourceIds: sorted(goal.sourceIds),
+              }
+            : null,
           responsibilities: ordered(responsibilities.map(responsibilitySemantic)),
           evidence: proof.values,
         },
@@ -538,7 +540,8 @@ async function planReconsiderations(
       (!savedReview || Date.parse(savedReview.nextReviewAt) <= Date.parse(view.storyAt)) &&
       ['active', 'waiting', 'blocked'].includes(plan.status) &&
       context.basis(plan) &&
-      (plan.goalId === null || (goal && ['active', 'deferred'].includes(goal.status) && context.basis(goal))) &&
+      (plan.goalId === null ||
+        (goal && ['active', 'deferred'].includes(goal.status) && context.basis(goal))) &&
       !existing.some((c) => c.planReview?.planId === plan.id)
     ) {
       const sourceIds = sorted([...plan.sourceIds, ...(goal?.sourceIds ?? [])]);
@@ -587,7 +590,8 @@ async function planReconsiderations(
       !['active', 'waiting', 'blocked'].includes(plan.status) ||
       !context.basis(plan) ||
       !conditionTimesValid(plan.triggers) ||
-      (plan.goalId !== null && (!goal || !['active', 'deferred'].includes(goal.status) || !context.basis(goal))) ||
+      (plan.goalId !== null &&
+        (!goal || !['active', 'deferred'].includes(goal.status) || !context.basis(goal))) ||
       (plan.nextActionId && existing.some((c) => c.actionId === plan.nextActionId)) ||
       !agentConditionsReady(
         context.snapshot,
@@ -1346,7 +1350,6 @@ export async function collectActorMediaResultCandidates(input: {
       result.requestId !== source.recordId ||
       !['image', 'video'].includes(result.mediaType) ||
       result.sourceStoryAt !== source.at ||
-      result.observedAtStory !== input.storyAt ||
       (result.phase === 'completed'
         ? !instant(result.completedAtReal) ||
           !id(result.asset?.id) ||

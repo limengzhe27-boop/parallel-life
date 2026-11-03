@@ -93,6 +93,10 @@ function fixture(replayStatus?: AgentAttemptStatus) {
     },
   };
   const kernel: AgentKernel = {
+    async readCommitted() {
+      calls.push('readCommitted');
+      return { eventId: 'event', state: { ...state, revision: 1 }, results: [] };
+    },
     parse() {
       calls.push('parse');
       return proposal;
@@ -108,8 +112,8 @@ test('model call sits between durable sent and protected response; kernel runs l
   const f = fixture();
   await runNpcAgent(f, 'owner', f.claim, f.snapshot);
   assert.deepEqual(f.calls, [
-    'preflight',
     'claim',
+    'preflight',
     'request_sent',
     'model',
     'saveResponse',
@@ -120,7 +124,7 @@ test('model call sits between durable sent and protected response; kernel runs l
 test('received result resumes without another paid call', async () => {
   const f = fixture('response_received');
   await runNpcAgent(f, 'owner', f.claim, f.snapshot);
-  assert.deepEqual(f.calls, ['preflight', 'claim', 'readResponse', 'parse', 'commit']);
+  assert.deepEqual(f.calls, ['claim', 'readResponse', 'parse', 'commit']);
 });
 test('unknown, in-flight and failed output never auto-call the model on replay', async () => {
   for (const status of [
@@ -132,7 +136,7 @@ test('unknown, in-flight and failed output never auto-call the model on replay',
   ] as const) {
     const f = fixture(status);
     await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot));
-    assert.deepEqual(f.calls, ['preflight', 'claim']);
+    assert.deepEqual(f.calls, ['claim']);
   }
 });
 test('known malformed response is invalid_output, not unknown', async () => {
@@ -179,7 +183,7 @@ test('epoch change after response preserves it but prevents execution', async ()
   await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /ATTEMPT_STALE/);
   assert.ok(!f.calls.includes('parse') && !f.calls.includes('commit'));
 });
-test('input preflight failure and wrong actor/source never reserve or call a model', async () => {
+test('wrong input never reserves; preflight failure closes its unpaid reservation', async () => {
   const f = fixture();
   f.snapshot.input.sourceId = 'other-input';
   await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /ATTEMPT_STALE/);
@@ -189,7 +193,7 @@ test('input preflight failure and wrong actor/source never reserve or call a mod
     throw Error('context too large');
   };
   await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /context too large/);
-  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.calls, ['claim', 'cancelled_before_send']);
 });
 test('received completion resumes its protected original snapshot without rebuilding or paying again', async () => {
   const f = fixture('response_received'),
@@ -313,4 +317,20 @@ test('autonomous emotion and repeated words reach the kernel without subjective 
   };
   await runNpcAgent(f, 'owner', f.claim, f.snapshot);
   assert.ok(f.calls.includes('commit'));
+});
+
+test('committed replay needs neither old raw response nor model preflight/decoder', async () => {
+  const f = fixture('committed');
+  f.model.validateInput = () => {
+    throw Error('PRE_FLIGHT_MUST_NOT_RUN');
+  };
+  f.kernel.parse = () => {
+    throw Error('DECODER_MUST_NOT_RUN');
+  };
+  f.attempts.readResponse = async () => {
+    throw Error('RAW_MUST_NOT_BE_READ');
+  };
+  const result = await runNpcAgent(f, 'owner', f.claim, f.snapshot);
+  assert.equal(result.eventId, 'event');
+  assert.deepEqual(f.calls, ['claim', 'readCommitted']);
 });

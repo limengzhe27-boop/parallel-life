@@ -671,7 +671,7 @@ export class PostgresAgentRuntimeRepository
         `UPDATE parallel_life.agent_attempts SET status='stale_discarded',updated_at=now()
          WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3
            AND status='unknown_after_send' AND lease_until<=clock_timestamp()
-           AND sent_at IS NOT NULL AND response IS NULL AND response_hash IS NULL`,
+           AND sent_at IS NOT NULL AND response IS NULL AND response_hash IS NULL AND event_id IS NULL`,
         [input.worldId, ownerId, input.actorId],
       );
       const busy = (

@@ -194,6 +194,70 @@ test('actual NPC kernel and private service commit actor state with world receip
     decisions: [],
   });
 
+  await t.test(
+    'committed replay reads its authenticated result without decoding historical output',
+    async () => {
+      const f = await fixture();
+      const kernel = new PostgresNpcAgentKernel(db, worlds);
+      const first = await runNpcAgent(
+        {
+          attempts: store,
+          kernel,
+          model: {
+            async decide() {
+              return JSON.stringify(proposal());
+            },
+          },
+        },
+        f.ownerId,
+        f.claim,
+        f.snapshot,
+      );
+      const attempts = new Proxy(store, {
+        get(target, key) {
+          if (key === 'readResponse')
+            return async () => {
+              throw Error('OLD_RESPONSE_MUST_NOT_BE_READ');
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      const replay = await runNpcAgent(
+        {
+          attempts,
+          kernel: {
+            readCommitted: kernel.readCommitted.bind(kernel),
+            parse() {
+              throw Error('OLD_OUTPUT_MUST_NOT_BE_DECODED');
+            },
+            async commit() {
+              throw Error('MUST_READ_COMMITTED_RESULT');
+            },
+          },
+          model: {
+            validateInput() {
+              throw Error('CURRENT_MODEL_SCHEMA_MUST_NOT_BLOCK_HISTORY');
+            },
+            async decide() {
+              throw Error('NO_NEW_MODEL_CALL');
+            },
+          },
+        },
+        f.ownerId,
+        f.claim,
+        null,
+      );
+      assert.deepEqual(replay, first);
+      const attempt = (await store.lookup(f.ownerId, f.world.id, f.input.commandId))!;
+      await assert.rejects(
+        kernel.readCommitted(f.ownerId, { ...attempt, token: randomUUID() }),
+        /INVALID_AGENT_RECEIPT/,
+      );
+      assert.equal((await worlds.get({ userId: f.ownerId }, f.world.id)).version, 1);
+      assert.equal((await worlds.get({ userId: f.ownerId }, f.world.id)).messages.length, 2);
+    },
+  );
   await t.test('real private service uses one model call and exact receipt replay', async () => {
     const f = await fixture();
     let count = 0;
@@ -792,6 +856,7 @@ test('actual NPC kernel and private service commit actor state with world receip
               },
             },
             kernel: {
+              readCommitted: kernel.readCommitted.bind(kernel),
               parse: kernel.parse.bind(kernel),
               async commit() {
                 throw Error('DB_OFFLINE');

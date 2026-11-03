@@ -3426,7 +3426,15 @@ HOME-TASKS-UNREAD-12 build44本地交付：check4159/build通过，原4953真实
 
 XGEN-REPO-SYNC-13：已验证a32829e6当前项目快照正常更新公司main=468d4895，保留92cf3fac初始历史，无force push；ls-remote一致，源码tree完全相同，未上传.local/.env.local/私有素材库。无业务修改/生产部署，专属报告记录。
 
+|CAREER-REVIEW-14|[x] 已完成（文档自审）|root-career-review-20261028；主目录文档整理|docs/CAREER_PROJECT_EXPERIENCE.md、docs/task-reports/CAREER-REVIEW-14.md、本登记行；不改业务/部署|基于本项目最新报告和用户需求整理秋招个人贡献、简历短版与面试案例；区分用户决策与AI执行、实测与未完成，不外发公司仓库|2026-10-28：已形成[秋招项目经历](CAREER_PROJECT_EXPERIENCE.md)，两种简历短版/三例/指标与边界；9条相对链接及diff检查通过，见CAREER-REVIEW-14报告；纯文档不构建/部署/推送。|
+
 |PROACTIVE-ROOT-15|[ ] 进行中|root-proactive-root15；主目录唯一集成|own-agenda-review-repository.ts、own-agenda-review-authority.ts、director-observation-repository.ts、director-agent-model.ts、director-context-references.ts、server/composition.ts、grok-fast-config.test.ts及专属tests/report；scheduler只读诊断；本地3218/3219|查原2fb/4953实际持续推进阻断，已见6141失败/6576领取/messages0；按证据修历史依据与导演重复上下文，不强制发言、不重买unknown；必要PG/真实验收及本地更新|2026-11-02：四项根因修复已本地构建运行：旧表情认证、导演引用冗余、pending重复资格判断、Grok不支持none参数。check4163/PG8/config2通过；原档实际派发85秒超时、最小模型探针30秒超时，主动体验仍未通过，见PROACTIVE-ROOT-15报告。|
+
+|LOCAL-MODEL-16|[x] 已完成（本地模型切换）|root-model-switch16；主目录|被忽略的本地模型env、运行进程、专属报告|用户要求4.7切4.3；保留原2fb存档，同步3218/3219及workers；不改数据库、不部署生产|
+
+LOCAL-MODEL-16：网页和两类worker模型已同步4.3并重启，原play.localhost地址不变；真实最小调用8476ms返回OK，未称完整剧情跑通。见专属报告；不部署生产。
+
+|CHAT-LATENCY-17|[x] 已完成（只读耗时审查）|root-latency17；主目录|原请求metrics/DB只读、专属report|四条真实刘胜男回合8.88/20.81/11.40/21.16秒，定位首chunk等待与compact扩张；没有新增付费调用或业务修改；优化未实施|见CHAT-LATENCY-17.md|
 
 |NPC-TASK-CONTEXT-18|[x] 本批本地交付，整体精简待续|root-task-context18 唯一集成；task_context_review18只读审查|main 7de1b344；npc-agent-model.ts、tests/npc-agent-model.test.ts、专属报告；不改记忆压缩、actor-context、persona、SQL|保留任务输入与回应自由，按本轮触发裁剪无关规则，修复表情清空任务和预算丢事件。check4165、聚焦58、build通过；3218/3219已更新。1次真实只读模型回放23.7s，仍拉回工作话题，不宣称自然度/提速解决；整体schema精简与原档主动调度待续。其他会话负责记忆压缩。|
 
@@ -3460,15 +3468,21 @@ NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s�
 
 |PLAYER-AGENDA-BASIS-25|[x] 已集成验证|wake_identity24；root唯一集成|独立a758/codex/player-agenda-basis25自5156b5b4；own-agenda-review-repository.ts、NEW tests/integration/player-agenda-basis25.test.ts|冻结ea4d08d1；仅失败后认证完整private/player回合可新窗口；原请求不重买，partial/并发旧输入/quiet/别人物不解封；新+原PG13/13、typecheck通过；原基线两个正向例失败，0真实模型/用户档修改/部署|
 
-|RELATIONSHIP-STATE-28|[x] 待验收|agenda_gap_review27；root集成|独立agenda-gap27自d9f988e9；domain/reducer.ts、agent-state-event.ts、NEW tests/integration/relationship-state28.test.ts、专属报告|冻结b9d599f4；两reducer仅写actorTies不改人物与玩家关系；基线PG红/修后1通过，双方聊天和调度读取、旧并发不覆盖、typecheck通过；0模型/用户档写；旧档不自动回写。|
-
-|CHAIN-INTEGRATION-28|[ ] 进行中|root-chain28唯一集成|agent-schedule-collectors.ts媒体终态候选分支、整合27/媒体28及报告；其他公共文件只读核查|复用原媒体结果入口接失败，不重生成；检查计划/到场/回复保存接续，必要PG与本地构建验证，原档未通过不宣称完成|
-
-|MEDIA-FAILURE-28|[x] 已集成本地验证|arrival-continuity28；root唯一集成|独立.local/worktrees/media-failure28自88d9ce32；actor-media-result-context.ts/repository、agent-source-resolver.ts媒体分支、NEW专属PG/report；collector只交patch由root整合|冻结53ac02a0；复用pending.failed认证证明→本人source→原候选一次评估；新PG1/1+原回归9/9/typecheck/boundaries通过，root整合collector/check/build；0商业模型/原档写；55676已停|
+| EPISODE-LIFECYCLE-AUDIT-26 | 待验收 | wake_identity24；root集成 | 独占报告 docs/task-reports/EPISODE-LIFECYCLE-AUDIT-26.md；只读原2fb存档与共享生命周期代码 | 分类22 proposed/2 active；0模型/0原档写；给统一生命周期最小修复依据 |
 
 |AGENDA-GAP-27|[x] 已集成本地验证|agenda_gap_review27；root唯一集成|独立/Users/limengzhe/.codex/worktrees/agenda-gap27/人生剧本；agent-schedule-collectors.ts、tests/agent-schedule-collectors.test.ts、NEW tests/agenda-gap27.test.ts、docs/task-reports/AGENDA-GAP-27.md；root明确交接collectors独占|冻结e4b90dde：无关问题冻结已修；事件无trigger计划实际是排除cadence后永久停滞（非绕过），已统一窗口；53/53、typecheck、boundaries通过；0模型/用户档/部署，root集成。|
 
+|FLOW-CONTINUITY-AUDIT-28|[ ] 待验收|arrival-continuity28；root唯一集成|main88d9ce32只读；独占docs/task-reports/FLOW-CONTINUITY-AUDIT-28.md|报告更正30698e60：媒体failed遗漏已另案修；attention挡到达假设撤回（DEFERRED仅时钟暂停/旧presence lease停止，arrival同受保护）；两处单批次保守quiet不永久阻断；不改准入/到达；0模型/原档写|
+
+|MEDIA-FAILURE-28|[x] 已集成本地验证|arrival-continuity28；root唯一集成|独立.local/worktrees/media-failure28自88d9ce32；actor-media-result-context.ts/repository、agent-source-resolver.ts媒体分支、NEW专属PG/report；collector只交patch由root整合|冻结53ac02a0；复用pending.failed认证证明→本人source→原候选一次评估；新PG1/1+原回归9/9/typecheck/boundaries通过，root整合collector/check/build；0商业模型/原档写；55676已停|
+
 |AGENDA-GAP-27-PG|[ ] 待验收|agenda_gap_review27；root集成|独立agenda-gap27；tests/integration/plan-review201.test.ts、tests/integration/player-episode-manifest.test.ts（root明确交接）、专属报告|冻结c64404e0；201 PG2/2、新事件无action正常入口PG1通过、typecheck通过；manifest另两旧失败保留；关系成功目标定义同步缺口入报告；0模型/用户档/公共源码。|
+
+|CHAIN-INTEGRATION-28|[ ] 进行中|root-chain28唯一集成|agent-schedule-collectors.ts媒体终态候选分支、整合27/媒体28及报告；其他公共文件只读核查|复用原媒体结果入口接失败，不重生成；检查计划/到场/回复保存接续，必要PG与本地构建验证，原档未通过不宣称完成|
+
+|RELATIONSHIP-STATE-28|[x] 待验收|agenda_gap_review27；root集成|独立agenda-gap27自d9f988e9；domain/reducer.ts、agent-state-event.ts、NEW tests/integration/relationship-state28.test.ts、专属报告|冻结b9d599f4；两reducer仅写actorTies不改人物与玩家关系；基线PG红/修后1通过，双方聊天和调度读取、旧并发不覆盖、typecheck通过；0模型/用户档写；旧档不自动回写。|
+
+| MANIFEST-FIXTURE-28 | 待验收 | wake_identity24；root集成 | /Users/limengzhe/.codex/worktrees/a758/人生剧本；独占 tests/integration/player-episode-manifest.test.ts 与 docs/task-reports/MANIFEST-FIXTURE-28.md | 修核其他人物隔离、暂缓候选旧夹具；仅本地测试库无商业模型 |
 
 |AGENDA-PROTOCOL-29|[x] 已集成本地验证|root-agenda29唯一集成；agenda_gap_review协议|npc-agent-model.ts、模型和当前schema版本测试；协议f2597811|v17移除重复decision；check4177/4177、build通过，两端及worker已运行；真实隔离模型1次6287ms解析通过仍quiet、0存档写；原档持续演绎未通过，详见AGENDA-PROTOCOL-29.md|
 
@@ -3482,7 +3496,7 @@ NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s�
 
 |DIRECTOR-OBSERVATION-32|[x] 已集成验证（观察调度范围）|agenda-gap-review；root集成|eef88703/b9f26dd8/3c4f0e5c；advance、director-runtime原入口及专属PG/报告|真实变化无需NPC候选；原因身份防无关版本重买，保护旧paid invalid；PG3/3、check4176/4176、隔离build通过；0真实模型/原档写，未重启运行版；原档主动演绎仍未通过。|
 
-PERSONA-LINEAGE-01 2026-11-03 root只读补原作v15/v20首次错配证据；报告已更新，内容修订仍未完成。
+PERSONA-LINEAGE-01 2026-11-03 root接续只读溯源与报告：独占该报告追加原始作品01824964…v15/v20首次资料录入证据；不修改人物资料、历史、publication或应用入口。
 
 |ACTOR-CONTINUITY-33|[ ] 进行中|root-continuity33唯一集成；agenda_gap_review/arrival_continuity只读审查|主目录0540ccb4；本人议程/事件续接的现有应用与上下文、人物内容修订现有入口和必要测试/报告；先核具体变更再登记扩围|修复等待无后续及青青/林白语资料来源，保留actor/world/历史进度；现有2fb真实验收，不force/不重复付费刷结果，不启动端口。|
 
@@ -3499,6 +3513,7 @@ ACTOR-CONTINUITY-33 2026-11-03 root收口：6da97e02/21237652/d2ac0593集成；c
 EPISODE-CONTEXT-33 / ACTOR-DEFINITION-29：root已集成验证对应源码和原档资料修订；组件范围验收通过，不能代替ACTOR-CONTINUITY-33主动演绎总体验收。
 
 |DIRECTOR-HANDOFF-34|[ ] 部分完成，主动推进未通过|root-director34唯一集成|main a55d0a0e；director-model-protocol/director-agent-model及对应应用/恢复必要接线、聚焦tests/report；先核因再扩围|精简人物任务与主题重复归属；区分邀请机会与接受后行动；原2fb主动消息及后续计划真实验收，本地3218更新，保留原档与付费回执，不强制/不重复调用刷结果。|
+
 DIRECTOR-HANDOFF-34：已精简actorTopics并修复显式失败恢复原窗口；check4177/build/新增PG通过，3218及workers已更新。原2fb真实1导演+1NPC后仍140消息、0新计划，不称跑通。导演邀请入口等待、审计人物错称、旧集成夹具保留未完成，见docs/task-reports/DIRECTOR-HANDOFF-34.md。
 
 |STATE-SIMPLIFY-35|[ ] 四层审计及首批精简已验收，整体合并待续|root-state35唯一集成；接续root协议范围|主目录e8a60caa；npc-model-protocol/npc-agent-model/stream/parser、actor-self-agenda-context及专属测试；数据库只读审计、报告；必要迁移另登记|联合检查代码/实际模型输入/原档状态/调度消费者；删除重复议程报告与重复材料，按消费者证据处理持久重复，不删除历史回执/unknown；check/build及本地验收。|
@@ -3506,3 +3521,33 @@ DIRECTOR-HANDOFF-34：已精简actorTopics并修复显式失败恢复原窗口�
 STATE-SIMPLIFY-35范围补充：root接管已集成的tests/integration/own-agenda-window05.test.ts，仅增加v18无重复报告的原入口持久化/接续验证；不改旧历史协议断言。
 
 STATE-SIMPLIFY-35收口：v18删除agendaReview与selfAgendaContext；历史安静状态不再扩张普通聊天schema。check4176、PG7、build通过；6人同快照减少1715–2281字符（非token）；原档正常advance no_candidates、0模型/0消息，主动推进未通过。3218/queue/proactive更新PID85384/85385/85386，3219未动；无DB删除/迁移。目标-计划/参与回执/continuation统一与旧请求恢复明确保留未完成，见专属报告。
+
+|ARCHITECTURE-NECESSITY-36|[x] 只读审查交付（未实施精简）|root-audit36只读审查，报告唯一负责人|主目录9f495c63；源码/数据库元数据/本地运行记录只读；仅写本行与docs/task-reports/ARCHITECTURE-NECESSITY-36.md|已交付报告ARCHITECTURE-NECESSITY-36.md：112表结构普查、核心链路定向审查、21项必要性/删合替换判断；原档6人物无goal/plan；待实施清单及覆盖盲区明确。未改业务/配置/数据/进程，0模型调用；不是演绎验收或部署完成。|
+
+|ARCHITECTURE-SIMPLIFY-37|[ ] 进行中|root-simplify37唯一集成|main9f495c63；审查36的21项分阶段接管：agent-runtime/state-context/snapshot/kernel/director-runtime、own-agenda-review与调度server/worker、episode生命周期及协议必要消费者、phone轮询、db迁移0122起、对应tests及专属报告；保留其他文档WIP|执行审查36删合替换清单，按依赖迁移不盲删历史；check/build、隔离真实PG、原档验收；未满足删除门槛的条目继续登记，当前本地交付，不部署Vercel。|
+
+|ARCHITECTURE-SIMPLIFY-37-D|[ ] 待验收|state-prune37；root唯一集成|独立.codex/worktrees/state-prune37自9f495c63；仅memoryIds/relationshipIds移除相关state/context/snapshot/kernel/schema/初始化和tests，0122迁移去重复seed索引，专属报告|冻结78811c5a：当前state/model删除2派生ID，旧snapshot读兼容/正常commit退出；0122合并seed重复unique及初始化SQL；隔离PG5/5、unit29/29、typecheck/boundaries通过；root接管集成，不写原档/不部署。|
+
+|ARCHITECTURE-SIMPLIFY-37-S|[ ] 待验收|scheduler-simplify37；root集成|独立scheduler-simplify37自9f495c63；own-agenda-review repo/authority、proactive应用/worker/server scheduler、0123迁移、相关聚焦tests/report；services.ts只给root接线建议|冻结2b393e57及报告补充；PG55683：agenda8/8、worker1/1、100world公平1/1；unit5/5、typecheck/boundaries；4200旧终态仍取<10证据，collect只读。0123先应用再接线；0模型/生产/用户档修改，root集成。|
+
+|ARCHITECTURE-SIMPLIFY-37-P|[ ] 待验收|poll-simplify37；root集成|独立.codex/worktrees/poll-simplify37/人生剧本自9f495c63；phone/poll-guard.ts、world-phone-app.tsx、use-world-time.ts、use-advance-recovery.ts（补内部错误上报）、world-app-data.ts及聚焦tests/report|冻结a2129b90：分离world/clock/advance退避及hook错误接线，删除虚拟媒体过期/now参数，快轮询真实5分钟后回10秒；34+4聚焦通过、typecheck/boundaries通过。第17条件读取仅审计，root集成/页面/build；0模型/数据/端口/部署。|
+
+|ARCHITECTURE-INDEPENDENT-38|[x] 独立审查完成（未实施业务精简）|astra-independent-audit38-20261103；只读审查自审，非37集成人；释放本报告写范围|仅本登记行与[独立报告](task-reports/ARCHITECTURE-INDEPENDENT-38.md)；取证9f495c63→490e604f，保留37并发WIP|复核原21项，记录37已改范围与11项新增/加深判断；4组离线纯函数/模拟组包探针、58文件链接检查，重点源码交叉复读完成。独立计划退出、零发送/付费恢复、历史重建/摘要扫描/记忆双写等给出迁移门槛。0模型/DB连接/业务改动/服务启动/部署；未跑全量check/build或真实演绎，不代表产品交付。|
+
+ARCHITECTURE-SIMPLIFY-37 2026-11-03 root阶段接续：d8a0f754/470c33a2/b0e44b3d/b9f10fa3/490e604f/e6b3e84e；工具/独立计划、参与回执权威、continuation迁移、2冗余ID、0122–0124、调度/轮询已实施；最终check4185/build、manifest PG11、agenda PG8、独立计划退出PG通过。原档正常advance仍no_candidates/0模型/0新消息，主动演绎未通过。3218更新build-simplify37，3219未动，无生产部署。21项逐项状态与38新增审查见ARCHITECTURE-SIMPLIFY-37.md；总体继续进行中，不将条件退休项标完成。
+
+ARCHITECTURE-SIMPLIFY-37 2026-11-03 独立审查38并入原任务（仅清单更新，基线d46a9076）：F1已由e6b3e84e/0124修复并经领域及真实PG验证，不重复开发；F4/F5及38§4.1优先统一零发送/原付费结果恢复；随后F2/F9当前工作与历史分离、F10单次候选收集、F3/F6日程/记录/摘要历史读取、F7/F8记忆写入与锁范围、F11媒体旧执行分支；最后按消费者迁移门槛处理旧引擎/decoder/快照。原36第14项“pending失败状态”撤回为未证明的呈现风险，复用现有available/in_flight/paid_terminal，不新增状态。完整验收和分工边界见37报告“独立审查38合并后的下一阶段清单”；全部新增项待实施，原档持续主动演绎仍未通过。此次不改业务代码/数据库/进程，不构建部署。
+
+|ARCHITECTURE-SIMPLIFY-37-R|[ ] 进行中|root-simplify39唯一集成；wake_recovery39/current_work39/task recovery协作|main d46a9076；root独占run-agent、agent-runtime-ports、npc-agent-kernel、episode-lifecycle/snapshot/source-resolver/chat-context-read、advance接线与必要repo/测试/report；子任务各自登记独占范围|优先统一未发送/已付费恢复及当前工作历史分离；不新增并行状态账，保留未知结果、用户历史与知情边界；必要PG/check/build、原2fb真实验收与3218本地更新，未完成列回37清单。|
+
+|37-R2-T|[ ] 待验收|codex-37-r2-t；root唯一集成|独立task-recovery37-r2，基线d46a9076；仅agent-task-recovery.ts、tests/integration/agent-task-recovery37.test.ts、docs/task-reports/37-R2-T.md|F5：定向锁原attempt，原付费恢复复用统一版本准入；PG55637 7/7，实锁无关attempt仍恢复；type/build通过，check首轮dev库未迁移7fail，迁移后8/8聚焦通过。代码已冻结codex/task-recovery37-r2；无attempt分支归root；不碰用户克隆/模型/进程。|
+
+| ARCHITECTURE-SIMPLIFY-37-R1 | [ ] 待验收 | wake-recovery39；root集成 | state-prune37/codex/wake-recovery39；agent-wake-recovery.ts、新增 orphan recovery infra、专属测试/report；advance/runtime只读 | 98a0d736：原receipt/current frame复用，独立PG 5/5、边界766通过；root需合并advance接线消除旧import，真实用户验收待root；不改用户库/运行进程 |
+
+|37-R3-C|[ ] 待验收|current-work39；root唯一集成|独立current-work39；application/agent-state-context.ts、infrastructure/npc-agent-model.ts、tests/current-actor-work39.test.ts、专属报告|当前工作与历史分离，保留依赖闭包和决定范围；不改持久状态、source读取、真实存档及运行环境。|
+
+37-R3-C 冻结 f5cd536e，3/3专属、typecheck通过，原model59/60（120决定及责任保留导致超预算，root接管旧断言；未删除范围）。0/100/10000终态计划实际组包16043/16042/16042字符；来源读取待root接线，原档/构建/本地运行待集成。报告CURRENT-WORK-39.md。
+
+| ARCHITECTURE-SIMPLIFY-39-EPISODE-UNKNOWN | [ ] 待验收 | wake-recovery39；root集成 | codex/episode-unknown39；episode eligibility、pending-work、phone-entry probe及专属测试/report | root追加独占授权；过期unknown不阻塞其他合法request，同request仍不重买；68/68与边界通过；公共dispatch/runtime需root接线 |
+
+ARCHITECTURE-SIMPLIFY-37-R 2026-11-03集成：R1/R2-T/R3-C及episodeunknown准入已合并；已提交回执直读、原task定向恢复、当前工作视图、媒体observedAtStory退休。最终check4189/build通过，kernel PG15、recovery+manifest18、media4、bounded1；原2fb正常advance真实3调用全部quiet，1原blocked事件交接consumed但0消息/0计划，主动演绎仍未通过。F9/F10和长历史决定超预算、无attempt跨版本task仍待续；详见37报告。本地3218切换待记录，无Vercel。

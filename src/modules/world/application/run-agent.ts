@@ -68,37 +68,23 @@ export async function runNpcAgent(
   };
   try {
     let executionSnapshot = snapshot ? structuredClone(snapshot) : null;
-    if (executionSnapshot) {
-      assertSnapshotIdentity(executionSnapshot, claim);
-      try {
-        deps.model.validateInput?.(executionSnapshot);
-      } catch (error) {
-        attachAgentFailure(error, 'preflight', claim);
-        const code = (error as { code?: unknown } | null)?.code;
-        const contextSizes = (error as { contextSizes?: unknown } | null)?.contextSizes;
-        if (contextSizes)
-          console.warn(JSON.stringify({ scope: 'npc-agent-preflight', code, contextSizes }));
-        if (code === 'NPC_AGENT_SNAPSHOT_LIMIT' || code === 'NPC_AGENT_INVALID_SNAPSHOT') {
-          // Accepted input needs a durable terminal receipt even when no request was sent.
-          // Never replace an existing/in-flight attempt with a local preflight verdict.
-          const failed = await deps.attempts.claim(ownerId, claim);
-          if (!failed.replay)
-            await deps.attempts.mark(ownerId, failed.attempt, 'cancelled_before_send');
-        }
-        throw error;
-      }
-    }
+    if (executionSnapshot) assertSnapshotIdentity(executionSnapshot, claim);
     let { attempt, replay } = await deps.attempts.claim(ownerId, claim);
     let response: unknown;
     let preparedClones: { snapshot: AgentSnapshot; response: unknown } | null = null;
+    if (replay && attempt.status === 'committed') {
+      const started = performance.now();
+      const result = await deps.kernel.readCommitted(ownerId, attempt);
+      phaseTimings.kernelCommitMs = performance.now() - started;
+      return result;
+    }
     if (replay) {
       // Even reserved replay may be another live caller. Never steal or re-send implicitly.
       if (attempt.status === 'unknown_after_send') throw new AgentRunError('ATTEMPT_UNKNOWN');
       if (attempt.status === 'invalid_output') throw new AgentRunError('ATTEMPT_INVALID');
       if (attempt.status === 'stale_discarded' || attempt.status === 'cancelled_before_send')
         throw new AgentRunError('ATTEMPT_STALE');
-      if (attempt.status !== 'response_received' && attempt.status !== 'committed')
-        throw new AgentRunError('ATTEMPT_PENDING');
+      if (attempt.status !== 'response_received') throw new AgentRunError('ATTEMPT_PENDING');
       const stored = await deps.attempts.readResponse(ownerId, attempt);
       if (!stored.found) throw new AgentRunError('ATTEMPT_UNKNOWN');
       const saved = stored.response as {
@@ -113,8 +99,7 @@ export async function runNpcAgent(
         saved.schemaVersion !== 1 ||
         !saved.snapshot
       ) {
-        if (attempt.status !== 'committed')
-          await deps.attempts.mark(ownerId, attempt, 'invalid_output');
+        await deps.attempts.mark(ownerId, attempt, 'invalid_output');
         throw new AgentRunError('ATTEMPT_INVALID');
       }
       executionSnapshot = saved.snapshot;
@@ -124,6 +109,18 @@ export async function runNpcAgent(
       if (!executionSnapshot) {
         await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send');
         throw new AgentRunError('ATTEMPT_INVALID');
+      }
+      try {
+        deps.model.validateInput?.(executionSnapshot);
+      } catch (error) {
+        attachAgentFailure(error, 'preflight', claim);
+        const code = (error as { code?: unknown } | null)?.code;
+        const contextSizes = (error as { contextSizes?: unknown } | null)?.contextSizes;
+        if (contextSizes)
+          console.warn(JSON.stringify({ scope: 'npc-agent-preflight', code, contextSizes }));
+        // This caller just claimed the attempt; no model request has been sent.
+        await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send');
+        throw error;
       }
       if (signal?.aborted) {
         await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send');
