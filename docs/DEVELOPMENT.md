@@ -3483,3 +3483,17 @@ NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s�
 |DIRECTOR-OBSERVATION-32|[x] 已集成验证（观察调度范围）|agenda-gap-review；root集成|eef88703/b9f26dd8/3c4f0e5c；advance、director-runtime原入口及专属PG/报告|真实变化无需NPC候选；原因身份防无关版本重买，保护旧paid invalid；PG3/3、check4176/4176、隔离build通过；0真实模型/原档写，未重启运行版；原档主动演绎仍未通过。|
 
 PERSONA-LINEAGE-01 2026-11-03 root只读补原作v15/v20首次错配证据；报告已更新，内容修订仍未完成。
+
+|ACTOR-CONTINUITY-33|[ ] 进行中|root-continuity33唯一集成；agenda_gap_review/arrival_continuity只读审查|主目录0540ccb4；本人议程/事件续接的现有应用与上下文、人物内容修订现有入口和必要测试/报告；先核具体变更再登记扩围|修复等待无后续及青青/林白语资料来源，保留actor/world/历史进度；现有2fb真实验收，不force/不重复付费刷结果，不启动端口。|
+
+|PERSONA-ADOPTION-AUDIT-29|[ ] 待验收|arrival-persona-adoption29；root唯一集成/修复|基线0540ccb4，只读作者修订/SQL0067/definitionRef/cache，审计结论并入docs/task-reports/ACTOR-DEFINITION-29.md|核对保留原world/actor/历史进度的人物资料修订复用边界，提供最小文件方案；0源码/用户数据/模型/进程改动|
+
+|EPISODE-CONTEXT-33|[ ] 待验收|agenda-gap-review|独立agenda-gap27；actor-episode-intent-repository.ts、episode-lifecycle-repository.ts、player-episode-manifest.test.ts、retained-episode-brief.test.ts、专属报告|保留authored fallback承接材料；去除生命周期未分类24条截断。root集成。|
+
+ACTOR-CONTINUITY-33 root独占 authored-reconsideration-evidence.ts（接已认证人物修订原因）、director-agent-model.ts（区分邀请入口和接受后阶段，替换原段落）及对应聚焦测试/report；arrival_continuity独占正式定义修订事件/SQL/repo/source授权；agenda_gap_review独占actor-episode-intent-repository.ts和episode-lifecycle-repository.ts及对应测试。所有原档数据写入/真实模型由root串行执行。
+
+|ACTOR-DEFINITION-29|[ ] 待验收|arrival-persona-adoption29；root唯一集成/原档|独立.local/worktrees/actor-definition29自0540ccb4；NEW domain actor-definition-revision、infra revision repo/source reader；world-history、agent-snapshot定义窄hook、agent-source-resolver定义来源、agent-narrative旧definition核验、world-awareness revision reason、0121 module reader、own-agenda-review-repository惰性历史definition核验、专属PG/report|冻结d7b193f6；正式同人物修订/0121/旧definition来源/旧agenda family窄兼容；PG4/4+最终agenda3/3/typecheck/boundaries通过，纯域45/45与原agenda7/7；root集成迁移原档验收，0模型/用户档写，55676已停|
+
+ACTOR-CONTINUITY-33 2026-11-03 root收口：6da97e02/21237652/d2ac0593集成；check4176、PG15、隔离build通过；本地clone0121，原2fb两人资料v384/v385修正、草稿1→2，历史进度保留；3218及原worker更新，3219未重启，未生产部署。原档4导演+11人物调用截至v396仍0新消息/0计划，主动演绎验收失败。余项：导演邀请入口误判及v393 DIRECTOR_GROUP_TASK_SCOPE（actorTasks/actorTopics归属重复），不重试旧paid。详ACTOR-CONTINUITY-33报告；总体继续进行中。
+
+EPISODE-CONTEXT-33 / ACTOR-DEFINITION-29：root已集成验证对应源码和原档资料修订；组件范围验收通过，不能代替ACTOR-CONTINUITY-33主动演绎总体验收。
