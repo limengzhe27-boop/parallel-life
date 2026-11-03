@@ -3540,14 +3540,16 @@ ARCHITECTURE-SIMPLIFY-37 2026-11-03 独立审查38并入原任务（仅清单更
 
 |ARCHITECTURE-SIMPLIFY-37-R|[ ] 进行中|root-simplify39唯一集成；wake_recovery39/current_work39/task recovery协作|main d46a9076；root独占run-agent、agent-runtime-ports、npc-agent-kernel、episode-lifecycle/snapshot/source-resolver/chat-context-read、advance接线与必要repo/测试/report；子任务各自登记独占范围|优先统一未发送/已付费恢复及当前工作历史分离；不新增并行状态账，保留未知结果、用户历史与知情边界；必要PG/check/build、原2fb真实验收与3218本地更新，未完成列回37清单。|
 
-|37-R2-T|[ ] 待验收|codex-37-r2-t；root唯一集成|独立task-recovery37-r2，基线d46a9076；仅agent-task-recovery.ts、tests/integration/agent-task-recovery37.test.ts、docs/task-reports/37-R2-T.md|F5：定向锁原attempt，原付费恢复复用统一版本准入；PG55637 7/7，实锁无关attempt仍恢复；type/build通过，check首轮dev库未迁移7fail，迁移后8/8聚焦通过。代码已冻结codex/task-recovery37-r2；无attempt分支归root；不碰用户克隆/模型/进程。|
+|37-R2-T|[x] 集成技术验收完成|codex-37-r2-t；root唯一集成|独立task-recovery37-r2，基线d46a9076；仅agent-task-recovery.ts、tests/integration/agent-task-recovery37.test.ts、docs/task-reports/37-R2-T.md|F5：定向锁原attempt，原付费恢复复用统一版本准入；PG55637 7/7，实锁无关attempt仍恢复；type/build通过，check首轮dev库未迁移7fail，迁移后8/8聚焦通过。代码已冻结codex/task-recovery37-r2；无attempt分支归root；不碰用户克隆/模型/进程。|
 
-| ARCHITECTURE-SIMPLIFY-37-R1 | [ ] 待验收 | wake-recovery39；root集成 | state-prune37/codex/wake-recovery39；agent-wake-recovery.ts、新增 orphan recovery infra、专属测试/report；advance/runtime只读 | 98a0d736：原receipt/current frame复用，独立PG 5/5、边界766通过；root需合并advance接线消除旧import，真实用户验收待root；不改用户库/运行进程 |
+| ARCHITECTURE-SIMPLIFY-37-R1 | [x] 集成技术验收完成 | wake-recovery39；root集成 | state-prune37/codex/wake-recovery39；agent-wake-recovery.ts、新增 orphan recovery infra、专属测试/report；advance/runtime只读 | 98a0d736：原receipt/current frame复用，独立PG 5/5、边界766通过；root需合并advance接线消除旧import，真实用户验收待root；不改用户库/运行进程 |
 
-|37-R3-C|[ ] 待验收|current-work39；root唯一集成|独立current-work39；application/agent-state-context.ts、infrastructure/npc-agent-model.ts、tests/current-actor-work39.test.ts、专属报告|当前工作与历史分离，保留依赖闭包和决定范围；不改持久状态、source读取、真实存档及运行环境。|
+|37-R3-C|[x] 集成技术验收完成|current-work39；root唯一集成|独立current-work39；application/agent-state-context.ts、infrastructure/npc-agent-model.ts、tests/current-actor-work39.test.ts、专属报告|当前工作与历史分离，保留依赖闭包和决定范围；不改持久状态、source读取、真实存档及运行环境。|
 
 37-R3-C 冻结 f5cd536e，3/3专属、typecheck通过，原model59/60（120决定及责任保留导致超预算，root接管旧断言；未删除范围）。0/100/10000终态计划实际组包16043/16042/16042字符；来源读取待root接线，原档/构建/本地运行待集成。报告CURRENT-WORK-39.md。
 
 | ARCHITECTURE-SIMPLIFY-39-EPISODE-UNKNOWN | [ ] 待验收 | wake-recovery39；root集成 | codex/episode-unknown39；episode eligibility、pending-work、phone-entry probe及专属测试/report | root追加独占授权；过期unknown不阻塞其他合法request，同request仍不重买；68/68与边界通过；公共dispatch/runtime需root接线 |
 
 ARCHITECTURE-SIMPLIFY-37-R 2026-11-03集成：R1/R2-T/R3-C及episodeunknown准入已合并；已提交回执直读、原task定向恢复、当前工作视图、媒体observedAtStory退休。最终check4189/build通过，kernel PG15、recovery+manifest18、media4、bounded1；原2fb正常advance真实3调用全部quiet，1原blocked事件交接consumed但0消息/0计划，主动演绎仍未通过。F9/F10和长历史决定超预算、无attempt跨版本task仍待续；详见37报告。本地3218切换待记录，无Vercel。
+
+37-R本地收口：b8545058已构建更新3218/build-simplify39；web10568、queue10618、proactive10621均健康，3219未动，无生产部署。R1/R2-T/R3-C技术子任务按限定范围完成；39-episodeunknown已接线及原档证明不同事件可执行，原unknown记录不重买。原2fb仍0新消息，整体主动演绎未完成，不勾选37总任务。
