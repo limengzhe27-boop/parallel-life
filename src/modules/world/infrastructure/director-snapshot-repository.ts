@@ -1,3 +1,4 @@
+import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { readOpeningContextAuthority } from './opening-context-repository.ts';
 import { selectDirectorDeliberationWindow } from '../domain/director-runtime.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
@@ -906,6 +907,10 @@ export class PostgresDirectorSnapshotRepository {
         )
       )
         fail('DIRECTOR_ACTOR_STATE_INCOMPLETE');
+      // Participation lives in authenticated commit receipts. Never trust the retired
+      // document copy or write this read projection back into actor state.
+      for (const state of states)
+        state.episodeParticipations = await readActorEpisodeParticipations(sql, owner, state);
       if (input.nativeTurn)
         await validateNativeDirectorTurn(sql, owner, h.world, input.nativeTurn, input.candidates);
       const revisions = new Map(states.map((s) => [s.actorId, s.revision]));
