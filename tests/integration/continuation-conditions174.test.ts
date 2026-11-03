@@ -91,22 +91,9 @@ test('44-174 await_response/no_current_intent carry no place or deadline conditi
     }),
   );
   const changes = schema.schema.properties.changes;
-  const continuation = changes.properties.continuation;
-  const continuations = (continuation.anyOf ?? [continuation]).filter(
-    (node: any) => node.type === 'object',
-  );
-  const response = continuations.find(
-    (node: any) => node.properties.decision.enum[0] === 'await_response',
-  );
-  const condition = continuations.find(
-    (node: any) => node.properties.decision.enum[0] === 'await_condition',
-  );
-  const quiet = continuations.find(
-    (node: any) => node.properties.decision.enum[0] === 'no_current_intent',
-  );
-  assert.equal(response.properties.conditions.maxItems, 0);
-  assert.equal(quiet.properties.conditions.maxItems, 0);
-  assert.equal(condition.properties.conditions.minItems, 1);
+  const fields =
+    changes.properties ?? changes.anyOf.find((node: any) => node.type === 'object').properties;
+  assert.equal(fields.continuation, undefined);
 });
 
 test('44-174 valid await_response stays valid and fake place/deadline sources are rejected', () => {

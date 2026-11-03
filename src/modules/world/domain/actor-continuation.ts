@@ -87,3 +87,41 @@ export function validateActorContinuation(
   // Waiting for conversation to continue does not create a player obligation.
   // Explicit question/plan references are checked above; no new question is required.
 }
+
+/** Retire the legacy wrapper only while committing a real state transition.
+ * Independent waiting conditions become an ordinary plan; history stays immutable.
+ */
+export function retireActorContinuation(state: ActorAgentState): ActorAgentState {
+  const { continuation, ...rest } = state;
+  if (!continuation) return state;
+  if (continuation.decision !== 'await_condition' || !continuation.conditions.length) return rest;
+  const same = (conditions: AgentCondition[]) =>
+    JSON.stringify(stable(conditions)) === JSON.stringify(stable(continuation.conditions));
+  if (
+    state.plans.some((p) => !['finished', 'withdrawn'].includes(p.status) && same(p.triggers)) ||
+    state.responsibilities.some(
+      (r) => !['fulfilled', 'withdrawn', 'expired'].includes(r.status) && same(r.nextCheck),
+    )
+  )
+    return rest;
+  const id = `legacy-wait:${continuation.basisHash}`;
+  // Do not overwrite a plan which has since been explicitly changed or finished.
+  if (state.plans.some((p) => p.id === id)) return rest;
+  return {
+    ...rest,
+    plans: [
+      ...state.plans,
+      {
+        id,
+        goalId: null,
+        summary: continuation.reason,
+        status: 'waiting',
+        sourceIds: [...continuation.sourceIds],
+        actionIds: [],
+        nextActionId: null,
+        triggers: continuation.conditions,
+        missingConditions: [continuation.reason],
+      },
+    ],
+  };
+}

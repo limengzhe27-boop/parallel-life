@@ -653,16 +653,7 @@ test('native response schema represents server event permission, never a guessed
   const object = changeFields(required).consideration!;
   assert.equal(object.type, 'object');
   assert.ok((object.required as string[]).includes('choice'));
-  const continuations = changeFields(required).continuation.anyOf.filter(
-    (x: any) => x.type === 'object',
-  );
-  assert.deepEqual(
-    continuations.map((x: any) => x.properties.decision.enum[0]),
-    ['await_response', 'await_condition', 'no_current_intent'],
-  );
-  assert.equal(continuations[0].properties.conditions.maxItems, 0);
-  assert.equal(continuations[1].properties.conditions.minItems, 1);
-  assert.equal(continuations[2].properties.conditions.maxItems, 0);
+  assert.equal(changeFields(required).continuation, undefined);
 });
 
 test('byte-equivalent execution intents are idempotent while conflicting duplicate identifiers are rejected', () => {
@@ -743,13 +734,23 @@ test('v2 media choice reaches the original proposal with scoped source and state
 test('immediate tool grammar does not multiply with the actor goal graph', () => {
   const { c } = fixture();
   const before: any = npcResponseFormat(c.state, 'forbidden', c);
-  c.state.goals = ['a', 'b', 'deferred'].map(id => ({
-    id, summary: id, status: id === 'deferred' ? 'deferred' as const : 'active' as const,
-    sourceIds: ['input'], resultIds: [],
+  c.state.goals = ['a', 'b', 'deferred'].map((id) => ({
+    id,
+    summary: id,
+    status: id === 'deferred' ? ('deferred' as const) : ('active' as const),
+    sourceIds: ['input'],
+    resultIds: [],
   }));
-  c.state.plans = ['a', 'b', 'deferred'].map(id => ({
-    id: `plan-${id}`, goalId: id, summary: id, sourceIds: ['input'], status: 'active' as const,
-    actionIds: [], nextActionId: null, triggers: [], missingConditions: [],
+  c.state.plans = ['a', 'b', 'deferred'].map((id) => ({
+    id: `plan-${id}`,
+    goalId: id,
+    summary: id,
+    sourceIds: ['input'],
+    status: 'active' as const,
+    actionIds: [],
+    nextActionId: null,
+    triggers: [],
+    missingConditions: [],
   }));
   const after: any = npcResponseFormat(c.state, 'forbidden', c);
   const encoded = JSON.stringify(after.schema.properties.executions);
@@ -1103,7 +1104,9 @@ test('native new work cannot reference terminal goals or replace terminal plans'
   ).items.properties;
   assert.equal(execution.goal, undefined);
   assert.equal(execution.plan, undefined);
-  const changes = format.schema.properties.changes.anyOf.find((node: any) => node.type === 'object');
+  const changes = format.schema.properties.changes.anyOf.find(
+    (node: any) => node.type === 'object',
+  );
   assert(!JSON.stringify(changes.properties.planIntents).includes('finished-plan'));
   assert(!JSON.stringify(changes.properties.planIntents).includes('terminal-goal'));
 });

@@ -107,7 +107,9 @@ export function projectEpisodeParticipationLifecycle(
   const intentSource = ACTOR_EPISODE_INTENT_PREFIX + request.id;
   const based = (item: { sourceIds: string[] }) => item.sourceIds.includes(intentSource);
   const directGoalIds = new Set(state.goals.filter(based).map((g) => g.id));
-  const plans = state.plans.filter((p) => based(p) || (p.goalId !== null && directGoalIds.has(p.goalId)));
+  const plans = state.plans.filter(
+    (p) => based(p) || (p.goalId !== null && directGoalIds.has(p.goalId)),
+  );
   const planGoalIds = new Set(plans.map((p) => p.goalId));
   const goals = state.goals.filter((g) => directGoalIds.has(g.id) || planGoalIds.has(g.id));
   const responsibilities = state.responsibilities.filter(
@@ -162,7 +164,8 @@ export function projectEpisodeParticipationLifecycle(
       ['active', 'waiting', 'blocked'].includes(plan.status) &&
       plan.triggers.length > 0 &&
       plan.triggers.every(holds) &&
-      (plan.goalId === null || state.goals.some((g) => g.id === plan.goalId && ['active', 'deferred'].includes(g.status)))
+      (plan.goalId === null ||
+        state.goals.some((g) => g.id === plan.goalId && ['active', 'deferred'].includes(g.status)))
     )
       basis.push({ kind: 'plan', id: plan.id, conditions: plan.triggers });
   for (const responsibility of responsibilities)
@@ -258,7 +261,18 @@ export function shouldWithdrawActiveEpisode(
     if (items.some((item) => item.status !== 'withdrawn')) return false;
     if ([...lane.goals, ...lane.responsibilities].some((item) => !item.endReason?.trim()))
       return false;
-    if (lane.stance.choice === 'engage' && !lane.goals.length && !lane.responsibilities.length)
+    const explicitPlanExit = lane.plans.some(
+      (plan) =>
+        plan.status === 'withdrawn' &&
+        plan.missingConditions.some((reason) => reason.trim()) &&
+        !input.state.plans.some((other) => other.supersedesPlanId === plan.id),
+    );
+    if (
+      lane.stance.choice === 'engage' &&
+      !lane.goals.length &&
+      !lane.responsibilities.length &&
+      !explicitPlanExit
+    )
       return false;
     const goals = new Set(lane.goals.map((g) => g.id));
     const actions = new Set(

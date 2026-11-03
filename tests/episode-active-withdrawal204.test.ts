@@ -194,3 +194,21 @@ test('withdrawn goal needs the original explicit end reason', () => {
   a.state.goals[0]!.endReason = '   ';
   assert.equal(withdraw(episode(), [a]), false);
 });
+
+test('standalone plans can explicitly withdraw without manufacturing a goal', () => {
+  const a = lane();
+  a.state.goals = [];
+  a.state.plans[0]!.goalId = null;
+  a.state.plans[0]!.sourceIds = ['episode-intent:r-a'];
+  assert.equal(withdraw(episode(), [a]), true);
+  a.state.plans[0]!.missingConditions = [];
+  assert.equal(withdraw(episode(), [a]), false);
+  a.state.plans[0]!.missingConditions = ['changed my mind'];
+  a.state.plans.push({
+    ...a.state.plans[0]!,
+    id: 'replacement',
+    status: 'active',
+    supersedesPlanId: 'p',
+  });
+  assert.equal(withdraw(episode(), [a]), false);
+});

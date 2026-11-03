@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   actorContinuationBasis,
+  retireActorContinuation,
   validateActorContinuation,
 } from '../src/modules/world/domain/actor-continuation.ts';
 import {
@@ -115,5 +116,54 @@ test('ordinary conversational waiting needs no new question and changes no exist
         }),
       /INVALID_ACTOR_CONTINUATION/,
     );
+  }
+});
+
+test('legacy independent waits become one ordinary plan without a duplicate goal', () => {
+  const { state, proposal } = fixture();
+  state.continuation = {
+    ...proposal.continuation!,
+    decision: 'await_condition',
+    conditions: [{ kind: 'observation', sourceId: 'input' }],
+    version: 1,
+    decidedAt: '2026-10-20T00:00:00Z',
+    sourceInputId: 'input',
+    basisHash: 'basis',
+  };
+  const old = structuredClone(state);
+  const next = retireActorContinuation(state);
+  assert.equal(next.continuation, undefined);
+  assert.equal(next.goals.length, 0);
+  assert.equal(next.plans.length, 1);
+  assert.equal(next.plans[0]!.goalId, null);
+  assert.deepEqual(next.plans[0]!.triggers, old.continuation!.conditions);
+  assert.deepEqual(state, old);
+  assert.deepEqual(retireActorContinuation(next), next);
+  // A historical duplicate does not create another live wait or revive a closed one.
+  assert.equal(
+    retireActorContinuation({ ...next, continuation: old.continuation }).plans.length,
+    1,
+  );
+  next.plans[0]!.status = 'finished';
+  assert.equal(
+    retireActorContinuation({ ...next, continuation: old.continuation }).plans[0]!.status,
+    'finished',
+  );
+});
+test('quiet and awaiting a reply do not manufacture plans during retirement', () => {
+  const { state, proposal } = fixture();
+  for (const decision of ['no_current_intent', 'await_response'] as const) {
+    state.continuation = {
+      ...proposal.continuation!,
+      decision,
+      version: 1,
+      decidedAt: '2026-10-20T00:00:00Z',
+      sourceInputId: 'input',
+      basisHash: 'basis',
+    };
+    const next = retireActorContinuation(state);
+    assert.equal(next.continuation, undefined);
+    assert.deepEqual(next.plans, []);
+    assert.deepEqual(next.responsibilities, state.responsibilities);
   }
 });

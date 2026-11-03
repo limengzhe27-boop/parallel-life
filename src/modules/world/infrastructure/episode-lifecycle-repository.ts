@@ -12,10 +12,15 @@ import { agentConditionsReady } from '../application/agent-condition-checks.ts';
 
 /** Participation is a read projection of committed receipts, never a second mutable ledger. */
 export async function readActorEpisodeParticipations(
-  sql: SqlClient, owner: string,
+  sql: SqlClient,
+  owner: string,
   state: import('../domain/agent-runtime.ts').ActorAgentState,
-): Promise<NonNullable<import('../domain/agent-runtime.ts').ActorAgentState['episodeParticipations']>> {
-  const rows = (await sql.query(`SELECT r.id,er.choice,er.reason,er.source_ids,er.world_version,
+): Promise<
+  NonNullable<import('../domain/agent-runtime.ts').ActorAgentState['episodeParticipations']>
+> {
+  const rows = (
+    await sql.query(
+      `SELECT r.id,er.choice,er.reason,er.source_ids,er.world_version,
     e.payload#>'{data,agentRuntime,episodeDecision}' AS decision
     FROM parallel_life.agent_episode_requests r
     JOIN parallel_life.agent_episode_receipts er ON er.world_id=r.world_id AND er.owner_id=r.owner_id
@@ -29,12 +34,27 @@ export async function readActorEpisodeParticipations(
       AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     WHERE r.world_id=$1 AND r.owner_id=$2 AND r.actor_id=$3 AND r.status='consumed'
       AND er.world_version<=$4 ORDER BY er.world_version,r.id`,
-    [state.worldId,owner,state.actorId,state.projectedWorldVersion])).rows;
-  return rows.map(row => {
-    const decision = { requestId: row.id, choice: row.choice, reason: row.reason, sourceIds: row.source_ids };
+      [state.worldId, owner, state.actorId, state.projectedWorldVersion],
+    )
+  ).rows;
+  return rows.map((row) => {
+    const decision = {
+      requestId: row.id,
+      choice: row.choice,
+      reason: row.reason,
+      sourceIds: row.source_ids,
+    };
     if (!isDeepStrictEqual(row.decision, decision))
-      throw Object.assign(Error('EPISODE_LIFECYCLE_SOURCE_CONFLICT'), { code: 'EPISODE_LIFECYCLE_SOURCE_CONFLICT' });
-    return { id: row.id, choice: row.choice, reason: row.reason, sourceIds: row.source_ids, recordedAtVersion: row.world_version };
+      throw Object.assign(Error('EPISODE_LIFECYCLE_SOURCE_CONFLICT'), {
+        code: 'EPISODE_LIFECYCLE_SOURCE_CONFLICT',
+      });
+    return {
+      id: row.id,
+      choice: row.choice,
+      reason: row.reason,
+      sourceIds: row.source_ids,
+      recordedAtVersion: row.world_version,
+    };
   });
 }
 
@@ -196,10 +216,15 @@ export async function projectActiveEpisodeWithdrawalInTransaction(
   },
 ): Promise<void> {
   const { attempt, eventId } = input;
-  const state = { ...input.state, episodeParticipations: await readActorEpisodeParticipations(sql, owner, input.state) };
+  const state = {
+    ...input.state,
+    episodeParticipations: await readActorEpisodeParticipations(sql, owner, input.state),
+  };
   if (
     !state.episodeParticipations?.length ||
-    (![...state.goals, ...state.responsibilities].some((item) => item.status === 'withdrawn') &&
+    (![...state.goals, ...state.plans, ...state.responsibilities].some(
+      (item) => item.status === 'withdrawn',
+    ) &&
       !state.episodeParticipations.some((item) => item.choice === 'decline'))
   )
     return;

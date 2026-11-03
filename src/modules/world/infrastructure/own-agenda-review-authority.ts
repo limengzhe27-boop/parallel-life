@@ -245,6 +245,9 @@ async function priorityWork(
     ],
     activeAttempts: [],
     consumedCandidateIds: [],
+    // A discretionary contact review is the same class of work as this review,
+    // not a concrete pending action that can pre-empt it.
+    suppressLocalInitiative: true,
   });
   const collections = await Promise.all(
     sources.map((s) => s.source.collect(owner, snapshot.state.worldId)),

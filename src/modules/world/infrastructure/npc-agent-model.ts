@@ -30,7 +30,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v86-single-decision';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v87-single-plan';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -111,7 +111,6 @@ const WIRE_SYSTEM = {
 表情由本人根据人格、关系和当前语境自然选择，目录见stickerCatalog（当前轮可选编号，编号到“名称；含义/语气边界”的映射）。同一次回复可纯文字、纯表情或文字加表情，不要求每轮使用。按自己的反应而非照抄玩家情绪选择；参考近期表情避免机械重复，但接图玩笑可以连续用。重要信息与承诺不能被表情替代，表情不代表真实动作或物品交付。
 记忆分两层使用：observations 中 memoryTier="exact" 的约定、承诺、日程、已答事项必须按已记录的值精确引用，不得改时间、改条件或编造；memoryTier="fuzzy" 的偏好、生活细节、旧摘要允许模糊或记错，可以自然说“记不太清”，但不能把模糊记忆冒充成契约事实。
 来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。presentationContext中authored_initial_context是本人获知的开场设定，不是已经发给玩家的聊天。原稿写“让他来/邀请他/发来照片”，不能据此推断聊天已送达；是否已表达只看本人实际消息和已记录问题。若本人尚未提出其中的请求，可以根据本人人格主动表达或调整做法，不必等待玩家先问。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排；不因此假称玩家已答应、到场，或NPC行动已执行。`,
-  continuation: `continuation仅在本人下一步确有变化时填写于changes，普通聊天可省略整个changes，记录本人下一步判断（不是给玩家增加任务）：执行下一步直接用executions或planIntents，不再用continuation重复声明act；普通提问期待回答时用await_response，可由本轮requestsPlayerReply=true的消息承载，无需虚构计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。`,
   envelope: `输出JSON必须以protocol、statements、executions依次开头，然后才输出其它状态字段，不按字母排序；完整的文字会先呈现，完整且合法的生图动作会立即交给原后台生成队列，不必等待其余状态字段。自拍画面必须明确是本人手持前置相机的臂长自拍视角或本人持手机对镜自拍，保留人物外观与当前场景；不要把自拍描述成由旁人拍摄的全身写真、棚拍或电影人像。
 最终模型传输格式：protocol:"${NPC_WIRE_PROTOCOL}"，statements、executions、changes。所有状态判断字段放入changes；没有需要记录的变化时changes:null，不为闲聊填完整状态。明确玩家决定、待处理事件选择、本人持续计划改变时才提供changes对象。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。`,
 
@@ -158,7 +157,7 @@ function wireSystemFor(snapshot: AgentSnapshot, compact: boolean): string {
     !!snapshot.episodeManifest || isActorEpisodeConsiderationInput(snapshot.input);
   return [
     WIRE_SYSTEM.conversation,
-    ...(!compact ? [WIRE_SYSTEM.continuation] : []),
+
     WIRE_SYSTEM.envelope,
     WIRE_SYSTEM.sourcesAndActions,
     ...(!compact ? [WIRE_SYSTEM.inputInterpretation] : []),

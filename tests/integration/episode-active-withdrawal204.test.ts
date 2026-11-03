@@ -232,7 +232,12 @@ test('44-204 original consideration and chat: active episode ends only after all
     return { owner, id, world };
   }
 
-  for (const participantCount of [1, 2]) {
+  for (const [participantCount, standalone] of [
+    [1, false],
+    [2, false],
+    [1, true],
+    [2, true],
+  ] as const) {
     const f = await fixture();
     let proposed = false,
       considered = 0,
@@ -241,7 +246,7 @@ test('44-204 original consideration and chat: active episode ends only after all
     const model: TextModel = {
       async complete(messages) {
         const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
-        if (p.promptVersion.startsWith('director-')) {
+        if (p.promptVersion?.startsWith('director-')) {
           const pick = !proposed;
           proposed = true;
           return JSON.stringify({
@@ -297,10 +302,10 @@ test('44-204 original consideration and chat: active episode ends only after all
 
         calls++;
         const sourceIds = p.wireCatalog.sources.map((s: any) => s.ref);
-        if (p.input.origin === 'coordination') {
+        if (p.input.origin === 'coordination' || p.episodeManifest) {
           considered++;
           return JSON.stringify({
-            protocol: 'npc-wire-v15',
+            protocol: standalone ? 'npc-wire-v19' : 'npc-wire-v15',
             statements: [{ text: '我愿意参与，先准备自己的安排。', dependsOnActionIds: [] }],
             executions: [],
             changes: {
@@ -313,7 +318,9 @@ test('44-204 original consideration and chat: active episode ends only after all
                 {
                   kind: 'create',
                   ref: 'participate',
-                  goal: { kind: 'new', summary: '参与当前活动', sourceIds },
+                  ...(standalone
+                    ? {}
+                    : { goal: { kind: 'new', summary: '参与当前活动', sourceIds } }),
                   summary: '等待具体安排',
                   sourceIds,
                   nextStep: { kind: 'wait', conditions: [], missing: ['等待具体安排'] },
@@ -324,16 +331,19 @@ test('44-204 original consideration and chat: active episode ends only after all
         }
         if (p.input.origin !== 'player')
           return JSON.stringify({
-            protocol: 'npc-wire-v15',
+            protocol: standalone ? 'npc-wire-v19' : 'npc-wire-v15',
             statements: [],
             executions: [],
             changes: null,
           });
         const goal = p.state.goals.find((g: any) => g.status === 'active');
         const plan = p.state.plans.find(
-          (x: any) => x.goalId === goal?.id && !['withdrawn', 'finished'].includes(x.status),
+          (x: any) =>
+            x.goalId === (standalone ? null : goal?.id) &&
+            !['withdrawn', 'finished'].includes(x.status),
         );
-        assert.ok(goal, 'the original participation goal is visible');
+        if (!standalone) assert.ok(goal, 'the original participation goal is visible');
+        else assert.equal(p.state.goals.length, 0);
         const changes: any = {};
         if (mode !== 'quiet' && plan)
           changes.planIntents = [
@@ -349,12 +359,12 @@ test('44-204 original consideration and chat: active episode ends only after all
           changes.planIntents.push({
             kind: 'create',
             ref: 'alternative',
-            goal: { kind: 'existing', id: goal.id },
+            ...(standalone ? {} : { goal: { kind: 'existing', id: goal.id } }),
             summary: '改用另一种方式参与',
             sourceIds,
             nextStep: { kind: 'wait', conditions: [], missing: ['等待另一种安排'] },
           });
-        if (mode === 'withdraw')
+        if (mode === 'withdraw' && !standalone)
           changes.goals = [
             {
               id: goal.id,
@@ -365,7 +375,7 @@ test('44-204 original consideration and chat: active episode ends only after all
             },
           ];
         return JSON.stringify({
-          protocol: 'npc-wire-v15',
+          protocol: standalone ? 'npc-wire-v19' : 'npc-wire-v15',
           statements: [
             {
               text: mode === 'withdraw' ? '我决定退出这次活动。' : '我再想想自己的安排。',
@@ -377,8 +387,30 @@ test('44-204 original consideration and chat: active episode ends only after all
         });
       },
     };
-    const advance = npcAgentAdvanceServices(app, () => model, snapshots, { maxActors: 1 });
-    for (let i = 0; i < participantCount; i++) await advance.advanceIfEnabled(f.owner, f.id);
+    const advance = npcAgentAdvanceServices(app, () => model, snapshots, {
+      maxActors: participantCount,
+      maxModelCalls: participantCount + 2,
+      maxSteps: 8,
+    });
+    await advance.advanceIfEnabled(f.owner, f.id);
+    // This suite verifies withdrawal, not presentation cadence. Let remaining
+    // participants consider their bound requests via the normal chat entry.
+    const pending = (
+      await admin.query(
+        "SELECT actor_id FROM parallel_life.agent_episode_requests WHERE world_id=$1 AND status='pending'",
+        [f.id],
+      )
+    ).rows;
+    for (const row of pending) {
+      const w = await worlds.get({ userId: f.owner }, f.id);
+      await npcAgentServices(app, () => model).sendMessageIfEnabled(f.owner, {
+        id: randomUUID(),
+        worldId: f.id,
+        expectedVersion: w.version,
+        actorId: row.actor_id,
+        text: '这次活动你愿意参与吗？',
+      });
+    }
     const initial = (await directors.readEpisodes(f.owner, f.id))[0]!;
     assert.equal(initial.status, 'active');
     assert.equal(considered, participantCount);
@@ -406,7 +438,7 @@ test('44-204 original consideration and chat: active episode ends only after all
     }
     assert.equal((await send(actorIds[0], 'quiet')).status, 'active');
     assert.equal((await send(actorIds[0], 'replacement')).status, 'active');
-    assert.equal((await send(actorIds[0], 'plan_only')).status, 'active');
+    if (!standalone) assert.equal((await send(actorIds[0], 'plan_only')).status, 'active');
     for (let i = 0; i < actorIds.length; i++) {
       const result = await send(actorIds[i], 'withdraw');
       assert.equal(result.status, i === actorIds.length - 1 ? 'withdrawn' : 'active');

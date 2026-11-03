@@ -7,7 +7,11 @@ import {
 import { normalizeNpcImageExecutionParameters } from './npc-model-protocol.ts';
 import { compileNpcExecutionProposal } from './npc-execution-intent.ts';
 import { npcSourceReferences, mapNpcSourceFields } from './npc-source-reference.ts';
-import { actorContinuationBasis, validateActorContinuation } from '../domain/actor-continuation.ts';
+import {
+  actorContinuationBasis,
+  validateActorContinuation,
+  retireActorContinuation,
+} from '../domain/actor-continuation.ts';
 import { canHandleExternalResponsibility } from '../domain/capability-responsibility-policy.ts';
 import { validateActorMediaResultContextInTransaction } from './agent-source-resolver.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
@@ -1769,6 +1773,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             .digest('hex'),
         };
       }
+      accepted.state = retireActorContinuation(accepted.state);
       const transition: AgentRuntimeTransition = {
         schemaVersion: 1,
         engineEpoch: attempt.engineEpoch,

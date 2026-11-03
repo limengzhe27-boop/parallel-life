@@ -1,3 +1,4 @@
+import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { readActorDefinitionSources } from './actor-definition-sources.ts';
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import {
@@ -37,6 +38,7 @@ export async function readActorStrategyBasis(
     skipEmptyMediaHeadCheck?: boolean;
   } = {},
 ): Promise<AgentSource[]> {
+  const participations = await readActorEpisodeParticipations(sql, ownerId, state);
   const handles = [
     ...new Set([
       ...state.knowledgeSourceIds,
@@ -44,7 +46,7 @@ export async function readActorStrategyBasis(
         (x) => x.sourceIds,
       ),
       ...state.decisions.map((x) => x.sourceId),
-      ...(state.episodeParticipations ?? []).flatMap((x) => x.sourceIds),
+      ...participations.flatMap((x) => x.sourceIds),
       ...state.responsibilities.flatMap((r) => (r.deadline ? [r.deadline.sourceId] : [])),
       ...(state.focus?.questionSourceId ? [state.focus.questionSourceId] : []),
       ...(state.questions ?? []).flatMap((q) => [
