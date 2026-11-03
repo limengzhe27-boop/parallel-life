@@ -210,7 +210,7 @@ test('scoped v6 grammar offers only visible editable old IDs and fits current pr
   const { c } = existing();
   const format: any = npcResponseFormat(c.viewState!, 'forbidden', c);
   const properties = npcChangeObject(format.schema).properties;
-  assert.deepEqual(format.schema.properties.protocol.enum, ['npc-wire-v16']);
+  assert.deepEqual(format.schema.properties.protocol.enum, ['npc-wire-v17']);
   assert.deepEqual(
     new Set(format.schema.$defs.npc_authorized_basis.items.enum),
     new Set(c.sources.map((_, i) => `source:${i + 1}`)),

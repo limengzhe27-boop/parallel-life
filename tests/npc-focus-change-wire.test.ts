@@ -149,7 +149,7 @@ test('v9 schema has required discriminated focusChange and exact source-ref valu
   const changes = npcChangeObject(s);
   assert(changes.required.includes('focusChange'));
   assert.equal(changes.properties.focus, undefined);
-  assert.deepEqual(s.properties.protocol.enum, ['npc-wire-v16']);
+  assert.deepEqual(s.properties.protocol.enum, ['npc-wire-v17']);
   const set = changes.properties.focusChange.anyOf.find(
     (x: any) => x.properties.kind.enum[0] === 'set',
   );

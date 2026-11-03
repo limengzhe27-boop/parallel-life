@@ -76,7 +76,7 @@ test('current schema only requires four top-level fields and offers planless ima
   if (f.format !== 'json_schema') return;
   const schema = f.schema as any;
   assert.deepEqual(schema.required, ['protocol', 'statements', 'executions', 'changes']);
-  assert.equal(schema.properties.protocol.enum[0], 'npc-wire-v16');
+  assert.equal(schema.properties.protocol.enum[0], 'npc-wire-v17');
   assert.ok(schema.properties.executions.items.required.includes('ref'));
   assert.ok(schema.properties.executions.items.required.includes('action'));
   assert(!JSON.stringify(schema.properties.executions).includes('goal'));
