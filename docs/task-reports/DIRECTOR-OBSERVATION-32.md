@@ -24,3 +24,13 @@ advance 的全局观察变化入口要求 `scheduled.selected.length > 0 && obse
 `node --experimental-strip-types --test tests/integration/director-observation32.test.ts`：1/1通过。`npm run typecheck`通过。
 
 0真实模型、0用户档修改、0部署；root负责集成、完整构建及真实体验。该测试验证调度与恢复，不声称验证NPC叙事质量。
+
+## 32 付费身份补充
+
+首版补充测试发现：同一 pending reason 评估 invalid 后，普通 saveNote 原命令增加世界版本，frame hash 改变导致再次调用（4 次而非预期 3 次）。单纯 clock.write 推进在本夹具未复现；报告不把它说成必然重买。
+
+当前修复只适用于无 evaluationCause、无候选、changes 非空的观察入口：以 worldId、engineEpoch、排序后的已认证 changes（含 reason id、eventId、worldVersion、kind、ref）构造稳定 command。不追加fresh/stale nonce，不改周期invalid门禁，不新增表或状态。新增真实 travel reason 后可形成新的独立评估。
+
+更新PG 2/2通过（unknown与invalid分别完整旅程），typecheck通过。均验证原成功cursor消费、无变化不调用、同原因跨时钟及saveNote版本不重买，unknown保留；invalid后新增真实travel调用一次并消费cursor。
+
+范围限制：身份仅绑定snapshot实际提供的changes窗口，沿用原分页/消费机制，不声称后续积压已全部处理。旧部署已经用frameHash购买的历史请求不被改写；新的身份算法本身不能反查旧command是否处理过相同原因，跨旧身份保护尚需集成人决定处理方式。

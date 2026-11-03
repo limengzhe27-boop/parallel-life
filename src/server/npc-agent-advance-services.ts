@@ -598,8 +598,20 @@ export function npcAgentAdvanceServices(
             (admission === 'recovery' || (admission === 'wake' && !snapshot.evaluationCause))
           )
             return null;
-          let identity = snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot);
-          if (!snapshot.evaluationCause) {
+          // A pending observation is a business cause, not a new purchase on every
+          // unrelated world revision. Preserve the authenticated reason set until
+          // it is consumed or a genuinely new reason joins it.
+          const observationOnly =
+            !snapshot.evaluationCause && !snapshot.candidates.length && snapshot.changes.length > 0;
+          let identity = observationOnly
+            ? hash([
+                'director-observation-v1',
+                snapshot.worldId,
+                snapshot.engineEpoch,
+                [...snapshot.changes].sort((a, b) => a.id.localeCompare(b.id)),
+              ])
+            : (snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot));
+          if (!snapshot.evaluationCause && !observationOnly) {
             const unsent = await directors.readUnsentFrameAttempts(ownerId, snapshot);
             if (unsent.length) identity = hash(['director-unsent-frame-v1', identity, unsent]);
           }
@@ -607,7 +619,7 @@ export function npcAgentAdvanceServices(
             retryCommandId ??
             agentWakeCommandId(
               worldId,
-              freshCommand ? `${identity}:fresh:${freshCommand}` : identity,
+              freshCommand && !observationOnly ? `${identity}:fresh:${freshCommand}` : identity,
             );
           await batch?.trackWork?.({ kind: 'director', commandId });
           const previous = await directors.lookup(ownerId, worldId, commandId);
