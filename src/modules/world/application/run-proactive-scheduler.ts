@@ -24,9 +24,13 @@ export function proactiveTickPolicy(
   return Object.freeze(policy);
 }
 export type ProactiveClaimTiming = { cooldownSeconds: number; leaseSeconds: number };
+export const DEFAULT_PROACTIVE_CLAIM_TIMING: Readonly<ProactiveClaimTiming> = Object.freeze({
+  cooldownSeconds: 60,
+  leaseSeconds: 60,
+});
 /** Parameters alter code scheduling only; the original SQL owns world qualification and leases. */
 export function proactiveClaimParameters(maxWorlds = 2, input: Partial<ProactiveClaimTiming> = {}) {
-  const timing = { cooldownSeconds: 1800, leaseSeconds: 600, ...input };
+  const timing = { ...DEFAULT_PROACTIVE_CLAIM_TIMING, ...input };
   if (
     !Number.isSafeInteger(maxWorlds) ||
     maxWorlds < 1 ||

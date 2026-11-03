@@ -135,7 +135,6 @@ if (args.includes('--status')) {
       tick: async () => {
         health.lastTickStartedAt = new Date().toISOString();
         return runProactiveWorlds({
-          continuousOnly: true,
           tick: { maxWorlds: policy.maxWorlds, maxElapsedMs: policy.maxElapsedMs },
           claim: { cooldownSeconds: policy.cooldownSeconds, leaseSeconds: policy.leaseSeconds },
         });

@@ -1,12 +1,15 @@
-import type { ProactiveTickPolicy, ProactiveClaimTiming } from './run-proactive-scheduler.ts';
+import {
+  DEFAULT_PROACTIVE_CLAIM_TIMING,
+  type ProactiveTickPolicy,
+  type ProactiveClaimTiming,
+} from './run-proactive-scheduler.ts';
 
 export type ProactiveWorkerPolicy = ProactiveTickPolicy &
   ProactiveClaimTiming & { checkEveryMs: number };
 export const PROACTIVE_WORKER_DEFAULTS: Readonly<ProactiveWorkerPolicy> = Object.freeze({
   checkEveryMs: 15_000,
   maxWorlds: 2,
-  cooldownSeconds: 60,
-  leaseSeconds: 60,
+  ...DEFAULT_PROACTIVE_CLAIM_TIMING,
   maxElapsedMs: 15_000,
 });
 export function proactiveWorkerPolicy(

@@ -192,8 +192,8 @@ test('local proactive SQL fairness, shared advance lease, stop-state guard and i
    Object.assign(process.env,JSON.parse(await readFile(process.argv[1],'utf8')));
    globalThis.fetch=async()=>{throw Error('MODEL_MUST_NOT_BE_CALLED')};
    const{runProactiveWorlds}=await import('./src/server/scheduler.ts');const{getServices}=await import('./src/server/services.ts');
-   const result=await runProactiveWorlds({continuousOnly:true,tick:{maxWorlds:2,maxElapsedMs:1000},claim:{cooldownSeconds:60,leaseSeconds:60}});
-   assert.equal(result.claimed,1);assert.equal(result.messages,0);assert.equal(result.failed,0);await getServices().db.close();
+   const result=await runProactiveWorlds({tick:{maxWorlds:2,maxElapsedMs:1000},claim:{cooldownSeconds:60,leaseSeconds:60}});
+   assert.equal(result.claimed,0);assert.equal(result.advanced,0);assert.equal(result.messages,0);assert.equal(result.failed,0);await getServices().db.close();
  `,
       envPath,
     ],

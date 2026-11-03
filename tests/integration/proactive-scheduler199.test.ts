@@ -9,7 +9,7 @@ import { runProactiveScheduler } from '../../src/modules/world/application/run-p
 
 test('real PG: 100 due worlds, bounded drain, lease fairness and cooldown without global six-row cap', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55659);
+  assert.equal(config.port, Number(process.env.PROACTIVE_SCHEDULER_TEST_PORT ?? 55659));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const repo = new PostgresSchedulerRepository(
@@ -63,7 +63,7 @@ test('real PG: 100 due worlds, bounded drain, lease fairness and cooldown withou
       [id, owner],
     );
     await admin.query(
-      'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now) VALUES($1,$2,now())',
+      "INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,continuity_mode) VALUES($1,$2,now(),'continuous')",
       [id, owner],
     );
   }
@@ -92,14 +92,14 @@ test('real PG: 100 due worlds, bounded drain, lease fairness and cooldown withou
       elapsedMs: Date.now() - started,
     }),
   );
-  // 30-minute boundary is real SQL eligibility, separate from the 10-minute lease.
+  // Shared 60-second cooldown is real SQL eligibility, independent of the expired lease.
   await admin.query(
-    "UPDATE parallel_life.world_proactive_leases SET last_started_at=now()-interval '29 minutes',lease_until=now()-interval '1 minute' WHERE world_id=$1",
+    "UPDATE parallel_life.world_proactive_leases SET last_started_at=now()-interval '59 seconds',lease_until=now()-interval '1 minute' WHERE world_id=$1",
     [ids[0]],
   );
   assert.equal((await repo.claimProactive()).length, 0);
   await admin.query(
-    "UPDATE parallel_life.world_proactive_leases SET last_started_at=now()-interval '31 minutes' WHERE world_id=$1",
+    "UPDATE parallel_life.world_proactive_leases SET last_started_at=now()-interval '61 seconds' WHERE world_id=$1",
     [ids[0]],
   );
   const [a, b] = await Promise.all([repo.claimProactive(), repo.claimProactive()]);

@@ -370,4 +370,67 @@ test('complete quiet reviews advance only into a due authenticated successor win
       assert.equal(f.calls, 2);
     },
   );
+  await t.test(
+    'lifetime cancelled transports do not cap current evidence; collection is read-only',
+    async () => {
+      const f = await fixture();
+      const before = await evidence(f);
+      await admin.query(
+        `INSERT INTO parallel_life.agent_input_receipts
+      (id,world_id,owner_id,command_id,input_hash,document)
+      SELECT 'old-receipt-'||$1||'-'||n,i.world_id,i.owner_id,'old-command-'||$1||'-'||n,i.input_hash,
+        i.document || jsonb_build_object('id','old-receipt-'||$1||'-'||n,'commandId','old-command-'||$1||'-'||n,
+          'origin','wake','text','{"type":"npc_agenda_review","grantId":"old-'||n||'"}')
+      FROM parallel_life.agent_input_receipts i CROSS JOIN generate_series(1,4200) n
+      WHERE i.world_id=$1 AND i.id=(SELECT input_receipt_id FROM parallel_life.agent_attempts WHERE id=$2)`,
+        [f.worldId, before.anchor!.attemptId],
+      );
+      await admin.query(
+        `INSERT INTO parallel_life.agent_attempts
+      (id,world_id,owner_id,actor_id,command_id,input_receipt_id,input_hash,engine_epoch,
+       expected_world_version,expected_actor_revision,token,lease_until,status)
+      SELECT 'old-attempt-'||$1||'-'||n,a.world_id,a.owner_id,a.actor_id,'old-command-'||$1||'-'||n,
+        'old-receipt-'||$1||'-'||n,a.input_hash,a.engine_epoch,0,0,'old-token-'||n,now(),'cancelled_before_send'
+      FROM parallel_life.agent_attempts a CROSS JOIN generate_series(1,4200) n WHERE a.id=$2`,
+        [f.worldId, before.anchor!.attemptId],
+      );
+      const after = await db.transaction(f.owner, async (sql) => {
+        await sql.query('SET TRANSACTION READ ONLY');
+        return readOwnAgendaReviewEvidenceInTransaction(
+          new Proxy(sql, {
+            get(target, key) {
+              if (key !== 'query') return Reflect.get(target, key);
+              return async (text: string, values?: unknown[]) => {
+                const result = await target.query(text, values);
+                if (result.rows[0]?.history) assert.ok(result.rows[0].history.length < 10);
+                return result;
+              };
+            },
+          }),
+          f.owner,
+          {
+            worldId: f.worldId,
+            actorId: f.actorId,
+            engineEpoch: 2,
+            definitionRef: agentDefinitionRef(f.world, f.actorId),
+          },
+        );
+      });
+      assert.deepEqual(after, before);
+      await due(f);
+      const world = await worlds.get({ userId: f.owner }, f.worldId);
+      const candidate = await db.transaction(f.owner, async (sql) => {
+        await sql.query('SET TRANSACTION READ ONLY');
+        return readOwnAgendaReviewWorkInTransaction(sql, f.owner, {
+          worldId: f.worldId,
+          actorId: f.actorId,
+          worldVersion: world.version,
+          config,
+        });
+      });
+      assert.ok(candidate);
+      assert.equal(candidate.grant.grantId, before.familyId);
+      assert.equal(f.calls, 1);
+    },
+  );
 });

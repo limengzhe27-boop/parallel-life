@@ -141,7 +141,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
             return (...args: unknown[]) => {
               queries++;
               assert.equal(typeof args[0], 'string');
-              assert.match(args[0] as string, /^SELECT /);
+              assert.match(args[0] as string, /^(?:SELECT|WITH) /);
               assert.doesNotMatch(
                 args[0] as string,
                 /\b(?:INSERT|UPDATE|DELETE|FOR UPDATE|set_config)\b/i,

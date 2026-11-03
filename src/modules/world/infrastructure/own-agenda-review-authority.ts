@@ -101,6 +101,7 @@ async function frame(
   worldId: string,
   actorId: string,
   version: number,
+  lock: boolean,
 ) {
   const r = (
     await sql.query(
@@ -109,7 +110,7 @@ async function frame(
     FROM parallel_life.worlds w JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
     JOIN parallel_life.actor_agent_states s ON s.world_id=w.id AND s.owner_id=w.owner_id AND s.actor_id=$3
     LEFT JOIN parallel_life.agent_narrative_admissions a ON a.world_id=w.id AND a.owner_id=w.owner_id
-    WHERE w.id=$1 AND w.owner_id=$2 FOR UPDATE OF w`,
+    WHERE w.id=$1 AND w.owner_id=$2 ${lock ? 'FOR UPDATE OF w' : ''}`,
       [worldId, owner, actorId],
     )
   ).rows[0];
@@ -146,15 +147,14 @@ async function transportHistory(
 ) {
   const rows = (
     await sql.query(
-      `SELECT i.document,a.id AS attempt_id,a.status,a.sent_at,a.response_hash,a.response,a.event_id,
+      `SELECT i.document,a.id AS attempt_id,a.status,a.sent_at,a.response_hash,a.response IS NOT NULL AS has_response,a.event_id,
     a.expected_actor_revision FROM parallel_life.agent_input_receipts i
     LEFT JOIN parallel_life.agent_attempts a ON a.world_id=i.world_id AND a.owner_id=i.owner_id AND a.input_receipt_id=i.id
     WHERE i.world_id=$1 AND i.owner_id=$2 AND i.document->>'recipientActorId'=$3 AND i.document->>'origin'='wake'
-    AND i.document->>'text' LIKE '%npc_agenda_review%' ORDER BY (i.document->>'expectedWorldVersion')::integer,i.created_at,i.id LIMIT 4097`,
-      [worldId, owner, actorId],
+    AND strpos(i.document->>'text',$4)>0 ORDER BY (i.document->>'expectedWorldVersion')::integer,i.created_at,i.id`,
+      [worldId, owner, actorId, grant.grantId],
     )
   ).rows;
-  if (rows.length > 4096) fail('OWN_AGENDA_REVIEW_HISTORY_LIMIT');
   const relevant = rows.filter((r) => {
     try {
       return JSON.parse(r.document.text).grantId === grant.grantId;
@@ -195,7 +195,7 @@ function zeroSendTerminal(row: Record<string, any>) {
     (!row.attempt_id || ['cancelled_before_send', 'stale_discarded'].includes(row.status)) &&
     row.sent_at == null &&
     row.response_hash == null &&
-    row.response == null &&
+    !row.has_response &&
     row.event_id == null
   );
 }
@@ -283,15 +283,43 @@ export async function readOwnAgendaReviewWorkInTransaction(
   const config = input.config ?? DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
     phase = input.phase ?? 'collect';
   if (config.policy.version !== 'own-agenda-v1') fail('OWN_AGENDA_POLICY_UNSUPPORTED');
-  const f = await frame(sql, owner, input.worldId, input.actorId, input.worldVersion);
+  const f = await frame(
+    sql,
+    owner,
+    input.worldId,
+    input.actorId,
+    input.worldVersion,
+    phase !== 'collect',
+  );
   if (!f) return null;
   const definitionRef = agentDefinitionRef(f.world, input.actorId);
-  const evidence = await readOwnAgendaReviewEvidenceInTransaction(sql, owner, {
-    worldId: input.worldId,
-    actorId: input.actorId,
-    engineEpoch: f.engine_epoch,
-    definitionRef,
-  });
+  const quietHistorySize =
+    config.policy.quietBackoffMultiplier > 1
+      ? Math.max(
+          2,
+          Math.ceil(
+            Math.log(config.policy.maxRealGapMs / config.policy.realGapMs) /
+              Math.log(config.policy.quietBackoffMultiplier),
+          ) + 2,
+        )
+      : 2;
+  const evidence = await readOwnAgendaReviewEvidenceInTransaction(
+    sql,
+    owner,
+    {
+      worldId: input.worldId,
+      actorId: input.actorId,
+      engineEpoch: f.engine_epoch,
+      definitionRef,
+    },
+    quietHistorySize,
+  );
+  // Collection is deliberately non-locking. If another commit lands between reads,
+  // discard the mixed candidate; the normal next check will use its actual state.
+  if (evidence.worldVersion !== f.version || evidence.actorRevision !== f.actor_state.revision) {
+    if (phase === 'collect') return null;
+    fail('VERSION_CONFLICT');
+  }
   if (!evidence.anchor || !evidence.familyId) return null;
   // The authenticated completed anchor identifies the next review family.
   // Failure fences belong to their original family (transport history below),
@@ -347,7 +375,7 @@ export async function readOwnAgendaReviewWorkInTransaction(
     (h) =>
       h.sent_at ||
       h.response_hash ||
-      h.response ||
+      h.has_response ||
       h.event_id ||
       [
         'invalid_output',

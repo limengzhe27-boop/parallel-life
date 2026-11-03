@@ -28,7 +28,7 @@ export type OwnAgendaReviewEvidence = {
   anchor: OwnAgendaReviewAnchor | null;
   familyId: string | null;
   attempts: OwnAgendaReviewAttemptEvidence[];
-  /** Consecutive authenticated native commits with no presentation or substantive actor-state change. */
+  /** Authenticated quiet suffix; capped only after the caller's backoff has saturated. */
   quietStreak: number;
   /** Actual committed presentation time, never a client read or claimed future delivery. */
   lastPresentedRealAt: string | null;
@@ -37,7 +37,7 @@ export type OwnAgendaReviewEvidence = {
 };
 export class OwnAgendaReviewEvidenceError extends Error {
   readonly code = 'INVALID_OWN_AGENDA_REVIEW_EVIDENCE';
-  readonly reason: 'scope' | 'receipt' | 'committed_source' | 'envelope' | 'history_limit';
+  readonly reason: 'scope' | 'receipt' | 'committed_source' | 'envelope';
   constructor(reason: OwnAgendaReviewEvidenceError['reason']) {
     super('INVALID_OWN_AGENDA_REVIEW_EVIDENCE');
     this.reason = reason;
@@ -63,15 +63,21 @@ const statuses = [
   'cancelled_before_send',
   'unknown_after_send',
 ];
-const historyLimit = 4096;
 
-/** One SELECT snapshot, no locks/config changes/writes, model/source registration or budget reservation. */
+/** Read only the current family, unresolved calls, latest presentation/anchor and a quiet suffix.
+ * Historical completed anchors are authenticated from their original commit, not by recursively
+ * re-authorizing their earlier scheduling decisions. quietHistorySize includes a predecessor;
+ * callers choose a suffix long enough to saturate their backoff without scanning lifetime history.
+ * No locks/config changes/writes, model registration or budget reservation. */
 export async function readOwnAgendaReviewEvidenceInTransaction(
   sql: SqlClient,
   ownerId: string,
   input: OwnAgendaReviewIdentity,
+  quietHistorySize = 32,
 ): Promise<OwnAgendaReviewEvidence> {
   if (
+    !Number.isSafeInteger(quietHistorySize) ||
+    quietHistorySize < 2 ||
     !key(ownerId) ||
     !key(input.worldId) ||
     !key(input.actorId) ||
@@ -82,13 +88,49 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     fail('scope');
   const frame = (
     await sql.query(
-      `SELECT w.version,w.state->'actors' actors,w.state->>'time' story_at,c.engine_epoch,
+      `WITH latest_anchor AS (
+        SELECT a.id FROM parallel_life.agent_attempts a
+        JOIN parallel_life.agent_input_receipts i ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
+        JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id
+        WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$6 AND a.status='committed'
+          AND i.document->>'channel'='private'
+          AND e.payload#>>'{data,agentRuntime,stateAfter,definitionRef}'=$5
+          AND COALESCE(a.response->>'kind','')<>'npc_agent_partial_stream'
+          AND NOT EXISTS (SELECT 1 FROM parallel_life.agent_attempt_stream_segments sg
+            WHERE sg.world_id=a.world_id AND sg.owner_id=a.owner_id AND sg.attempt_id=a.id
+              AND sg.completion_status IN ('partial_interrupted','superseded'))
+        ORDER BY a.expected_actor_revision DESC,a.expected_world_version DESC LIMIT 1
+      ), recent_commits AS (
+        SELECT a.id FROM parallel_life.agent_attempts a
+        WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$6 AND a.status='committed'
+        ORDER BY a.expected_actor_revision DESC,a.expected_world_version DESC,a.created_at DESC,a.id DESC LIMIT $4
+      ), last_presentation AS (
+        SELECT a.id FROM parallel_life.agent_attempts a
+        JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id
+        WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$6 AND a.status='committed'
+          AND e.payload#>>'{data,agentRuntime,stateAfter,definitionRef}'=$5
+          AND jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,statements}')='array'
+          AND e.payload#>'{data,agentRuntime,proposal,statements}'<>'[]'::jsonb
+        ORDER BY e.occurred_at DESC,e.version DESC LIMIT 1
+      ), family_or_active AS (
+        SELECT a.id,i.document FROM parallel_life.agent_attempts a
+        JOIN parallel_life.agent_input_receipts i ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
+        WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3
+          AND (a.status IN ('reserved','request_sent','response_received','unknown_after_send')
+            OR EXISTS(SELECT 1 FROM latest_anchor la WHERE strpos(i.document->>'text',la.id)>0))
+      ), selected AS (
+        SELECT id FROM latest_anchor UNION SELECT id FROM recent_commits UNION SELECT id FROM last_presentation
+        UNION SELECT id FROM family_or_active
+        UNION SELECT substring(document->>'text' from '"anchorAttemptId"[[:space:]]*:[[:space:]]*"([^"]+)"')
+          FROM family_or_active
+      )
+      SELECT w.version,w.state->'actors' actors,w.state->>'time' story_at,c.engine_epoch,
       s.revision,s.projected_world_version,s.document AS actor_state,
       current_setting('app.user_id',true) identity,
       pg_has_role(current_user,'pl_app','MEMBER') is_app,
       pg_has_role(current_user,'pl_worker','MEMBER') is_worker,
       COALESCE((SELECT jsonb_agg(to_jsonb(history)) FROM (
-        SELECT a.id,a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
+        SELECT a.id,EXISTS(SELECT 1 FROM family_or_active fa WHERE fa.id=a.id) AS check_envelope,a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
           a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,
           a.sent_at IS NOT NULL AS sent,a.response IS NOT NULL AS has_response,a.response_hash,
           (COALESCE(a.response->>'kind'='npc_agent_partial_stream',false) OR EXISTS (
@@ -163,14 +205,21 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         LEFT JOIN parallel_life.agent_input_receipts i ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
         LEFT JOIN parallel_life.commands cmd ON cmd.world_id=a.world_id AND cmd.owner_id=a.owner_id AND cmd.id=a.command_id
         LEFT JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id
-        WHERE a.world_id=w.id AND a.owner_id=w.owner_id AND a.actor_id=$3
-        ORDER BY a.expected_world_version,a.created_at,a.id LIMIT $4
+        WHERE a.world_id=w.id AND a.owner_id=w.owner_id AND a.actor_id=$3 AND a.id IN (SELECT id FROM selected)
+        ORDER BY a.expected_world_version,a.created_at,a.id
       ) history),'[]'::jsonb) history
       FROM parallel_life.worlds w
       LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
       LEFT JOIN parallel_life.actor_agent_states s ON s.world_id=w.id AND s.owner_id=w.owner_id AND s.actor_id=$3
       WHERE w.id=$1 AND w.owner_id=$2`,
-      [input.worldId, ownerId, input.actorId, historyLimit + 1],
+      [
+        input.worldId,
+        ownerId,
+        input.actorId,
+        quietHistorySize,
+        input.definitionRef,
+        input.engineEpoch,
+      ],
     )
   ).rows[0];
   if (!frame) throw new DomainError('NOT_FOUND');
@@ -204,7 +253,6 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   )
     fail('scope');
   if (!Array.isArray(frame.history)) fail('scope');
-  if (frame.history.length > historyLimit) fail('history_limit');
   const rows = frame.history as Row[];
   const byId = new Map<string, Row>();
   for (const r of rows) {
@@ -447,7 +495,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   for (const r of rows) {
     const body = r.receipt.document;
     let envelope: unknown;
-    if (body.origin === 'wake') {
+    if (r.check_envelope && body.origin === 'wake') {
       try {
         envelope = JSON.parse(body.text);
       } catch {

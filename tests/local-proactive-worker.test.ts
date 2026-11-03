@@ -10,7 +10,7 @@ import {
   runLocalProactiveLoop,
 } from '../scripts/local-proactive-worker-policy.mjs';
 
-test('bounded tick passes remaining capacity, keeps cron defaults and isolates world failures', async () => {
+test('bounded tick passes remaining capacity, shares cron/worker defaults and isolates world failures', async () => {
   const limits: number[] = [],
     seen: string[] = [];
   let next = 0;
@@ -31,7 +31,7 @@ test('bounded tick passes remaining capacity, keeps cron defaults and isolates w
   assert.deepEqual(seen, ['0', '1', '2']);
   assert.deepEqual(result, { claimed: 3, advanced: 3, messages: 3, failed: 0 });
   assert.deepEqual(proactiveTickPolicy(), { maxWorlds: 50, maxElapsedMs: 240000 });
-  assert.deepEqual(proactiveClaimParameters(), [2, 1800, 600]);
+  assert.deepEqual(proactiveClaimParameters(), [2, 60, 60]);
   assert.deepEqual(
     proactiveClaimParameters(1, { cooldownSeconds: 60, leaseSeconds: 60 }),
     [1, 60, 60],
