@@ -2,6 +2,10 @@
 
 ## 继续处理（2026-11-03）
 
+- 0721b06d集成manifest测试修正；root复跑整个真实PG文件10/10，无skip/todo。此前UNKNOWN来自测试回调读取已省略actorId；候选数量误判来自合法其他候选及暂停夹具。无生产逻辑放宽。
+- 核对原f489d4d0保存响应：agendaReview=quiet，continuation=no_current_intent，planIntents=[]，理由仅“npc_agenda_review，无需行动”。说明原事项已传入后仍被模型泛化为无事可做；本结果没有提交错误，不能继续归因于计划保存丢失。现有consideration只对defer/need_information强制followUp，engage与后续planIntents独立；是否需要持续安排尚未形成统一业务判断。
+- 本轮仅测试与检查，无新模型调用，无运行代码改动，沿用已启动本地构建。
+
 - 35cdcde5：人物间relationship.bonded只更新actorTies；删除两处错误覆盖目标与玩家relationship的赋值。root真实PG1/1；check4171/4171及build通过。
 - 原2fb三条unknown_after_send均无response、stream segment或event，不存在可直接恢复的保存结果；未重买或清记录。
 - 原档李之之两条媒体结果在正常worker各提交一次判断，均无新消息或计划；不作为持续演绎成功证据。
