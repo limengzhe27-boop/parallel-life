@@ -622,7 +622,12 @@ export function npcAgentAdvanceServices(
               freshCommand && !observationOnly ? `${identity}:fresh:${freshCommand}` : identity,
             );
           await batch?.trackWork?.({ kind: 'director', commandId });
-          const previous = await directors.lookup(ownerId, worldId, commandId);
+          const previous = await directors.lookup(
+            ownerId,
+            worldId,
+            commandId,
+            observationOnly ? snapshot : undefined,
+          );
           // A durable known-invalid director result is not retry permission. Its
           // own coordination remains fenced; unrelated preselected work may continue.
           if (previous?.status === 'invalid_output')

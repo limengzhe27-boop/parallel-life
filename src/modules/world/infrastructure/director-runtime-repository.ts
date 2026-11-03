@@ -1038,13 +1038,43 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       return saved ? snapshotShape(saved) : null;
     });
   }
-  lookup(owner: string, worldId: string, commandId: string) {
+  lookup(
+    owner: string,
+    worldId: string,
+    commandId: string,
+    observationSnapshot?: DirectorSnapshot,
+  ) {
+    const scope = observationSnapshot ? snapshotShape(observationSnapshot) : null;
+    if (
+      scope &&
+      (scope.worldId !== worldId ||
+        scope.evaluationCause ||
+        scope.candidates.length ||
+        !scope.changes.length)
+    )
+      fail('INVALID_DIRECTOR_INPUT');
     return this.db.transaction(owner, async (sql) => {
       await this.owned(sql, owner, worldId);
       const row = (
         await sql.query(
-          'SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
-          [worldId, owner, commandId],
+          `SELECT id,world_id,command_id,engine_epoch,expected_world_version,input_hash,token,lease_until,status,decision_id
+           FROM parallel_life.director_runtime_attempts
+           WHERE world_id=$1 AND owner_id=$2 AND (command_id=$3 OR (
+             $4::integer IS NOT NULL AND engine_epoch=$4 AND status='invalid_output'
+             AND (sent_at IS NOT NULL OR response IS NOT NULL OR response_hash IS NOT NULL)
+             AND snapshot->>'worldId'=$1 AND (snapshot->>'engineEpoch')::integer=$4
+             AND COALESCE(snapshot->'evaluationCause','null'::jsonb)='null'::jsonb
+             AND snapshot->'candidates'='[]'::jsonb
+             AND jsonb_typeof(snapshot->'changes')='array'
+             AND snapshot->'changes' @> $5::jsonb AND snapshot->'changes' <@ $5::jsonb
+           )) ORDER BY (command_id=$3) DESC,created_at,id LIMIT 1`,
+          [
+            worldId,
+            owner,
+            commandId,
+            scope?.engineEpoch ?? null,
+            JSON.stringify(scope?.changes ?? []),
+          ],
         )
       ).rows[0];
       return row ? attempt(row) : null;

@@ -33,4 +33,10 @@ advance 的全局观察变化入口要求 `scheduled.selected.length > 0 && obse
 
 更新PG 2/2通过（unknown与invalid分别完整旅程），typecheck通过。均验证原成功cursor消费、无变化不调用、同原因跨时钟及saveNote版本不重买，unknown保留；invalid后新增真实travel调用一次并消费cursor。
 
-范围限制：身份仅绑定snapshot实际提供的changes窗口，沿用原分页/消费机制，不声称后续积压已全部处理。旧部署已经用frameHash购买的历史请求不被改写；新的身份算法本身不能反查旧command是否处理过相同原因，跨旧身份保护尚需集成人决定处理方式。
+初版稳定身份未反查旧frameHash历史；下述扩展已补齐。核对director-snapshot-repository.ts读取全部未评估changes，无LIMIT；awareness读取的默认50项仅用于展示，不用于此身份，因此不存在之前推测的分页遗漏。
+
+## 旧部署付费invalid保护
+
+lookup增加可选的现有DirectorSnapshot作用域：当前无cause/无候选且有changes时，SQL只读取匹配world/owner/epoch、旧snapshot无cause/候选空、changes双向JSONB包含、status=invalid_output且有真实sent/response证据的原attempt元数据。沿原known-invalid分支拒绝，不修改旧请求/快照，不新增字段或状态。一般lookup维持原command语义。
+
+新增legacy_invalid旅程经原runDirectorAgent以旧coordinationFrameHash command产生真实付费invalid，再走当前advance；刷新、clock.write、无关saveNote均不再调用；新真实travel reason可以一次独立评估。旧attempt完整行逐字段不变，不同epoch不能借用旧paid证据。最终PG3/3，typecheck通过；旧unknown继续原恢复保护。

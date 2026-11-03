@@ -10,14 +10,27 @@ import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/
 import { switchAgentEngineEpochInTransaction } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
-import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
+import {
+  npcAgentAdvanceServices,
+  agentWakeCommandId,
+} from '../../src/server/npc-agent-advance-services.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 import type { TextModel } from '../../src/modules/ai/application/ports.ts';
 
 import { PostgresWorldSpace } from '../../src/modules/world/infrastructure/space-repository.ts';
 import { PostgresWorldAwarenessRepository } from '../../src/modules/world/infrastructure/world-awareness-repository.ts';
 import { PostgresDirectorReviewRepository } from '../../src/modules/world/infrastructure/director-review-repository.ts';
-for (const failure of ['unknown', 'invalid'] as const)
+import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
+import {
+  PostgresDirectorRuntimeRepository,
+  directorCoordinationFrameHash,
+  directorSnapshotInputHash,
+} from '../../src/modules/world/infrastructure/director-runtime-repository.ts';
+import {
+  WorldDirectorAgentModel,
+  parseDirectorDecision,
+} from '../../src/modules/world/infrastructure/director-agent-model.ts';
+for (const failure of ['unknown', 'invalid', 'legacy_invalid'] as const)
   test(
     'pending observation preserves ' + failure + ' paid identity across unrelated changes',
     async () => {
@@ -170,7 +183,41 @@ for (const failure of ['unknown', 'invalid'] as const)
           },
         );
         unknown = true;
-        await assert.rejects(service.advanceIfEnabled(owner, worldId));
+        if (failure === 'legacy_invalid') {
+          const current = await worlds.get({ userId: owner }, worldId);
+          const snapshot = await new PostgresDirectorSnapshotRepository(db).read(owner, {
+            worldId,
+            engineEpoch: 2,
+            worldVersion: current.version,
+            candidates: [],
+            blockers: [],
+          });
+          const legacyCommand = agentWakeCommandId(
+            worldId,
+            directorCoordinationFrameHash(snapshot),
+          );
+          await assert.rejects(
+            runDirectorAgent(
+              {
+                attempts: new PostgresDirectorRuntimeRepository(db),
+                model: new WorldDirectorAgentModel(model),
+                parse: parseDirectorDecision,
+              },
+              owner,
+              {
+                id: randomUUID(),
+                worldId,
+                commandId: legacyCommand,
+                engineEpoch: 2,
+                expectedWorldVersion: current.version,
+                inputHash: directorSnapshotInputHash(snapshot),
+                token: randomUUID(),
+                leaseUntil: new Date(Date.now() + 60000).toISOString(),
+              },
+              snapshot,
+            ),
+          );
+        } else await assert.rejects(service.advanceIfEnabled(owner, worldId));
         assert.equal(calls, 3);
         await service.advanceIfEnabled(owner, worldId).catch(() => {});
         assert.equal(calls, 3, 'unknown pending review is never repurchased');
@@ -180,7 +227,7 @@ for (const failure of ['unknown', 'invalid'] as const)
         );
         const ledger = (
           await admin.query(
-            'SELECT status FROM parallel_life.director_runtime_attempts WHERE world_id=$1 ORDER BY created_at DESC LIMIT 1',
+            'SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 ORDER BY created_at DESC LIMIT 1',
             [worldId],
           )
         ).rows[0];
@@ -188,6 +235,21 @@ for (const failure of ['unknown', 'invalid'] as const)
           ledger.status,
           failure === 'unknown' ? 'unknown_after_send' : 'invalid_output',
         );
+        if (failure === 'legacy_invalid') {
+          const repo = new PostgresDirectorRuntimeRepository(db);
+          const oldSnapshot = ledger.snapshot;
+          const found = await repo.lookup(owner, worldId, randomUUID(), oldSnapshot);
+          assert.equal(
+            found!.id,
+            ledger.id,
+            'old frame paid evidence matches authenticated reason set',
+          );
+          assert.equal(
+            await repo.lookup(owner, worldId, randomUUID(), { ...oldSnapshot, engineEpoch: 3 }),
+            null,
+            'different epoch cannot borrow old paid evidence',
+          );
+        }
         const latest = await worlds.get({ userId: owner }, worldId);
         const clockStore = new PostgresClockStore(db);
         const clock = await clockStore.read(owner, worldId);
@@ -209,7 +271,7 @@ for (const failure of ['unknown', 'invalid'] as const)
         );
         await service.advanceIfEnabled(owner, worldId).catch(() => {});
         assert.equal(calls, 3, 'unrelated committed version cannot repurchase same reason');
-        if (failure === 'invalid') {
+        if (failure !== 'unknown') {
           unknown = false;
           const head = await worlds.get({ userId: owner }, worldId);
           await new PostgresWorldSpace(db, { list: () => [], get: () => undefined }).travel(
@@ -224,6 +286,15 @@ for (const failure of ['unknown', 'invalid'] as const)
             false,
           );
         }
+        assert.deepEqual(
+          (
+            await admin.query('SELECT * FROM parallel_life.director_runtime_attempts WHERE id=$1', [
+              ledger.id,
+            ])
+          ).rows[0],
+          ledger,
+          'old paid attempt and snapshot remain immutable',
+        );
       } finally {
         await db.close();
         await admin.end();
