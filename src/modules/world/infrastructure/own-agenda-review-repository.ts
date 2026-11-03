@@ -33,8 +33,6 @@ export type OwnAgendaReviewEvidence = {
   lastPresentedRealAt: string | null;
   /** Must be handled before N2. A different family or epoch cannot hide an active actor call. */
   actorBlockers: OwnAgendaReviewActorBlocker[];
-  /** Paid non-complete bases not followed by independent complete player context. Full reviews still use the next-anchor window. */
-  paidContinuationBases: string[];
 };
 export class OwnAgendaReviewEvidenceError extends Error {
   readonly code = 'INVALID_OWN_AGENDA_REVIEW_EVIDENCE';
@@ -90,8 +88,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       pg_has_role(current_user,'pl_worker','MEMBER') is_worker,
       COALESCE((SELECT jsonb_agg(to_jsonb(history)) FROM (
         SELECT a.id,a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
-          a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,a.sent_at,
-          i.created_at AS input_created_at,
+          a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,
           a.sent_at IS NOT NULL AS sent,a.response IS NOT NULL AS has_response,a.response_hash,
           (COALESCE(a.response->>'kind'='npc_agent_partial_stream',false) OR EXISTS (
             SELECT 1 FROM parallel_life.agent_attempt_stream_segments sg WHERE sg.world_id=a.world_id AND sg.owner_id=a.owner_id
@@ -160,8 +157,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
                   'schemaVersion',e.payload#>'{data,agentRuntime,stateAfter,schemaVersion}',
                   'revision',e.payload#>'{data,agentRuntime,stateAfter,revision}',
                   'projectedWorldVersion',e.payload#>'{data,agentRuntime,stateAfter,projectedWorldVersion}',
-                  'definitionRef',e.payload#>'{data,agentRuntime,stateAfter,definitionRef}',
-                  'continuationBasisHash',e.payload#>'{data,agentRuntime,stateAfter,continuation,basisHash}')))) END event
+                  'definitionRef',e.payload#>'{data,agentRuntime,stateAfter,definitionRef}')))) END event
         FROM parallel_life.agent_attempts a
         LEFT JOIN parallel_life.agent_input_receipts i ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
         LEFT JOIN parallel_life.commands cmd ON cmd.world_id=a.world_id AND cmd.owner_id=a.owner_id AND cmd.id=a.command_id
@@ -257,18 +253,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       fail('receipt');
     byId.set(r.id, r);
   }
-  const anchors = new Map<
-    string,
-    { anchor: OwnAgendaReviewAnchor; version: number; continuationBasisHash?: string }
-  >();
-  // Authenticated complete player turns are new external context. A quiet wake,
-  // version increment or interrupted presentation cannot renew a failed review.
-  const playerContexts: {
-    acceptedAt: string;
-    inputWorldVersion: number;
-    actorRevisionBefore: number;
-    commitVersion: number;
-  }[] = [];
+  const anchors = new Map<string, { anchor: OwnAgendaReviewAnchor; version: number }>();
   const commits: {
     version: number;
     revisionBefore: number;
@@ -403,19 +388,8 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       presentedRealAt: rt.statementCount > 0 ? new Date(e.realAt).toISOString() : null,
     });
     if (!privateCommit || r.incomplete_stream) continue;
-    if (b.origin === 'player' && instant(r.input_created_at))
-      playerContexts.push({
-        acceptedAt: r.input_created_at,
-        inputWorldVersion: b.expectedWorldVersion,
-        actorRevisionBefore: rt.actorRevisionBefore,
-        commitVersion: e.version,
-      });
     anchors.set(r.id, {
       version: e.version,
-      ...(typeof after.continuationBasisHash === 'string' &&
-      /^[a-f0-9]{64}$/.test(after.continuationBasisHash)
-        ? { continuationBasisHash: after.continuationBasisHash }
-        : {}),
       anchor: {
         ...input,
         attemptId: r.id,
@@ -448,7 +422,6 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   const familyId = latest ? ownAgendaReviewFamilyId(input, latest, digest) : null;
   const attempts: OwnAgendaReviewAttemptEvidence[] = [];
   const actorBlockers: OwnAgendaReviewActorBlocker[] = [];
-  const paidContinuationBases = new Set<string>();
   for (const r of rows) {
     const body = r.receipt.document;
     let envelope: unknown;
@@ -501,29 +474,9 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         )
           fail('envelope');
         recordFamily = envelope.grantId;
-        // The exact authenticated predecessor is the review's original personal
-        // continuation, not the new quiet receipt/anchor produced afterwards.
-        // A fully committed review consumes its original family, not all future
-        // bounded windows over the same personal state. Its authenticated commit
-        // becomes the next anchor; time/backoff, family history and budgets still apply.
-        // Unknown/invalid/paid-stale and interrupted presentations never mint that grant.
-        // A later authenticated player turn may start independent work, but cannot
-        // retry this family. Receipt acceptance must follow the original paid send;
-        // finishing a previously queued player input later is not new authority.
-        if (
-          (r.sent || r.has_response) &&
-          (r.status !== 'committed' || r.incomplete_stream) &&
-          predecessor?.continuationBasisHash &&
-          !playerContexts.some(
-            (context) =>
-              instant(r.sent_at) &&
-              Date.parse(context.acceptedAt) > Date.parse(r.sent_at) &&
-              context.inputWorldVersion >= r.expected_world_version &&
-              context.actorRevisionBefore >= r.expected_actor_revision &&
-              context.commitVersion > (r.event?.version ?? r.expected_world_version),
-          )
-        )
-          paidContinuationBases.add(predecessor.continuationBasisHash);
+        // A failed request consumes only its original family. The current
+        // family comes from a separately authenticated complete commit; time,
+        // partial output and a failed attempt cannot create that anchor.
         if (recordFamily !== null && recordFamily === familyId)
           attempts.push({
             familyId: recordFamily,
@@ -549,7 +502,6 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   return {
     worldVersion: frame.version,
     actorRevision: frame.revision,
-    paidContinuationBases: [...paidContinuationBases].sort(),
     quietStreak,
     lastPresentedRealAt,
     anchor: latest,

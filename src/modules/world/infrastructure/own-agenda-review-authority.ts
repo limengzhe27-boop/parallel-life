@@ -1,6 +1,4 @@
 import { hasPendingEpisodeWork } from './episode-pending-work-repository.ts';
-import { continuationReviewAdmission } from '../domain/continuation-review-admission.ts';
-import { actorContinuationBasis } from '../domain/actor-continuation.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -287,10 +285,6 @@ export async function readOwnAgendaReviewWorkInTransaction(
   if (config.policy.version !== 'own-agenda-v1') fail('OWN_AGENDA_POLICY_UNSUPPORTED');
   const f = await frame(sql, owner, input.worldId, input.actorId, input.worldVersion);
   if (!f) return null;
-  const continuation = f.actor_state.continuation;
-  const currentBasisHash = createHash('sha256')
-    .update(actorContinuationBasis(f.actor_state))
-    .digest('hex');
   const definitionRef = agentDefinitionRef(f.world, input.actorId);
   const evidence = await readOwnAgendaReviewEvidenceInTransaction(sql, owner, {
     worldId: input.worldId,
@@ -299,17 +293,10 @@ export async function readOwnAgendaReviewWorkInTransaction(
     definitionRef,
   });
   if (!evidence.anchor || !evidence.familyId) return null;
-  // This protects non-complete paid outcomes, not a permanent quiet decision.
-  // A full predecessor still needs its new family, due backoff window and budget below.
-  if (
-    phase !== 'commit' &&
-    continuationReviewAdmission({
-      continuation,
-      currentBasisHash,
-      paidBasisHashes: evidence.paidContinuationBases,
-    }) === 'already_considered'
-  )
-    return null;
+  // The authenticated completed anchor identifies the next review family.
+  // Failure fences belong to their original family (transport history below),
+  // while unresolved calls still block this actor. Do not broaden an old
+  // failure into a permanent ban on unchanged personal state.
   const forgotten = await forgottenAgentSourceIds(sql, owner, input.worldId, input.actorId);
   if (forgotten.has(definitionRef) || forgotten.has(`definition:${definitionRef}`)) return null;
   const grant: OwnAgendaReviewEnvelope = {
