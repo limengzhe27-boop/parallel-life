@@ -30,10 +30,20 @@ export type ActorMediaResultContext = ActorMediaExecutionRef & {
   /** Existing source-linked assistant messages can project the asset; this is NOT a client read receipt. */
   chatProjection: { status: 'eligible' | 'suppressed' | 'no_message'; messageIds: string[] };
 };
+/** A terminal external failure is actionable only with the original worker lineage.
+ * Bare request.failed remains a pending diagnostic and cannot wake an actor. */
+export type ActorMediaFailureContext = ActorMediaExecutionRef & {
+  id: string;
+  phase: 'failed';
+  provenance: { taskId: string; outboxId: string };
+  failedAtReal: string;
+  errorCode: string;
+  source: ActorMediaResultContext['source'];
+};
 export type ActorMediaPendingContext = ActorMediaExecutionRef & {
   phase: 'queued' | 'unknown' | 'failed' | 'unverified_ready';
 };
 export type ActorMediaResultView = {
   completed: ActorMediaResultContext[];
-  pending: ActorMediaPendingContext[];
+  pending: (ActorMediaPendingContext | ActorMediaFailureContext)[];
 };

@@ -14,7 +14,10 @@ import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 import { readActorEpisodeIntentsInTransaction } from './actor-episode-intent-repository.ts';
 import { isDeepStrictEqual } from 'node:util';
 import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
-import type { ActorMediaResultContext } from '../domain/actor-media-result-context.ts';
+import type {
+  ActorMediaResultContext,
+  ActorMediaFailureContext,
+} from '../domain/actor-media-result-context.ts';
 import { readActorMediaResultContextInTransaction } from './actor-media-result-context-repository.ts';
 
 /** Own persistent strategy provenance, not permission to disclose private transcripts to a channel. */
@@ -634,7 +637,10 @@ async function readNativeStrategyBasis(
 
 type MediaCompletionFrame = Pick<AgentSnapshot, 'state' | 'worldVersion' | 'storyAt'>;
 /** The enqueue's story timestamp is lineage, not the time this external result became known. */
-function mediaCompletionPacket(result: ActorMediaResultContext, observedAtStory: string) {
+function mediaCompletionPacket(
+  result: ActorMediaResultContext | ActorMediaFailureContext,
+  observedAtStory: string,
+) {
   const source: AgentSource = {
     id: result.id,
     kind: 'action_result',
@@ -653,21 +659,28 @@ function mediaCompletionPacket(result: ActorMediaResultContext, observedAtStory:
       actionId: result.actionId,
       enqueueResultId: result.enqueueResultId,
       mediaType: result.mediaType,
-      phase: 'completed',
-      asset: result.asset,
-      completedAtReal: result.completedAtReal,
+      phase: result.phase,
+      ...(result.phase === 'completed'
+        ? { asset: result.asset, completedAtReal: result.completedAtReal }
+        : {
+            failedAtReal: result.failedAtReal,
+            errorCode: result.errorCode,
+            provenance: result.provenance,
+          }),
       sourceStoryAt: result.source.sourceStoryAt,
       observedAtStory,
-      chatProjection: result.chatProjection.status,
+      ...(result.phase === 'completed' ? { chatProjection: result.chatProjection.status } : {}),
       meaning:
-        '真实生成已完成；原请求时间不是完成时间，聊天投影不是玩家阅读回执，不能据此认定整个目标或事件完成。此为本人执行上下文，不授权向其他渠道公开原私人内容。',
+        result.phase === 'failed'
+          ? '原生成任务已经确认失败，未生成或交付图片。这是本人行动结果，可调整自己的计划或自然说明，但不自动重试或重复生成，也不能宣称已发图、玩家已读或目标完成。'
+          : '真实生成已完成；原请求时间不是完成时间，聊天投影不是玩家阅读回执，不能据此认定整个目标或事件完成。此为本人执行上下文，不授权向其他渠道公开原私人内容。',
     }),
   };
   return { source, observation };
 }
 
 /**
- * Own completed work is available even before a model has copied its handle into knowledge.
+ * Own verified terminal work is available before a model copies its handle into knowledge.
  * No state, acknowledgement, delivery, or goal completion is written by this read.
  */
 export async function readActorMediaCompletionContextInTransaction(
@@ -695,10 +708,17 @@ export async function readActorMediaCompletionContextInTransaction(
     worldVersion: frame.worldVersion,
     ...(options.skipEmptyHeadCheck ? { skipEmptyHeadCheck: true } : {}),
   };
-  const completed = new Map<string, ActorMediaResultContext>();
+  const terminalResults = new Map<string, ActorMediaResultContext | ActorMediaFailureContext>();
+  const acceptResults = (
+    view: Awaited<ReturnType<typeof readActorMediaResultContextInTransaction>>,
+  ) => {
+    for (const result of view.completed) terminalResults.set(result.id, result);
+    for (const result of view.pending)
+      if (result.phase === 'failed' && 'source' in result) terminalResults.set(result.id, result);
+  };
   if (!options.expectedSources) {
     const recent = await readActorMediaResultContextInTransaction(sql, owner, input);
-    for (const result of recent.completed) completed.set(result.id, result);
+    acceptResults(recent);
   }
   const referenced = (options.referencedSourceIds ?? []).filter((id) =>
     id.startsWith('media-result:'),
@@ -732,12 +752,12 @@ export async function readActorMediaCompletionContextInTransaction(
       limit: 64,
       requestIds: requestIds.slice(offset, offset + 64),
     });
-    for (const result of exact.completed) completed.set(result.id, result);
+    acceptResults(exact);
   }
   const selected = options.expectedSources
     ? new Set(options.expectedSources.map((source) => source.id))
     : null;
-  const packets = [...completed.values()]
+  const packets = [...terminalResults.values()]
     .filter(
       (result) =>
         (!selected || selected.has(result.id)) &&

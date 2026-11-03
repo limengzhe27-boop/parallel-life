@@ -5,6 +5,7 @@ import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/p
 import { taskCommandId, outboxRequestHash } from '../../tasks/infrastructure/postgres-outbox.ts';
 import type {
   ActorMediaExecutionRef,
+  ActorMediaFailureContext,
   ActorMediaResultContext,
   ActorMediaResultView,
 } from '../domain/actor-media-result-context.ts';
@@ -227,6 +228,7 @@ export async function readActorMediaResultContextInTransaction(
       (o) => o.event_id === row.source_event_id && o.payload?.requestId === requestId,
     );
     let completed: ActorMediaResultContext | undefined;
+    let failed: ActorMediaFailureContext | undefined;
     let externalStatus: string | undefined;
     for (const outbox of outboxes) {
       const p = outbox.payload;
@@ -259,6 +261,40 @@ export async function readActorMediaResultContextInTransaction(
       )
         continue;
       externalStatus = task.status;
+      // Document flags alone never authorize an external result. Require the same
+      // original dispatched job and its definitively finished worker lease.
+      if (
+        request.status === 'failed' &&
+        task.status === 'failed' &&
+        task.attempts >= 1 &&
+        task.lease_token &&
+        outbox.status === 'failed' &&
+        !request.assetId &&
+        typeof request.errorCode === 'string' &&
+        /^[A-Z][A-Z0-9_]{0,79}$/.test(request.errorCode) &&
+        Number.isFinite(new Date(task.updated_at).getTime())
+      ) {
+        const provenance = { taskId: String(task.id), outboxId: String(outbox.id) };
+        const id = `media-result:${digest([input.worldId, input.actorId, row.id, requestId, 'failed', provenance])}`;
+        if (![id, provenance.taskId, provenance.outboxId].some((proof) => blocked.has(proof))) {
+          failed = {
+            ...base,
+            id,
+            phase: 'failed',
+            provenance,
+            failedAtReal: new Date(task.updated_at).toISOString(),
+            errorCode: request.errorCode,
+            source: {
+              id,
+              recordId: requestId,
+              contentHash: digest([base, 'failed', provenance, request.errorCode]),
+              sourceEventId: row.source_event_id,
+              sourceWorldVersion: row.world_version,
+              sourceStoryAt: row.document.at,
+            },
+          };
+        }
+      }
       if (
         request.status !== 'ready' ||
         task.status !== 'succeeded' ||
@@ -330,6 +366,7 @@ export async function readActorMediaResultContextInTransaction(
       break;
     }
     if (completed) result.completed.push(completed);
+    else if (failed) result.pending.push(failed);
     else
       result.pending.push({
         ...base,
