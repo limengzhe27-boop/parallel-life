@@ -3459,3 +3459,13 @@ NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s�
 |UNKNOWN-WAKE-SCOPE-24|[x] 已集成验证|wake_identity24；root唯一集成|独立 /Users/limengzhe/.codex/worktrees/a758/人生剧本；NEW tests/integration/unknown-wake-scope24.test.ts，仅测试|冻结304a559a；原基线实际COMMAND_CONFLICT，root一行WIP下真实PG1/1通过；过期unknown同候选不重买、原receipt不变、B继续；0真实模型，不提交公共源码|
 
 |PLAYER-AGENDA-BASIS-25|[x] 已集成验证|wake_identity24；root唯一集成|独立a758/codex/player-agenda-basis25自5156b5b4；own-agenda-review-repository.ts、NEW tests/integration/player-agenda-basis25.test.ts|冻结ea4d08d1；仅失败后认证完整private/player回合可新窗口；原请求不重买，partial/并发旧输入/quiet/别人物不解封；新+原PG13/13、typecheck通过；原基线两个正向例失败，0真实模型/用户档修改/部署|
+
+|RELATIONSHIP-STATE-28|[x] 待验收|agenda_gap_review27；root集成|独立agenda-gap27自d9f988e9；domain/reducer.ts、agent-state-event.ts、NEW tests/integration/relationship-state28.test.ts、专属报告|冻结b9d599f4；两reducer仅写actorTies不改人物与玩家关系；基线PG红/修后1通过，双方聊天和调度读取、旧并发不覆盖、typecheck通过；0模型/用户档写；旧档不自动回写。|
+
+|CHAIN-INTEGRATION-28|[ ] 进行中|root-chain28唯一集成|agent-schedule-collectors.ts媒体终态候选分支、整合27/媒体28及报告；其他公共文件只读核查|复用原媒体结果入口接失败，不重生成；检查计划/到场/回复保存接续，必要PG与本地构建验证，原档未通过不宣称完成|
+
+|MEDIA-FAILURE-28|[x] 已集成本地验证|arrival-continuity28；root唯一集成|独立.local/worktrees/media-failure28自88d9ce32；actor-media-result-context.ts/repository、agent-source-resolver.ts媒体分支、NEW专属PG/report；collector只交patch由root整合|冻结53ac02a0；复用pending.failed认证证明→本人source→原候选一次评估；新PG1/1+原回归9/9/typecheck/boundaries通过，root整合collector/check/build；0商业模型/原档写；55676已停|
+
+|AGENDA-GAP-27|[x] 已集成本地验证|agenda_gap_review27；root唯一集成|独立/Users/limengzhe/.codex/worktrees/agenda-gap27/人生剧本；agent-schedule-collectors.ts、tests/agent-schedule-collectors.test.ts、NEW tests/agenda-gap27.test.ts、docs/task-reports/AGENDA-GAP-27.md；root明确交接collectors独占|冻结e4b90dde：无关问题冻结已修；事件无trigger计划实际是排除cadence后永久停滞（非绕过），已统一窗口；53/53、typecheck、boundaries通过；0模型/用户档/部署，root集成。|
+
+|AGENDA-GAP-27-PG|[ ] 待验收|agenda_gap_review27；root集成|独立agenda-gap27；tests/integration/plan-review201.test.ts、tests/integration/player-episode-manifest.test.ts（root明确交接）、专属报告|冻结c64404e0；201 PG2/2、新事件无action正常入口PG1通过、typecheck通过；manifest另两旧失败保留；关系成功目标定义同步缺口入报告；0模型/用户档/公共源码。|

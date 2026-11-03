@@ -1,5 +1,12 @@
 # CHAIN-INTEGRATION-28
 
+## 继续处理（2026-11-03）
+
+- 35cdcde5：人物间relationship.bonded只更新actorTies；删除两处错误覆盖目标与玩家relationship的赋值。root真实PG1/1；check4171/4171及build通过。
+- 原2fb三条unknown_after_send均无response、stream segment或event，不存在可直接恢复的保存结果；未重买或清记录。
+- 原档李之之两条媒体结果在正常worker各提交一次判断，均无新消息或计划；不作为持续演绎成功证据。
+- 两端和worker已更新，PID27927/27928、queue27929、proactive27930。原档长期主动推进仍未通过。
+
 root唯一集成，2026-11-03；仅本地，原档不手写消息、不清付费身份。
 
 ## 已定位与集成
@@ -14,7 +21,7 @@ root唯一集成，2026-11-03；仅本地，原档不手写消息、不清付费
 
 ## 其他完整链路缺口
 
-- npc-agent-advance-services：private response_received因注意力暂缓后全世界quiet，到期NPC到达提交在其后，可能阻断独立到达。修复需同时保证付费回复读取依赖合法重验，不能简单交换顺序导致旧回复丢失。
+- 到达阻塞假设已撤回：实际DEFERRED仅在storedClockStopped抛出，此时到达也应暂停；未发现活跃世界因focus永久阻塞到达。已更正FLOW审计，不新增版本例外。
 - relationship.bond成功后的definitionRef同步在PG夹具中暴露问题，待专属证据，不用更换测试能力掩盖。
 
 ## 尚未完成
