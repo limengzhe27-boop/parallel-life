@@ -3469,3 +3469,7 @@ NPC-LATENCY-22：check4164/build/PG1通过；真实默认19.899s vs none6.539s�
 |AGENDA-GAP-27|[x] 已集成本地验证|agenda_gap_review27；root唯一集成|独立/Users/limengzhe/.codex/worktrees/agenda-gap27/人生剧本；agent-schedule-collectors.ts、tests/agent-schedule-collectors.test.ts、NEW tests/agenda-gap27.test.ts、docs/task-reports/AGENDA-GAP-27.md；root明确交接collectors独占|冻结e4b90dde：无关问题冻结已修；事件无trigger计划实际是排除cadence后永久停滞（非绕过），已统一窗口；53/53、typecheck、boundaries通过；0模型/用户档/部署，root集成。|
 
 |AGENDA-GAP-27-PG|[ ] 待验收|agenda_gap_review27；root集成|独立agenda-gap27；tests/integration/plan-review201.test.ts、tests/integration/player-episode-manifest.test.ts（root明确交接）、专属报告|冻结c64404e0；201 PG2/2、新事件无action正常入口PG1通过、typecheck通过；manifest另两旧失败保留；关系成功目标定义同步缺口入报告；0模型/用户档/公共源码。|
+
+|AGENDA-PROTOCOL-29|[x] 已集成本地验证|root-agenda29唯一集成；agenda_gap_review协议|npc-agent-model.ts、模型和当前schema版本测试；协议f2597811|v17移除重复decision；check4177/4177、build通过，两端及worker已运行；真实隔离模型1次6287ms解析通过仍quiet、0存档写；原档持续演绎未通过，详见AGENDA-PROTOCOL-29.md|
+
+|AGENDA-WIRE-29|[ ] 待验收|agenda_gap_review27；root集成|独立agenda-gap27；npc-model-protocol.ts、npc-stream-parser.ts、agent-proposal-parser.ts（root交接）、NEW tests/npc-agenda-v17.test.ts、tests/npc-agenda-review-wire.test.ts schema断言、专属报告|v17删除重复agendaReview.decision，保留scope/来源/v16解释与历史流式恢复；聚焦25/25、typecheck通过；root集成及真实验收；0模型/用户档。|
