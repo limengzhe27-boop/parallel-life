@@ -1211,7 +1211,21 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
 export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputOptions {
   const catalog = directorWireCatalog(snapshot);
   type Schema = Record<string, unknown>;
-  const text: Schema = { type: 'string' };
+  // Scope references to this snapshot, but derive value limits from the same
+  // grammar that decodes the paid response. A looser outgoing schema can buy
+  // a response which the persistence path can never accept.
+  const valueSchema = (value: z.ZodType): Schema => {
+    const { $schema: _dialect, ...schema } = z.toJSONSchema(value);
+    return schema;
+  };
+  const text = valueSchema(Reason);
+  const opportunityGrammar = Wire.shape.opportunities.element.shape;
+  const boundedRefs = (grammar: z.ZodType, items: Schema): Schema => ({
+    ...valueSchema(grammar),
+    items,
+  });
+  const emergentSources =
+    PreviousExclusiveWire.shape.opportunities.element.shape.origin.shape.sourceRefs;
   const refs = (values: string[]): Schema =>
     values.length ? { type: 'string', enum: values } : text;
   const object = (properties: Record<string, Schema>): Schema => ({
@@ -1226,6 +1240,8 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     ...(empty ? { maxItems: 0 } : {}),
   });
   const values = (items: { ref: string }[]) => items.map((item) => item.ref);
+  const sourceRef: Schema = { $ref: '#/$defs/director_source_ref' };
+  const placeRef: Schema = { $ref: '#/$defs/director_place_ref' };
   const actors = refs(values(catalog.actors));
   const candidate = refs(values(catalog.candidates));
   const nudge: Schema = snapshot.nativeTurn
@@ -1244,7 +1260,7 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     origins.push(
       object({
         kind: { type: 'string', enum: ['emergent'] },
-        sourceRefs: array(refs(values(catalog.sources))),
+        sourceRefs: boundedRefs(emergentSources, sourceRef),
       }),
     );
   const schema = object({
@@ -1273,19 +1289,22 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     },
     opportunities: array(
       object({
-        id: text,
-        title: text,
+        id: valueSchema(opportunityGrammar.id),
+        title: valueSchema(opportunityGrammar.title),
         description: text,
-        playerImpact: text,
-        actors: array(actors, !catalog.actors.length),
-        places: array(refs(values(catalog.places)), !catalog.places.length),
+        playerImpact: valueSchema(opportunityGrammar.playerImpact),
+        actors: boundedRefs(opportunityGrammar.actors, actors),
+        places: {
+          ...boundedRefs(opportunityGrammar.places, placeRef),
+          ...(!catalog.places.length ? { maxItems: 0 } : {}),
+        },
         activity: { type: 'string', enum: ['conversation', 'meeting', 'follow_up'] },
         origin: origins.length ? { anyOf: origins } : { type: 'null' },
         stagingIntents: array(
           object({
             actorRef: actors,
             kind: { type: 'string', enum: ['future_task'] },
-            task: text,
+            task: valueSchema(z.string().trim().min(1).max(600)),
           }),
           !catalog.actors.length,
         ),
@@ -1294,10 +1313,16 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     ),
     audit: object({
       reason: text,
-      sourceRefs: array(
-        refs([...values(catalog.sources), ...values(catalog.events)]),
-        !catalog.sources.length && !catalog.events.length,
-      ),
+      sourceRefs: {
+        ...boundedRefs(Wire.shape.audit.shape.sourceRefs, {
+          anyOf: [
+            ...(catalog.sources.length ? [sourceRef] : []),
+            ...(catalog.events.length ? [refs(values(catalog.events))] : []),
+            ...(!catalog.sources.length && !catalog.events.length ? [text] : []),
+          ],
+        }),
+        ...(!catalog.sources.length && !catalog.events.length ? { maxItems: 0 } : {}),
+      },
     }),
   });
   const properties = schema.properties as Record<string, Schema>;
@@ -1343,13 +1368,23 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
         : catalog.actors;
     const refs = catalog.actors.filter((a) => allowed.has(a.actorId)).map((a) => a.ref);
     const all = (originalActorTasks.properties ?? {}) as Record<string, Schema>;
+    const taskFor = (actor: (typeof taskActors)[number], required = false): Schema => ({
+      ...(required ? { $ref: '#/$defs/director_actor_task' } : all[actor.ref]!),
+      title: actor.name ?? actor.ref,
+    });
     const properties = Object.fromEntries(
-      taskActors.map((a) => [a.ref, allowed.has(a.actorId) ? all[a.ref]! : { type: 'null' }]),
+      taskActors.map((a) => [a.ref, allowed.has(a.actorId) ? taskFor(a) : { type: 'null' }]),
     );
     // The decoder already requires a real task. Express that same invariant in
     // the model schema: choosing consider must not produce an all-null handoff.
     if (refs.length === 1)
-      return object({ ...properties, [refs[0]!]: { $ref: '#/$defs/director_actor_task' } });
+      return object({
+        ...properties,
+        [refs[0]!]: taskFor(
+          taskActors.find((actor) => actor.ref === refs[0])!,
+          true,
+        ),
+      });
     if (refs.length > 1)
       return {
         anyOf: refs.map((selected) =>
@@ -1358,9 +1393,9 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
               taskActors.map((a) => [
                 a.ref,
                 a.ref === selected
-                  ? { $ref: '#/$defs/director_actor_task' }
+                  ? taskFor(a, true)
                   : allowed.has(a.actorId)
-                    ? { $ref: '#/$defs/director_optional_actor_task' }
+                    ? taskFor(a)
                     : { type: 'null' },
               ]),
             ),
@@ -1383,6 +1418,8 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     },
   });
   schema.$defs = {
+    director_source_ref: refs(values(catalog.sources)),
+    director_place_ref: refs(values(catalog.places)),
     director_actor_tasks_all: allActorTasks,
     director_actor_task: actorTaskSchema,
     director_optional_actor_task: {
@@ -1460,7 +1497,7 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     catalog.sources.length && !openingRefs.length
       ? object({
           kind: { type: 'string', enum: ['emergent'] },
-          sourceRefs: array(refs(values(catalog.sources))),
+          sourceRefs: boundedRefs(emergentSources, sourceRef),
         })
       : { type: 'null' };
   const emergentProperties: Record<string, Schema> = {
@@ -1515,6 +1552,10 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
         (branch) => (branch.properties as any)?.kind?.enum?.[0] === 'consider',
       );
       if (!consider) continue;
+      const event = catalog.events.find((event) => event.ref === ref)!;
+      const material = snapshot.authoredMaterials?.materials.find(
+        (material) => material.ref.nodeKey === event.authoredEventKey,
+      );
       const definition =
         defs[
           String((consider.properties as any).opportunity.$ref)
@@ -1524,6 +1565,12 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       selections.push(
         object({
           ...(definition!.properties as Record<string, Schema>),
+          // The event identity and its author title are already known. Do not
+          // ask the model to reconstruct them independently and cross-wire two
+          // manuscripts while still passing the cast/reference checks.
+          ...(material?.node.title
+            ? { title: { type: 'string', enum: [material.node.title] } }
+            : {}),
           origin: object({
             kind: { type: 'string', enum: ['authored'] },
             eventRef: { type: 'string', enum: [ref] },
@@ -1570,6 +1617,7 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   if (JSON.stringify(schema).length > 24_000)
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
+      schemaLength: JSON.stringify(schema).length,
     });
   return {
     format: 'json_schema',

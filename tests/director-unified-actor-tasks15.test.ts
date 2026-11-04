@@ -465,8 +465,18 @@ test('periodic v2 offers three author choices but still executes at most two aut
   const opportunity = schema.properties.opportunities.items.anyOf.find((branch: any) =>
     branch.properties.origin.properties.eventRef?.enum?.includes(keys[0]),
   );
+  const boundEvent = directorWireCatalog(f.s).events.find((event) => event.ref === keys[0])!;
+  assert.deepEqual(opportunity.properties.title.enum, [
+    f.s.authoredMaterials!.materials.find(
+      (material) => material.ref.nodeKey === boundEvent.authoredEventKey,
+    )!.node.title,
+  ]);
   const tasks = resolve(opportunity.properties.actorTasks);
   assert.deepEqual(tasks.required, ['actor:1']);
+  assert.equal(
+    tasks.properties['actor:1'].title,
+    directorWireCatalog(f.s).actors.find((actor) => actor.ref === 'actor:1')!.name ?? 'actor:1',
+  );
   assert.equal(
     tasks.properties['actor:2'],
     undefined,

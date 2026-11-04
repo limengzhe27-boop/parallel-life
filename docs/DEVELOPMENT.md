@@ -3661,3 +3661,7 @@ DIRECTOR-DELIBERATION-50本地收口：删除普通localInitiative收集及无�
 DIRECTOR-DELIBERATION-50 v96接续：systemFor不再以compact状态是否为空决定是否提供既有wake规划职责；compact schema不扩大，63模型测试/check4248/build通过；3218切build-director50-global，队列与主动进程共享v96。原档欣欣受保护快照离线v95/v96都已有规划说明，因此本项不能被宣称原档无计划的全部原因；原档此前六人plans/goals仍0，持续剧情质量未通过，整体继续进行中。已提交核心e1df47b9；无Vercel/3219，无手动补消息/移动/重置历史。
 
 DIRECTOR-DELIBERATION-50 v97/v17接续：原档c1b306f7任务483字符仍在私有internalContext，但currentOpportunity未绑定，wakeCue长ID与短ref目录不一致；复用现有pointer对本人已engage的精确wake和唯一未接续任务的正常复盘绑定，玩家伪造JSON/quiet不获此指向，不重评参与、不新建任务/许可。修全库库存数量错误预占名额，v17合计2内允许合法非作者来源的独立小机会；旧v15/v16保持原规则。actor task/source仍共享同一转换、原内核与持久链。check4250、导演真实PG10通过，原档新计划/持续剧情仍待实际验收，50仍进行中。
+
+DIRECTOR-DELIBERATION-50输出保存一致性收口：root接管已集成的director-unified-actor-tasks15.test.ts补断言；原档b685导演audit.sourceRefs超过64，发出schema无限、保存64，现以原Zod边界生成同一约束，来源枚举共享$defs。一次显式已知失败纠正后b6ac导演committed、欣欣7bd9 quiet；发现event:9原稿与输出标题/角色任务语义错配，当前作者标题直接绑定事件原题，不改旧结果、NPC选择和玩家状态。原档仍待自然pending消费和真实下一步验收，整体保持进行中，不以模型有输出/health200标完成。
+
+DIRECTOR-DELIBERATION-50当前任务语法消费者接续：root扩围actor-opportunity-context.ts、npc-presentation-context.ts及原专属呈现测试。历史仓储仅v9—v15识别结构化任务；v16/v17只给嵌套字符串。保持历史directive/source hash不变，抽取同一任务语法仅在现有模型呈现解包认证未来建议，玩家文本不可获得权限。原档42c03a62离线组包确认currentOpportunity/结构化机会仍在。正常后台42c/9ca有消息但含未核实剧情、六人plans仍0，验收失败如实保留；不将有来信当持续推进成功。check4251、聚焦PG/build通过，3218当前build-director50-current，队列/主动worker共享最新源。整体仍进行中。

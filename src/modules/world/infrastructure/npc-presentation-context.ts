@@ -1,4 +1,5 @@
 import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
+import { actorInteractionOpportunity } from '../domain/actor-opportunity-context.ts';
 
 type Observation = AgentSnapshot['observations'][number];
 type Source = AgentSnapshot['sources'][number];
@@ -28,6 +29,27 @@ function initialContextText(text: string): string {
       report.content.trim()
       ? '本人获知的开场报告（不是已投递聊天或执行回执）：' + report.content
       : text;
+  } catch {
+    return text;
+  }
+}
+
+/** Normalize the already authenticated task for the model, not its source hash.
+ * New Director transports still carry the same v1 interaction task; historical
+ * paid snapshots must retain the directive representation they originally saw. */
+function futureTaskText(text: string): string {
+  const start = text.indexOf('{');
+  if (start < 0) return text;
+  try {
+    const directive = JSON.parse(text.slice(start));
+    if (
+      directive?.kind !== 'director_future_task' ||
+      directive.authority !== 'future_proposal_only' ||
+      typeof directive.task !== 'string'
+    )
+      return text;
+    const opportunity = actorInteractionOpportunity(directive.task);
+    return opportunity ? text.slice(0, start) + JSON.stringify(opportunity) : text;
   } catch {
     return text;
   }
@@ -79,7 +101,9 @@ export function npcPresentationContext<T extends Observation>(input: {
       const text =
         role === 'authored_initial_context'
           ? initialContextText(observation.text)
-          : observation.text;
+          : role === 'director_future_suggestion'
+            ? futureTaskText(observation.text)
+            : observation.text;
       internalContext.push({
         role,
         observation: text === observation.text ? observation : { ...observation, text },

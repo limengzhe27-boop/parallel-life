@@ -18,6 +18,15 @@ export function actorOpportunityContext(originResponse: unknown, task: string) {
       ].includes(origin?.protocol)
     )
       return null;
+    return actorInteractionOpportunity(task);
+  } catch {
+    return null;
+  }
+}
+
+/** Presentation grammar only; callers must retain their original source authorization. */
+export function actorInteractionOpportunity(task: string) {
+  try {
     const value = JSON.parse(task);
     const keys = ['protocol', 'topic', 'personalObjective', 'proposedInteraction'];
     if (

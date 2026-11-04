@@ -3,6 +3,49 @@ import assert from 'node:assert/strict';
 import { npcPresentationContext } from '../src/modules/world/infrastructure/npc-presentation-context.ts';
 import type { AgentSnapshot } from '../src/modules/world/application/agent-runtime-ports.ts';
 
+test('current future-task presentation keeps the v1 opportunity without changing authenticated evidence', () => {
+  const task = JSON.stringify({
+    protocol: 'actor-interaction-opportunity-v1',
+    topic: '周末散步',
+    personalObjective: '想与朋友相处',
+    proposedInteraction: '询问是否愿意一起去公园',
+  });
+  const observation = {
+    sourceId: 'directive',
+    kind: 'plan' as const,
+    text:
+      'Only a future proposal: ' +
+      JSON.stringify({ kind: 'director_future_task', authority: 'future_proposal_only', task }),
+  };
+  const source: AgentSnapshot['sources'][number] = {
+    id: 'directive',
+    kind: 'director_intent',
+    usage: 'private_strategy',
+    recordId: 'request',
+    worldVersion: 1,
+    at: '2026-10-09T07:36:00Z',
+    contentHash: 'a'.repeat(64),
+  };
+  const before = structuredClone({ observation, source });
+  const render = (boundSource: typeof source) =>
+    npcPresentationContext({
+      observations: [observation],
+      sources: [boundSource],
+      channelKind: 'private',
+    });
+  const rendered = render(source).presentationContext.internalContext[0]!.observation;
+  assert.match(rendered.text, /actor_interaction_opportunity/);
+  assert.match(rendered.text, /does not establish events/);
+  assert.equal(rendered.sourceId, observation.sourceId);
+  assert.deepEqual({ observation, source }, before);
+  assert.equal(
+    render({ ...source, kind: 'private_message' }).presentationContext.internalContext[0]!
+      .observation.text,
+    observation.text,
+    'player wording cannot gain Director task interpretation',
+  );
+});
+
 test('presentation partitions by authenticated source metadata and kind, never by wording', () => {
   const sources: AgentSnapshot['sources'] = [
     ['dialogue', 'private_message', 'channel_context'],

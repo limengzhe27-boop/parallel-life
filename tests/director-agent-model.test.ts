@@ -851,7 +851,16 @@ test('Director strict response grammar binds each reference namespace to this im
   assert.deepEqual(root.properties.protocol.enum, ['director-wire-v15']);
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
-  assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
+  assert.equal(root.properties.audit.properties.sourceRefs.maxItems, 64);
+  assert.equal(root.properties.audit.properties.reason.maxLength, 2000);
+  assert.equal(opportunity.id.maxLength, 240);
+  assert.equal(opportunity.title.maxLength, 120);
+  assert.equal(opportunity.playerImpact.maxLength, 1000);
+  assert.equal(opportunity.places.maxItems, 12);
+  assert.equal(opportunity.origin.properties.sourceRefs.maxItems, 32);
+  assert.equal(opportunity.origin.properties.sourceRefs.minItems, 1);
+  assert.equal(opportunity.places.items.$ref, '#/$defs/director_place_ref');
+  assert.deepEqual(root.$defs.director_place_ref.enum, ['place:1', 'place:2']);
   assert.equal(opportunity.actors, undefined);
   assert.equal(opportunity.stagingIntents, undefined);
   const tasks = root.$defs[opportunity.actorTasks.$ref.split('/').at(-1)];

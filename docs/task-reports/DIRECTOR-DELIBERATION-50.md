@@ -136,3 +136,17 @@ v96运行切换：3218当前使用build-director50-global（不覆盖正在运�
 真实PG10/10：有至少2个可见作者节点时可提交独立proposal，作者consider数0，共享事件仍proposed，无sourceEventIds，无NPC消息；同请求不重复模型调用。旧v15/v16越额、三项合计、用event原稿冒充即兴来源均拒绝。原档旧全局快照预检v17 messages83677/schema14370字符，非token/延迟测量；通过既有请求预算。
 
 check4250通过；原档持续演绎尚未通过。此前六人goals/plans仍0，真实来信仍有情绪/等待，不能将pointer或proposal保存当成NPC已完成行动。最后一轮原档正常有界后台结果继续据实记录。
+
+## 输出契约与保存一致性收口
+
+原档导演b6859dc9已知invalid_output：实际audit.sourceRefs超过64，而发送给模型的schema没有上限，解码器最多64。现生成schema直接复用原Zod字段边界，涵盖审计来源、即兴来源、标题、ID、影响、地点等；来源枚举提取为同一$defs避免多处复制。旧原响应不截断、不篡改、不伪装恢复成功，unknown不重买。两份原档大窗口离线组包仍在原24000字符schema预算内。
+
+沿既有显式已知失败纠正入口只执行一次b685对应纠正，导演b6ac818c真实committed，输出v17；随后欣欣7bd9de9a真实quiet。新证据显示导演错把event:9（李之之/欣欣留宿原稿）描述成青青背叛，且派给欣欣玩家质问任务。实际目录人物身份没有错位，NPC未吞掉正确任务。为减少同一身份重复重建，当前全局schema将作者标题直接绑定对应事件原题，不再让模型独立重写标题；仍保留原稿与实际发生的区分，旧结果与NPC拒绝不改写。
+
+修复后的原档仍有林白语一项真实pending请求，后续只通过正常有界worker消费，不重买quiet、不强制参与。当前原档持续剧情/实际计划仍未通过；需分别记录新请求、人物选择、计划/执行及通知结果，不能用messages计数作为结清证据。
+
+正常worker随后确实消费了林白语42c03a62并发出新来信，李之之9ca7b02a也有实际保存；但两条涉及未核实的聚会/撞见，六人plans/goals仍0，故这轮真实体验验收失败，停止该批继续付费推进，没有将已保存错误说法写成世界实际完成或手改历史。
+
+沿实际任务继续发现一个遗漏消费者：actorOpportunityContext的历史规范化只覆盖导演v9—v15，v16/v17任务退回嵌套task字符串，丢掉现成的具体机会解读。直接改变仓储directive会改变旧来源hash，损害付费恢复；本次提取同一v1任务语法，统一在已有npcPresentationContext将经认证director_intent/future_proposal_only转换为现有结构化机会，仅改变本次模型呈现。原始observation/source/hash及历史付费snapshot不变；玩家同形文本不转换。原档42c03a62离线真实组包已含currentOpportunity source:20及结构化机会/不证明已发生的解释，0模型、0写入。
+
+作者标题由事件绑定，任务槽在schema以已有姓名标注执行者；来源/地点目录各只定义一次，减少schema重复。原13节点窗口schema仍在24000字符以内。check4251、受影响真实PG、build通过；3218已切build-director50-current，三个变更核心文件与运行artifact逐文件SHA一致，队列与主动worker均重新加载。尚不能宣称原档持续计划/真实行动、锁屏通知目视通过；50保持进行中。
