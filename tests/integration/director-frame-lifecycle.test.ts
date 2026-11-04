@@ -232,6 +232,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
       legacy?: boolean;
       emptyAgenda?: boolean;
       multiActorOpening?: boolean;
+      periodic?: boolean;
     } = {},
   ) {
     const content = structuredClone(base);
@@ -246,6 +247,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
     if (options.multi)
       for (const key of ['aa', 'a_b'])
         content.candidates.push(node(key, [{ kind: 'not_before', at: time(10) }]));
+    if (options.periodic) content.candidates = [node('always'), node('p_a'), node('p_b')];
     const parsed = PublishedWorldContentSchema.parse(content),
       work = await stableWorks.create(staff, {
         commandId: randomUUID(),
@@ -372,6 +374,118 @@ test('director frame lifecycle uses real publication, personal plan and protecte
       )
     ).rows;
   }
+  await t.test(
+    'periodic review reconsiders bounded unpresented authors under one authenticated frame',
+    async () => {
+      const f = await fixture({ periodic: true });
+      const { directorWireCatalog, directorOpeningOwnerCatalog } =
+        await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
+      let calls = 0;
+      const run = async (snapshot: DirectorSnapshot, input = claim(snapshot)) => {
+        const deps = {
+          attempts: directors,
+          parse: parseDirectorDecision,
+          model: {
+            async decide() {
+              calls++;
+              return JSON.stringify({
+                protocol: 'director-wire-v15',
+                openingContext: snapshot.openingContextAuthority
+                  ? {
+                      informationOwners: Object.fromEntries(
+                        directorOpeningOwnerCatalog(snapshot).information.map((i) => [
+                          i.ref,
+                          { actorRef: null, reason: 'Public fixture' },
+                        ]),
+                      ),
+                    }
+                  : null,
+                authoredChoices: Object.fromEntries(
+                  directorWireCatalog(snapshot).events.map((e) => [
+                    e.ref,
+                    { kind: 'defer', reason: 'Still optional, no actual action or presentation' },
+                  ]),
+                ),
+                candidates: [],
+                opportunities: [],
+                audit: { reason: 'Fixture review', sourceRefs: [] },
+              });
+            },
+          },
+        };
+        const result = await runDirectorAgent(deps, f.owner, input, snapshot);
+        const count = calls;
+        assert.deepEqual(await runDirectorAgent(deps, f.owner, input, snapshot), result);
+        assert.equal(calls, count, 'original paid request replays its decision without a new call');
+        return input;
+      };
+      const initial = await snap(f);
+      assert.equal(initial.evaluationCause?.kind, 'bootstrap');
+      await run(initial);
+      const remaining = await snap(f);
+      assert.equal(remaining.evaluationCause?.kind, 'authored_eligibility');
+      const prior = await run(remaining);
+      assert.equal((await snap(f)).evaluationCause, undefined);
+      await admin.query(
+        "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
+        [prior.id, f.id],
+      );
+      const periodic = await snap(f);
+      assert.equal(periodic.evaluationCause?.kind, 'periodic_review');
+      assert.equal(
+        periodic.evaluationCause.kind === 'periodic_review' &&
+          periodic.evaluationCause.qualifications.length,
+        3,
+      );
+      assert.equal(periodic.deliberationWindow!.nodeKeys.length, 2);
+      assert.equal(
+        periodic.deliberationWindow!.nodeKeys[0],
+        'always',
+        'oldest actual assessment comes first',
+      );
+      assert.deepEqual((await snap(f)).evaluationCause, periodic.evaluationCause);
+      const original = (await attempts(f)).map((a) => ({
+        id: a.id,
+        response: a.response,
+        sent_at: a.sent_at,
+        input_hash: a.input_hash,
+      }));
+      const next = await run(periodic); // claim, mark request_sent, save response and commit all authenticate original frame
+      assert.deepEqual(
+        (await attempts(f))
+          .filter((a) => a.id !== next.id)
+          .map((a) => ({
+            id: a.id,
+            response: a.response,
+            sent_at: a.sent_at,
+            input_hash: a.input_hash,
+          })),
+        original,
+      );
+      const after = await snap(f);
+      assert.equal(
+        after.evaluationCause,
+        undefined,
+        'committing this period does not immediately buy another',
+      );
+      assert.equal(after.episodes.length, 0, 'defer is neither a presented episode nor completion');
+      await admin.query(
+        "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
+        [next.id, f.id],
+      );
+      const following = await snap(f);
+      assert.equal(following.evaluationCause?.kind, 'periodic_review');
+      const unreviewed = ['always', 'p_a', 'p_b'].find(
+        (k) => !periodic.deliberationWindow!.nodeKeys.includes(k),
+      );
+      assert.equal(
+        following.deliberationWindow!.nodeKeys[0],
+        unreviewed,
+        'reviewed nodes move behind the older assessment',
+      );
+      assert.equal(calls, 3);
+    },
+  );
   for (const scenario of ['ordinary', 'opening', 'independent'])
     await t.test(
       `expired unknown ${scenario === 'independent' ? 'non-author actor' : scenario === 'opening' ? 'opening context' : 'bootstrap'} retires only for verified evidence`,
