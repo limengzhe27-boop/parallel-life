@@ -114,3 +114,51 @@ test('independent authenticated current work retires unknown without authored wa
     [],
   );
 });
+
+test('disjoint periodic author scope retires execution only within original authenticated boundaries', () => {
+  const material = (key: string) => ({ ref: { nodeKey: key, nodeHash: key } });
+  const prior = {
+    ...old,
+    candidates: [],
+    deliberationWindow: { version: 1, nodeKeys: ['a', 'b'] },
+    evaluationCause: { kind: 'periodic_review', id: 'prior' },
+  } as unknown as DirectorSnapshot;
+  const next = {
+    ...prior,
+    evaluationCause: { kind: 'periodic_review', id: 'next' },
+    deliberationWindow: { version: 1, nodeKeys: ['c'] },
+    authoredMaterials: { ...old.authoredMaterials!, materials: [material('c')] },
+    authoredEligibility: [
+      { nodeKey: 'c', nodeHash: 'c', qualificationKey: 'c', status: 'eligible' },
+    ],
+  } as unknown as DirectorSnapshot;
+  assert.deepEqual(directorFrameRetirementEvidence(prior, next, []), ['next']);
+  for (const change of [
+    { worldId: 'other' },
+    { engineEpoch: 3 },
+    { worldVersion: 1 },
+    { nativeTurn: {} },
+    { evaluationCause: { kind: 'periodic_review', id: 'prior' } },
+    { deliberationWindow: { version: 1, nodeKeys: ['a'] } },
+    { occupiedAuthoredEventKeys: ['c'] },
+    {
+      authoredEligibility: [
+        { nodeKey: 'c', nodeHash: 'c', qualificationKey: 'c', status: 'blocked' },
+      ],
+    },
+    { authoredMaterials: { ...next.authoredMaterials!, source: { sourceHash: 'other' } } },
+  ])
+    assert.deepEqual(
+      directorFrameRetirementEvidence(prior, { ...next, ...change } as DirectorSnapshot, []),
+      [],
+    );
+  for (const change of [
+    { candidates: [{}] },
+    { nativeTurn: {} },
+    { deliberationWindow: { version: 1, nodeKeys: ['a'] } },
+  ])
+    assert.deepEqual(
+      directorFrameRetirementEvidence({ ...prior, ...change } as DirectorSnapshot, next, []),
+      [],
+    );
+});

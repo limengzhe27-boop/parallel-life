@@ -37,3 +37,11 @@
 ## 共享 schema 引用收口
 
 root 将 actorTasks 提取到共享 `$defs`，减少多角色 anyOf 重复体积。本子任务仅将两份原测试的四处 shape 读取改成 `$ref` 解引用；非空、完整分区、非法人物及 24,000 字符上限断言均保留。临时最新 protocol 下两套 **30/30 通过**，包括 6/12 人预算样例。未重复 PG，未修改公共实现或原档。
+
+## 不相交周期 unknown 隔离旅程
+
+原领域测试补同 world/epoch/source、非 native、版本不后退、旧两槽零候选、新节点合格且不重叠的边界。原 PG 周期用例参数化两条分支：真实 runner 产生无 raw unknown，真实短 lease 等待过期；live 保持阻塞，过期后剩余独立节点可领取提交，旧 command 重放拒绝且调用计数不增，sent/hash/snapshot 原样保留；旧结果晚到仍保存在 stale_discarded，不能重新获得执行权。另一分支在隔离前通过原 saveResponse 保存晚到 raw，确认无新周期资格。
+
+边界观察：若独立 snapshot 读取后、claim 前旧 raw 晚到，原 claim 正确拒绝 `DIRECTOR_EVALUATION_CAUSE_CONFLICT`，不能用旧快照绕过重新出现的付费结果。测试最终成功旅程在独立提交后才保存旧晚到结果；没有修改 immutable lease 或删除 raw。
+
+最新 root WIP 下领域+真实 PG **10/10 通过**，typecheck 通过；隔离55743，0真实模型、0原档、0主运行进程修改。测试只证明独立执行资格及旧付费请求保护，不证明模型必然发消息。

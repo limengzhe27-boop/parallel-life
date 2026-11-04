@@ -374,118 +374,210 @@ test('director frame lifecycle uses real publication, personal plan and protecte
       )
     ).rows;
   }
-  await t.test(
-    'periodic review reconsiders bounded unpresented authors under one authenticated frame',
-    async () => {
-      const f = await fixture({ periodic: true });
-      const { directorWireCatalog, directorOpeningOwnerCatalog } =
-        await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
-      let calls = 0;
-      const run = async (snapshot: DirectorSnapshot, input = claim(snapshot)) => {
-        const deps = {
-          attempts: directors,
-          parse: parseDirectorDecision,
-          model: {
-            async decide() {
-              calls++;
-              return JSON.stringify({
-                protocol: 'director-wire-v15',
-                openingContext: snapshot.openingContextAuthority
-                  ? {
-                      informationOwners: Object.fromEntries(
-                        directorOpeningOwnerCatalog(snapshot).information.map((i) => [
-                          i.ref,
-                          { actorRef: null, reason: 'Public fixture' },
-                        ]),
-                      ),
-                    }
-                  : null,
-                authoredChoices: Object.fromEntries(
-                  directorWireCatalog(snapshot).events.map((e) => [
-                    e.ref,
-                    { kind: 'defer', reason: 'Still optional, no actual action or presentation' },
-                  ]),
-                ),
-                candidates: [],
-                opportunities: [],
-                audit: { reason: 'Fixture review', sourceRefs: [] },
-              });
+  for (const lateRaw of [false, true])
+    await t.test(
+      `periodic review and disjoint unknown protection (late raw: ${lateRaw})`,
+      async () => {
+        const f = await fixture({ periodic: true });
+        const { directorWireCatalog, directorOpeningOwnerCatalog } =
+          await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
+        let calls = 0;
+        const run = async (snapshot: DirectorSnapshot, input = claim(snapshot)) => {
+          const deps = {
+            attempts: directors,
+            parse: parseDirectorDecision,
+            model: {
+              async decide() {
+                calls++;
+                return JSON.stringify({
+                  protocol: 'director-wire-v15',
+                  openingContext: snapshot.openingContextAuthority
+                    ? {
+                        informationOwners: Object.fromEntries(
+                          directorOpeningOwnerCatalog(snapshot).information.map((i) => [
+                            i.ref,
+                            { actorRef: null, reason: 'Public fixture' },
+                          ]),
+                        ),
+                      }
+                    : null,
+                  authoredChoices: Object.fromEntries(
+                    directorWireCatalog(snapshot).events.map((e) => [
+                      e.ref,
+                      { kind: 'defer', reason: 'Still optional, no actual action or presentation' },
+                    ]),
+                  ),
+                  candidates: [],
+                  opportunities: [],
+                  audit: { reason: 'Fixture review', sourceRefs: [] },
+                });
+              },
             },
-          },
+          };
+          const result = await runDirectorAgent(deps, f.owner, input, snapshot);
+          const count = calls;
+          assert.deepEqual(await runDirectorAgent(deps, f.owner, input, snapshot), result);
+          assert.equal(
+            calls,
+            count,
+            'original paid request replays its decision without a new call',
+          );
+          return input;
         };
-        const result = await runDirectorAgent(deps, f.owner, input, snapshot);
-        const count = calls;
-        assert.deepEqual(await runDirectorAgent(deps, f.owner, input, snapshot), result);
-        assert.equal(calls, count, 'original paid request replays its decision without a new call');
-        return input;
-      };
-      const initial = await snap(f);
-      assert.equal(initial.evaluationCause?.kind, 'bootstrap');
-      await run(initial);
-      const remaining = await snap(f);
-      assert.equal(remaining.evaluationCause?.kind, 'authored_eligibility');
-      const prior = await run(remaining);
-      assert.equal((await snap(f)).evaluationCause, undefined);
-      await admin.query(
-        "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
-        [prior.id, f.id],
-      );
-      const periodic = await snap(f);
-      assert.equal(periodic.evaluationCause?.kind, 'periodic_review');
-      assert.equal(
-        periodic.evaluationCause.kind === 'periodic_review' &&
-          periodic.evaluationCause.qualifications.length,
-        3,
-      );
-      assert.equal(periodic.deliberationWindow!.nodeKeys.length, 2);
-      assert.equal(
-        periodic.deliberationWindow!.nodeKeys[0],
-        'always',
-        'oldest actual assessment comes first',
-      );
-      assert.deepEqual((await snap(f)).evaluationCause, periodic.evaluationCause);
-      const original = (await attempts(f)).map((a) => ({
-        id: a.id,
-        response: a.response,
-        sent_at: a.sent_at,
-        input_hash: a.input_hash,
-      }));
-      const next = await run(periodic); // claim, mark request_sent, save response and commit all authenticate original frame
-      assert.deepEqual(
-        (await attempts(f))
-          .filter((a) => a.id !== next.id)
-          .map((a) => ({
-            id: a.id,
-            response: a.response,
-            sent_at: a.sent_at,
-            input_hash: a.input_hash,
-          })),
-        original,
-      );
-      const after = await snap(f);
-      assert.equal(
-        after.evaluationCause,
-        undefined,
-        'committing this period does not immediately buy another',
-      );
-      assert.equal(after.episodes.length, 0, 'defer is neither a presented episode nor completion');
-      await admin.query(
-        "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
-        [next.id, f.id],
-      );
-      const following = await snap(f);
-      assert.equal(following.evaluationCause?.kind, 'periodic_review');
-      const unreviewed = ['always', 'p_a', 'p_b'].find(
-        (k) => !periodic.deliberationWindow!.nodeKeys.includes(k),
-      );
-      assert.equal(
-        following.deliberationWindow!.nodeKeys[0],
-        unreviewed,
-        'reviewed nodes move behind the older assessment',
-      );
-      assert.equal(calls, 3);
-    },
-  );
+        const initial = await snap(f);
+        assert.equal(initial.evaluationCause?.kind, 'bootstrap');
+        await run(initial);
+        const remaining = await snap(f);
+        assert.equal(remaining.evaluationCause?.kind, 'authored_eligibility');
+        const prior = await run(remaining);
+        assert.equal((await snap(f)).evaluationCause, undefined);
+        await admin.query(
+          "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
+          [prior.id, f.id],
+        );
+        const periodic = await snap(f);
+        assert.equal(periodic.evaluationCause?.kind, 'periodic_review');
+        assert.equal(
+          periodic.evaluationCause.kind === 'periodic_review' &&
+            periodic.evaluationCause.qualifications.length,
+          3,
+        );
+        assert.equal(periodic.deliberationWindow!.nodeKeys.length, 2);
+        assert.equal(
+          periodic.deliberationWindow!.nodeKeys[0],
+          'always',
+          'oldest actual assessment comes first',
+        );
+        assert.deepEqual((await snap(f)).evaluationCause, periodic.evaluationCause);
+        const original = (await attempts(f)).map((a) => ({
+          id: a.id,
+          response: a.response,
+          sent_at: a.sent_at,
+          input_hash: a.input_hash,
+        }));
+        const next = await run(periodic); // claim, mark request_sent, save response and commit all authenticate original frame
+        assert.deepEqual(
+          (await attempts(f))
+            .filter((a) => a.id !== next.id)
+            .map((a) => ({
+              id: a.id,
+              response: a.response,
+              sent_at: a.sent_at,
+              input_hash: a.input_hash,
+            })),
+          original,
+        );
+        const after = await snap(f);
+        assert.equal(
+          after.evaluationCause,
+          undefined,
+          'committing this period does not immediately buy another',
+        );
+        assert.equal(
+          after.episodes.length,
+          0,
+          'defer is neither a presented episode nor completion',
+        );
+        await admin.query(
+          "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
+          [next.id, f.id],
+        );
+        const following = await snap(f);
+        assert.equal(following.evaluationCause?.kind, 'periodic_review');
+        const unreviewed = ['always', 'p_a', 'p_b'].find(
+          (k) => !periodic.deliberationWindow!.nodeKeys.includes(k),
+        );
+        assert.equal(
+          following.deliberationWindow!.nodeKeys[0],
+          unreviewed,
+          'reviewed nodes move behind the older assessment',
+        );
+        assert.equal(calls, 3);
+        const unknownClaim = {
+          ...claim(following),
+          leaseUntil: new Date(Date.now() + 1200).toISOString(),
+        };
+        let unknownCalls = 0;
+        await assert.rejects(
+          runDirectorAgent(
+            {
+              attempts: directors,
+              parse: parseDirectorDecision,
+              model: {
+                async decide() {
+                  unknownCalls++;
+                  throw Error('SYNTHETIC_TRANSPORT_UNKNOWN');
+                },
+              },
+            },
+            f.owner,
+            unknownClaim,
+            following,
+          ),
+        );
+        assert.equal(
+          (await directors.prepareRecovery(f.owner, await snap(f))).status,
+          'blocked',
+          'live unknown keeps execution fence',
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1250));
+        if (lateRaw) {
+          const unknown = (await directors.lookup(f.owner, f.id, unknownClaim.commandId))!;
+          await directors.saveResponse(f.owner, unknown, JSON.stringify(quiet()));
+          const held = await snap(f);
+          assert.equal(
+            held.evaluationCause,
+            undefined,
+            'late raw retains original paid scope rather than authorizing disjoint purchase',
+          );
+          assert.deepEqual(held.deliberationWindow!.nodeKeys, []);
+          assert.equal(unknownCalls, 1);
+          return;
+        }
+        const independent = await snap(f);
+        assert.equal(independent.evaluationCause?.kind, 'periodic_review');
+        assert.equal(independent.deliberationWindow!.nodeKeys.length, 1);
+        assert(
+          independent.deliberationWindow!.nodeKeys.every(
+            (key) => !following.deliberationWindow!.nodeKeys.includes(key),
+          ),
+        );
+        const protectedRow = (await attempts(f)).find((a) => a.id === unknownClaim.id)!;
+        assert.equal((await directors.prepareRecovery(f.owner, independent)).status, 'none');
+        const retired = (await directors.lookup(f.owner, f.id, unknownClaim.commandId))!;
+        assert.equal(retired.status, 'stale_discarded');
+        await assert.rejects(
+          runDirectorAgent(
+            {
+              attempts: directors,
+              parse: parseDirectorDecision,
+              model: {
+                async decide() {
+                  unknownCalls++;
+                  return '{}';
+                },
+              },
+            },
+            f.owner,
+            unknownClaim,
+            following,
+          ),
+        );
+        assert.equal(unknownCalls, 1);
+        await run(independent);
+        await directors.saveResponse(f.owner, retired, JSON.stringify(quiet()));
+        assert.equal(
+          (await directors.lookup(f.owner, f.id, unknownClaim.commandId))!.status,
+          'stale_discarded',
+          'late raw cannot regain execution authority',
+        );
+        const retained = (await attempts(f)).find((a) => a.id === unknownClaim.id)!;
+        assert.equal(retained.sent_at.toISOString(), protectedRow.sent_at.toISOString());
+        assert.equal(retained.input_hash, protectedRow.input_hash);
+        assert.deepEqual(retained.snapshot, protectedRow.snapshot);
+        assert.equal(calls, 4);
+      },
+    );
   for (const scenario of ['ordinary', 'opening', 'independent'])
     await t.test(
       `expired unknown ${scenario === 'independent' ? 'non-author actor' : scenario === 'opening' ? 'opening context' : 'bootstrap'} retires only for verified evidence`,
