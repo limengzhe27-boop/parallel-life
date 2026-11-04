@@ -40,9 +40,11 @@ export type OwnAgendaReviewInput = {
   purpose: 'own_agenda' | 'episode_participation';
   storyAt: string;
   realAt: string;
+  /** Authenticated original receipt window; realAt remains the live admission clock. */
+  reviewAt?: string;
   paused: boolean;
   hasPriorityWork: boolean;
-  /** Complete authenticated history for the family, across all policies and transport tries. */
+  /** Authenticated history; paid fences apply to the selected grant across transport tries. */
   attempts: readonly OwnAgendaReviewAttemptEvidence[];
   quietStreak: number;
   budgets: Readonly<Record<'owner' | 'world' | 'actor', OwnAgendaReviewBudget>>;
@@ -109,6 +111,7 @@ export function ownAgendaReviewFamilyId(
   identity: OwnAgendaReviewIdentity,
   anchor: OwnAgendaReviewAnchor,
   digest: (canonical: string) => string,
+  reviewAt?: string,
 ): string {
   if (
     !key(identity.worldId) ||
@@ -129,20 +132,42 @@ export function ownAgendaReviewFamilyId(
     fail();
   instant(anchor.committedStoryAt);
   instant(anchor.committedRealAt);
-  // Policy upgrades, scheduling windows and CAS versions cannot turn this business family into a new one.
+  // v1 receipts keep their exact anchor identity. v2 admits one periodic review
+  // per fixed UTC minute; the authority supplies the original receipt time after
+  // acceptance. Config changes and new CAS versions cannot create another grant
+  // inside that minute. A window is review permission, not a new story fact.
+  const minute = reviewAt === undefined ? undefined : Math.floor(instant(reviewAt) / 60_000);
   const hash = digest(
     JSON.stringify([
-      'own_agenda_review',
+      minute === undefined ? 'own_agenda_review' : 'own_agenda_review_window_v2',
       identity.worldId,
       identity.engineEpoch,
       identity.actorId,
       identity.definitionRef,
       anchor.attemptId,
       anchor.eventId,
+      ...(minute === undefined ? [] : [minute]),
     ]),
   );
   if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)) fail();
-  return `agenda-review:${hash}`;
+  return `agenda-review:${hash}${minute === undefined ? '' : `:w${minute.toString(36)}`}`;
+}
+
+/** Parse only the original receipt's window. The caller must still recompute
+ * the complete identity/anchor hash; a suffix grants no execution authority. */
+export function ownAgendaReviewGrantTime(grantId: string, receivedAt: string): string {
+  const match = /^agenda-review:[a-f0-9]{64}:w(-?[0-9a-z]+)$/.exec(grantId);
+  if (!match) return fail();
+  const minute = Number.parseInt(match[1]!, 36);
+  const receivedMinute = Math.floor(instant(receivedAt) / 60_000);
+  if (
+    !Number.isSafeInteger(minute) ||
+    minute.toString(36) !== match[1] ||
+    minute > receivedMinute ||
+    receivedMinute - minute > 1
+  )
+    fail();
+  return iso(minute * 60_000);
 }
 
 /** Shared time window for fresh admission and explicitly authenticated zero-send recovery. */
@@ -231,7 +256,12 @@ export function evaluateOwnAgendaReview(
   if (input.purpose === 'episode_participation') return { status: 'needs_episode_review_contract' };
   if (input.paused) return { status: 'not_due', reason: 'paused' };
   if (!anchor) return { status: 'not_due', reason: 'missing_anchor' };
-  const familyId = ownAgendaReviewFamilyId(identity, anchor, digest);
+  const familyId = ownAgendaReviewFamilyId(
+    identity,
+    anchor,
+    digest,
+    policy.version === 'own-agenda-v2' ? (input.reviewAt ?? input.realAt) : undefined,
+  );
 
   if (input.hasPriorityWork) return { status: 'priority_work', familyId };
   const prior = input.attempts.filter((a) => a.familyId === familyId);

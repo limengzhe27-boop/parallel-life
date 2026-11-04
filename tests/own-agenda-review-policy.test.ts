@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import {
   evaluateOwnAgendaReview,
   ownAgendaReviewFamilyId,
+  ownAgendaReviewGrantTime,
   type OwnAgendaReviewInput,
   type OwnAgendaReviewAttemptEvidence,
 } from '../src/modules/world/application/own-agenda-review-policy.ts';
@@ -389,4 +390,116 @@ test('an out-of-range computed date fails instead of wrapping a scheduling windo
   const i = input();
   i.policy.storyGapMs = Number.MAX_SAFE_INTEGER;
   assert.throws(() => run(i), { code: 'INVALID_OWN_AGENDA_REVIEW_INPUT' });
+});
+
+// v2 time is frozen by the authority from the immutable receipt after acceptance.
+const periodicInput = () => {
+  const i = input();
+  i.policy.version = 'own-agenda-v2';
+  return i;
+};
+test('v2 fixed UTC window stays stable within a minute and retains exact v1 identity', () => {
+  const i = periodicInput();
+  const old = ownAgendaReviewFamilyId(i.identity, i.anchor!, digest);
+  const canonical = JSON.stringify([
+    'own_agenda_review',
+    i.identity.worldId,
+    i.identity.engineEpoch,
+    i.identity.actorId,
+    i.identity.definitionRef,
+    i.anchor!.attemptId,
+    i.anchor!.eventId,
+  ]);
+  assert.equal(old, `agenda-review:${digest(canonical)}`);
+  const current = family(i);
+  assert.notEqual(current, old);
+  assert.ok(current.endsWith(`:w${Math.floor(Date.parse(i.realAt) / 60000).toString(36)}`));
+  i.realAt = at(3659.999);
+  i.storyAt = at(10000);
+  i.policy.realGapMs = 120000;
+  i.quietStreak = 2;
+  i.budgets.owner.remaining = 1;
+  assert.equal(family(i), current);
+  i.realAt = at(3660);
+  assert.notEqual(family(i), current);
+  assert.throws(() => ownAgendaReviewFamilyId(i.identity, i.anchor!, digest, 'not-a-time'));
+});
+for (const [status, hasRaw, expected] of [
+  ['unknown_after_send', false, 'unknown'],
+  ['stale_discarded', true, 'paid_fence'],
+  ['invalid_output', false, 'paid_fence'],
+  ['committed', true, 'paid_fence'],
+] as const)
+  test(`v2 ${status} protects original grant without consuming future review windows`, () => {
+    const i = periodicInput();
+    const prior = evidence(i, { status, sent: true, hasRaw, policyVersion: i.policy.version });
+    i.attempts = [prior];
+    assert.equal(run(i).status, expected);
+    i.realAt = at(3659);
+    assert.equal(run(i).status, expected);
+    i.realAt = at(3660);
+    const next = run(i);
+    assert.equal(next.status, 'ready');
+    assert.notEqual('familyId' in next && next.familyId, prior.familyId);
+    assert.equal(i.attempts[0], prior, 'policy must not rewrite the old paid request');
+    // Original receipt recovery keeps its own time even after wall clock advanced.
+    i.realAt = at(3600);
+    assert.equal(run(i).status, expected);
+  });
+test('v2 new windows retain time, priority, quiet backoff, and budget gates', () => {
+  const i = periodicInput();
+  i.realAt = at(61);
+  i.quietStreak = 3;
+  assert.equal(run(i).status, 'not_due');
+  i.realAt = at(480);
+  i.storyAt = at(599);
+  assert.equal(run(i).status, 'not_due');
+  i.storyAt = at(600);
+  i.hasPriorityWork = true;
+  assert.equal(run(i).status, 'priority_work');
+  i.hasPriorityWork = false;
+  i.budgets.actor.remaining = 0;
+  assert.equal(run(i).status, 'budget_wait');
+  i.budgets.actor.remaining = 1;
+  assert.equal(run(i).status, 'ready');
+});
+
+test('v2 frozen review time never replaces live time admission or budget checks', () => {
+  const i = periodicInput();
+  const original = family(i);
+  i.reviewAt = i.realAt;
+  i.realAt = at(86400);
+  assert.equal(family(i), original);
+  i.budgets.actor.remaining = 0;
+  assert.equal(run(i).status, 'budget_wait');
+  i.budgets.actor.remaining = 1;
+  i.realAt = at(59);
+  assert.equal(run(i).status, 'not_due');
+  i.policy.version = 'own-agenda-v1';
+  assert.equal(family(i), ownAgendaReviewFamilyId(i.identity, i.anchor!, digest));
+});
+
+test('v2 grant parser freezes collect-to-accept minute boundary using original receivedAt', () => {
+  const i = periodicInput();
+  i.realAt = at(3659.999);
+  const grant = family(i);
+  assert.equal(ownAgendaReviewGrantTime(grant, at(3659.999)), at(3600));
+  const receivedAt = at(3660.001);
+  assert.equal(ownAgendaReviewGrantTime(grant, receivedAt), at(3600));
+  i.realAt = at(9000); // claim/send happen later; receipt time remains immutable.
+  i.reviewAt = ownAgendaReviewGrantTime(grant, receivedAt);
+  assert.equal(family(i), grant);
+  for (const invalid of [
+    grant.replace(':w', ':w0'),
+    grant + '!',
+    grant.replace(/:w.*$/, ':wzzzzzzzzzzzzzzzz'),
+    ownAgendaReviewFamilyId(i.identity, i.anchor!, digest),
+  ])
+    assert.throws(() => ownAgendaReviewGrantTime(invalid, receivedAt));
+  assert.throws(() => ownAgendaReviewGrantTime(grant, at(3599.999)), 'future window');
+  assert.throws(
+    () => ownAgendaReviewGrantTime(grant, at(3720)),
+    'more than one minute old at accept',
+  );
+  assert.throws(() => ownAgendaReviewGrantTime(grant, 'invalid'));
 });
