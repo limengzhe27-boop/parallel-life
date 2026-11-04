@@ -982,7 +982,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v96-wake-purpose');
+  assert.equal(payload.promptVersion, 'npc-agent-v97-task-continuation');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /后续按玩家实际给出的暂缓范围与已有合法条件继续/);
   assert.match(system, /不把“晚点”扩大为永久停止/);
@@ -1890,6 +1890,80 @@ test('a transformed internal record never replaces the original recent-self text
     payload.presentationContext.internalContext[0].observation.text,
     '本人获知的开场报告（不是已投递聊天或执行回执）：完整开场报告：家人正在医院，仍须确认现场情况。',
   );
+});
+
+test('accepted episode continuation binds the existing current-opportunity reference without reconsidering participation', async () => {
+  const input = snapshot();
+  const sourceId = 'episode-intent:accepted-request';
+  input.sources.push({
+    id: sourceId,
+    kind: 'director_intent',
+    recordId: 'accepted-request',
+    worldVersion: 9,
+    at: input.storyAt,
+    usage: 'private_strategy',
+  });
+  input.observations.push({
+    sourceId,
+    kind: 'plan',
+    text: 'An existing optional meeting task accepted by this actor; no player agreement.',
+  });
+  input.episodeFollowUps = [
+    {
+      requestId: 'accepted-request',
+      episodeId: 'existing-episode',
+      choice: 'engage',
+      followUp: 'none',
+      planIds: [],
+      goalIds: [],
+      responsibilityIds: [],
+      readyPlanIds: [],
+      readyResponsibilityIds: [],
+    },
+  ];
+  input.input = {
+    ...input.input,
+    origin: 'wake',
+    text: JSON.stringify({
+      type: 'npc_own_condition_ready',
+      source: 'actor_local',
+      basisSourceIds: [sourceId],
+    }),
+  };
+  const current = capture();
+  await current.adapter.decide(input);
+  const payload = JSON.parse(current.calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.currentOpportunity, { sourceId: sourceRef(input, sourceId) });
+  assert.equal(
+    payload.presentationContext.internalContext.filter(
+      (x: any) => x.observation.sourceId === payload.currentOpportunity.sourceId,
+    ).length,
+    1,
+  );
+  const properties = (current.calls[0]!.output as any).schema.properties.changes.anyOf[0]
+    .properties;
+  assert.equal(
+    'consideration' in properties,
+    false,
+    'accepted participation is not requested again',
+  );
+  input.input.text = JSON.stringify({ type: 'npc_agenda_review' });
+  const review = capture();
+  await review.adapter.decide(input);
+  assert.deepEqual(
+    JSON.parse(review.calls[0]!.messages[1]!.content).currentOpportunity,
+    payload.currentOpportunity,
+    'a due personal review retains its single unresolved accepted task without creating a new wake',
+  );
+  input.input.origin = 'player';
+  const forged = capture();
+  await forged.adapter.decide(input);
+  assert.equal(JSON.parse(forged.calls[0]!.messages[1]!.content).currentOpportunity, undefined);
+  input.input.origin = 'wake';
+  input.episodeFollowUps[0]!.choice = 'quiet';
+  const unaccepted = capture();
+  await unaccepted.adapter.decide(input);
+  assert.equal(JSON.parse(unaccepted.calls[0]!.messages[1]!.content).currentOpportunity, undefined);
 });
 
 test('an empty-plan wake retains its existing planning duty without expanding compact transport', async () => {

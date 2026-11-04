@@ -34,7 +34,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v96-wake-purpose';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v97-task-continuation';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -416,17 +416,45 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   if (snapshot.input.origin === 'wake') {
     try {
       const wake = JSON.parse(snapshot.input.text);
+      if (wake.type === 'npc_agenda_review' && snapshot.channel.kind === 'private') {
+        const accepted = (snapshot.episodeFollowUps ?? []).filter(
+          (f) =>
+            f.choice === 'engage' &&
+            f.followUp === 'none' &&
+            snapshot.sources.some(
+              (s) =>
+                s.id === ACTOR_EPISODE_INTENT_PREFIX + f.requestId &&
+                ['director_intent', 'authored'].includes(s.kind) &&
+                s.usage === 'private_strategy',
+            ),
+        );
+        if (accepted.length === 1)
+          wakeObservationBasis = [ACTOR_EPISODE_INTENT_PREFIX + accepted[0]!.requestId];
+      }
       if (
         wake.type === 'npc_own_condition_ready' &&
-        (wake.source === 'observation' || wake.source === 'actor_plan') &&
+        ['observation', 'actor_plan', 'actor_local'].includes(wake.source) &&
         Array.isArray(wake.basisSourceIds)
       )
         wakeObservationBasis = wake.basisSourceIds.filter(
           (id: unknown): id is string =>
             typeof id === 'string' &&
-            (wake.source === 'actor_plan'
-              ? snapshot.sources.some((s) => s.id === id)
-              : !!snapshot.actorObservationInbox?.sourceIds.includes(id)),
+            (wake.source === 'actor_local'
+              ? snapshot.sources.some(
+                  (s) =>
+                    s.id === id &&
+                    ['director_intent', 'authored'].includes(s.kind) &&
+                    s.usage === 'private_strategy',
+                ) &&
+                snapshot.episodeFollowUps?.some(
+                  (f) =>
+                    f.choice === 'engage' &&
+                    f.followUp === 'none' &&
+                    id === ACTOR_EPISODE_INTENT_PREFIX + f.requestId,
+                ) === true
+              : wake.source === 'actor_plan'
+                ? snapshot.sources.some((s) => s.id === id)
+                : !!snapshot.actorObservationInbox?.sourceIds.includes(id)),
         );
     } catch {
       /* An ordinary wake is not permission to protect arbitrary material. */
@@ -784,7 +812,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       snapshot.episodeManifest?.sourceId ??
       (isActorEpisodeConsiderationInput(snapshot.input)
         ? ACTOR_EPISODE_INTENT_PREFIX + JSON.parse(snapshot.input.text).requestId
-        : undefined);
+        : wakeObservationBasis.find((id) => id.startsWith(ACTOR_EPISODE_INTENT_PREFIX)));
     const currentOpportunity =
       opportunitySourceId && payload.observations.some((o) => o.sourceId === opportunitySourceId)
         ? { sourceId: opportunitySourceId }

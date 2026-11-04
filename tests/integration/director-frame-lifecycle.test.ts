@@ -444,7 +444,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
                   audit: { reason: 'Fixture', sourceRefs: [] },
                 };
                 if (snapshot.deliberationWindow?.version === 2) {
-                  response.protocol = 'director-wire-v16';
+                  response.protocol = 'director-wire-v17';
                   response.opportunities = Object.entries(response.authoredChoices).flatMap(
                     ([eventRef, value]: [string, any]) => {
                       if (value.kind !== 'consider') return [];
@@ -724,6 +724,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
         snapshot: DirectorSnapshot,
         bad = false,
         input: Parameters<typeof runDirectorAgent>[2] = claim(snapshot),
+        opportunity?: unknown,
       ) =>
         runDirectorAgent(
           {
@@ -736,10 +737,10 @@ test('director frame lifecycle uses real publication, personal plan and protecte
                 const response: any = {
                   protocol:
                     snapshot.deliberationWindow?.version === 2
-                      ? 'director-wire-v16'
+                      ? 'director-wire-v17'
                       : 'director-wire-v15',
                   candidates: [],
-                  opportunities: [],
+                  opportunities: opportunity ? [opportunity] : [],
                   audit: { reason: 'Optional review', sourceRefs: [] },
                   openingContext: snapshot.openingContextAuthority
                     ? {
@@ -799,7 +800,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
       assert.equal(current.deliberationWindow!.version, 2);
       assert.deepEqual(current.deliberationWindow!.nodeKeys, initial.deliberationWindow!.nodeKeys);
       const format = directorResponseFormat(current);
-      assert.equal(format.format === 'json_schema' && format.name, 'director_response_v16');
+      assert.equal(format.format === 'json_schema' && format.name, 'director_response_v17');
       const before = calls;
       const advance = npcAgentAdvanceServices(
         app,
@@ -808,10 +809,10 @@ test('director frame lifecycle uses real publication, personal plan and protecte
             calls++;
             assert.equal(
               responseFormat?.format === 'json_schema' && responseFormat.name,
-              'director_response_v16',
+              'director_response_v17',
             );
             return JSON.stringify({
-              protocol: 'director-wire-v16',
+              protocol: 'director-wire-v17',
               candidates: [],
               opportunities: [],
               audit: {
@@ -846,6 +847,62 @@ test('director frame lifecycle uses real publication, personal plan and protecte
           )
         ).rows[0],
         failed,
+      );
+      await t.test(
+        'the next global review can commit a grounded alternative without consuming author stock',
+        async () => {
+          offset += 6 * 60 * 1000;
+          const next = await snap(f),
+            catalog = directorWireCatalog(next);
+          assert.equal(next.deliberationWindow!.version, 2);
+          assert.ok(catalog.events.length >= 2);
+          const opportunity = {
+            id: 'grounded-alternative',
+            title: 'A personal conversation about the existing shop',
+            description:
+              'A future optional conversation, no action or player agreement has occurred.',
+            playerImpact: 'A free choice to respond',
+            places: [],
+            activity: 'conversation',
+            origin: { kind: 'emergent', sourceRefs: [catalog.sources[0]!.ref] },
+            actorTasks: Object.fromEntries(
+              catalog.actors.map((a, i) => [
+                a.ref,
+                i === 0
+                  ? {
+                      topic: 'Existing shop routine',
+                      personalObjective: 'Share a personal idea',
+                      proposedInteraction: 'Offer a conversation that can be declined',
+                    }
+                  : null,
+              ]),
+            ),
+          };
+          const input = claim(next),
+            before = calls;
+          const decision = await send(next, false, input, opportunity);
+          await send(next, false, input, opportunity);
+          assert.equal(calls, before + 1);
+          assert.equal(decision.opportunities.length, 1);
+          assert.equal(decision.opportunities[0]!.authoredEventKey, undefined);
+          assert.equal(
+            decision.authoredAssessments!.filter((a) => a.decision === 'consider').length,
+            0,
+          );
+          const episode = (
+            await admin.query(
+              'SELECT document FROM parallel_life.shared_episodes WHERE world_id=$1 AND id=$2',
+              [f.id, decision.opportunities[0]!.id],
+            )
+          ).rows[0].document;
+          assert.equal(episode.status, 'proposed');
+          assert.deepEqual(episode.sourceEventIds, [], 'an opportunity is not an executed event');
+          assert.equal(
+            (await worlds.get({ userId: f.owner }, f.id)).messages.length,
+            0,
+            'Director never writes final NPC dialogue',
+          );
+        },
       );
     },
   );

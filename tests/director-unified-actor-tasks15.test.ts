@@ -461,7 +461,7 @@ test('periodic v2 offers three author choices but still executes at most two aut
     node.$ref ? schema.$defs[node.$ref.split('/').at(-1)] : node;
   assert.equal(schema.properties.authoredChoices, undefined);
   assert.equal(schema.properties.opportunities.maxItems, 2);
-  assert.deepEqual(schema.properties.protocol.enum, ['director-wire-v16']);
+  assert.deepEqual(schema.properties.protocol.enum, ['director-wire-v17']);
   const opportunity = schema.properties.opportunities.items.anyOf.find((branch: any) =>
     branch.properties.origin.properties.eventRef?.enum?.includes(keys[0]),
   );
@@ -593,5 +593,73 @@ test('global selection shares nullable provider normalization before strict pars
       { ...raw, candidates: [{ ...raw.candidates[0], nudge: 'invented' }] },
       f.a,
     ),
+  );
+});
+
+test('global catalogue visibility does not reserve unselected slots or forbid grounded alternatives', () => {
+  const f = current(3);
+  f.s.evaluationCause = {
+    ...f.s.evaluationCause!,
+    kind: 'periodic_review',
+  } as DirectorSnapshot['evaluationCause'];
+  f.s.deliberationWindow = {
+    version: 2,
+    nodeKeys: (f.s.evaluationCause as any).qualifications.map((q: any) => q.nodeKey),
+  };
+  const { actorTopics: _legacy, ...opportunity } = f.opportunity;
+  const raw = {
+    protocol: 'director-wire-v17',
+    candidates: [],
+    opportunities: [opportunity],
+    audit: {
+      reason:
+        'An independent present-life opportunity from an actual known source; no author prerequisite is claimed fulfilled',
+      sourceRefs: opportunity.origin.sourceRefs,
+    },
+  };
+  assert.equal(parseDirectorDecision(f.s, raw, f.a).opportunities.length, 1);
+  const format = directorResponseFormat(f.s) as any;
+  assert.ok(
+    format.schema.properties.opportunities.items.anyOf.some((branch: any) =>
+      branch.properties.origin.properties.kind.enum.includes('emergent'),
+    ),
+  );
+  assert.throws(
+    () =>
+      parseDirectorDecision(
+        f.s,
+        {
+          ...raw,
+          opportunities: [
+            opportunity,
+            { ...opportunity, id: 'second' },
+            { ...opportunity, id: 'third' },
+          ],
+        },
+        f.a,
+      ),
+    'one global total limit still applies',
+  );
+  assert.throws(
+    () => parseDirectorDecision(f.s, { ...raw, protocol: 'director-wire-v16' }, f.a),
+    'stored v16 reserved-author authority is not expanded',
+  );
+  assert.throws(
+    () => parseDirectorDecision(f.s, { ...f.wire, opportunities: [f.opportunity] }, f.a),
+    'saved v15 reservation authority is not expanded',
+  );
+  assert.throws(
+    () =>
+      parseDirectorDecision(
+        f.s,
+        {
+          ...raw,
+          opportunities: [
+            { ...opportunity, origin: { kind: 'emergent', sourceRefs: ['event:1'] } },
+          ],
+        },
+        f.a,
+      ),
+    'author manuscript is not proof for an emergent event',
   );
 });

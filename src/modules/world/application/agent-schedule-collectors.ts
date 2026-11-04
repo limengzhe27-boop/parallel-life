@@ -925,7 +925,7 @@ async function observations(view: SchedulingView, context: ActorContext) {
           episodeIds: [followup.episodeId],
           semantic: { acceptedEpisodeWithoutNextStep: followup.requestId },
           reason: '本人已选择参与的事项尚未登记后续安排，需要考虑自己的下一步。',
-          wakeCue: `继续你已选择参与的${followup.requestId}，原任务见来源${sourceId}。不是再次询问是否参与。请从本人现在能做的一步考虑如何承接：形成自己的安排、表达想法、调整参与方式或提出可拒绝的选择。需要持续跟进时记录计划；只有确实依赖玩家答复的步骤才继续等待。不复述旧问题，不替玩家答应，不把原稿结果当事实。`,
+          wakeCue: `继续你已选择参与的事项，完整原任务见currentOpportunity。不是再次询问是否参与。请从本人现在能做的一步考虑如何承接：形成自己的安排、表达想法、调整参与方式或提出可拒绝的选择。需要持续跟进时记录计划；只有确实依赖玩家答复的步骤才继续等待。不复述旧问题，不替玩家答应，不把原稿结果当事实。`,
         }),
       );
     }

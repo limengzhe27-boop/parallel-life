@@ -3659,3 +3659,5 @@ DIRECTOR-DELIBERATION-50主动来源去重：root接管own-agenda-review-authori
 DIRECTOR-DELIBERATION-50本地收口：删除普通localInitiative收集及无消费者domain文件/旧机制专属测试；现有自主复盘维护普通联系，保留episode/条件/观察/约定/结果。修个人grantId被当共享资源、单人物已选中后重复送导演到期审批；模拟原全局复盘到期的真实PG8/8，双NPC计划写入且无额外导演调用；forceDirectorReview/受保护付费帧仍保留。own-agenda-window05修正v2 grant与base family混淆，8/8；default travel真实PG9/9，0126仅本地clone应用且原档v958内容/位置hash不变。check4247、build通过；3218最终artifact build-director50-global、队列和主动进程已重启。原档真实持续演绎/计划质量和通知目视未通过，50整体仍进行中，不将上述门禁当完整交付。
 
 DIRECTOR-DELIBERATION-50 v96接续：systemFor不再以compact状态是否为空决定是否提供既有wake规划职责；compact schema不扩大，63模型测试/check4248/build通过；3218切build-director50-global，队列与主动进程共享v96。原档欣欣受保护快照离线v95/v96都已有规划说明，因此本项不能被宣称原档无计划的全部原因；原档此前六人plans/goals仍0，持续剧情质量未通过，整体继续进行中。已提交核心e1df47b9；无Vercel/3219，无手动补消息/移动/重置历史。
+
+DIRECTOR-DELIBERATION-50 v97/v17接续：原档c1b306f7任务483字符仍在私有internalContext，但currentOpportunity未绑定，wakeCue长ID与短ref目录不一致；复用现有pointer对本人已engage的精确wake和唯一未接续任务的正常复盘绑定，玩家伪造JSON/quiet不获此指向，不重评参与、不新建任务/许可。修全库库存数量错误预占名额，v17合计2内允许合法非作者来源的独立小机会；旧v15/v16保持原规则。actor task/source仍共享同一转换、原内核与持久链。check4250、导演真实PG10通过，原档新计划/持续剧情仍待实际验收，50仍进行中。

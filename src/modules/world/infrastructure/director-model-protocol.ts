@@ -8,7 +8,8 @@ import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
 export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v15';
-export const DIRECTOR_SELECTION_WIRE_PROTOCOL = 'director-wire-v16';
+export const DIRECTOR_SELECTION_WIRE_PROTOCOL = 'director-wire-v17';
+const PREVIOUS_SELECTION_PROTOCOL = 'director-wire-v16';
 const PREVIOUS_OWNER_PROTOCOL = 'director-wire-v14';
 export const DIRECTOR_OPPORTUNITY_LIMIT = 2;
 const PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL = 'director-wire-v13';
@@ -280,7 +281,7 @@ const CurrentWire = PreviousOwnerWire.extend({
 
 /** A global library is a choice set, not a demand to fill one verdict per node. */
 const SelectionWire = CurrentWire.omit({ authoredChoices: true, opportunities: true }).extend({
-  protocol: z.literal(DIRECTOR_SELECTION_WIRE_PROTOCOL),
+  protocol: z.enum([DIRECTOR_SELECTION_WIRE_PROTOCOL, PREVIOUS_SELECTION_PROTOCOL]),
   opportunities: z
     .array(
       z.union([
@@ -538,8 +539,16 @@ export function directorDecisionSourceIds(snapshot: DirectorSnapshot): string[] 
 }
 
 /** Reserve the finite authored window before offering optional emergent slots. */
-export function directorEmergentOpportunityBudget(snapshot: DirectorSnapshot): number {
+/** Current global visibility is not a reservation; stored transports retain their paid policy. */
+export function directorEmergentOpportunityBudget(
+  snapshot: DirectorSnapshot,
+  protocol: string = snapshot.deliberationWindow?.version === 2
+    ? DIRECTOR_SELECTION_WIRE_PROTOCOL
+    : DIRECTOR_WIRE_PROTOCOL,
+): number {
   if (snapshot.nativeTurn || bootstrapOpeningEventRefs(snapshot).length) return 0;
+  if (protocol === DIRECTOR_SELECTION_WIRE_PROTOCOL && snapshot.deliberationWindow?.version === 2)
+    return DIRECTOR_OPPORTUNITY_LIMIT;
   return Math.max(0, DIRECTOR_OPPORTUNITY_LIMIT - directorWireCatalog(snapshot).events.length);
 }
 
@@ -556,6 +565,68 @@ export function bootstrapOpeningEventRefs(snapshot: DirectorSnapshot): string[] 
     .map((e) => e.ref);
 }
 
+/** Both current transports share actor/source binding; historical reservation rules stay immutable. */
+function decodeCurrentDirectorWire(
+  snapshot: DirectorSnapshot,
+  normalized: Record<string, unknown>,
+  emergentLimit: number,
+): unknown {
+  // In the global author view only the event's own cast slots are requested.
+  // Bind mechanically absent nonparticipants to null; never infer a task or
+  // fill a missing participant slot. Old full maps still decode unchanged.
+  if (snapshot.deliberationWindow?.version === 2) {
+    const catalog = directorWireCatalog(snapshot);
+    const choices = normalized.authoredChoices;
+    if (choices && typeof choices === 'object' && !Array.isArray(choices))
+      for (const [ref, rawChoice] of Object.entries(choices)) {
+        const choice = rawChoice as {
+          kind?: string;
+          opportunity?: { actorTasks?: Record<string, unknown> };
+        };
+        if (choice?.kind !== 'consider' || !choice.opportunity?.actorTasks) continue;
+        const event = catalog.events.find((event) => event.ref === ref);
+        const material = snapshot.authoredMaterials?.materials.find(
+          (m) => m.ref.nodeKey === event?.authoredEventKey,
+        );
+        const allowed = new Set(
+          material ? authoredOpportunityActorIds(material, snapshot.boundary.actorIds) : [],
+        );
+        for (const actor of catalog.actors) {
+          if (allowed.has(actor.actorId)) {
+            if (!Object.hasOwn(choice.opportunity.actorTasks, actor.ref))
+              throw Error('DIRECTOR_ACTOR_TASK_PARTITION');
+          } else if (!Object.hasOwn(choice.opportunity.actorTasks, actor.ref)) {
+            choice.opportunity.actorTasks[actor.ref] = null;
+          }
+        }
+      }
+  }
+  const current = CurrentWire.parse(
+    !snapshot.openingContextAuthority && !Object.hasOwn(normalized, 'openingContext')
+      ? { ...normalized, openingContext: null }
+      : normalized,
+  );
+  if (current.opportunities.length > emergentLimit)
+    throw Error('DIRECTOR_EMERGENT_BUDGET_EXCEEDED');
+  const actorRefs = directorWireCatalog(snapshot).actors.map((a) => a.ref);
+  return decodeDirectorWire(snapshot, {
+    ...current,
+    protocol: PREVIOUS_OWNER_PROTOCOL,
+    opportunities: current.opportunities.map(({ actorTasks, ...opportunity }) => {
+      const selected = selectedActorTaskRefs(actorTasks, actorRefs);
+      return {
+        ...opportunity,
+        actors: selected,
+        stagingIntents: selected.map((actorRef) => ({
+          actorRef,
+          kind: 'future_task',
+          task: compiledActorInteraction(actorTasks[actorRef]!),
+        })),
+      };
+    }),
+  });
+}
+
 /** Decode transport only: no inferred selections, new authority or model retry. Canonical validation follows. */
 export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object' || !('protocol' in raw)) return raw; // Stored pre-wire completions.
@@ -567,7 +638,14 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     for (const choice of normalized.candidates) {
       if (choice && choice.nudge === null) delete choice.nudge;
     }
-  if (normalized.protocol === DIRECTOR_SELECTION_WIRE_PROTOCOL) {
+  if (
+    [DIRECTOR_SELECTION_WIRE_PROTOCOL, PREVIOUS_SELECTION_PROTOCOL].includes(
+      String(normalized.protocol),
+    )
+  ) {
+    const flexibleSelection = normalized.protocol === DIRECTOR_SELECTION_WIRE_PROTOCOL;
+    if (flexibleSelection && snapshot.deliberationWindow?.version !== 2)
+      throw Error('DIRECTOR_SELECTION_SCOPE');
     const chosen = SelectionWire.parse(
       !snapshot.openingContextAuthority && !Object.hasOwn(normalized, 'openingContext')
         ? { ...normalized, openingContext: null }
@@ -596,12 +674,16 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
       selected.add(origin.eventRef);
       choices[origin.eventRef] = { kind: 'consider', opportunity: entry };
     }
-    return decodeDirectorWire(snapshot, {
-      ...chosen,
-      protocol: DIRECTOR_WIRE_PROTOCOL,
-      authoredChoices: choices,
-      opportunities: emergent,
-    });
+    return decodeCurrentDirectorWire(
+      snapshot,
+      {
+        ...chosen,
+        protocol: DIRECTOR_WIRE_PROTOCOL,
+        authoredChoices: choices,
+        opportunities: emergent,
+      },
+      directorEmergentOpportunityBudget(snapshot, chosen.protocol),
+    );
   }
 
   if (Array.isArray(normalized.opportunities))
@@ -635,62 +717,12 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
           delete choice.opportunity.actorTopics;
       }
   }
-  if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
-    // In the global author view only the event's own cast slots are requested.
-    // Bind mechanically absent nonparticipants to null; never infer a task or
-    // fill a missing participant slot. Old full maps still decode unchanged.
-    if (snapshot.deliberationWindow?.version === 2) {
-      const catalog = directorWireCatalog(snapshot);
-      const choices = normalized.authoredChoices;
-      if (choices && typeof choices === 'object' && !Array.isArray(choices))
-        for (const [ref, rawChoice] of Object.entries(choices)) {
-          const choice = rawChoice as {
-            kind?: string;
-            opportunity?: { actorTasks?: Record<string, unknown> };
-          };
-          if (choice?.kind !== 'consider' || !choice.opportunity?.actorTasks) continue;
-          const event = catalog.events.find((event) => event.ref === ref);
-          const material = snapshot.authoredMaterials?.materials.find(
-            (m) => m.ref.nodeKey === event?.authoredEventKey,
-          );
-          const allowed = new Set(
-            material ? authoredOpportunityActorIds(material, snapshot.boundary.actorIds) : [],
-          );
-          for (const actor of catalog.actors) {
-            if (allowed.has(actor.actorId)) {
-              if (!Object.hasOwn(choice.opportunity.actorTasks, actor.ref))
-                throw Error('DIRECTOR_ACTOR_TASK_PARTITION');
-            } else if (!Object.hasOwn(choice.opportunity.actorTasks, actor.ref)) {
-              choice.opportunity.actorTasks[actor.ref] = null;
-            }
-          }
-        }
-    }
-    const current = CurrentWire.parse(
-      !snapshot.openingContextAuthority && !Object.hasOwn(normalized, 'openingContext')
-        ? { ...normalized, openingContext: null }
-        : normalized,
+  if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL)
+    return decodeCurrentDirectorWire(
+      snapshot,
+      normalized,
+      directorEmergentOpportunityBudget(snapshot, DIRECTOR_WIRE_PROTOCOL),
     );
-    if (current.opportunities.length > directorEmergentOpportunityBudget(snapshot))
-      throw Error('DIRECTOR_EMERGENT_BUDGET_EXCEEDED');
-    const actorRefs = directorWireCatalog(snapshot).actors.map((a) => a.ref);
-    return decodeDirectorWire(snapshot, {
-      ...current,
-      protocol: PREVIOUS_OWNER_PROTOCOL,
-      opportunities: current.opportunities.map(({ actorTasks, ...opportunity }) => {
-        const selected = selectedActorTaskRefs(actorTasks, actorRefs);
-        return {
-          ...opportunity,
-          actors: selected,
-          stagingIntents: selected.map((actorRef) => ({
-            actorRef,
-            kind: 'future_task',
-            task: compiledActorInteraction(actorTasks[actorRef]!),
-          })),
-        };
-      }),
-    });
-  }
   if (normalized.protocol === PREVIOUS_OWNER_PROTOCOL) {
     const wire = PreviousOwnerWire.parse(normalized),
       { openingContext, ...rest } = wire,
@@ -1500,10 +1532,12 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       );
     }
     if (
-      directorEmergentOpportunityBudget(snapshot) > 0 &&
-      (properties.opportunities!.maxItems as number) > 0
+      catalog.sources.length &&
+      catalog.actors.length &&
+      !snapshot.nativeTurn &&
+      !bootstrapOpeningEventRefs(snapshot).length
     )
-      selections.push(properties.opportunities!.items as Schema);
+      selections.push(object(emergentProperties));
     delete properties.authoredChoices;
     properties.protocol = { type: 'string', enum: [DIRECTOR_SELECTION_WIRE_PROTOCOL] };
     properties.opportunities = {
@@ -1539,7 +1573,7 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     });
   return {
     format: 'json_schema',
-    name: globalSelection ? 'director_response_v16' : 'director_response_v15',
+    name: globalSelection ? 'director_response_v17' : 'director_response_v15',
     strict: true,
     schema,
   };

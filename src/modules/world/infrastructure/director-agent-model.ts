@@ -47,7 +47,7 @@ import { authoredSourceExcerpt } from '../domain/authored-source-excerpt.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
-export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v45-bounded-selection';
+export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v46-global-opportunity-budget';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
 const Output = z.strictObject({
@@ -194,6 +194,7 @@ export function parseDirectorDecision(
       'director-wire-v13',
       'director-wire-v14',
       DIRECTOR_WIRE_PROTOCOL,
+      'director-wire-v16',
       DIRECTOR_SELECTION_WIRE_PROTOCOL,
     ].includes(String(raw.protocol));
   if (raw && typeof raw === 'object' && 'authoredAssessments' in raw) invalid();
@@ -366,9 +367,10 @@ const DIRECTED_OUTPUT = `
 - 作者和即兴合计最多2个机会。同次最多选择2个作者机会，不要求每个节点都演；周期全库视野用于选择此刻能发起的入口，后段缺条件可暂缓，不必逐对付费轮询。原开场和有限语义唤醒预留作者槽；周期不创建无关即兴绕过已有作者内容。nativeTurn不产生机会/nudge。
 - audit={reason:"本轮实际判断",sourceRefs:[]}，来源仅选wireCatalog.sources/events，确无来源可[]。保持安静时所有候选defer、每个作者键defer并说明具体依据、顶层opportunities=[]。不为格式占位编造理由、事实或结局。`;
 const GLOBAL_OUTPUT = `
-输出一个json_schema对象，protocol严格用输入的director-wire-v16。顶层仅protocol、candidates、opportunities、audit；有openingInformationCatalog时另有openingContext，其归属规则仍适用。
+输出一个json_schema对象，protocol严格用输入的director-wire-v17。顶层仅protocol、candidates、opportunities、audit；有openingInformationCatalog时另有openingContext，其归属规则仍适用。
 - opportunities只有一个数组，作者和即兴合计最多2项；可为空。只选择当前能发起的入口，原稿后段条件未实现时不安排其结果，不要求把所有可见节点都选上。作者项是{title,description,playerImpact,places,activity,actorTasks,origin:{kind:"authored",eventRef:本轮合法event引用}}，不输出id。人物任务只填schema列出的本事件人物；本人决定可拒绝，不能安排玩家已经同意/到场，不能把后段步骤当现状。
 - 合法即兴项沿用id及origin:{kind:"emergent",sourceRefs:[合法非作者来源]}，只能使用schema允许的槽位，不能绕过原稿前提。
+- 先考虑已有作者入口；可见库存不占用本轮执行名额。原稿此刻需要等待时，可从已有关系、选择或实际结果提出独立的小机会；不能把未满足的原稿改名当成即兴已经发生，不制造无依据危机。
 - 不输出authoredChoices、events、mode或对未选节点逐项defer。未选择保持未演，不表示前提失败、人物拒绝或事件结束。
 - candidates逐项只处理已有candidate ref，select可带原nudge枚举，defer说明具体理由；没有candidate时用[]，不因此停用作者事件库。
 - audit={reason:本轮实际协调判断,sourceRefs:[已有来源引用]}。解释此刻为什么选择这些入口、人物的最新反馈怎样影响安排，或为何所有入口都不合适。保持安静必须依据实际状态，不从原稿推定某个请求已经发出。`;
