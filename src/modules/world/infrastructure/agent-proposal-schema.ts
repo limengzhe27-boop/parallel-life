@@ -37,6 +37,7 @@ export const ActorContinuationSchema = z.strictObject({
   conditions: z.array(Condition).max(16).default([]),
 });
 export const AgentProposalSchema = z.strictObject({
+  replyChannel: z.enum(['private', 'scene']).optional(),
   continuation: ActorContinuationSchema.optional(),
   episodeDecision: z
     .strictObject({
@@ -86,6 +87,7 @@ export const AgentProposalSchema = z.strictObject({
     .array(
       z.strictObject({
         text: StatementText,
+        kind: z.enum(['speech', 'narration']).optional(),
         stickerId: StickerIdSchema.optional(),
         dependsOnActionIds: z.array(Id).max(16).default([]),
         requestsPlayerReply: z.boolean().optional(),

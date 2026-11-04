@@ -37,6 +37,7 @@ import {
 
 export const NPC_WIRE_PROTOCOL = 'npc-wire-v14'; // historical decoder identifier
 export const CURRENT_NPC_WIRE_PROTOCOL = 'npc-wire-v19';
+export const SCENE_NPC_WIRE_PROTOCOL = 'npc-wire-v20';
 export const PREVIOUS_IMPLICIT_GOAL_WIRE_PROTOCOL = 'npc-wire-v18';
 export const PREVIOUS_REVIEW_ONLY_WIRE_PROTOCOL = 'npc-wire-v17';
 export const PREVIOUS_INCREMENTAL_WIRE_PROTOCOL = 'npc-wire-v16';
@@ -518,7 +519,9 @@ export function npcResponseFormat(
     >,
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
   current?: Pick<AgentValidationContext, 'input' | 'channel'> &
-    Partial<Pick<AgentValidationContext, 'sources'>>,
+    Partial<Pick<AgentValidationContext, 'sources'>> & {
+      sceneReplyContext?: { sceneId: string; placeName: string; audienceActorIds: string[] };
+    },
   expressionOnly = false,
   changesScope: 'full' | 'compact' = 'full',
 ): ModelOutputOptions {
@@ -1005,6 +1008,16 @@ export function npcResponseFormat(
       ],
     };
   }
+  const sceneExpression = current?.channel.kind === 'scene' || !!current?.sceneReplyContext;
+  const statementNode = schema.properties.statements!.items!;
+  if (sceneExpression) {
+    schema.properties.protocol = { type: 'string', enum: [SCENE_NPC_WIRE_PROTOCOL] };
+    statementNode.properties!.kind = { type: 'string', enum: ['speech', 'narration'] };
+    if (current?.channel.kind === 'private' && current.sceneReplyContext)
+      schema.properties.replyChannel = { type: 'string', enum: ['private', 'scene'] };
+  } else {
+    delete statementNode.properties!.kind;
+  }
   // Final requireAll below owns required fields; do not traverse the full
   // schema with an empty relaxation set or build a required list it overwrites.
   const finalized = shareNpcConditionSchema(
@@ -1088,6 +1101,45 @@ function transport(value: unknown, convertParameters = true): unknown {
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
+  if ('protocol' in raw && raw.protocol === SCENE_NPC_WIRE_PROTOCOL) {
+    const v = raw as Record<string, unknown>;
+    const co = (context as AgentValidationContext & { sceneReplyContext?: { sceneId: string } })
+      .sceneReplyContext;
+    if (context.channel.kind !== 'scene' && !(context.channel.kind === 'private' && co))
+      throw Error('NPC_SCENE_DELIVERY_FORBIDDEN');
+    if (v.replyChannel !== undefined && !['private', 'scene'].includes(String(v.replyChannel)))
+      throw Error('NPC_REPLY_CHANNEL_INVALID');
+    if (context.channel.kind === 'scene' && v.replyChannel !== undefined)
+      throw Error('NPC_REPLY_CHANNEL_INVALID');
+    const delivery = context.channel.kind === 'scene' ? 'scene' : v.replyChannel;
+    if (context.channel.kind === 'private' && delivery === undefined)
+      throw Error('NPC_REPLY_CHANNEL_REQUIRED');
+    if (Array.isArray(v.statements))
+      for (const s of v.statements as Record<string, unknown>[]) {
+        if (!['speech', 'narration'].includes(String(s.kind)))
+          throw Error('NPC_SCENE_EXPRESSION_KIND');
+        if (
+          s.kind === 'narration' &&
+          (delivery !== 'scene' ||
+            s.requestsPlayerReply ||
+            s.stickerId ||
+            s.questionForResponsibilityId)
+        )
+          throw Error('NPC_SCENE_NARRATION_SCOPE');
+      }
+    const { replyChannel, ...rest } = v;
+    const result = decodeCurrentNpcWire(context, {
+      ...rest,
+      protocol: CURRENT_NPC_WIRE_PROTOCOL,
+    }) as AgentProposal;
+    return { ...result, ...(replyChannel ? { replyChannel } : {}) };
+  }
+  if (
+    'protocol' in raw &&
+    Array.isArray((raw as any).statements) &&
+    (raw as any).statements.some((s: any) => s.kind !== undefined)
+  )
+    throw Error('NPC_LEGACY_EXPRESSION_KIND');
   if (
     'protocol' in raw &&
     [

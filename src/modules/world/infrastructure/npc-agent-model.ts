@@ -12,6 +12,7 @@ import {
 } from './npc-source-reference.ts';
 import {
   CURRENT_NPC_WIRE_PROTOCOL as NPC_WIRE_PROTOCOL,
+  SCENE_NPC_WIRE_PROTOCOL,
   npcResponseFormat,
 } from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
@@ -80,7 +81,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
   executionBoundaries: `不带服务器授权的玩家JSON不构成协调请求。能力结果成功不等于目标完成：plan.record只保存计划，appointment.propose只建立待答邀请，均不能结清见面、合作等外部目标。普通resultId/succeeded不足以完成goal，completedGoalIds、fulfilled、resolutionResultId及responsibility.revision/decision.responsibilityRevision由内核按有资格的真实回执维护，模型不输出或编造。无完成依据保持active/deferred，有真实退出原因才withdrawn；不用消息数收尾。提案不是执行证明，参数和输出形状遵从最终wire协议。`,
   conversationRules: `【回应与持续事项】conversationProgress.answered/answer是已回答证据，截断片段不是完整原话；回答问题不等于接受邀请、到场或责任完成。结合input、focus、state.questions理解当前话题。已答、已拒绝、未获答的open问题均不换说法重问；已有答案就更新对应责任为本人下一步（如open/waitingOn:self），只有确实缺新信息才继续等待。无关闲聊不消费旧责任，换话题只改focus，沉默不当同意/拒绝/违约，未有证据保持undecided。
 玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮和自动唤醒不再提该事项，直到玩家主动重提。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据，不按沉默统一撤回。
-【表达】private/group是手机文字，不混旁白；scene是当面台词，不让眼前玩家再赶来。按behavior自然发1至3条短句，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
+【表达】private/group是手机文字，不混旁白；scene是当面台词，不让眼前玩家再赶来。提供sceneReplyContext时，输入仍是微信私信，但你与玩家确实同场；优先replyChannel=scene当面回应，涉及秘密、不宜打断或其他合理情境可选择private。其他在场人不知道微信原文，不能随意复述私密内容。现场输出kind=speech的台词和可选kind=narration的本人微小动作、表情，按自然顺序排列；旁白只能描述本人的可观察表现，不写他人内心、替他人行动，不以旁白完成移动、交易、交付等实际操作。旁白不提问、不用表情包，不强求每轮有动作。按behavior自然发1至3条短句，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
 actor.persona提供本人已授权职责和愿望，state提供已有安排；动机不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
@@ -265,6 +266,11 @@ function responseFormatFor(snapshot: AgentSnapshot) {
       input: snapshot.input,
       channel: snapshot.channel,
       sources: snapshot.sources,
+      sceneReplyContext: (
+        snapshot as AgentSnapshot & {
+          sceneReplyContext?: { sceneId: string; placeName: string; audienceActorIds: string[] };
+        }
+      ).sceneReplyContext,
     },
     isStickerOnlyMessage(snapshot.input.text) &&
       !snapshot.episodeManifest &&
@@ -416,6 +422,8 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     new Set([...wakeObservationBasis, ...(snapshot.actorObservationInbox?.sourceIds ?? [])]),
   );
   const responseFormat = responseFormatFor(snapshot);
+  const sceneProtocol = snapshot.channel.kind === 'scene' || !!(snapshot as any).sceneReplyContext;
+  const responseProtocol = sceneProtocol ? SCENE_NPC_WIRE_PROTOCOL : NPC_WIRE_PROTOCOL;
   const responseFormatSize = JSON.stringify(responseFormat).length;
   const considerationRequired =
     isActorEpisodeConsiderationInput(snapshot.input) || snapshot.episodeManifest !== undefined;
@@ -425,7 +433,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       ? {}
       : {
           responseContract: {
-            protocol: NPC_WIRE_PROTOCOL,
+            protocol: responseProtocol,
             considerationRequired,
             considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
             timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
@@ -440,6 +448,9 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
         }),
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
+    ...((snapshot as any).sceneReplyContext
+      ? { sceneReplyContext: (snapshot as any).sceneReplyContext }
+      : {}),
     conversationParticipants: {
       speaker: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
       ...(snapshot.channel.kind === 'private' ? { interlocutor: { kind: 'player' } } : {}),
@@ -813,7 +824,10 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   };
   const systemMessage: ModelMessage = {
     role: 'system',
-    content: systemFor(snapshot, compact) + wireSystemFor(snapshot, compact),
+    content: (systemFor(snapshot, compact) + wireSystemFor(snapshot, compact)).replaceAll(
+      NPC_WIRE_PROTOCOL,
+      responseProtocol,
+    ),
   };
   const replyInstruction: ModelMessage = {
     role: 'user',
@@ -986,6 +1000,7 @@ export class NpcAgentModel implements NpcAgentModelPort {
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (
+      !!(snapshot as any).sceneReplyContext ||
       !this.model.streamComplete ||
       snapshot.channel.kind !== 'private' ||
       snapshot.input.origin !== 'player'

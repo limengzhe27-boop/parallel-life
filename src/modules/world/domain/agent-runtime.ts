@@ -155,6 +155,7 @@ export type ActorAgentState = AgentIdentity & {
   focus: AgentConversationFocus | null;
 };
 export type AgentStatement = {
+  kind?: 'speech' | 'narration';
   /** Empty is valid only when stickerId carries the expression. */
   text: string;
   /** A semantic image sticker chosen for this moment, never a per-character fixed preference. */
@@ -168,6 +169,7 @@ export type AgentStatement = {
 };
 /** Proposed deltas, not trusted state. Existing decisions/history are appended, not overwritten. */
 export type AgentProposal = {
+  replyChannel?: 'private' | 'scene';
   continuation?: import('./actor-continuation.ts').ActorContinuationProposal;
   /** This NPC's own response to a real consideration request, never the director's verdict. */
   episodeDecision?: import('./agent-narrative.ts').EpisodeParticipationDecision;
