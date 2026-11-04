@@ -10,7 +10,7 @@ import type { AgentSnapshot } from '../../src/modules/world/application/agent-ru
 import { readNativeAgentSnapshot } from '../../src/modules/world/infrastructure/agent-channel-snapshot.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
@@ -24,6 +24,7 @@ import {
 } from '../../src/modules/world/infrastructure/scene-repository.ts';
 import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
 import {
+  acceptAgentInputInTransaction,
   initializeActorAgentStateInTransaction,
   switchAgentEngineEpochInTransaction,
 } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
@@ -221,6 +222,37 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
     expectedVersion: world.version,
     text: '微信私密测试：你在忙什么？',
   };
+  const delayedCommand = { ...command, id: randomUUID(), text: '这条已接收的微信还没有调用模型' };
+  const delayedReceipt = {
+    id: randomUUID(),
+    worldId: f.worldId,
+    commandId: delayedCommand.id,
+    channel: 'private' as const,
+    threadId: f.a,
+    recipientActorId: f.a,
+    expectedWorldVersion: world.version,
+    origin: 'player' as const,
+    text: delayedCommand.text,
+    receivedAt: new Date().toISOString(),
+    storyAt: world.time,
+    inputHash: createHash('sha256')
+      .update(
+        JSON.stringify([f.worldId, world.version, f.a, delayedCommand.text, 'private', 'player']),
+      )
+      .digest('hex'),
+  };
+  await db.transaction(f.owner, (sql) =>
+    acceptAgentInputInTransaction(sql, f.owner, delayedReceipt),
+  );
+  assert.equal(
+    (
+      await admin.query(
+        'SELECT count(*)::int AS n FROM parallel_life.agent_attempts WHERE world_id=$1 AND command_id=$2',
+        [f.worldId, delayedCommand.id],
+      )
+    ).rows[0].n,
+    0,
+  );
   const result = await api.sendMessageIfEnabled(f.owner, command);
   assert.equal(result?.status, 'committed');
   const after = await worlds.get({ userId: f.owner }, f.worldId);
@@ -273,6 +305,27 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
     basis.some((s) => s.id === 'scene:' + speechEntry.id),
     'own private-to-scene speech remains a usable strategy source',
   );
+  const beforeDelayed = await worlds.get({ userId: f.owner }, f.worldId);
+  assert.ok(beforeDelayed.version > delayedReceipt.expectedWorldVersion);
+  assert.equal((await api.sendMessageIfEnabled(f.owner, delayedCommand))?.status, 'committed');
+  const delayedAttempt = (
+    await admin.query(
+      'SELECT expected_world_version,response FROM parallel_life.agent_attempts WHERE world_id=$1 AND command_id=$2',
+      [f.worldId, delayedCommand.id],
+    )
+  ).rows[0];
+  assert.equal(delayedAttempt.expected_world_version, beforeDelayed.version);
+  assert.equal(delayedAttempt.response.snapshot.worldVersion, beforeDelayed.version);
+  const savedReceipt = (
+    await admin.query('SELECT document FROM parallel_life.agent_input_receipts WHERE id=$1', [
+      delayedReceipt.id,
+    ])
+  ).rows[0].document;
+  assert.equal(savedReceipt.expectedWorldVersion, delayedReceipt.expectedWorldVersion);
+  assert.equal(savedReceipt.text, delayedCommand.text);
+  const callsAfterDelayed = calls;
+  await api.sendMessageIfEnabled(f.owner, delayedCommand);
+  assert.equal(calls, callsAfterDelayed, 'accepted-only recovery purchases exactly once');
   // First completion consumed the opening; later completions contain historical recall.
   // Reading the following snapshot must not reinterpret that recall as a fresh ACK.
   for (let turn = 0; turn < 2; turn++) {
@@ -286,7 +339,7 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
     });
     assert.equal(next?.status, 'committed');
   }
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   const currentAfterRecall = await worlds.get({ userId: f.owner }, f.worldId);
   const consumptionFrame = {
     worldId: f.worldId,
