@@ -82,3 +82,13 @@ root统一集成；proactive43独立工作树，基线1af2ce12。
 root审查发现首版只计speaker.kind=actor，会遗漏原projector生成的无speaker旁白。已修正同一reader的私聊→现场与原生scene分支：合法本人dialogue，或perspective=observable、无speaker且对玩家及本人可观察的narration；两者都必须与原事件entries/dialogues完整一致并保留来源/所属认证。原生scene同样存在旧计数遗漏，已在同文件修复，没有删完整性保护。
 
 隔离PG55743复验15/15，新增真实kernel speech+narration混合：私聊→现场建立anchor/presentation，原生scene建立presentation但不伪造private anchor。篡改/删除旁白投影仍拒绝，恢复后可读。typecheck 0；0真实模型/原档写。先前14/14范围被本轮15/15替代；整体长期推进仍未验收。集成需包含7ec414b5及本补充提交。
+
+## 45运行后租约只读复核：不是未知请求永久续锁
+
+原档只读操作记录与`.local/scene45/web.log`对照：前台持续POST `/advance/operation`，12:04:59.920创建的operation `190f4979` 在12:05:06.666成功结束，正对应后台busy日志leaseUntil=12:09:29.924；后续约20秒一个不同operation，常见6–9秒完成quiet检查，12:03:24.805一次批次36秒结束。查询时`agent_advance_batch_leases`已为空。
+
+源码`agent-advance-batch-lease.ts`仅领取270秒租约与删除，无续租；`advanceIfEnabled` finally按token释放。因此日志截止时间递增是不同前台批次争得执行机会，后台遇忙退出，没有证据支持“同一个旧unknown不断续期”。`agent_advance_operations.lease_until`是历史操作保留字段，finished_at非空的记录不代表仍持有batch lease。
+
+原director `33bd465c` 已stale_discarded；12:00:55新 `145640ea`已committed。实际新响应opportunities=[]，两个authoredChoices=defer，理由仍为需要玩家回应/接受留宿后再启动。NPC刘胜男v707/v712、李之之v708/v711（含observation）原模型statements=[]、changes=null，内核保存正常；不是消息投递丢失。
+
+后续最小调查范围：先对照director-snapshot-repository的event1/2候选真实前提与该次defer原文，区分整个事件启动条件和后续亲密/责任步骤所需玩家选择；再核own-agenda-review-policy/authority的真实目标计划材料及连续quiet anchor反馈。不改租约期限、不清unknown、不通过反复付费碰非空输出。无修改业务/原档/进程，无新增模型调用；只读日志`.local/proactive43/lease45.mjs`及`latest45.log`保留供root追溯。整体主动推进仍未验收。
