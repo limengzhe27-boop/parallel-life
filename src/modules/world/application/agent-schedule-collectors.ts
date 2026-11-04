@@ -3,10 +3,6 @@ import {
   initialPositionPolicySourceId,
 } from '../domain/agent-initial-position.ts';
 import { actorContinuationBasis } from '../domain/actor-continuation.ts';
-import {
-  localInitiativeContext,
-  localContinuationSettled,
-} from '../domain/local-initiative-context.ts';
 import type { ActorAgendaInitializeGrant } from '../domain/actor-agenda-initialization.ts';
 import { worldDateTimeLabel } from '../domain/display-time.ts';
 import { collectPendingSceneObservationCandidates } from '../domain/actor-observation-candidate.ts';
@@ -51,8 +47,6 @@ export type SchedulingView = {
   planReviews?: ReadonlyMap<string, PlanReviewState>;
   /** Per-actor last assistant time; each actor's local initiative is independent. */
   lastAssistantAtByActor?: Readonly<Record<string, string>>;
-  /** A due Director review owns the round before optional local contact. */
-  suppressLocalInitiative?: boolean;
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -361,7 +355,9 @@ async function candidate(
           : input.source === 'responsibility'
             ? 50
             : input.source === 'actor_local'
-              ? 30
+              ? episodes.length
+                ? 50 // Continuing an accepted event precedes optional unscheduled contact.
+                : 30
               : 40,
     reason: input.reason,
     ...(input.wakeCue ? { wakeCue: input.wakeCue } : {}),
@@ -1052,58 +1048,6 @@ async function observations(view: SchedulingView, context: ActorContext) {
 }
 
 /** A bounded contact opportunity, not a task or a requirement to send a message. */
-async function localInitiative(view: SchedulingView, context: ActorContext, actor: ActorRead) {
-  if (view.suppressLocalInitiative) return [];
-  const snapshot = context.snapshot;
-  if (snapshot.channel.kind !== 'private') return [];
-  const contextInput = {
-    state: snapshot.state,
-    sources: snapshot.sources,
-    observations: snapshot.observations,
-    results: actor.trustedResults,
-    appointments: actor.appointments,
-  };
-  if (snapshot.state.continuation) {
-    const digest = new Uint8Array(
-      await globalThis.crypto.subtle.digest(
-        'SHA-256',
-        new TextEncoder().encode(actorContinuationBasis(snapshot.state)),
-      ),
-    );
-    const basisHash = Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
-    if (localContinuationSettled(contextInput, basisHash)) return [];
-  }
-  const sourceId = `definition:${snapshot.state.definitionRef.replace(/^definition:/, '')}`;
-  if (!context.sources.has(sourceId)) {
-    console.info(
-      JSON.stringify({
-        scope: 'local-initiative-skip',
-        reason: 'definition_missing',
-        actorId: snapshot.state.actorId,
-      }),
-    );
-    return [];
-  }
-  // A quiet receipt consumes this authorized semantic context. Merely advancing
-  // time, writing that quiet state, or another actor committing is not new work.
-  return [
-    await candidate(view, context, {
-      source: 'actor_local',
-      actionId: null,
-      sourceIds: [sourceId],
-      responsibilities: [],
-      semantic: localInitiativeContext({
-        state: snapshot.viewState,
-        sources: snapshot.sources,
-        observations: snapshot.observations,
-        results: actor.trustedResults,
-        appointments: actor.appointments,
-      }),
-      reason:
-        '这是本人一次自主考虑机会。结合人格、关系、记忆、最近对话和当前安排，可以推进计划，也可以关心、分享、表达情绪或延续话题；没有正式任务也可以联系。不要假定玩家空闲，不复述同一请求；可以保持安静，不需要导演批准。',
-    }),
-  ];
-}
 /** Stable family identity shared with entry probes; definition edits are not a new purchase. */
 export async function initialPositionWorkCandidateId(
   worldId: string,
@@ -1218,7 +1162,6 @@ export function createAgentScheduleSources(
         [
           'actor_plan',
           ...(actor.snapshot.worldContext?.initialPlacement ? ['initial_position' as const] : []),
-          'actor_local' as const,
           'responsibility',
           'appointment' as const,
           ...(view.agendaInitializeGrants?.some((g) => g.actorId === actor.snapshot.state.actorId)
@@ -1317,9 +1260,7 @@ export function createAgentScheduleSources(
                       ? responsibilities(view, actor, context)
                       : source === 'appointment'
                         ? appointmentWindows(view, actor, context)
-                        : source === 'actor_local'
-                          ? localInitiative(view, context, actor)
-                          : observations(view, context))
+                        : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };
           },

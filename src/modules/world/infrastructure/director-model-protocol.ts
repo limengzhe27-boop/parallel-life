@@ -8,6 +8,7 @@ import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
 export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v15';
+export const DIRECTOR_SELECTION_WIRE_PROTOCOL = 'director-wire-v16';
 const PREVIOUS_OWNER_PROTOCOL = 'director-wire-v14';
 export const DIRECTOR_OPPORTUNITY_LIMIT = 2;
 const PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL = 'director-wire-v13';
@@ -273,6 +274,22 @@ const CurrentWire = PreviousOwnerWire.extend({
         .extend({
           actorTasks: z.record(Ref, ActorInteraction.nullable()),
         }),
+    )
+    .max(DIRECTOR_OPPORTUNITY_LIMIT),
+});
+
+/** A global library is a choice set, not a demand to fill one verdict per node. */
+const SelectionWire = CurrentWire.omit({ authoredChoices: true, opportunities: true }).extend({
+  protocol: z.literal(DIRECTOR_SELECTION_WIRE_PROTOCOL),
+  opportunities: z
+    .array(
+      z.union([
+        SingleAuthorOpportunity.extend({
+          actorTasks: z.record(Ref, ActorInteraction.nullable()),
+          origin: z.strictObject({ kind: z.literal('authored'), eventRef: Ref }),
+        }),
+        CurrentWire.shape.opportunities.element,
+      ]),
     )
     .max(DIRECTOR_OPPORTUNITY_LIMIT),
 });
@@ -544,10 +561,49 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
   if (!raw || typeof raw !== 'object' || !('protocol' in raw)) return raw; // Stored pre-wire completions.
   // Strict-provider nullable optionals are transport syntax, never a semantic default.
   let normalized = structuredClone(raw) as Record<string, unknown>;
+  // Normalize once before either current transport is parsed. A provider may
+  // emit the schema's nullable optional even when there is no semantic nudge.
   if (Array.isArray(normalized.candidates))
     for (const choice of normalized.candidates) {
       if (choice && choice.nudge === null) delete choice.nudge;
     }
+  if (normalized.protocol === DIRECTOR_SELECTION_WIRE_PROTOCOL) {
+    const chosen = SelectionWire.parse(
+      !snapshot.openingContextAuthority && !Object.hasOwn(normalized, 'openingContext')
+        ? { ...normalized, openingContext: null }
+        : normalized,
+    );
+    const choices: Record<string, unknown> = Object.fromEntries(
+      directorWireCatalog(snapshot).events.map((event) => [
+        event.ref,
+        {
+          kind: 'defer',
+          reason:
+            'Not selected in this bounded review; remains unperformed and eligible, not an NPC refusal or a failed prerequisite.',
+        },
+      ]),
+    );
+    const selected = new Set<string>();
+    const emergent = [];
+    for (const opportunity of chosen.opportunities) {
+      if (opportunity.origin.kind === 'emergent') {
+        emergent.push(opportunity);
+        continue;
+      }
+      const { origin, ...entry } = opportunity;
+      if (!Object.hasOwn(choices, origin.eventRef) || selected.has(origin.eventRef))
+        throw Error('DIRECTOR_AUTHORED_SELECTION_SCOPE');
+      selected.add(origin.eventRef);
+      choices[origin.eventRef] = { kind: 'consider', opportunity: entry };
+    }
+    return decodeDirectorWire(snapshot, {
+      ...chosen,
+      protocol: DIRECTOR_WIRE_PROTOCOL,
+      authoredChoices: choices,
+      opportunities: emergent,
+    });
+  }
+
   if (Array.isArray(normalized.opportunities))
     for (const opportunity of normalized.opportunities) {
       if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
@@ -1415,10 +1471,76 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       ),
     });
   }
+  // Global view: encode the total opportunity budget directly, rather than
+  // asking for many independent consider/defer decisions and rejecting their sum.
+  const globalSelection = snapshot.deliberationWindow?.version === 2;
+  if (globalSelection) {
+    const defs = schema.$defs as Record<string, Schema>;
+    const selections: Schema[] = [];
+    for (const [ref, entry] of Object.entries(choices)) {
+      const choice = defs[String(entry.$ref).split('/').at(-1)!];
+      const consider = (choice?.anyOf as Schema[] | undefined)?.find(
+        (branch) => (branch.properties as any)?.kind?.enum?.[0] === 'consider',
+      );
+      if (!consider) continue;
+      const definition =
+        defs[
+          String((consider.properties as any).opportunity.$ref)
+            .split('/')
+            .at(-1)!
+        ];
+      selections.push(
+        object({
+          ...(definition!.properties as Record<string, Schema>),
+          origin: object({
+            kind: { type: 'string', enum: ['authored'] },
+            eventRef: { type: 'string', enum: [ref] },
+          }),
+        }),
+      );
+    }
+    if (
+      directorEmergentOpportunityBudget(snapshot) > 0 &&
+      (properties.opportunities!.maxItems as number) > 0
+    )
+      selections.push(properties.opportunities!.items as Schema);
+    delete properties.authoredChoices;
+    properties.protocol = { type: 'string', enum: [DIRECTOR_SELECTION_WIRE_PROTOCOL] };
+    properties.opportunities = {
+      type: 'array',
+      items: selections.length ? { anyOf: selections } : { type: 'null' },
+      maxItems: selections.length ? DIRECTOR_OPPORTUNITY_LIMIT : 0,
+    };
+    // Remove grammar made unreachable by the simpler current output.
+    const used = new Set<string>();
+    const walk = (node: unknown) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      const value = node as Record<string, unknown>;
+      if (typeof value.$ref === 'string' && value.$ref.startsWith('#/$defs/')) {
+        const key = value.$ref.slice(8);
+        if (!used.has(key)) {
+          used.add(key);
+          walk(defs[key]);
+        }
+      }
+      Object.values(value).forEach(walk);
+    };
+    walk(properties);
+    schema.$defs = Object.fromEntries(Object.entries(defs).filter(([key]) => used.has(key)));
+  }
   schema.required = Object.keys(properties);
   if (JSON.stringify(schema).length > 24_000)
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v15', strict: true, schema };
+  return {
+    format: 'json_schema',
+    name: globalSelection ? 'director_response_v16' : 'director_response_v15',
+    strict: true,
+    schema,
+  };
 }

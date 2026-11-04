@@ -1,3 +1,4 @@
+import { readTerminalUnperformedEpisodeIds } from './episode-pending-work-repository.ts';
 import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
 import { validAuthoredOpportunityCast } from '../domain/authored-opportunity-cast.ts';
@@ -910,6 +911,16 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         })
       ).map((handoff) => handoff.episodeId),
     );
+    for (const id of await readTerminalUnperformedEpisodeIds(
+      sql,
+      owner,
+      {
+        worldId: world.id,
+        engineEpoch: s.engineEpoch,
+      },
+      states,
+    ))
+      settledIds.add(id);
     if (
       !equal(
         ordered(

@@ -3641,3 +3641,19 @@ DIRECTOR-DELIBERATION-50全局窗口收口：原档13个eligible节点固定两�
 DIRECTOR-DELIBERATION-50当前工作视图扩围：proactive43独占episode-pending-work-repository.ts共享读分类及专属测试/原PG报告；root独占director-snapshot-repository.ts接线。原档4条遗留proposed在生产episodeRequestWorkState均为paid_terminal，当前导演视图却仍当待推进；复用现有分类+hasHandoffFollowup排除确定未呈现、无效果/后续的失败交接，只改当前读取，不改历史、状态、回执、未知付费围栏。grok4.3 v41/v42全库仍quiet；原mini模型对照也quiet，非仅模型配置根因；不继续相同条件付费空跑。
 
 DIRECTOR-DELIBERATION-50当前读者接通：root接管agent容量中断的pending-work helper，仅当前读取排除严格认证的未呈现paid_terminal失败交接；原档4条排除、8相关返回行、两条真实active保留，历史/玩家状态不改。check4250/build/真实PG8/模型62通过；v43-current-work于3218+共享worker验收中，先前v41/v42及mini比较均quiet，仍未有新主动消息，任务保持进行中。
+
+DIRECTOR-DELIBERATION-50真实闭环续查：full gpt4.1原档17:25已产生作者机会并派发两人，grok4.3人物实际收到了具体任务但仍quiet，原raw与Persona对照明确包含邀请动机，未被运行时吞掉。root扩围独占npc-agent-model.ts、role-text-model.ts及对应单测：利用现有输出schema.name区分直接玩家回复与后台自主决策，复用已配置导演推理模型处理后者，同一NPC上下文/协议/权限不变；普通玩家回复仍原快速NPC模型，不新增DB字段/模型环节/重试。导演保留最近一次quiet作为本人反馈（不是永久拒绝）以免重复盲派。
+
+DIRECTOR-DELIBERATION-50输出收口：真实f2ff868b v44全库按旧逐项choice输出10机会，被既有总数2校验正确拒收；root在现有模型适配层将v2全库输出精简为v16单一opportunities数组(maxItems=2)，不再逐项复制defer；scope/任务/内核/持久结构仍共用原DirectorDecision，旧v1定向范围及v15保存结果恢复保留。显式已知invalid恢复保留原v2全库范围，防修复时降成v1；真实PG9通过，旧输入/raw不改，未知调用不重试。
+
+DIRECTOR-DELIBERATION-50重复收件根因扩围：root独占actor-observation-inbox.ts、actor-observation-consumption-repository.ts、agent-phone-entry-probe.ts及原independent-opening-observation PG。收件箱消费读取优化只检查scene/group历史，遗漏纯narrative本人已获知信息，导致无现场/群的人反复收到同一开场报告；手机probe却已按真实ACK排除，两个读者不一致。复用同一消费证明，不加cursor/表列；消费查询定向返回有supplied observations的已提交记录；恢复原测试要求的独立信息优先入口。
+
+DIRECTOR-DELIBERATION-50直接无候选根因：actor-observation-candidate.ts旧initialMessagePresentation按received_opening_information+executionEvidence=false把全部初始背景报告当已发送消息，错误抑制独立考虑，现删除此推断（不动历史消息通知保护）。纯narrative收件箱ACK读取漏检也已修；真实PG对照旧优化处理1人仍pending2、新逻辑正确pending1；原档6人已有真实narrative ACK且pending=0，未写cursor/清账。agent-phone-entry-probe无需改，恢复原live导演围栏；fixture补作者初始位置、断言原信息内容而非旧技术wrapper，使目标只覆盖无scene/group的独立私有信息。
+
+DIRECTOR-DELIBERATION-50入口/优先级收口：root扩围现有npc-agent-advance-services.ts、agent-schedule-collectors.ts及原专属测试。显式v2作者失败修复沿原周期入口而非通用六人候选审批；quiet修复后不购买无关NPC轮次；原服务真实PG9/9。已engage但无下一步的既有actor_local候选使用现有episodeId提高到责任优先级50（普通自主30），避免泛化小聊排在已承接工作之前，不增加字段/触发器。原档dfb9c258导演已committed、dc9c9822人物engage且发出新消息，仍无计划，持续推进未验收通过。
+
+DIRECTOR-DELIBERATION-50实际行动根因扩围：root独占space-travel-policy.ts、agent-snapshot-repository.ts、npc-agent-kernel.ts、NEW 0126_npc_default_travel_policy.sql、agent-travel-kernel/space-travel-policy原测试。原档16地点却仅home↔park两条持久路线；玩家已有default_travel_v1，NPC快照/执行/DBguard只认持久路线，14地点人物不能移动。将共享同一默认政策并从本人实际位置派生，保留作者路线优先、已知位置/许可/真实行程与到达证据；不新增表列，不生成完整路线图或人工移动人物。
+
+DIRECTOR-DELIBERATION-50主动来源去重：root接管own-agenda-review-authority.ts及原own-agenda聚焦PG验证。原档林白语两次actor_local评估只有旧observations出窗口、无新增外部信息，仍因全量上下文hash变化获得新联系候选。删除普通localInitiative收集与suppressLocalInitiative重复开关，普通自主联系归现有own_agenda_review统一资格/预算；保留已承接事件actor_local、初始位置、独立观察、计划/约定/结果来源与已付费恢复。无新字段/定时器。
+
+DIRECTOR-DELIBERATION-50本地收口：删除普通localInitiative收集及无消费者domain文件/旧机制专属测试；现有自主复盘维护普通联系，保留episode/条件/观察/约定/结果。修个人grantId被当共享资源、单人物已选中后重复送导演到期审批；模拟原全局复盘到期的真实PG8/8，双NPC计划写入且无额外导演调用；forceDirectorReview/受保护付费帧仍保留。own-agenda-window05修正v2 grant与base family混淆，8/8；default travel真实PG9/9，0126仅本地clone应用且原档v958内容/位置hash不变。check4247、build通过；3218最终artifact build-director50-global、队列和主动进程已重启。原档真实持续演绎/计划质量和通知目视未通过，50整体仍进行中，不将上述门禁当完整交付。

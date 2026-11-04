@@ -158,6 +158,7 @@ test('an accepted episode without a next step gets one source-bound continuation
   const first = (await collect(view([a]), 'observation')).candidates[0]!;
   assert.ok(first);
   assert.equal(first.episodeId, 'episode-a');
+  assert.equal(first.priority, 50, 'accepted work precedes optional local contact at priority 30');
   assert.match(first.wakeCue!, /不是再次询问是否参与/);
   const later = view([a]);
   later.worldVersion = 6;
@@ -900,7 +901,11 @@ test('stale one-actor projection is a scoped source failure; other actors contin
     },
   );
   assert.equal(result.selected[0]!.candidate.actorId, 'b');
-  assert.equal(result.sourceFailures.length, 4);
+  assert.equal(
+    result.sourceFailures.length,
+    3,
+    'plan, responsibility and appointment sources remain; duplicate generic contact is retired',
+  );
   assert.ok(
     result.sourceFailures.every((f) => f.scope.kind === 'actor' && f.scope.actorId === 'a'),
   );
@@ -1291,7 +1296,7 @@ const localCollect = async (v: SchedulingView, now: number) =>
     )
   ).flatMap((x) => x.candidates);
 
-test('all independent actors may consider contact even just after speaking, without tasks', async () => {
+test('generic contact has one owner: shared agenda review, not a second context-window candidate', async () => {
   const actors = [localActor('a'), localActor('b')];
   for (const a of actors) {
     a.snapshot.state.goals = [];
@@ -1299,28 +1304,17 @@ test('all independent actors may consider contact even just after speaking, with
     a.snapshot.state.actions = [];
     a.snapshot.viewState = structuredClone(a.snapshot.state);
   }
-  const v = { ...view(actors), lastAssistantAtByActor: { a: at, b: at } };
-  assert.deepEqual(
-    (await localCollect(v, 120_000)).map((c) => c.actorId),
-    ['a', 'b'],
-  );
+  const v = view(actors);
+  assert.deepEqual(await localCollect(v, 120_000), []);
+  assert.deepEqual(await localCollect(v, 180_000), []);
+  assert.ok(createAgentScheduleSources(v).every((source) => !source.id.startsWith('actor_local:')));
+  // Neither a changed retrieval window nor another speaker's write introduces
+  // a new generic wake source; the existing agenda authority owns that review.
+  v.actors[0]!.snapshot.observations = [];
+  assert.deepEqual(await localCollect(v, 240_000), []);
 });
 
-test('contact work is stable across refresh, story speed and real windows without new evidence', async () => {
-  const v = view([localActor()]);
-  const first = (await localCollect(v, 120_000))[0]!;
-  assert.equal((await localCollect(v, 179_999))[0]!.id, first.id);
-  const accelerated = structuredClone(v);
-  accelerated.storyAt = '2026-10-15T11:00:00.000Z';
-  accelerated.actors[0]!.snapshot.storyAt = accelerated.storyAt;
-  accelerated.actors[0]!.snapshot.worldContext!.time.storyAt = accelerated.storyAt;
-  assert.equal((await localCollect(accelerated, 179_999))[0]!.id, first.id);
-  v.consumedCandidateIds = [first.id];
-  assert.equal((await localCollect(v, 179_999)).length, 0);
-  assert.equal((await localCollect(v, 180_000)).length, 0);
-});
-
-test('unknown actor stays fenced across contact windows while another actor remains selectable', async () => {
+test('unknown actor stays fenced while another actor retains its actual planned work', async () => {
   const v = view([localActor('a'), localActor('b')]);
   v.activeAttempts = [{ actorId: 'a', status: 'unknown_after_send', id: 'paid-unknown' }];
   for (const now of [120_000, 180_000]) {

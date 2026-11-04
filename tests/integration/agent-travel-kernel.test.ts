@@ -120,7 +120,7 @@ test('actual native departure kernel keeps journey, own position and scene exit 
     }
   });
   type Fixture = { owner: string; worldId: string; a: string; b: string; sceneId: string };
-  async function fixture(genesis = false): Promise<Fixture> {
+  async function fixture(genesis = false, defaultRoutes = false): Promise<Fixture> {
     const owner = randomUUID(),
       worldId = randomUUID(),
       a = randomUUID(),
@@ -158,39 +158,21 @@ test('actual native departure kernel keeps journey, own position and scene exit 
           contactActorIds: id === 'room' ? [a] : [],
           appointmentIds: [],
         })),
-        routes: [
-          {
-            id: 'room_park',
-            fromPlaceId: 'room',
-            toPlaceId: 'park',
-            durationMinutes: 15,
-            modeLabel: 'Walk',
-            source,
-          },
-        ],
+        routes: defaultRoutes
+          ? []
+          : [
+              {
+                id: 'room_park',
+                fromPlaceId: 'room',
+                toPlaceId: 'park',
+                durationMinutes: 15,
+                modeLabel: 'Walk',
+                source,
+              },
+            ],
       },
     };
     await worlds.initialize({ userId: owner }, initial);
-    if (genesis)
-      await db.transaction(owner, (sql) =>
-        sql.query(
-          `INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document) VALUES($1,$2,$3,NULL,0,$4)`,
-          [
-            worldId,
-            owner,
-            `actor:${a}`,
-            {
-              worldId,
-              subject: { kind: 'actor', actorId: a },
-              status: 'at',
-              placeId: 'room',
-              sourceEventId: null,
-              worldVersion: 0,
-              occurredAt: initial.time,
-            },
-          ],
-        ),
-      );
     const historicalCommand = {
       id: randomUUID(),
       worldId,
@@ -258,6 +240,27 @@ test('actual native departure kernel keeps journey, own position and scene exit 
       ),
     );
     await queue.finish(lease, { status: 'succeeded', resultVersion: version });
+    // Keep the genesis-origin fixture outside automatic scene-presence seeding.
+    if (genesis)
+      await db.transaction(owner, (sql) =>
+        sql.query(
+          `INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document) VALUES($1,$2,$3,NULL,0,$4)`,
+          [
+            worldId,
+            owner,
+            `actor:${a}`,
+            {
+              worldId,
+              subject: { kind: 'actor', actorId: a },
+              status: 'at',
+              placeId: 'room',
+              sourceEventId: null,
+              worldVersion: 0,
+              occurredAt: initial.time,
+            },
+          ],
+        ),
+      );
     const world = await worlds.get({ userId: owner }, worldId);
     await db.transaction(owner, async (sql) => {
       for (const actorId of [a, b])
@@ -364,18 +367,29 @@ test('actual native departure kernel keeps journey, own position and scene exit 
     const value: TextModel = {
       async complete(messages) {
         calls++;
-        const payload = JSON.parse(messages.find((m) => m.role === 'user')!.content) as Payload;
+        const payload = JSON.parse(messages.find((m) => m.role === 'user')!.content) as Payload & {
+          replyAs: { actorId: string };
+        };
         inputs.push(payload);
-        const proposal = await make(payload);
         // Legacy fixture proposals use canonical IDs; current model input uses source aliases.
         const accepted = (
           await admin.query(
-            `SELECT r.id,p.source_event_id FROM parallel_life.agent_input_receipts r
+            `SELECT r.id,r.world_id,p.source_event_id FROM parallel_life.agent_input_receipts r
           LEFT JOIN parallel_life.world_authoritative_positions p ON p.world_id=r.world_id AND p.subject_key=$2
-          WHERE r.world_id=$1 ORDER BY r.created_at DESC LIMIT 1`,
-            [payload.state.worldId, `actor:${payload.state.actorId}`],
+          WHERE r.document->>'recipientActorId'=$1 ORDER BY r.created_at DESC LIMIT 1`,
+            [payload.replyAs.actorId, `actor:${payload.replyAs.actorId}`],
           )
         ).rows[0];
+        assert.ok(
+          accepted,
+          'fixture resolves the real input rather than expecting removed duplicate state identity',
+        );
+        payload.state = {
+          ...payload.state,
+          worldId: accepted.world_id,
+          actorId: payload.replyAs.actorId,
+        };
+        const proposal = await make(payload);
         return JSON.stringify(
           mapNpcSourceFields(
             proposal,
@@ -453,6 +467,86 @@ test('actual native departure kernel keeps journey, own position and scene exit 
     };
     return { claim, snapshot };
   }
+  await t.test(
+    'NPC reuses the player default-route policy without requiring persisted authored edges',
+    async () => {
+      const f = await fixture(true, true),
+        m = model(departure);
+      assert.equal((await worlds.get({ userId: f.owner }, f.worldId)).space!.routes.length, 0);
+      const result = await npcAgentServices(db, () => m.value).sendMessageIfEnabled(
+        f.owner,
+        await privateCommand(f),
+      );
+      assert.equal(result?.status, 'committed');
+      const journey = (
+        await admin.query('SELECT document FROM parallel_life.npc_journeys WHERE world_id=$1', [
+          f.worldId,
+        ])
+      ).rows[0].document;
+      assert.equal(journey.route.source.policy, 'default_travel_v1');
+      assert.equal(journey.route.durationMinutes, 10);
+      const space = (await worlds.get({ userId: f.owner }, f.worldId)).space!;
+      for (const forged of [
+        { ...journey.route, id: journey.route.id + '0' },
+        { ...journey.route, durationMinutes: 1 },
+        { ...journey.route, toPlaceId: 'unknown' },
+        { ...journey.route, source: { ...journey.route.source, snapshotVersion: 1 } },
+        { ...journey.route, extra: 'not authorized' },
+      ])
+        assert.equal(
+          (
+            await admin.query('SELECT parallel_life.valid_default_travel_route($1,$2) valid', [
+              space,
+              forged,
+            ])
+          ).rows[0].valid,
+          false,
+        );
+      const clock = await new PostgresClockStore(db).read(f.owner, f.worldId);
+      const realNow = new Date(
+        Date.parse(clock.lastTickAt) +
+          Math.ceil(
+            (Date.parse(journey.plannedArrivalAt) - Date.parse(clock.storyNow)) / clock.speed,
+          ),
+      ).toISOString();
+      assert.equal(
+        (
+          await commitDueAgentArrival(db, f.owner, {
+            worldId: f.worldId,
+            engineEpoch: 2,
+            expectedWorldVersion: result!.version,
+            realNow,
+          })
+        ).status,
+        'arrived',
+      );
+      const world = await worlds.get({ userId: f.owner }, f.worldId);
+      assert.equal(
+        world.space!.currentPlaceId,
+        'room',
+        'NPC departure and arrival never move the player',
+      );
+      assert.equal(world.space!.routes.length, 0, 'derived routes do not add persistent map edges');
+      const state = (await store.read(f.owner, { worldId: f.worldId, actorId: f.a }))!;
+      const { snapshot } = await readPrivateAgentSnapshot(
+        db,
+        f.owner,
+        world,
+        f.a,
+        null,
+        world.time,
+        state,
+      );
+      assert.ok(snapshot.channel.allowedCapabilities.includes('travel.begin'));
+      assert.ok(
+        snapshot.worldContext!.travelRoutes?.some(
+          (r) => r.fromPlaceId === 'park' && r.toPlaceId === 'room',
+        ),
+        'next routes start at the NPC, not the player',
+      );
+      assert.equal(m.calls, 1, 'arrival does not purchase another model turn');
+    },
+  );
   await t.test(
     'authored genesis position authorizes the first real departure with the same source reference',
     async () => {

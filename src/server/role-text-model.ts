@@ -55,22 +55,30 @@ function recordNpcFailure(error: unknown): void {
 }
 
 function npcOutput(output?: ModelOutputOptions): boolean {
-  return output?.format === 'json_schema' && output.name === 'npc_agent_response';
+  return (
+    output?.format === 'json_schema' &&
+    ['npc_agent_response', 'npc_agent_planning_response'].includes(output.name)
+  );
 }
 
-/** One configured model per call. Never a fallback, retry, second judge or new agent state. */
+/** One configured model per call. Background NPC decisions reuse planning
+ * capacity with their own private context; they never become Director decisions.
+ * No fallback, retry, second judge or additional agent state. */
 export function roleTextModel(base: TextModel, npc: TextModel, director?: TextModel): TextModel {
   const selected = (output?: ModelOutputOptions) =>
     npcOutput(output)
-      ? npc
+      ? output?.format === 'json_schema' && output.name === 'npc_agent_planning_response'
+        ? (director ?? npc)
+        : npc
       : director && output?.format === 'json_schema' && /^director_response_v\d+$/.test(output.name)
         ? director
         : base;
   return {
     complete(messages, signal, maxTokens, output) {
       if (!npcOutput(output)) return selected(output).complete(messages, signal, maxTokens, output);
+      const chosen = selected(output);
       try {
-        return npc.complete(messages, signal, maxTokens, output).catch((error: unknown) => {
+        return chosen.complete(messages, signal, maxTokens, output).catch((error: unknown) => {
           recordNpcFailure(error);
           throw error;
         });

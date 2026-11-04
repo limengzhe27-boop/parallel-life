@@ -33,17 +33,24 @@ export function defaultTravelRoute(
     source: { kind: 'system_policy', policy: 'default_travel_v1', snapshotVersion: 0 },
   };
 }
-/** Read-only routes from the current place; no persistent quadratic route list. */
-export function defaultTravelRoutes(space: WorldSpaceState): SpaceRoute[] {
+/** Read-only routes from the traveller's actual origin; no persistent quadratic route list. */
+export function defaultTravelRoutes(
+  space: WorldSpaceState,
+  fromPlaceId = space.currentPlaceId,
+): SpaceRoute[] {
   return space.places.flatMap((place) => {
-    const route = defaultTravelRoute(space, space.currentPlaceId, place.id);
+    const route = defaultTravelRoute(space, fromPlaceId, place.id);
     return route ? [route] : [];
   });
 }
-export function resolveTravelRoute(space: WorldSpaceState, routeId: string) {
+export function resolveTravelRoute(
+  space: WorldSpaceState,
+  routeId: string,
+  fromPlaceId = space.currentPlaceId,
+) {
   return (
     space.routes.find((route) => route.id === routeId) ??
-    defaultTravelRoutes(space).find((route) => route.id === routeId)
+    defaultTravelRoutes(space, fromPlaceId).find((route) => route.id === routeId)
   );
 }
 export function sameDefaultTravelRoute(actual: SpaceRoute, supplied: SpaceRoute): boolean {

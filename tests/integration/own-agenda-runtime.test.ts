@@ -5,6 +5,7 @@ import type { TextModel, ModelMessage } from '../../src/modules/ai/application/p
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
 import { NpcAgentModel } from '../../src/modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
+import { PostgresDirectorReviewRepository } from '../../src/modules/world/infrastructure/director-review-repository.ts';
 import {
   readOwnAgendaReviewWorkInTransaction,
   ownAgendaReviewInputText,
@@ -435,7 +436,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
   );
   await t.test(
     'F quiet has a real successor: original advance reviews two independent NPCs and compiles their explicit v6 plans',
-    async () => {
+    async (t) => {
       const f = await fixture(),
         h = await prime(f);
       const slow = structuredClone(fast);
@@ -445,9 +446,24 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
       const first = await work(f);
       assert.ok(first);
       assert.equal(first.candidate.source, 'agenda_review');
+      const directorCallsBefore = h.calls.filter((c) => c.kind === 'director').length;
+      const readReview = PostgresDirectorReviewRepository.prototype.read;
+      t.mock.method(
+        PostgresDirectorReviewRepository.prototype,
+        'read',
+        async function (this: PostgresDirectorReviewRepository, owner: string, worldId: string) {
+          const review = await readReview.call(this, owner, worldId);
+          return review ? { ...review, nextReviewAt: '2000-01-01T00:00:00.000Z' } : null;
+        },
+      ); // Only make the existing global clock due; all claims and NPC writes stay real.
       h.setPhase('plans');
       const r = await h.advance();
       assert.equal(r?.played, 2);
+      assert.equal(
+        h.calls.filter((c) => c.kind === 'director').length,
+        directorCallsBefore,
+        'a due idle Director review cannot veto or add approval calls to independent NPC work',
+      );
       const reviews = h.calls.filter(
         (c) => c.kind === 'npc' && c.input.type === 'npc_agenda_review',
       );

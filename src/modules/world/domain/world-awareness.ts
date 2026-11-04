@@ -11,6 +11,7 @@ import type { SceneSession, Participant } from './experience-rules.ts';
 import type { AgentJourney } from './agent-travel.ts';
 import { NPC_AGENT_CAPABILITIES } from './agent-capabilities.ts';
 import { worldDateTimeInput } from './display-time.ts';
+import { resolveTravelRoute } from './space-travel-policy.ts';
 
 export type AwarenessSubject = Participant;
 export type WorldBoundary = {
@@ -635,7 +636,11 @@ export function committedAwarenessDelta(
           receipt.worldVersion !== event.version ||
           !Number.isFinite(time(event.storyAt)) ||
           time(journey.departedAt) !== time(event.storyAt) ||
-          !world.space?.routes.some((route) => same(route, journey.route)) ||
+          !world.space ||
+          !same(
+            resolveTravelRoute(world.space, journey.route.id, journey.origin.placeId!),
+            journey.route,
+          ) ||
           action.length !== 1 ||
           action[0]!.capability !== 'travel.begin' ||
           action[0]!.status !== 'succeeded' ||

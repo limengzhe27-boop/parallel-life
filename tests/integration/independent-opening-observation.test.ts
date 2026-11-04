@@ -248,6 +248,9 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
     } = {},
   ) {
     const content = structuredClone(base);
+    // This journey tests narrative-only observation, not spatial cold start.
+    // Supply the existing author initial-place contract; no scene/group is opened.
+    for (const actor of content.actors) actor.initialPlaceKey = content.places[0].key;
     if (options.multiActorOpening)
       content.candidates[0].actorKeys = content.actors.map((a: any) => a.key);
     if (options.proof)
@@ -497,7 +500,7 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
       npcCalls++;
       assert.ok(
         JSON.stringify(p.presentationContext.internalContext).includes(
-          'received_opening_information',
+          '小店老板收到店内书友会将在今晚开放的消息',
         ),
       );
       return JSON.stringify({

@@ -392,7 +392,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
             model: {
               async decide() {
                 const catalog = directorWireCatalog(snapshot);
-                return JSON.stringify({
+                const response: any = {
                   protocol: 'director-wire-v15',
                   openingContext: snapshot.openingContextAuthority
                     ? {
@@ -442,7 +442,19 @@ test('director frame lifecycle uses real publication, personal plan and protecte
                   candidates: [],
                   opportunities: [],
                   audit: { reason: 'Fixture', sourceRefs: [] },
-                });
+                };
+                if (snapshot.deliberationWindow?.version === 2) {
+                  response.protocol = 'director-wire-v16';
+                  response.opportunities = Object.entries(response.authoredChoices).flatMap(
+                    ([eventRef, value]: [string, any]) => {
+                      if (value.kind !== 'consider') return [];
+                      const { actorTopics: _topics, ...opportunity } = value.opportunity;
+                      return [{ ...opportunity, origin: { kind: 'authored', eventRef } }];
+                    },
+                  );
+                  delete response.authoredChoices;
+                }
+                return JSON.stringify(response);
               },
             },
           },
@@ -496,6 +508,16 @@ test('director frame lifecycle uses real publication, personal plan and protecte
         (await read()).has(episodeId),
         true,
         'paid invalid transport is not active director work',
+      );
+      const currentSnapshot = await snap(f);
+      assert.equal(
+        currentSnapshot.episodes.some((episode) => episode.id === episodeId),
+        false,
+      );
+      assert.equal(
+        (await run(currentSnapshot, false)).mode,
+        'quiet',
+        'the current-work reader and claim/commit fence use the same exclusion',
       );
       const pending = (
         await admin.query(
@@ -686,6 +708,148 @@ test('director frame lifecycle uses real publication, personal plan and protecte
       assert.deepEqual(await counts(), { episodes: '0', requests: '0', proofs: '1' });
     },
   );
+  await t.test(
+    'explicit known-invalid global recovery retains v2 scope and a single paid successor',
+    async (t) => {
+      const realNow = Date.now;
+      let offset = 0;
+      t.mock.method(Date, 'now', () => realNow() + offset);
+      const f = await fixture({ periodic: true });
+      let calls = 0;
+      const { directorWireCatalog, directorOpeningOwnerCatalog, directorResponseFormat } =
+        await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
+      const { requireDirectorTrialRetrySource } =
+        await import('../../src/modules/world/infrastructure/director-trial-recovery.ts');
+      const send = (
+        snapshot: DirectorSnapshot,
+        bad = false,
+        input: Parameters<typeof runDirectorAgent>[2] = claim(snapshot),
+      ) =>
+        runDirectorAgent(
+          {
+            attempts: directors,
+            parse: parseDirectorDecision,
+            model: {
+              async decide() {
+                calls++;
+                if (bad) return '{"unexpected":true}';
+                const response: any = {
+                  protocol:
+                    snapshot.deliberationWindow?.version === 2
+                      ? 'director-wire-v16'
+                      : 'director-wire-v15',
+                  candidates: [],
+                  opportunities: [],
+                  audit: { reason: 'Optional review', sourceRefs: [] },
+                  openingContext: snapshot.openingContextAuthority
+                    ? {
+                        informationOwners: Object.fromEntries(
+                          directorOpeningOwnerCatalog(snapshot).information.map((i) => [
+                            i.ref,
+                            { actorRef: null, reason: 'Fixture' },
+                          ]),
+                        ),
+                      }
+                    : null,
+                };
+                if (snapshot.deliberationWindow?.version !== 2)
+                  response.authoredChoices = Object.fromEntries(
+                    directorWireCatalog(snapshot).events.map((e) => [
+                      e.ref,
+                      { kind: 'defer', reason: 'Keep optional' },
+                    ]),
+                  );
+                return JSON.stringify(response);
+              },
+            },
+          },
+          f.owner,
+          input,
+          snapshot,
+        );
+      for (let i = 0; i < 3; i++) await send(await snap(f));
+      offset = 6 * 60 * 1000;
+      const initial = await snap(f);
+      assert.equal(initial.deliberationWindow!.version, 2);
+      await assert.rejects(send(initial, true));
+      const failed = (
+        await admin.query(
+          'SELECT id,input_hash,response_hash,status FROM parallel_life.director_runtime_attempts WHERE world_id=$1 ORDER BY created_at DESC LIMIT 1',
+          [f.id],
+        )
+      ).rows[0];
+      assert.equal(failed.status, 'invalid_output');
+      const retryCommandId = await requireDirectorTrialRetrySource(
+        app,
+        f.owner,
+        f.id,
+        failed.id,
+        2,
+      );
+      const world = await worlds.get({ userId: f.owner }, f.id);
+      const current = await snapshots.read(f.owner, {
+        worldId: f.id,
+        engineEpoch: 2,
+        worldVersion: world.version,
+        candidates: [],
+        blockers: [],
+        retryCommandId,
+      });
+      assert.equal(current.evaluationCause?.kind, 'periodic_review');
+      assert.equal(current.deliberationWindow!.version, 2);
+      assert.deepEqual(current.deliberationWindow!.nodeKeys, initial.deliberationWindow!.nodeKeys);
+      const format = directorResponseFormat(current);
+      assert.equal(format.format === 'json_schema' && format.name, 'director_response_v16');
+      const before = calls;
+      const advance = npcAgentAdvanceServices(
+        app,
+        () => ({
+          async complete(_messages, _signal, _tokens, responseFormat) {
+            calls++;
+            assert.equal(
+              responseFormat?.format === 'json_schema' && responseFormat.name,
+              'director_response_v16',
+            );
+            return JSON.stringify({
+              protocol: 'director-wire-v16',
+              candidates: [],
+              opportunities: [],
+              audit: {
+                reason: 'Retain the author review without approving unrelated NPC fallback work',
+                sourceRefs: [],
+              },
+            });
+          },
+        }),
+        snapshots,
+        { maxSteps: 1, maxModelCalls: 1, maxActors: 1 },
+      );
+      await advance.advanceIfEnabled(f.owner, f.id, failed.id);
+      await advance.advanceIfEnabled(f.owner, f.id, failed.id);
+      assert.equal(calls, before + 1);
+      const successor = (
+        await admin.query(
+          'SELECT snapshot FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND command_id=$2',
+          [f.id, retryCommandId],
+        )
+      ).rows[0].snapshot;
+      assert.deepEqual(
+        successor.candidates,
+        [],
+        'author retry does not route independent NPC initiative through director approval',
+      );
+      assert.deepEqual(
+        (
+          await admin.query(
+            'SELECT id,input_hash,response_hash,status FROM parallel_life.director_runtime_attempts WHERE id=$1',
+            [failed.id],
+          )
+        ).rows[0],
+        failed,
+      );
+    },
+  );
+
   for (const lateRaw of [false, true])
     await t.test(
       `periodic review and disjoint unknown protection (late raw: ${lateRaw})`,

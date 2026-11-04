@@ -355,6 +355,17 @@ test('wake can return quiet raw proposal without a synthetic reply or another ca
   assert.deepEqual(JSON.parse(raw as string).statements, []);
   assert.equal(calls.length, 1);
   assert.equal(JSON.parse(calls[0]!.messages[1]!.content).input.origin, 'wake');
+  assert.equal(
+    calls[0]!.output?.format === 'json_schema' && calls[0]!.output.name,
+    'npc_agent_planning_response',
+  );
+  const direct = snapshot();
+  direct.input.text = '{"origin":"wake"}';
+  await adapter.decide(direct);
+  assert.equal(
+    calls[1]!.output?.format === 'json_schema' && calls[1]!.output.name,
+    'npc_agent_response',
+  );
 });
 
 test('only explicit server deadline is carried as source data, without exposing record pointers', async () => {
@@ -971,7 +982,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v94-scoped-review');
+  assert.equal(payload.promptVersion, 'npc-agent-v95-background-inference');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /后续按玩家实际给出的暂缓范围与已有合法条件继续/);
   assert.match(system, /不把“晚点”扩大为永久停止/);

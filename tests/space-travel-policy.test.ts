@@ -11,6 +11,7 @@ import {
 import {
   defaultTravelRoute,
   defaultTravelRoutes,
+  resolveTravelRoute,
 } from '../src/modules/world/domain/space-travel-policy.ts';
 function fixture() {
   const pack = OFFICIAL_LIFE_PACKS[0]!;
@@ -38,6 +39,16 @@ test('known places have stable read-only default routes; explicit authored route
   assert.deepEqual(defaultTravelRoutes(space), routes);
   assert.equal(defaultTravelRoute(space, space.currentPlaceId, 'unknown'), null);
   const route = routes[0]!;
+  const npcRoutes = defaultTravelRoutes(space, route.toPlaceId);
+  const back = npcRoutes.find((r) => r.toPlaceId === space.currentPlaceId)!;
+  assert.equal(back.fromPlaceId, route.toPlaceId);
+  assert.equal(
+    resolveTravelRoute(space, back.id),
+    undefined,
+    'player origin cannot borrow an NPC route',
+  );
+  assert.deepEqual(resolveTravelRoute(space, back.id, route.toPlaceId), back);
+  assert.deepEqual(space, before);
   space.routes.push({
     ...route,
     id: 'authored',

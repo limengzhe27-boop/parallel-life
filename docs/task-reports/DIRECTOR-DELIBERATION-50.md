@@ -26,13 +26,13 @@ root-director50 唯一集成；proactive43 负责独立领域/协议/真实PG测
 - node_1最近原始defer与当前人物definition相同，不能以早期错配为由清账本。青青尚未真正收到本次假扮男友邀请任务。
 - 15:03旧导演再次给舒雅婷派工作/报酬/近况重复确认，引用不证明新进展；人物quiet并非运行时吞消息。
 - 15:33—16:10多个真实导演评估仍quiet；一次consider却actorTasks全null已按真实任务约束修复，旧响应不伪造任务。
-- **纠正归因**：原档16:04 grok4.7评估已69秒后committed quiet；汇总TIMEOUT属于另一世界4953，不属于此原档。原档16:10真实失败是遗漏机械openingContext:null。当前本地导演和NPC均grok4.3，不保留4.7。
+- **纠正归因**：原档16:04 grok4.7评估已69秒后committed quiet；汇总TIMEOUT属于另一世界4953，不属于此原档。原档16:10真实失败是遗漏机械openingContext:null。该对照阶段导演和NPC均grok4.3，不保留4.7；最新本地模型分工见下方续验。
 - 16:44 v40正确defer两项出租屋后段，仍无新来信。
 - 16:55 v41实际已获得13项窗口，仍对所有节点输出“无新玩家回应或到达证据”，没有安排；不能称成功。v42明确导演主动发起职责、作者入口本身的授权以及等待的作用范围，不强制选择/发言。后续正常周期实际结果继续核验。
 
 ## 验证、运行与待办
 
-- 最新check4247/4247、boundaries/typecheck、isolated build通过。
+- 早期check4247/4247、boundaries/typecheck、isolated build通过；最终门禁见下方续验。
 - 独立v2范围/协议17/17；隔离真实PG lifecycle7/7，包含旧v1 unknown、完整v2提交、重复请求不再调用、最大2机会、缺参与者/越cast拒绝。无原档测试写入，无商业模型。
 - 原档0125本地应用，应用前后world v887及state hash相同；约束读回0—2。旧完整quiet实际无新增模型恢复已确认。
 - 本地当前3218、队列、主动worker使用最终构建/共享源码；仅本地clone库。原稿、位置、玩家决定、约定、原消息均未人工修改或插入。
@@ -50,3 +50,71 @@ root-director50 唯一集成；proactive43 负责独立领域/协议/真实PG测
 最新check4250/4250（768模块）、真实PG director-frame-lifecycle8/8、读者单测3/3、受影响模型62/62、build通过。本地构建 `.local/build-director50-current`。agent模型容量中断后root接管并完成helper定向查询、接线和最终PG；未覆盖其他文件。
 
 原导演mini模型在17:06对照仍全defer（但逐节点理由不同），因此模型配置不是唯一根因。v43进一步明确现有字段的含义：episode.active只是人物承接，sourceEventIds可能只证明发言/考虑；作者原稿并非已经发出的邀约。当前本地NPC保持grok4.3，导演恢复原gpt4.1-mini比较修正后输入；不新增模型层/自动fallback。原档纠正后的实际交接继续核验，未宣称新来信通过。
+
+
+## 续验收口：实际无候选和重复处理的代码错误
+
+root继续独占集成。已退出的proactive43不再修改文件。以下均为共享领域/仓储/应用实现，本地worker只是启动入口。
+
+### 修正1：获知背景被误认成已向玩家呈现
+
+`actor-observation-candidate.ts` 的 `initialMessagePresentation` 曾把 `authored_initial_context + received_opening_information + executionEvidence=false` 过滤为“已发过”。这些字段只证明人物收到作者背景，完全不证明玩家收到来信。删除这一推断；保留来源认证、本人范围、内容hash、真实消费证明及历史消息通知隔离。没有清空旧ACK或强制发送。
+
+### 修正2：同一来源在收件箱与入口判定不一致
+
+`actor-observation-inbox.ts` 只有scene/group历史时读取消费证明，漏了纯narrative。现在读取一次原narrative packet后，按同一认证消费记录过滤，后续复用packet。消费查询仅取实际supplied observations，不再搬运无意义记录；不加表列/cursor/新队列。
+
+真实PG对照：恢复旧条件时，处理一个人物后pending仍为2；新代码为1。修正了测试的作者初始位置和原信息正文断言，没有通过重置消费历史让测试通过。原档六人分别读回真实ACK（舒雅婷2条，其余各1条），当前pendingNarrative均为0。这意味着原档旧开场已被评估，不能靠重新投递同份材料伪装新剧情。
+
+### 修正3：全库输出控制与已知失败入口
+
+原f2ff868b响应在逐节点输出中产生10个机会，被总数2上限拒收。v2全库现在使用`director-wire-v16`单一opportunities数组(maxItems=2)，无逐项重复defer和模型填写机会ID。未选节点由适配器机械标为本轮未选，不能当NPC拒绝或剧情结束。旧v1/v15受保护结果仍按原目录恢复。原档schema从20190降为18433字符，非token或回复提速结论。
+
+一次显式已知失败修复得到4ec07052原始响应，两项作者机会，但`nudge:null`在v16早于既有空值转换被解析，导致invalid。离线同raw对照确认只此空值造成解码失败。现把既有nullable处理移到版本分流之前，不增加特例或业务默认；原paid raw不改。完整parse原响应已通过。其同时选择旧人物候选，超出原future-only无模型恢复范围，原恢复方法保守返回null，未丢弃部分决定强行提交。
+
+进一步修正：显式v2作者修复沿原周期作者入口，传递认证retryCommandId；不再落入普通候选调度，把六人的独立自主机会再次交导演审批。quiet修复完成即返回，不额外购买无关NPC轮次。真实PG通过原`advanceIfEnabled`验证：v16、candidates=[]、同一source只有一个付费successor、重复请求不增加调用，原失败输入/响应hash与状态不变。
+
+### 当前模型容量与真实结果边界
+
+直接玩家回复仍grok4.3。人物后台自主决策通过既有schema.name标识复用配置的导演推理模型（本地gpt4.1），仍是本人私有上下文、同一NPC协议和单次调用；不增加导演审批或额外模型层。v95标记此行为，导演v45标记有界输出。
+
+原档17:25导演曾真实派出两项作者任务，NPC原响应仍quiet。之后真实后台已产生多名NPC新消息，但有开场报告复述、普通情感小聊、继续等待，六人尚无新有效计划。消息数不作为剧情推进成果。主动进程已在诊断期间有序停止，避免长期购买相同空转；web/队列保留。最新修复后的有界原档结果继续记录，不能称主动推进通过。
+
+### 最新门禁与未完成
+
+- check4253/4253，边界/typecheck通过；隔离生产build通过。
+- director-frame-lifecycle真实PG9/9，包含原服务显式重试、旧unknown隔离、付费结果恢复、失败当前视图排除。
+- independent-opening-observation真实PG1/1与旧条件失败对照；通知回归16/16；v16/模型针对测试通过。
+- 只运行本地3218，原档/原历史保留；未启动3219、未部署Vercel。Mac锁定，通知弹窗尚未目视验收。
+- **未完成**：原档持续的有因果主动推进及真实下一步；作者后段前提只存在自然语言而prerequisites=[]的协议落差；已评估但未演机会如何在相关变化后安全续接；v2全范围unknown的后续策略；长周期人格与事件结果质量。既有保护和旧账不通过清零绕过。
+
+
+## 最终共享运行层收口（继续验收中）
+
+### 同一主动联系仅保留一个资格入口
+
+原档林白语相邻两次actor_local原快照离线比较：没有新增外部observation，只是较旧记录从有界窗口移出，全量上下文身份仍改变，给重复小聊再买一次机会。原实现另有own_agenda_review同职责入口。现删除普通localInitiative收集、suppressLocalInitiative开关、无消费者的local-initiative-context.ts；删除仅服务已退休候选构造的quiet-context-review.test.ts。保留actor_local承接真实episode/条件的用途、初始定位、观察/计划/约定/结果来源；不删除旧记录。旧paid response_received恢复仍在候选收集前执行，unknown不重发。普通自主表达统一由已有own_agenda_review许可、周期、预算与回执维护。
+
+既有unknown/partial/quiet/zero-send、双人物独立计划等不因删旧测试丢覆盖：真实PG own-agenda-runtime 8/8、window05 8/8（组合16含父项）。window05修正了将v2时间窗口grantId与原证据familyId混为一谈的断言；仍严格断言未知/无效结果不再购买原调用、partial不替代完整anchor、4200条取消历史不污染当前读取，未放宽生产规则。
+
+### 人物本人工作不再反复送导演审批
+
+原独立工作筛选只认wake:<candidateId>，把自主复盘自己的grantId当成共享资源；同时directorDue会使独立任务重新走总控审批。单人物调度fast path已经选中后，后续全局复盘又重复审批一次。现复用原agendaReviews认证许可识别本人围栏，仍只接受该许可+本candidate围栏，无共享资源且requiresCoordination=false、本人私聊；protected导演付费读帧/显式重试围栏不绕过。新作者机会先走既有入口，普通到期全局复盘不再否决本人合法工作；显式forceDirectorReview仍保留本义。真实PG将原导演复盘读取设为到期，确认两人物计划保存、无额外导演调用。
+
+### NPC执行能力与玩家规则统一
+
+原档有16地点，持久路线仅2条home↔park。玩家已有default_travel_v1十分钟产品移动规则，NPC快照、执行、认知投影、DBguard却只接受持久作者路线，导致多数真实在场人物完全没有travel.begin。现共享defaultTravelRoutes/resolveTravelRoute，增加可选本人起点参数，默认玩家调用保持原义；人物只从自己实际位置获取边界内路线，作者路线仍优先。快照只读派生，内核重验，投影认证相同路线，数据库0126核验完整默认路线、原起终点、同一FNV身份、固定政策时间及来源，原attempt/result/位置/权限守卫保留。无新表列，不写全连接路线图、不移动用户、不假造NPC到场。
+
+真实PG travel-kernel 9/9：缺持久路线仍合法出发/真实到达，玩家位置不动、map.routes仍空；NPC到达park后下一条路线从park而非玩家room出发；伪造ID/时间/目的地/来源/额外属性均拒绝，重复请求不重跑，unknown不假造移动。修正旧夹具读取已被精简掉的state身份字段，以及scene打开自动seed presence后旧genesis初始化时机，未恢复生产冗余字段或放宽校验。
+
+0126已仅应用本地clone；原档v958前后state hash与positions hash完全一致。只读原档六人均at、15条可行路线、travel.begin=true；六人当时仍goals/plans=0，不把能力恢复当成真实自主行动已发生。
+
+### 原档演绎验收最新结果
+
+显式已知失败修复后dfb9c258导演真实committed，dc9c9822李之之自主engage，提交新消息，v952。后续正常后台c1b306f7实际消费既有“参与但无下一步”候选；仍只说亲密话，changes=null、无计划。原候选优先级已用现有episodeId调整为50，高于普通可选联系30；没有制造新的任务或反复调用同候选。
+
+这证明导演→本人→保存已能走通，但**仍未通过持续剧情/有效计划质量验收**。最新去重复审批、合并普通联系、恢复NPC实际移动能力之后继续正常有界原档验收，不清旧选择/账本，不手写消息，不重发unknown，不用另一个4953世界替代此原档证据。
+
+最终本地门禁：check4247/4247、边界/typecheck、build通过（减少测试数来自退休普通联系机制及其专属旧测试，非删除仍在使用的安全断言）。own-agenda-runtime8、window05 8、travel-kernel9、director-frame9、independent-opening1均通过；通知16回归保留。当前3218 artifact build-director50-global，队列/主动worker使用共享最新源；health200只证明服务可用。正在原档正常有界后台验收；UI因Mac锁定仍未目视，整体不勾完成。
+
+最后运行切换（覆盖上一阶段artifact说明）：最后两处独立工作审批修复已重新check4247/build验证，并切到3218 build-director50-current；四个核心源文件与artifact逐文件SHA相同，旧主动进程正常完成在途批次、确认stopped后新进程才启动，没有删除活锁或并跑两个调度。队列同批重启。新进程沿原存档正常资格验收，尚不以health200或消息数量结清主动剧情质量。

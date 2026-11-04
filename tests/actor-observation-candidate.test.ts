@@ -171,7 +171,7 @@ test('authorized private group recall uses the original observation wake and exa
   assert.deepEqual(await collect(input), []);
 });
 
-test('opening message presentation stays knowledge, without a second autonomous observation wake', async () => {
+test('received author knowledge is not proof of an already delivered message and is considered only once', async () => {
   const input = fixture();
   input.sources = [
     { ...input.sources[0]!, id: 'narrative:entry', kind: 'world_event', usage: 'private_strategy' },
@@ -179,7 +179,11 @@ test('opening message presentation stays knowledge, without a second autonomous 
   const text = (type: string) =>
     JSON.stringify({
       method: 'authored_initial_context',
-      text: JSON.stringify({ type, executionEvidence: false, content: '原稿中已呈现的消息' }),
+      text: JSON.stringify({
+        type,
+        executionEvidence: false,
+        content: '本人获知的请求，是否已经发给玩家尚不确定',
+      }),
     });
   input.observations = [
     {
@@ -188,8 +192,18 @@ test('opening message presentation stays knowledge, without a second autonomous 
       text: text('received_opening_information'),
     },
   ];
-  assert.deepEqual(await collect(input), []);
-  assert.equal(input.observations.length, 1);
-  input.observations[0]!.text = text('established_fact');
   assert.equal((await collect(input)).length, 1);
+  assert.equal(input.observations.length, 1);
+  input.consumed = [
+    { sourceId: input.sources[0]!.id, contentHash: input.sources[0]!.contentHash! },
+  ];
+  assert.deepEqual(
+    await collect(input),
+    [],
+    'a real committed evaluation consumes the same source',
+  );
+  input.consumed = [];
+  input.sources[0]!.kind = 'private_message';
+  input.sources[0]!.id = 'message:entry';
+  assert.deepEqual(await collect(input), [], 'ordinary history is not a narrative observation');
 });

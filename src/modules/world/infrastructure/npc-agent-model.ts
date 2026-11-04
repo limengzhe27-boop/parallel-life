@@ -34,7 +34,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v94-scoped-review';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v95-background-inference';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -1035,7 +1035,13 @@ export class NpcAgentModel implements NpcAgentModelPort {
     const { messages, output } = this.requestFor(snapshot);
     this.prepared.delete(snapshot);
     signal?.throwIfAborted();
-    return this.model.complete(messages, signal, NPC_AGENT_OUTPUT_TOKENS, output);
+    // A background decision uses the configured planning model, not a second
+    // call. The same private snapshot, schema and kernel remain authoritative.
+    const purpose =
+      snapshot.input.origin !== 'player' && output.format === 'json_schema'
+        ? { ...output, name: 'npc_agent_planning_response' }
+        : output;
+    return this.model.complete(messages, signal, NPC_AGENT_OUTPUT_TOKENS, purpose);
   }
 
   async decideStream(

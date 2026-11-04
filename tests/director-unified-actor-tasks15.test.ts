@@ -459,8 +459,12 @@ test('periodic v2 offers three author choices but still executes at most two aut
   const schema: any = format.schema;
   const resolve = (node: any): any =>
     node.$ref ? schema.$defs[node.$ref.split('/').at(-1)] : node;
-  const authored = resolve(schema.properties.authoredChoices.properties[keys[0]!]);
-  const opportunity = resolve(authored.anyOf[1].properties.opportunity);
+  assert.equal(schema.properties.authoredChoices, undefined);
+  assert.equal(schema.properties.opportunities.maxItems, 2);
+  assert.deepEqual(schema.properties.protocol.enum, ['director-wire-v16']);
+  const opportunity = schema.properties.opportunities.items.anyOf.find((branch: any) =>
+    branch.properties.origin.properties.eventRef?.enum?.includes(keys[0]),
+  );
   const tasks = resolve(opportunity.properties.actorTasks);
   assert.deepEqual(tasks.required, ['actor:1']);
   assert.equal(
@@ -487,4 +491,107 @@ test('periodic v2 offers three author choices but still executes at most two aut
   f.wire.authoredChoices[keys[0]!].opportunity.actorTasks['actor:2'] =
     f.opportunity.actorTasks['actor:1'];
   assert.throws(() => f.parse(), 'periodic breadth does not authorize another cast member');
+});
+
+test('v16 global selection encodes one total budget, derives unselected scope, and preserves old v15 recovery', () => {
+  const f = current(3, ['ak']);
+  f.s.evaluationCause = {
+    ...f.s.evaluationCause!,
+    kind: 'periodic_review',
+  } as DirectorSnapshot['evaluationCause'];
+  f.s.deliberationWindow = {
+    version: 2,
+    nodeKeys: (f.s.evaluationCause as any).qualifications.map((q: any) => q.nodeKey),
+  };
+  const events = directorWireCatalog(f.s).events;
+  const selected = (ref: string) => {
+    const {
+      id: _id,
+      actorTopics: _topics,
+      origin: _origin,
+      ...entry
+    } = structuredClone(f.opportunity);
+    delete (entry.actorTasks as any)['actor:2'];
+    return { ...entry, origin: { kind: 'authored', eventRef: ref } };
+  };
+  const raw: any = {
+    protocol: 'director-wire-v16',
+    candidates: [],
+    opportunities: [selected(events[0]!.ref), selected(events[1]!.ref)],
+    audit: {
+      reason: 'Choose two optional entry points, keep later material unperformed',
+      sourceRefs: [],
+    },
+  };
+  const original = structuredClone(f.s);
+  const decision = parseDirectorDecision(f.s, raw, f.a);
+  assert.equal(decision.opportunities.length, 2);
+  assert.equal(decision.authoredAssessments!.filter((a) => a.decision === 'consider').length, 2);
+  assert.equal(decision.authoredAssessments!.filter((a) => a.decision === 'defer').length, 1);
+  assert.deepEqual(f.s, original);
+  const bad = structuredClone(raw);
+  bad.opportunities.push(selected(events[2]!.ref));
+  assert.throws(
+    () => parseDirectorDecision(f.s, bad, f.a),
+    'three opportunities cannot pass even if all belong to the catalog',
+  );
+  bad.opportunities = [selected(events[0]!.ref), selected(events[0]!.ref)];
+  assert.throws(
+    () => parseDirectorDecision(f.s, bad, f.a),
+    'duplicate author selection is not repaired',
+  );
+  bad.opportunities = [selected('event:999')];
+  assert.throws(() => parseDirectorDecision(f.s, bad, f.a));
+  bad.opportunities = [selected(events[0]!.ref)];
+  bad.opportunities[0].actorTasks['actor:2'] = f.opportunity.actorTasks['actor:1'];
+  assert.throws(() => parseDirectorDecision(f.s, bad, f.a), 'outside cast gains no authority');
+  raw.opportunities = [];
+  assert.equal(parseDirectorDecision(f.s, raw, f.a).mode, 'quiet', 'quiet is still legal');
+  assert.equal(f.parse().mode, 'quiet', 'saved v15 map still decodes against its own catalog');
+});
+
+test('global selection shares nullable provider normalization before strict parsing', () => {
+  const f = current(3, ['ak']);
+  f.s.evaluationCause = {
+    ...f.s.evaluationCause!,
+    kind: 'periodic_review',
+  } as DirectorSnapshot['evaluationCause'];
+  f.s.deliberationWindow = {
+    version: 2,
+    nodeKeys: (f.s.evaluationCause as any).qualifications.map((q: any) => q.nodeKey),
+  };
+  f.s.candidates = [
+    {
+      id: 'candidate-a',
+      worldId: 'world',
+      actorId: 'a',
+      source: 'actor_plan',
+      episodeId: null,
+      actionId: null,
+      resourceIds: [],
+      channel: 'private',
+      threadId: 'a',
+      sourceIds: ['known'],
+      expectedWorldVersion: 5,
+      expectedActorRevision: 0,
+      priority: 1,
+      reason: 'An existing independently actionable plan',
+      requiresCoordination: false,
+    },
+  ];
+  const raw = {
+    protocol: 'director-wire-v16',
+    candidates: [{ ref: 'candidate:1', decision: 'select', nudge: null }],
+    opportunities: [],
+    audit: { reason: 'Continue the real plan', sourceRefs: [] },
+  };
+  assert.deepEqual(parseDirectorDecision(f.s, raw, f.a).selectedCandidateIds, ['candidate-a']);
+  assert.equal(raw.candidates[0]!.nudge, null, 'immutable paid response is untouched');
+  assert.throws(() =>
+    parseDirectorDecision(
+      f.s,
+      { ...raw, candidates: [{ ...raw.candidates[0], nudge: 'invented' }] },
+      f.a,
+    ),
+  );
 });

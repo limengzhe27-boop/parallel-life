@@ -78,6 +78,8 @@ export async function readConsumedSceneObservationSourcesInTransaction(
        AND i.id=a.input_receipt_id AND i.input_hash=a.input_hash
      WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$4
        AND a.status='committed' AND a.sent_at IS NOT NULL AND a.response_hash IS NOT NULL
+       AND a.response ? 'suppliedContext'
+       AND a.response#>'{suppliedContext,observations}' IS DISTINCT FROM '[]'::jsonb
        AND e.version<=$5 ORDER BY e.version,a.id`,
       [frame.worldId, owner, frame.actorId, frame.engineEpoch, frame.worldVersion],
     )

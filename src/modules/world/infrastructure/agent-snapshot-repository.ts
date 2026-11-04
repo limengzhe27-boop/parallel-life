@@ -47,6 +47,7 @@ import { PostgresWorldAwarenessRepository } from './world-awareness-repository.t
 import { selfPositionSourceId, awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
 import { NPC_AGENT_CAPABILITIES } from '../domain/agent-capabilities.ts';
+import { defaultTravelRoutes } from '../domain/space-travel-policy.ts';
 import { isEpisodeConsiderationInput } from './agent-episode-attention.ts';
 import {
   parseEpisodeConsiderationIntent,
@@ -862,24 +863,26 @@ async function attachAgentWorldContextInTransaction(
   let travelRoutes: NonNullable<AgentSnapshot['worldContext']>['travelRoutes'] = [];
   if (
     selfPosition.status === 'at' &&
+    selfPosition.placeId &&
     selfPosition.sourceId &&
     awareness.boundary.capabilityIds.includes('travel.begin')
   ) {
     const map = (
       await sql.query(
-        `SELECT version,state->'space'->'routes' AS routes,
-       EXISTS(SELECT 1 FROM parallel_life.world_clock c WHERE c.world_id=worlds.id AND c.owner_id=$2) AS clock_ready,
-       (SELECT jsonb_agg(jsonb_build_object('id',p->>'id','name',p->>'name'))
-        FROM jsonb_array_elements(COALESCE(state->'space'->'places','[]'::jsonb)) p) AS places
+        `SELECT version,state->'space' AS space,
+       EXISTS(SELECT 1 FROM parallel_life.world_clock c WHERE c.world_id=worlds.id AND c.owner_id=$2) AS clock_ready
        FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2`,
         [snapshot.state.worldId, ownerId],
       )
     ).rows[0];
     if (map?.version !== snapshot.worldVersion) throw new DomainError('VERSION_CONFLICT');
-    const places = new Map<string, string>(
-      (map.places ?? []).map((p: { id: string; name: string }) => [p.id, p.name]),
-    );
-    travelRoutes = (map.clock_ready ? (map.routes ?? []) : [])
+    const space = map.space as import('../domain/space.ts').WorldSpaceState | null;
+    const places = new Map<string, string>((space?.places ?? []).map((p) => [p.id, p.name]));
+    travelRoutes = (
+      map.clock_ready && space
+        ? [...space.routes, ...defaultTravelRoutes(space, selfPosition.placeId)]
+        : []
+    )
       .filter(
         (r: import('../domain/space.ts').SpaceRoute) =>
           r.fromPlaceId === selfPosition.placeId && allowed.has(r.toPlaceId),

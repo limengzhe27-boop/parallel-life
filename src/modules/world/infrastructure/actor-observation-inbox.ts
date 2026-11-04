@@ -56,8 +56,19 @@ export async function readActorObservationInbox(
   const groups = presence
     .filter((row) => row.kind === 'group')
     .map((row) => ({ group_id: row.id }));
+  const narrative =
+    options.includeNarrative === false
+      ? undefined
+      : (options.narrative ??
+        (await readActorNarrativeObservationSourcesInTransaction(sql, owner, {
+          worldId: snapshot.state.worldId,
+          actorId: snapshot.state.actorId,
+          worldVersion: snapshot.worldVersion,
+          storyAt: snapshot.storyAt,
+          ...(options.blockedSources ? { blockedSources: options.blockedSources } : {}),
+        })));
   const consumed =
-    rows.length || groups.length
+    rows.length || groups.length || narrative?.sources.length
       ? await readConsumedSceneObservationSourcesInTransaction(sql, owner, {
           worldId: snapshot.state.worldId,
           actorId: snapshot.state.actorId,
@@ -124,16 +135,8 @@ export async function readActorObservationInbox(
     omittedSourceIds.push(...packet.omittedSourceIds);
   }
   const narrativeKnowledgeIds: string[] = [];
-  if (options.includeNarrative !== false) {
-    const packet =
-      options.narrative ??
-      (await readActorNarrativeObservationSourcesInTransaction(sql, owner, {
-        worldId: snapshot.state.worldId,
-        actorId: snapshot.state.actorId,
-        worldVersion: snapshot.worldVersion,
-        storyAt: snapshot.storyAt,
-        ...(options.blockedSources ? { blockedSources: options.blockedSources } : {}),
-      }));
+  if (narrative) {
+    const packet = narrative;
     for (const source of packet.sources) {
       if (done.has(source.id + ':' + source.contentHash)) continue;
       narrativeKnowledgeIds.push(source.recordId);

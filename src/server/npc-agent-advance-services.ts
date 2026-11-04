@@ -654,13 +654,14 @@ export function npcAgentAdvanceServices(
           engineEpoch,
           worldVersion: world.version,
           storyAt,
+          ...(retryCommandId ? { retryCommandId } : {}),
         }),
       );
       // Establish a qualified global opening/review before hydrating generic
       // character initiative candidates; those are not waiting player requests.
       // This uses the same Director authority, payment fence and commit path.
       if (
-        !retryCommandId &&
+        (!retryCommandId || wake.cause?.kind === 'periodic_review') &&
         (!wake.hasPendingDirector || wake.cause?.kind === 'periodic_review') &&
         (wake.cause?.kind === 'bootstrap' ||
           wake.cause?.kind === 'opening_context' ||
@@ -684,6 +685,9 @@ export function npcAgentAdvanceServices(
               batch,
             )) ?? quiet(storyAt)
           );
+        // An explicit correction repairs this author assessment only. A quiet
+        // result must not purchase an unrelated NPC agenda turn in its wake.
+        if (retryCommandId) return quiet(storyAt);
       }
       const pendingObservations = await db.transaction(ownerId, (sql) =>
         readAgentObservationScheduleCandidatesInTransaction(
@@ -780,8 +784,8 @@ export function npcAgentAdvanceServices(
         forceDirectorReview ||
         (directorReview?.lastStatus !== 'invalid_output' &&
           directorReviewDue(directorReview, directorNow));
-      // A due review must reach the Director even though every idle private actor
-      // has a local-initiative candidate; otherwise the cadence is starved forever.
+      // Qualified author changes enter above. An idle global review is separate
+      // from independently executable private work, not permission to block it.
       const registrations = createAgentScheduleSources({
         worldId,
         engineEpoch,
@@ -796,7 +800,6 @@ export function npcAgentAdvanceServices(
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
         planReviews: planReviewStates,
-        suppressLocalInitiative: directorDue,
         lastAssistantAtByActor: Object.fromEntries(
           world.messages
             .filter((message) => message.role === 'assistant' && message.actorId)
@@ -932,14 +935,21 @@ export function npcAgentAdvanceServices(
         ));
       const independentActorWork = (eligible: readonly AgentCandidate[]) =>
         !retryCommandId && !directorFrameProtected
-          ? (eligible.find(
-              (candidate) =>
+          ? (eligible.find((candidate) => {
+              const ownGrant =
+                candidate.source === 'agenda_review'
+                  ? agendaReviews.get(candidate.id)?.grant.grantId
+                  : undefined;
+              return (
                 !candidate.requiresCoordination &&
                 candidate.channel === 'private' &&
                 candidate.threadId === candidate.actorId &&
-                candidate.resourceIds.length === 1 &&
-                candidate.resourceIds[0] === `wake:${candidate.id}`,
-            ) ?? null)
+                candidate.resourceIds.length === (ownGrant ? 2 : 1) &&
+                candidate.resourceIds.every(
+                  (resource) => resource === `wake:${candidate.id}` || resource === ownGrant,
+                )
+              );
+            }) ?? null)
           : null;
       // Only the unique per-candidate execution fence may be stripped for this shape check.
       // Real shared resources, original eligibility/blockers and the kernel remain authoritative.
@@ -992,10 +1002,9 @@ export function npcAgentAdvanceServices(
                 };
               // Continue original eligible actor work even while a different
               // Director call is unknown. Never rerun that paid call or borrow its intent.
-              const independent =
-                wake.hasPendingDirector || (!wake.cause && !directorDue)
-                  ? independentActorWork(input.candidates)
-                  : null;
+              const independent = forceDirectorReview
+                ? null
+                : independentActorWork(input.candidates);
               if (independent)
                 return {
                   candidateIds: [independent.id],
@@ -1152,6 +1161,15 @@ export function npcAgentAdvanceServices(
         );
       const ownObservation = independentObservation(scheduled.selected.map((s) => s.candidate));
       if (ownObservation) return execute(ownObservation, []);
+      // The single-actor scheduler fast path does not call its coordinator.
+      // Preserve that same independence here instead of sending an already
+      // selected personal grant back through the idle Director review below.
+      if (!forceDirectorReview && !wake.cause) {
+        const ownSelected = scheduled.selected.find((item) =>
+          independentActorWork([item.candidate]),
+        );
+        if (ownSelected) return execute(ownSelected.candidate, ownSelected.guidance);
+      }
       // A material global change can warrant coordination even without competing candidates.
       // It does not require another director call after every ordinary chat, nor force a message.
       if (

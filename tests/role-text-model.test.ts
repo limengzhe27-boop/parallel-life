@@ -247,3 +247,37 @@ test('Director override failure is returned once without retry, NPC invocation o
     { baseCalls: 0, npcCalls: 0, directorCalls: 1 },
   );
 });
+
+test('background NPC consideration shares planning capacity without adding a call or changing chat routing', async () => {
+  const calls: string[] = [];
+  const make = (name: string): TextModel => ({
+    complete: async () => {
+      calls.push(name);
+      return name;
+    },
+  });
+  const model = roleTextModel(make('base'), make('quick-npc'), make('planning'));
+  const output = {
+    format: 'json_schema' as const,
+    name: 'npc_agent_response',
+    strict: true,
+    schema: {},
+  };
+  assert.equal(await model.complete([], undefined, 4096, output), 'quick-npc');
+  assert.equal(
+    await model.complete([], undefined, 4096, { ...output, name: 'npc_agent_planning_response' }),
+    'planning',
+  );
+  assert.deepEqual(calls, ['quick-npc', 'planning']);
+  const failure = Error('planning failure');
+  const noFallback = roleTextModel(make('base'), make('quick-npc'), {
+    complete: async () => {
+      throw failure;
+    },
+  });
+  await assert.rejects(
+    noFallback.complete([], undefined, 4096, { ...output, name: 'npc_agent_planning_response' }),
+    (e) => e === failure,
+  );
+  assert.deepEqual(calls, ['quick-npc', 'planning']);
+});

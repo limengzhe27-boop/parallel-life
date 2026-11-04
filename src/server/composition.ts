@@ -9,6 +9,8 @@ export function createTextModel() {
   const config = gatewayConfig();
   const base = new YibuTextModel(config);
   const npcModel = process.env.YIBU_NPC_MODEL?.trim();
+  // This is model capacity shared by global and private background decisions,
+  // not shared Agent state. Direct player replies keep the fast NPC override.
   const directorModel = process.env.YIBU_DIRECTOR_MODEL?.trim();
   // Explicit provider configuration; never infer support from a model name.
   const npcEffort =

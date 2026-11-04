@@ -85,6 +85,7 @@ import {
   type AgentJourney,
 } from '../domain/agent-travel.ts';
 import { selfPositionSourceId, worldBoundary } from '../domain/world-awareness.ts';
+import { resolveTravelRoute } from '../domain/space-travel-policy.ts';
 import {
   readAgentJourneysInTransaction,
   recordAgentDepartureInTransaction,
@@ -1323,6 +1324,14 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             !snapshot.sources.some((s) => s.id === positionSource)
           )
             throw new AgentValidationError('TRAVEL_ORIGIN_NOT_AUTHORIZED');
+          const route =
+            executionWorld.space && ownActual.status === 'at' && ownActual.placeId
+              ? resolveTravelRoute(
+                  executionWorld.space,
+                  action.parameters.routeId,
+                  ownActual.placeId,
+                )
+              : undefined;
           const prepared = prepareAgentTravel({
             frame: {
               worldId: attempt.worldId,
@@ -1336,7 +1345,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               snapshot.channel.allowedCapabilities,
             ),
             ownPosition: ownActual,
-            routes: executionWorld.space?.routes ?? [],
+            routes: route ? [route] : [],
             intent: {
               journeyId: randomUUID(),
               actionId: action.id,

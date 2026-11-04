@@ -1245,6 +1245,23 @@ test('director current work omits historical quiet without losing explicit parti
     ['accepted-work', 'refused-work'],
   );
   assert.deepEqual(state, original, 'the protected snapshot and receipt history remain unchanged');
+  state.episodeParticipations!.push({
+    id: 'latest-quiet',
+    choice: 'quiet',
+    reason: 'This specific proposed approach does not suit me',
+    sourceIds: ['a-source'],
+    recordedAtVersion: 5,
+  });
+  await new WorldDirectorAgentModel({
+    async complete(messages) {
+      payload = JSON.parse(messages[1]!.content);
+      return JSON.stringify(f.quiet);
+    },
+  }).decide(f.snapshot);
+  assert.deepEqual(
+    payload.actorStates[0].episodeParticipations.map((p: any) => p.id),
+    ['accepted-work', 'refused-work', 'latest-quiet'],
+  );
 });
 
 test('empty periodic review keeps global state and actual results while focusing historical prose', async () => {

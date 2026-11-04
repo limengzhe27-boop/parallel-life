@@ -335,6 +335,7 @@ test('complete quiet reviews advance only into a due authenticated successor win
         await due(f);
         const grant = await work(f);
         assert.ok(grant);
+        const before = await evidence(f);
         await assert.rejects(
           perform(f, ownAgendaReviewInputText(grant.grant), grant.commandId, true, mode),
         );
@@ -342,7 +343,11 @@ test('complete quiet reviews advance only into a due authenticated successor win
         assert.equal(await work(f), null);
         assert.equal(f.calls, 2);
         const e = await evidence(f);
-        assert.equal(e.familyId, grant.grant.grantId);
+        assert.equal(
+          e.familyId,
+          before.familyId,
+          'paid failure preserves its evidence family; a v2 window grant is a different identity',
+        );
       },
     );
   await t.test(
@@ -352,6 +357,7 @@ test('complete quiet reviews advance only into a due authenticated successor win
       await due(f);
       const first = await work(f);
       assert.ok(first);
+      const initial = await evidence(f);
       const saved = await perform(f, ownAgendaReviewInputText(first.grant), first.commandId, true);
       const before = await evidence(f);
       assert.equal(before.anchor!.attemptId, saved.claim.id);
@@ -364,7 +370,11 @@ test('complete quiet reviews advance only into a due authenticated successor win
       });
       const e = await evidence(f);
       assert.notEqual(e.anchor!.attemptId, saved.claim.id);
-      assert.equal(e.familyId, first.grant.grantId);
+      assert.equal(
+        e.familyId,
+        initial.familyId,
+        'partial cannot replace the original complete anchor',
+      );
       await due(f);
       assert.equal(await work(f), null);
       assert.equal(f.calls, 2);
@@ -429,7 +439,8 @@ test('complete quiet reviews advance only into a due authenticated successor win
         });
       });
       assert.ok(candidate);
-      assert.equal(candidate.grant.grantId, before.familyId);
+      assert.equal(candidate.grant.anchorAttemptId, before.anchor!.attemptId);
+      assert.equal(candidate.grant.policyVersion, config.policy.version);
       assert.equal(f.calls, 1);
     },
   );

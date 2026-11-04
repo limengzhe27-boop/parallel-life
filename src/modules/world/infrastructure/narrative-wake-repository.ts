@@ -150,7 +150,11 @@ export async function readDirectorNarrativeWakeInTransaction(
       cause: retained.length
         ? {
             id: `director-explicit-retry:${input.retryCommandId}`,
-            kind: 'authored_eligibility',
+            kind:
+              prior.deliberationWindow?.version === 2 &&
+              prior.evaluationCause?.kind === 'periodic_review'
+                ? 'periodic_review'
+                : 'authored_eligibility',
             genesisHash: admission.genesis_hash,
             admittedAtVersion: admission.admitted_at_version,
             qualifications: retained,
