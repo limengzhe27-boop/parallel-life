@@ -46,3 +46,7 @@ actor-observation-inbox.ts 新增 readActorSceneRecall(sql, owner, snapshot)：�
 ## 跨渠道回答最终回归
 
 测试冻结25f86bcc，使用最新main和root的kernel/model三份WIP（不提交WIP）。真实PG整旅程1/1通过；新断言原native任务现场提问→同场私聊回答→playerReplyTargets授权scene问题→v20 related_reply提交→原question=answered。确认新suppliedContext不再将历史召回列入ACK，但snapshot保留；旧completion兼容验证继续保留。tsc完整等待结束exit0。只新增测试，无模型费用、原档修改或运行端口操作。
+
+## 已接收未发送输入的恢复
+
+测试冻结5e1217fd。通过原accept保存private receipt，证明尚无attempt；随后同NPC原服务合法交流推进世界，再以原command恢复。原main出现VERSION_CONFLICT；复制root仅claim重复准入移除修复后完整PG旅程1/1通过。断言原receipt expectedWorldVersion/原文不变，首次attempt与snapshot使用最新世界版本，重复原command不新增模型调用。tsc等待至退出码0。无公共源码提交、无原档修改。
