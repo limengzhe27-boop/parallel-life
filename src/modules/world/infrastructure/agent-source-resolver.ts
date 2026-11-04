@@ -1,4 +1,7 @@
 import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
+import { committedAwarenessDelta } from '../domain/world-awareness.ts';
+import { readAgentJourneysInTransaction } from './agent-journey-repository.ts';
+import type { WorldState } from '../domain/types.ts';
 import { readActorDefinitionSources } from './actor-definition-sources.ts';
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import {
@@ -122,8 +125,10 @@ export async function readActorStrategyBasis(
       ...(contentHash ? { contentHash } : {}),
     });
   };
-  const needsInitial = handles.some((handle) =>
-    /^(definition|message|opening|fact|appointment):/.test(handle),
+  const needsInitial = handles.some(
+    (handle) =>
+      /^(definition|message|opening|fact|appointment):/.test(handle) ||
+      handle === `self-position:genesis:${state.worldId}`,
   );
   const initial = needsInitial
     ? (
@@ -142,6 +147,13 @@ export async function readActorStrategyBasis(
       })
     : null;
   if (initial) {
+    if (
+      publicationGenesis &&
+      initial.id === state.worldId &&
+      initial.ownerId === ownerId &&
+      initial.version === 0
+    )
+      add(`self-position:genesis:${state.worldId}`, 'authored', state.worldId, 0, initial.time);
     if (handles.some((id) => id.startsWith('definition:')))
       for (const definition of await readActorDefinitionSources(
         sql,
@@ -195,6 +207,59 @@ export async function readActorStrategyBasis(
           a.id,
           ...(a.sourceMessageId ? [a.sourceMessageId] : []),
         ]);
+  }
+  // Persistent decisions can depend on a position that has since changed.
+  // Authenticate its historical event; do not replace worldContext.selfPosition
+  // or grant current physical presence from this private strategy source.
+  const positionEvents = handles.filter((id) => /^self-position:[0-9a-f-]{36}$/.test(id));
+  if (positionEvents.length) {
+    const rows = (
+      await sql.query(
+        `SELECT e.id,e.version,e.payload,w.state AS world_state FROM parallel_life.world_events e
+       JOIN parallel_life.worlds w ON w.id=e.world_id AND w.owner_id=e.owner_id
+       JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id
+         AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+       WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id=ANY($3::text[]) AND e.version<=$4
+         AND e.payload->'data'->>'actorId'=$5`,
+        [
+          state.worldId,
+          ownerId,
+          positionEvents.map((id) => id.slice('self-position:'.length)),
+          worldVersion,
+          state.actorId,
+        ],
+      )
+    ).rows;
+    for (const row of rows) {
+      const event = row.payload;
+      if (
+        event.id !== row.id ||
+        event.worldId !== state.worldId ||
+        event.version !== row.version ||
+        row.world_state.id !== state.worldId ||
+        row.world_state.ownerId !== ownerId
+      )
+        continue;
+      const journey =
+        event.type === 'agent.arrival_committed'
+          ? (
+              await readAgentJourneysInTransaction(sql, ownerId, {
+                worldId: state.worldId,
+                actorId: state.actorId,
+              })
+            ).find((value) => value.id === event.data.journeyId)
+          : undefined;
+      const delta = committedAwarenessDelta(row.world_state as WorldState, event, { journey });
+      if (
+        delta.positions.some(
+          (position) =>
+            position.subject.kind === 'actor' && position.subject.actorId === state.actorId,
+        )
+      )
+        add(`self-position:${row.id}`, 'world_event', row.id, event.version, event.storyAt, [
+          event.id,
+        ]);
+    }
   }
   const inputCandidates = handles.filter(
     (handle) =>

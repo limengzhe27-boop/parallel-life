@@ -971,9 +971,11 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v90-scene-channel-choice');
+  assert.equal(payload.promptVersion, 'npc-agent-v94-scoped-review');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
-  assert.match(system, /本轮和自动唤醒不再提该事项，直到玩家主动重提/);
+  assert.match(system, /后续按玩家实际给出的暂缓范围与已有合法条件继续/);
+  assert.match(system, /不把“晚点”扩大为永久停止/);
+  assert.doesNotMatch(system, /直到玩家主动重提/);
   assert.match(system, /安慰、道歉或对方认真难过时不以嘲讽图代替回应/);
   assert.match(system, /无合适图可不发/);
   assert.match(system, /只有executions一个动作通道/);
@@ -1559,7 +1561,12 @@ test('protected opening-information wake fits the unchanged budget with nineteen
     payload.state.responsibilities,
     wireExpected(input, input.viewState.responsibilities),
   );
-  assert.deepEqual(payload.state.questions, wireExpected(input, input.viewState.questions));
+  assert.deepEqual(payload.state.questions ?? [], []);
+  assert.equal(payload.conversationProgress.questions[0].id, input.viewState.questions![0]!.id);
+  assert.equal(
+    payload.conversationProgress.questions[0].askedAt,
+    input.viewState.questions![0]!.askedAt,
+  );
   assert.equal(payload.actor.boundaries, input.actor.boundaries);
   assert.equal(payload.wireCatalog.sources.length, 19);
   assert.equal(NPC_AGENT_REQUEST_LIMIT, 80_000);
@@ -1612,6 +1619,48 @@ test('the current request points to its own retained opportunity rather than old
       (item: any) => item.observation.sourceId === payload.currentOpportunity.sourceId,
     ),
   );
+});
+
+test('past quiet decisions are history; declines and actual waiting responsibilities remain current input', async () => {
+  const input = snapshot();
+  input.viewState.episodeParticipations = [
+    {
+      id: 'old-quiet',
+      choice: 'quiet',
+      reason: 'OLD_SILENCE_INSTRUCTION',
+      sourceIds: ['source-1'],
+      recordedAtVersion: 9,
+    },
+    {
+      id: 'old-decline',
+      choice: 'decline',
+      reason: 'PRESERVE_MY_REFUSAL',
+      sourceIds: ['source-1'],
+      recordedAtVersion: 9,
+    },
+  ];
+  input.viewState.continuation = {
+    version: 1,
+    decision: 'no_current_intent',
+    reason: 'OLD_NIGHT_WAIT',
+    planIds: [],
+    questionIds: [],
+    conditions: [],
+    sourceIds: ['source-1'],
+    sourceInputId: input.input.sourceId,
+    basisHash: 'a'.repeat(64),
+    decidedAt: input.storyAt,
+  };
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(JSON.stringify(payload).includes('OLD_SILENCE_INSTRUCTION'), false);
+  assert.equal(JSON.stringify(payload).includes('OLD_NIGHT_WAIT'), false);
+  assert.ok(JSON.stringify(payload).includes('PRESERVE_MY_REFUSAL'));
+  assert.ok(
+    payload.state.responsibilities.some((r: any) => r.id === 'r1' && r.waitingOn === 'player'),
+  );
+  assert.equal(input.viewState.episodeParticipations.length, 2, 'the stored history is untouched');
 });
 
 test('stale optional narrative state is dropped instead of failing the whole NPC turn', async () => {

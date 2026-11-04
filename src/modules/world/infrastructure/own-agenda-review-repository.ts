@@ -9,6 +9,7 @@ import { worldDateTimeInput } from '../domain/display-time.ts';
 import { agentDefinitionRef } from './agent-snapshot-repository.ts';
 import {
   ownAgendaReviewFamilyId,
+  ownAgendaReviewGrantTime,
   type OwnAgendaReviewIdentity,
   type OwnAgendaReviewAnchor,
   type OwnAgendaReviewAttemptEvidence,
@@ -29,10 +30,12 @@ export type OwnAgendaReviewEvidence = {
   anchor: OwnAgendaReviewAnchor | null;
   familyId: string | null;
   attempts: OwnAgendaReviewAttemptEvidence[];
-  /** Authenticated quiet suffix; capped only after the caller's backoff has saturated. */
+  /** No-progress backoff: authenticated quiet commits plus paid failures since the last anchor. */
   quietStreak: number;
   /** Actual committed presentation time, never a client read or claimed future delivery. */
   lastPresentedRealAt: string | null;
+  /** Existing attempt timestamps, used only for review cadence, never a story fact. */
+  lastReviewRealAt: string | null;
   /** Must be handled before N2. A different family or epoch cannot hide an active actor call. */
   actorBlockers: OwnAgendaReviewActorBlocker[];
 };
@@ -73,7 +76,7 @@ const statuses = [
 export async function readOwnAgendaReviewEvidenceInTransaction(
   sql: SqlClient,
   ownerId: string,
-  input: OwnAgendaReviewIdentity,
+  input: OwnAgendaReviewIdentity & { reviewAt?: string },
   quietHistorySize = 32,
 ): Promise<OwnAgendaReviewEvidence> {
   if (
@@ -90,7 +93,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   const frame = (
     await sql.query(
       `WITH latest_anchor AS (
-        SELECT a.id FROM parallel_life.agent_attempts a
+        SELECT a.id,e.occurred_at AS real_at FROM parallel_life.agent_attempts a
         JOIN parallel_life.agent_input_receipts i ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
         JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id
         WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$6 AND a.status='committed'
@@ -126,6 +129,15 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
           FROM family_or_active
       )
       SELECT w.version,w.state->'actors' actors,w.state->>'time' story_at,c.engine_epoch,
+      (SELECT max(a.sent_at) FROM parallel_life.agent_attempts a
+       WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$6) last_review_real_at,
+      (SELECT count(*)::integer FROM (
+        SELECT a.id FROM parallel_life.agent_attempts a
+        WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$6
+          AND a.status IN ('unknown_after_send','invalid_output','stale_discarded') AND a.sent_at IS NOT NULL
+          AND a.sent_at>(SELECT real_at FROM latest_anchor)
+        ORDER BY a.sent_at DESC,a.id DESC LIMIT $4
+      ) paid_failures) paid_failure_count,
       s.revision,s.projected_world_version,s.document AS actor_state,
       current_setting('app.user_id',true) identity,
       pg_has_role(current_user,'pl_app','MEMBER') is_app,
@@ -522,7 +534,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     [...anchors.values()]
       .filter((x) => x.anchor.definitionRef === input.definitionRef)
       .sort((a, b) => b.version - a.version)[0]?.anchor ?? null;
-  const familyId = latest ? ownAgendaReviewFamilyId(input, latest, digest) : null;
+  const familyId = latest ? ownAgendaReviewFamilyId(input, latest, digest, input.reviewAt) : null;
   const attempts: OwnAgendaReviewAttemptEvidence[] = [];
   const actorBlockers: OwnAgendaReviewActorBlocker[] = [];
   for (const r of rows) {
@@ -575,8 +587,14 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
           !isDeepStrictEqual(envelope.basisSourceIds, [
             `definition:${predecessor.anchor.definitionRef}`,
           ]) ||
-          ownAgendaReviewFamilyId(predecessor.anchor, predecessor.anchor, digest) !==
-            envelope.grantId
+          ownAgendaReviewFamilyId(
+            predecessor.anchor,
+            predecessor.anchor,
+            digest,
+            envelope.policyVersion === 'own-agenda-v2'
+              ? ownAgendaReviewGrantTime(envelope.grantId, body.receivedAt)
+              : undefined,
+          ) !== envelope.grantId
         )
           fail('envelope');
         recordFamily = envelope.grantId;
@@ -622,8 +640,11 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   return {
     worldVersion: frame.version,
     actorRevision: frame.revision,
-    quietStreak,
+    quietStreak: Math.min(quietHistorySize, quietStreak + Number(frame.paid_failure_count ?? 0)),
     lastPresentedRealAt,
+    lastReviewRealAt: frame.last_review_real_at
+      ? new Date(frame.last_review_real_at).toISOString()
+      : null,
     anchor: latest,
     familyId,
     attempts: attempts.sort((a, b) =>

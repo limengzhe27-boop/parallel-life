@@ -1,5 +1,10 @@
 import { projectCommittedWorldAwareness } from '../../src/modules/world/infrastructure/world-awareness-repository.ts';
 import {
+  DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
+  readOwnAgendaReviewWorkInTransaction,
+  ownAgendaReviewInputText,
+} from '../../src/modules/world/infrastructure/own-agenda-review-authority.ts';
+import {
   SceneRepository,
   commitSceneProposal,
 } from '../../src/modules/world/infrastructure/scene-repository.ts';
@@ -667,6 +672,110 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
   const attemptId = await commitOriginalQuiet(f);
   const initial = await read(f);
   await t.test(
+    'v2 periodic review survives a historical unknown while preserving its original paid receipt',
+    async () => {
+      const x = await fixture();
+      await commitOriginalQuiet(x);
+      const original = await read(x);
+      const old = await ledger(x, grantFor(original, 'own-agenda-v1'), {
+        status: 'unknown_after_send',
+        sent: true,
+        expired: true,
+      });
+      const config = structuredClone(DEFAULT_OWN_AGENDA_RUNTIME_CONFIG);
+      Object.assign(config.policy, {
+        storyGapMs: 1,
+        realGapMs: 1,
+        maxRealGapMs: 1,
+        quietBackoffMultiplier: 1,
+      });
+      await clocks.write(x.owner, x.worldId, {
+        storyNow: new Date(Date.parse(original.anchor!.committedStoryAt) + 60000).toISOString(),
+        speed: 0,
+        paused: false,
+        lastTickAt: new Date().toISOString(),
+        missedBeats: 0,
+        summary: null,
+      });
+      const world = await worlds.get({ userId: x.owner }, x.worldId);
+      const work = await db.transaction(x.owner, (sql) =>
+        readOwnAgendaReviewWorkInTransaction(sql, x.owner, {
+          worldId: x.worldId,
+          actorId: ACTOR_A,
+          worldVersion: world.version,
+          hasPriorityWork: false,
+          config,
+        }),
+      );
+      assert.ok(work);
+      assert.equal(work.grant.policyVersion, 'own-agenda-v2');
+      assert.notEqual(work.grant.grantId, original.familyId);
+      const runtime = new PostgresAgentRuntimeRepository(db, config);
+      const text = ownAgendaReviewInputText(work.grant);
+      const storyAt = new Date(Date.parse(original.anchor!.committedStoryAt) + 60000).toISOString();
+      const { receipt } = await runtime.accept(x.owner, {
+        id: randomUUID(),
+        worldId: x.worldId,
+        commandId: work.commandId,
+        inputHash: hash(JSON.stringify([x.worldId, ACTOR_A, work.grant.grantId, text])),
+        channel: 'private',
+        threadId: ACTOR_A,
+        recipientActorId: ACTOR_A,
+        expectedWorldVersion: world.version,
+        receivedAt: new Date().toISOString(),
+        storyAt,
+        origin: 'wake',
+        text,
+      });
+      const state = (await runtime.read(x.owner, { worldId: x.worldId, actorId: ACTOR_A }))!;
+      const { snapshot } = await readPrivateAgentSnapshot(
+        db,
+        x.owner,
+        world,
+        ACTOR_A,
+        receipt,
+        storyAt,
+        state,
+      );
+      let calls = 0;
+      const attempt = {
+        id: randomUUID(),
+        worldId: x.worldId,
+        actorId: ACTOR_A,
+        commandId: work.commandId,
+        inputReceiptId: receipt.id,
+        inputHash: receipt.inputHash,
+        engineEpoch: 2,
+        expectedWorldVersion: world.version,
+        expectedActorRevision: state.revision,
+        token: randomUUID(),
+        leaseUntil: new Date(Date.now() + 240000).toISOString(),
+      };
+      const deps = {
+        attempts: runtime,
+        model: {
+          async decide() {
+            calls++;
+            return quiet();
+          },
+        },
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+      };
+      await runNpcAgent(deps, x.owner, attempt, snapshot);
+      await runNpcAgent(deps, x.owner, attempt, snapshot);
+      assert.equal(calls, 1, 'same paid cycle is never bought twice');
+      const preserved = (
+        await admin.query(
+          'SELECT status,event_id,response FROM parallel_life.agent_attempts WHERE id=$1',
+          [old.id],
+        )
+      ).rows[0];
+      assert.equal(preserved.status, 'stale_discarded');
+      assert.equal(preserved.event_id, null);
+      assert.equal(preserved.response, null);
+    },
+  );
+  await t.test(
     'actual runner quiet -> real event, succeeded command, projected state -> minimal anchor',
     async () => {
       assert.equal(initial.anchor?.attemptId, attemptId);
@@ -883,7 +992,13 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
         sent: true,
         raw: true,
       });
-      assert.equal((await read(x)).anchor!.attemptId, before);
+      const invalidEvidence = await read(x);
+      assert.equal(invalidEvidence.anchor!.attemptId, before);
+      assert.equal(
+        invalidEvidence.quietStreak,
+        3,
+        'paid invalid output increases existing no-progress backoff',
+      );
       await remove(invalidRow);
       const unknown = await ledger(x, 'unknown ordinary work', {
         status: 'unknown_after_send',
@@ -891,6 +1006,11 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       });
       const withUnknown = await read(x);
       assert.equal(withUnknown.anchor!.attemptId, before);
+      assert.equal(
+        withUnknown.quietStreak,
+        3,
+        'paid unknown adds backoff without becoming a new anchor',
+      );
       assert.equal(withUnknown.actorBlockers[0]!.attemptId, unknown.id);
       await remove(unknown);
     },

@@ -10,6 +10,7 @@ import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import {
   evaluateOwnAgendaReview,
   ownAgendaReviewWindow,
+  ownAgendaReviewGrantTime,
   type OwnAgendaReviewPolicy,
 } from '../application/own-agenda-review-policy.ts';
 import {
@@ -32,7 +33,7 @@ export type OwnAgendaRuntimeConfig = {
 };
 export const DEFAULT_OWN_AGENDA_RUNTIME_CONFIG: OwnAgendaRuntimeConfig = {
   policy: {
-    version: 'own-agenda-v1',
+    version: 'own-agenda-v2',
     storyGapMs: 60_000,
     realGapMs: 20_000,
     quietBackoffMultiplier: 2,
@@ -283,9 +284,17 @@ export async function readOwnAgendaReviewWorkInTransaction(
     receipt?: AgentInputReceipt;
   },
 ): Promise<OwnAgendaReviewWork | null> {
-  const config = input.config ?? DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
+  const configured = input.config ?? DEFAULT_OWN_AGENDA_RUNTIME_CONFIG,
     phase = input.phase ?? 'collect';
-  if (config.policy.version !== 'own-agenda-v1') fail('OWN_AGENDA_POLICY_UNSUPPORTED');
+  const original = input.receipt
+    ? (JSON.parse(input.receipt.text) as OwnAgendaReviewEnvelope)
+    : undefined;
+  const policyVersion = original?.policyVersion ?? configured.policy.version;
+  if (!['own-agenda-v1', 'own-agenda-v2'].includes(policyVersion))
+    fail('OWN_AGENDA_POLICY_UNSUPPORTED');
+  // Old accepted receipts retain their identity; new collection uses the current policy.
+  if (phase === 'accept' && original && policyVersion !== configured.policy.version) return null;
+  const config = { ...configured, policy: { ...configured.policy, version: policyVersion } };
   const f = await frame(
     sql,
     owner,
@@ -295,6 +304,17 @@ export async function readOwnAgendaReviewWorkInTransaction(
     phase !== 'collect',
   );
   if (!f) return null;
+  const reviewAt =
+    policyVersion === 'own-agenda-v2'
+      ? original && input.receipt
+        ? ownAgendaReviewGrantTime(original.grantId, input.receipt.receivedAt)
+        : f.realAt
+      : undefined;
+  if (phase === 'accept' && reviewAt) {
+    const elapsedWindows =
+      Math.floor(Date.parse(f.realAt) / 60000) - Math.floor(Date.parse(reviewAt) / 60000);
+    if (elapsedWindows < 0 || elapsedWindows > 1) return null;
+  }
   const definitionRef = agentDefinitionRef(f.world, input.actorId);
   const quietHistorySize =
     config.policy.quietBackoffMultiplier > 1
@@ -314,6 +334,7 @@ export async function readOwnAgendaReviewWorkInTransaction(
       actorId: input.actorId,
       engineEpoch: f.engine_epoch,
       definitionRef,
+      ...(reviewAt ? { reviewAt } : {}),
     },
     quietHistorySize,
   );
@@ -423,6 +444,14 @@ export async function readOwnAgendaReviewWorkInTransaction(
     fail();
   if (phase !== 'commit') {
     if (f.paused) return null;
+    // A new time window is not permission to hammer a failing provider. All paid
+    // attempts count toward cadence as well as the existing owner/world/actor budget.
+    if (reviewAt && evidence.lastReviewRealAt && !holder?.sent_at) {
+      const cadence = ownAgendaReviewWindow(evidence.anchor, config.policy, evidence.quietStreak);
+      const gap =
+        Date.parse(cadence.nextReviewRealAt) - Date.parse(evidence.anchor.committedRealAt);
+      if (Date.parse(f.realAt) < Date.parse(evidence.lastReviewRealAt) + gap) return null;
+    }
     if (
       evidence.lastPresentedRealAt &&
       Date.parse(f.realAt) < Date.parse(evidence.lastPresentedRealAt) + config.policy.realGapMs
@@ -456,6 +485,7 @@ export async function readOwnAgendaReviewWorkInTransaction(
         purpose: 'own_agenda',
         storyAt: f.storyAt,
         realAt: f.realAt,
+        ...(reviewAt ? { reviewAt } : {}),
         paused: f.paused,
         hasPriorityWork: priority,
         attempts: others,

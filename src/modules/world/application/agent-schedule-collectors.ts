@@ -903,6 +903,37 @@ async function observations(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot,
     out: AgentCandidate[] = [];
   if (snapshot.channel.kind === 'private')
+    for (const followup of snapshot.episodeFollowUps ?? []) {
+      if (
+        followup.choice !== 'engage' ||
+        followup.followUp !== 'none' ||
+        followup.planIds.length ||
+        followup.goalIds.length ||
+        followup.responsibilityIds.length
+      )
+        continue;
+      const sourceId = `episode-intent:${followup.requestId}`;
+      const source = context.sources.get(sourceId);
+      if (
+        !source ||
+        !['director_intent', 'authored'].includes(source.kind) ||
+        source.usage !== 'private_strategy'
+      )
+        continue;
+      out.push(
+        await candidate(view, context, {
+          source: 'actor_local',
+          actionId: null,
+          sourceIds: [sourceId],
+          responsibilities: [],
+          episodeIds: [followup.episodeId],
+          semantic: { acceptedEpisodeWithoutNextStep: followup.requestId },
+          reason: '本人已选择参与的事项尚未登记后续安排，需要考虑自己的下一步。',
+          wakeCue: `继续你已选择参与的${followup.requestId}，原任务见来源${sourceId}。不是再次询问是否参与。请从本人现在能做的一步考虑如何承接：形成自己的安排、表达想法、调整参与方式或提出可拒绝的选择。需要持续跟进时记录计划；只有确实依赖玩家答复的步骤才继续等待。不复述旧问题，不替玩家答应，不把原稿结果当事实。`,
+        }),
+      );
+    }
+  if (snapshot.channel.kind === 'private')
     out.push(
       ...(await collectActorMediaResultCandidates({
         worldId: view.worldId,
@@ -1196,7 +1227,10 @@ export function createAgentScheduleSources(
           ...(actor.snapshot.worldContext?.knowledge.length ||
           actor.snapshot.actorObservationInbox?.sourceIds.length ||
           actor.snapshot.episodeResults?.length ||
-          actor.snapshot.sources.some((source) => source.id.startsWith('media-result:'))
+          actor.snapshot.sources.some((source) => source.id.startsWith('media-result:')) ||
+          actor.snapshot.episodeFollowUps?.some(
+            (followup) => followup.choice === 'engage' && followup.followUp === 'none',
+          )
             ? ['observation' as const]
             : []),
         ] as const

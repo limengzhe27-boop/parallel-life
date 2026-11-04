@@ -8,6 +8,7 @@ export type NpcConversationProgress = {
     id: string;
     sourceId: string;
     text: string;
+    askedAt: string;
     textTruncated?: true;
     status: 'open' | 'answered';
     responsibilityId?: string;
@@ -84,6 +85,7 @@ export function projectNpcConversationProgress(input: ProgressInput): NpcConvers
       id: question.id,
       sourceId: question.sourceId,
       text: text.value,
+      askedAt: question.askedAt,
       ...(text.truncated ? { textTruncated: true as const } : {}),
       status: question.status as 'open' | 'answered',
       ...(question.responsibilityId ? { responsibilityId: question.responsibilityId } : {}),

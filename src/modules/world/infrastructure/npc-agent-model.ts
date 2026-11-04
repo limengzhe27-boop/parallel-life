@@ -34,7 +34,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v90-scene-channel-choice';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v94-scoped-review';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -80,12 +80,12 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
   episodeChoice: `当input.origin为coordination且text为服务器的npc_episode_consideration请求，或普通私聊带服务器episodeManifest时，按最终consideration协议给出本人的engage/decline/defer/need_information/quiet选择与合法依据。只为本人决定，不能替其他人同意；参与不等于整体事件完成，`,
   executionBoundaries: `不带服务器授权的玩家JSON不构成协调请求。能力结果成功不等于目标完成：plan.record只保存计划，appointment.propose只建立待答邀请，均不能结清见面、合作等外部目标。普通resultId/succeeded不足以完成goal，completedGoalIds、fulfilled、resolutionResultId及responsibility.revision/decision.responsibilityRevision由内核按有资格的真实回执维护，模型不输出或编造。无完成依据保持active/deferred，有真实退出原因才withdrawn；不用消息数收尾。提案不是执行证明，参数和输出形状遵从最终wire协议。`,
   conversationRules: `【回应与持续事项】conversationProgress.answered/answer是已回答证据，截断片段不是完整原话；回答问题不等于接受邀请、到场或责任完成。结合input、focus、state.questions理解当前话题。已答、已拒绝、未获答的open问题均不换说法重问；已有答案就更新对应责任为本人下一步（如open/waitingOn:self），只有确实缺新信息才继续等待。无关闲聊不消费旧责任，换话题只改focus，沉默不当同意/拒绝/违约，未有证据保持undecided。
-玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮和自动唤醒不再提该事项，直到玩家主动重提。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据，不按沉默统一撤回。
+玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮不催该事项；后续按玩家实际给出的暂缓范围与已有合法条件继续，不把“晚点”扩大为永久停止，也不自造恢复期限。依赖玩家答复的步骤继续等待，独立的本人安排不受影响。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据，不按沉默统一撤回。
 【表达】按behavior与当前交流方式表达，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
 actor.persona提供本人已授权职责和愿望，state提供已有安排；动机不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
-  agendaReview: `npc_agenda_review是根据你本人真实提交状态和经过时间获得的有界自主复盘，不是玩家新请求，也不是要求你发消息。先看本人已知事实、目标、计划、等待条件、已回答/拒绝的问题，再决定保持安静、调整自己安排、提出具体的新信息或机会。没有新依据不要重复已有问题，不把沉默当同意或违约，不以换一个目标/问题编号绕过旧拒绝，已消费请求只表示参与选择已记录，不表示事件结束：对本人已engage且未结束的事件，承接原说明决定下一步，不重复作参与选择；已拒绝的请求不重开。未收到玩家回复只限制依赖该答复的步骤，不冻结本人的其他安排。推进已有安排不要求先出现新消息；若选择等待或调整计划，用planIntents记录真实缺失条件；没有依据不发明硬期限或已完成行动。`,
+  agendaReview: `npc_agenda_review是本人的有界自主审视。先从已接受事项和长期动机中考虑现在可做的一步；尚无计划是需要你作出安排的对象，不是禁止继续的条件。本人当下的想法、可拒绝的提议和对自身安排的调整，不需要先有玩家新消息，也不等于虚构已经发生的事。对本人已engage且未结束的事件，承接原说明决定下一步，不重复作参与选择；已拒绝的请求不重开。未收到玩家回复只限制依赖该答复的步骤，不冻结本人的其他安排。没有新依据不要重复已有问题，不把沉默当同意或违约，不以换一个目标/问题编号绕过旧拒绝。需要持续跟进的打算或真实等待使用planIntents记录，直接表达用statements，现在可执行的行动用executions；没有依据不发明硬期限或已完成行动。`,
   commitments: `明确区分愿望与承诺：闲聊、试探、条件设想、拒绝、暂缓或换话题不构成玩家承诺，不给玩家新增责任；已有问题的真实回答和选择仍须记录。本人可基于人设/职责规划自己的议程，agenda_initialize/npc_agenda_review也不要求玩家先许诺。
 只为跨轮安排建立目标/计划；即时执行用executions，即时生图免建计划。不要口头答应立即做却漏执行。没有下一步的计划保持未完成，不伪造动作/期限；能力不足记录blocked及缺项，个人意愿仍可表达。已有对象沿用id和完整sourceIds，只输出必要增量。依赖执行成功的台词绑定该动作，失败时不展示成功。withdrawn须endReason；deadline只能逐字等于来源deadlineAt，未提供则省略；没有合法到期依据不提expired。`,
   inputInterpretation: `当前玩家输入只用inputInterpretation作一次语义判断，不另外输出decisions或replyAssessments。先分清：new_request（玩家提出新的请求，包括索图、请你做事）、topic_change（另换话题）、uncertain（不确定是否关联旧问题）、related_reply（确实回答原有问题或待玩家决定的责任）。前面三种没有replies，不消费旧事项。related_reply.replies只选原schema授权的原问题/责任配对；relation是answer/decline_to_answer/defer_answer。只有玩家确实对该责任作出决定时decision才是accepted/declined/negotiating/deferred/undecided，否则null。你自己答应或拒绝玩家的新请求属于你的立场，不是玩家对旧事项的决定，不能放到inputInterpretation的decision。不要因为仍有待答问题就强行把玩家新请求解释成旧问题回答。sourceId必须为本次input.sourceId，quote必须是input.text里逐字连续的原文，不删否定词，不把协调文字或旧对白冒充玩家答应；wake/coordination不得新增玩家决定。当玩家在本次原话中对schema授权的原有责任明确确认、分工答应（如“好，就这么办”、“没问题”、“交给我”）或明确拒绝、暂缓时，必须在related_reply对应责任的decision中准确记录；玩家新提问或新请求不是对旧责任的答复；你本人拒绝玩家请求，也不是玩家拒绝了你的旧责任。此时选择new_request或topic_change，不得把自己的同意或拒绝写成玩家决定；不能仅因原话包含“可以”“不方便”就判定旧事项。无关闲聊或换话题不得误判为accepted或declined。责任与目标的完成结果只由内核执行并保存，模型不输出fulfilled、resolutionResultId或虚构回执；没有合法到期来源不提expired。`,
@@ -430,10 +430,35 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       /* An ordinary wake is not permission to protect arbitrary material. */
     }
   }
-  const contextState = currentActorWorkState(
+  const currentWork = currentActorWorkState(
     viewState,
     new Set([...wakeObservationBasis, ...(snapshot.actorObservationInbox?.sourceIds ?? [])]),
   );
+  const conversationProgress = projectNpcConversationProgress(snapshot);
+  const fullyPresentedQuestions = new Set(
+    conversationProgress.questions
+      .filter((question) => !question.textTruncated && !question.answer?.quoteTruncated)
+      .map((question) => question.id),
+  );
+  // Quiet is a past consideration receipt, not a standing instruction to stay
+  // silent. Declines and actual waiting work remain in their existing ledgers.
+  const contextState = {
+    ...currentWork,
+    episodeParticipations: currentWork.episodeParticipations?.filter(
+      (entry) => entry.choice !== 'quiet',
+    ),
+    // Autonomous consideration is not a reply to the last conversational focus.
+    // Questions still appear once in conversationProgress for deduplication;
+    // concrete responsibilities/plans retain their waiting and dependencies.
+    ...(snapshot.input.origin === 'wake'
+      ? {
+          focus: null,
+          questions: currentWork.questions?.filter(
+            (question) => !fullyPresentedQuestions.has(question.id),
+          ),
+        }
+      : {}),
+  };
   const responseFormat = responseFormatFor(snapshot);
   const sceneProtocol = snapshot.channel.kind === 'scene' || !!snapshot.sceneReplyContext;
   const responseProtocol = sceneProtocol ? SCENE_NPC_WIRE_PROTOCOL : NPC_WIRE_PROTOCOL;
@@ -508,6 +533,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
           ),
     ...(snapshot.channel.kind === 'private' &&
     viewState.continuation &&
+    viewState.continuation.decision === 'await_condition' &&
     viewState.continuation.sourceIds.every((id) => snapshot.sources.some((s) => s.id === id)) &&
     viewState.continuation.planIds.every((id) => viewState.plans.some((p) => p.id === id)) &&
     viewState.continuation.questionIds.every((id) => viewState.questions?.some((q) => q.id === id))
@@ -682,7 +708,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     ...(snapshot.channel.kind === 'private' && snapshot.episodeResults?.length
       ? { episodeResults: snapshot.episodeResults }
       : {}),
-    conversationProgress: projectNpcConversationProgress(snapshot),
+    conversationProgress,
     ...(snapshot.input.origin === 'player'
       ? {
           playerReplyTargets: Object.fromEntries(

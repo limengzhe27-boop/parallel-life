@@ -3621,3 +3621,11 @@ SCENE-EXPRESSION-47：原始response确认旧句复述来自模型；头像复�
 |PROGRESSION-48|[ ] 进行中|root-progression48唯一集成|main19557eb1；agent-observation-schedule-read.ts及测试、导演材料/调度资格与必要现有协议/测试、报告；本地3218|先统一旧unknown恢复消费者，再按原档证据修导演当前可演步骤与真实交接；复用原结构不增数据库字段，不强制消息，不重复购买原调用。|
 
 PROGRESSION-48阶段记录：当前episode视图/提交校验统一、作者评估基线与关联waiting已修改；check4219/build、真实PG3及领域通过，3218 build-progression48更新。原档29事件仅6当前、16231→3401字符，历史不动；后台仍no_candidates，0新主动来信，整体任务继续进行中。旧semantic-wake套件2/30通过、改前基线同为2/30，未称回归全通过；精确新分支PG及真正原档主动验收待续。见PROGRESSION-48.md。
+
+|AGENDA-LIFECYCLE-49|[ ] 进行中|root-agenda49唯一集成；proactive43政策子任务|main32419a4e；root独占own-agenda-review-repository/authority/runtime config、必要既有模型输入说明/PG/report；proactive43独占application/own-agenda-review-policy.ts及专属policy测试|将一次锚点复盘改为有预算/退避的周期性个人审视，原付费调用永不重试；服务器窗口及原receipt冻结执行身份，保留v1恢复。无DB表列，原档真实验收主动消息/后续计划及3218更新。|
+
+AGENDA-LIFECYCLE-49扩围：root独占agent-source-resolver.ts及必要原source PG测试；原档刘胜男engage因旧self-position:c3ea...未认证从viewState丢失，需复用不可变事件/原awareness规则认证历史来源，不能当当前位置使用，不改原存档。
+
+AGENDA-LIFECYCLE-49接续：root扩围agent-schedule-collectors.ts及原单测，复用已认证episodeFollowUps/episode-intent为engage但无后续安排提供一次稳定、可去重的本人承接候选；不重作参与选择、不强制台词、不按时间换ID。
+
+AGENDA-LIFECYCLE-49最终代码接续：v2周期身份/原receipt冻结、历史位置来源与engage恢复、一次稳定本人下一步候选、wake历史quiet裁剪及暂缓范围已接；check4229、PG16+8+5、build通过；3218 build-agenda49-scoped/v94、队列与主动worker已更新，0DB表列。原档此前47次v2仍quiet，v812具体候选也quiet，不能称主动演绎通过；未改48/h预算，待正常新窗口验收。Mac锁定，页面目视待续；根报告AGENDA-LIFECYCLE-49.md，整体仍进行中。

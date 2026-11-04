@@ -131,6 +131,68 @@ async function collect(
     blockers: outputs.flatMap((o) => o.blockers),
   };
 }
+test('an accepted episode without a next step gets one source-bound continuation opportunity', async () => {
+  const a = actor();
+  const source = {
+    id: 'episode-intent:request-a',
+    kind: 'director_intent' as const,
+    recordId: 'request-a',
+    worldVersion: 1,
+    at: before,
+    usage: 'private_strategy' as const,
+  };
+  a.snapshot.sources.push(source);
+  a.snapshot.episodeFollowUps = [
+    {
+      requestId: 'request-a',
+      episodeId: 'episode-a',
+      choice: 'engage',
+      followUp: 'none',
+      goalIds: [],
+      planIds: [],
+      responsibilityIds: [],
+      readyPlanIds: [],
+      readyResponsibilityIds: [],
+    },
+  ];
+  const first = (await collect(view([a]), 'observation')).candidates[0]!;
+  assert.ok(first);
+  assert.equal(first.episodeId, 'episode-a');
+  assert.match(first.wakeCue!, /不是再次询问是否参与/);
+  const later = view([a]);
+  later.worldVersion = 6;
+  later.storyAt = '2026-10-16T10:00:00.000Z';
+  a.snapshot.worldVersion = later.worldVersion;
+  a.snapshot.storyAt = later.storyAt;
+  a.snapshot.worldContext!.time.storyAt = later.storyAt;
+  assert.equal((await collect(later, 'observation')).candidates[0]!.id, first.id);
+  later.consumedCandidateIds = [first.id];
+  assert.equal(
+    (await collect(later, 'observation')).candidates.length,
+    0,
+    'quiet does not buy the same review again',
+  );
+  a.snapshot.worldVersion = 5;
+  a.snapshot.storyAt = at;
+  a.snapshot.worldContext!.time.storyAt = at;
+  a.snapshot.episodeFollowUps[0]!.responsibilityIds = ['r1'];
+  assert.equal(
+    (await collect(view([a]), 'observation')).candidates.length,
+    0,
+    'existing next work uses its original collector',
+  );
+  a.snapshot.episodeFollowUps[0]!.responsibilityIds = [];
+  a.snapshot.episodeFollowUps[0]!.followUp = 'terminal';
+  assert.equal((await collect(view([a]), 'observation')).candidates.length, 0);
+  a.snapshot.episodeFollowUps[0]!.followUp = 'none';
+  a.snapshot.sources = a.snapshot.sources.filter((s) => s.id !== source.id);
+  assert.equal(
+    (await collect(view([a]), 'observation')).candidates.length,
+    0,
+    'missing private directive grants no work',
+  );
+});
+
 function newlyObservedActor() {
   const a = actor();
   a.snapshot.state.projectedWorldVersion = 4;
