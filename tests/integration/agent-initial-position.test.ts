@@ -460,37 +460,28 @@ async function checkInitialPositionScene(t: TestContext, sceneMode: string) {
     );
     const planId = planned.state.plans[0]!.id;
     const moving = await admission();
-    // Use the established kernel travel proposal contract; this fixture tests
-    // committed movement provenance, not model-native travel intent parsing.
-    const travel: AgentProposal = {
-      statements: [],
-      goals: [
-        {
-          id: 'depart-purpose',
-          summary: '去咖啡馆',
-          status: 'active',
-          sourceIds: [historical, moving.snapshot.input.sourceId],
-          resultIds: [],
-        },
-      ],
-      plans: planned.state.plans,
-      responsibilities: [],
-      decisions: [],
-      actions: [
-        {
-          id: 'go-cafe',
-          goalId: 'depart-purpose',
-          capability: 'travel.begin',
-          targetIds: [],
-          parameters: { routeId: 'home_cafe' },
-          status: 'proposed',
-          sourceIds: [historical, moving.snapshot.input.sourceId],
-          preconditions: [],
-          dependsOnActionIds: [],
-          handlesResponsibilityIds: [],
-        },
-      ],
-    };
+    const refs = npcSourceReferences(moving.snapshot.sources);
+    const travel = parseAgentProposal(
+      moving.snapshot,
+      JSON.stringify({
+        protocol: 'npc-wire-v19',
+        statements: [],
+        changes: null,
+        executions: [
+          {
+            ref: 'go-cafe',
+            action: {
+              capability: 'travel.begin',
+              parameters: [{ name: 'routeId', value: 'home_cafe' }],
+              sourceIds: [
+                npcSourceRef(refs, historical),
+                npcSourceRef(refs, moving.snapshot.input.sourceId),
+              ],
+            },
+          },
+        ],
+      }),
+    );
     const moved = await runNpcAgent(
       {
         attempts: store,
