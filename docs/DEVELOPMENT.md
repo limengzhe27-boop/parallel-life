@@ -3568,6 +3568,12 @@ ARCHITECTURE-SIMPLIFY-37-R 2026-11-03集成：R1/R2-T/R3-C及episodeunknown准�
 
 ACTOR-EVENT-CONTINUITY-41集成收口：41-A/41-B/41-C技术验收通过，主目录业务d420e16d、最终旧档测试8c1a93a1；check4201/build、导演PG4、followup PG10（含旧结构下一轮正常保存未决定）通过。原2fb完整snapshot恢复v63问题-责任关联，raw及未接受状态不变；正常advance no_candidates/0模型/0消息，持续主动推进未通过。3218 build-episode41已更新，web26899/queue27014/proactive26936健康，3219未动，无生产部署。详细剩余和证据见ACTOR-EVENT-CONTINUITY-41.md；37历史精简其余项不取消。
 
-|SCENE-RESPONSE-42|[ ] 开场冲突已修，NPC真实回复HTTP500待定位|root-scene42唯一负责人|main673849ed；scene输入/现场任务/环境回应/权威位置与presence链路、对应tests/report，3218本地运行；扩围前登记|用户切换优先级：37精简与41持续主动推进未完成保留，先排查现场没人/发送无回应；不伪造NPC到场，不重置原档；必要验证和本地更新。|
+|SCENE-RESPONSE-42|[ ] 原档现场对话已验证，旧unknown及上游500待续|root-scene42唯一负责人|main673849ed；scene输入/现场任务/环境回应/权威位置与presence链路、对应tests/report，3218本地运行；扩围前登记|用户切换优先级：37精简与41持续主动推进未完成保留，先排查现场没人/发送无回应；不伪造NPC到场，不重置原档；必要验证和本地更新。|
 
 SCENE-RESPONSE-42：恢复已停止本地库/web/queue；修seed presence与开场player-only冲突、scene.entered覆盖NPC位置来源。check4201/build、PG17通过；原2fb街边问路真实回应、办公室新开场succeeded/刘胜男在场；NPC问候task773d4e05模型500→unknown，未重发。plain/schema/none/完整schema独立探针成功，原500具体原因未确定，不能称现场NPC回复全程通过；媒体500亦留未完成。3218 build-scene42更新，旧精简和主动推进清单保留，详见SCENE-RESPONSE-42.md。
+
+SCENE-RESPONSE-42 2026-11-04接续：root继续现场真实NPC HTTP500与原请求恢复诊断，扩围模型适配器及必要测试（先证据后修改）；PROACTIVE-CONTINUITY-43交其他Agent独立工作树，root统一集成/原档验收。只更新本地3218。
+
+|PROACTIVE-CONTINUITY-43|[ ] 进行中|proactive43；root集成|独立.local/worktrees/proactive43；own-agenda-review-repository.ts、own-agenda-review-authority.ts及专属测试/report|统一过期unknown对不同合法议程的准入，原family付费围栏保留；原档只读，0模型，不修改现场及运行环境。|
+
+SCENE-RESPONSE-42接续验收：原2fb同办公室新问题task01838929 succeeded，刘胜男真实两条回复，committed7660ms；刷新解锁后仍保留原现场及消息。旧773d unknown未重发；完整上下文独立探针成功但未确定旧500原因。本轮未改业务，无需重复check/build；3218沿用已验证1af2ce12构建。主动推进交PROACTIVE-CONTINUITY-43。
