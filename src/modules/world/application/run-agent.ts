@@ -50,6 +50,7 @@ export async function runNpcAgent(
       error: unknown,
     ) => Promise<{
       eventId: string;
+      sceneReply?: { sceneId: string };
       state: import('../domain/agent-runtime.ts').ActorAgentState;
       results: import('../domain/agent-runtime.ts').AgentActionResult[];
     } | null>;

@@ -14,6 +14,8 @@ import type {
 
 /** Snapshot reads have no projection writes or model calls. Channel input is already visibility-filtered. */
 export type AgentSnapshot = {
+  /** Server-observed co-presence, not a new location or a model-supplied destination. */
+  sceneReplyContext?: { sceneId: string; placeName: string; audienceActorIds: string[] };
   state: ActorAgentState;
   actorObservationInbox?: {
     sourceIds: string[];
@@ -176,6 +178,7 @@ export interface AgentKernel {
     eventId: string;
     state: ActorAgentState;
     results: AgentActionResult[];
+    sceneReply?: { sceneId: string };
   }>;
   /** Strict parsing and deterministic validation, without executing anything. */
   parse(snapshot: AgentSnapshot, response: unknown): AgentProposal;
@@ -187,7 +190,12 @@ export interface AgentKernel {
       snapshot: AgentSnapshot;
       proposal: AgentProposal;
     },
-  ): Promise<{ eventId: string; state: ActorAgentState; results: AgentActionResult[] }>;
+  ): Promise<{
+    eventId: string;
+    state: ActorAgentState;
+    results: AgentActionResult[];
+    sceneReply?: { sceneId: string };
+  }>;
 }
 export interface AgentCapability {
   key: string;

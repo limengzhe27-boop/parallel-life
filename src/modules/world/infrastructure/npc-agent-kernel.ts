@@ -1,3 +1,5 @@
+import { readActorSceneDelivery } from './agent-scene-delivery.ts';
+import { assertSceneEntry } from '../domain/experience-rules.ts';
 import { readEpisodeQuestionLinksInTransaction } from './episode-question-links.ts';
 import { enqueueConversationSummary } from '../../memory/infrastructure/conversation-summary.ts';
 import { joinCurrentAgentSceneInTransaction } from './agent-scene-presence-repository.ts';
@@ -16,7 +18,10 @@ import {
 import { canHandleExternalResponsibility } from '../domain/capability-responsibility-policy.ts';
 import { validateActorMediaResultContextInTransaction } from './agent-source-resolver.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
-import { validateActorObservationInbox } from './actor-observation-inbox.ts';
+import {
+  validateActorObservationInbox,
+  validateActorSceneRecall,
+} from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
 import {
@@ -31,6 +36,7 @@ import { readLocationReportAudience } from './location-report-audience.ts';
 import { projectLocationReportKnowledge } from '../domain/project-location-report-knowledge.ts';
 import {
   nativeAgentProjectionId,
+  buildSceneStatementEntries,
   projectNativeAgentChannelInTransaction,
 } from './agent-channel-projector.ts';
 import { readActorStrategyBasis } from './agent-source-resolver.ts';
@@ -166,7 +172,14 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       throw Error('INVALID_AGENT_RECEIPT');
     await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId: replay.id });
     await this.afterCommit?.(sql, { attempt, eventId: replay.id });
-    return { eventId: replay.id as string, state: accepted.stateAfter, results: accepted.results };
+    return {
+      eventId: replay.id as string,
+      state: accepted.stateAfter,
+      results: accepted.results,
+      ...(replay.data?.sceneReply
+        ? { sceneReply: { sceneId: String(replay.data.sceneReply.sceneId) } }
+        : {}),
+    };
   }
   /** The complete media intent uses the very same validators and executor as the final turn.
    * Only its irreversible prefix is committed; the attempt remains streaming. */
@@ -261,6 +274,18 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       const proposal = parseAgentProposal(snapshot, input.proposal);
       validateActorContinuation(snapshot, proposal);
       const frame = await beginAgentCommitFrameInTransaction(sql, ownerId, attempt, options);
+      const sceneDelivery =
+        proposal.replyChannel === 'scene'
+          ? await readActorSceneDelivery(sql, ownerId, attempt.worldId, attempt.actorId)
+          : null;
+      if (
+        proposal.replyChannel === 'scene' &&
+        (!sceneDelivery || !isDeepStrictEqual(sceneDelivery.context, snapshot.sceneReplyContext))
+      )
+        throw new AgentValidationError('SCENE_REPLY_PRESENCE_CHANGED');
+      const deliveryChannel = sceneDelivery
+        ? { ...snapshot.channel, kind: 'scene' as const, threadId: sceneDelivery.scene.id }
+        : snapshot.channel;
       const current = frame.state;
       const receivedInput = frame.receipt;
       const inputSource = snapshot.sources.find((source) => source.id === snapshot.input.sourceId);
@@ -288,6 +313,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       await validateActorEpisodeResults(sql, ownerId, snapshot);
       await validateActorMediaResultContextInTransaction(sql, ownerId, snapshot);
       await validateSceneObservationContext(sql, ownerId, snapshot);
+      await validateActorSceneRecall(sql, ownerId, snapshot);
       await validateGroupObservationContext(sql, ownerId, snapshot);
       await validateActorObservationInbox(sql, ownerId, snapshot, {
         blockedSources: validationBlockedSources,
@@ -309,6 +335,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       const strategy = snapshot.sources.filter(
         (source) =>
           source.usage === 'private_strategy' &&
+          !(source.kind === 'scene_entry' && source.contentHash) &&
           !snapshot.actorObservationInbox?.sourceIds.includes(source.id),
       );
       if (strategy.length) {
@@ -318,7 +345,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           current,
           attempt.expectedWorldVersion,
           snapshot.storyAt,
-          { blockedSources: validationBlockedSources, skipEmptyMediaHeadCheck: true },
+          {
+            blockedSources: validationBlockedSources,
+            skipEmptyMediaHeadCheck: true,
+            referencedSourceIds: strategy.map((s) => s.id),
+          },
         );
         if (strategy.some((source) => !currentBasis.some((now) => isDeepStrictEqual(source, now))))
           throw Object.assign(Error('AGENT_REVISION_CONFLICT'), {
@@ -1712,6 +1743,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           : allSegmentRows.length > 0
             ? deterministicStreamMessageId(eventId, segIdx)
             : randomUUID();
+        if (sceneDelivery) continue;
         const text = statement.text;
         effects.push({
           type: 'message.received',
@@ -1740,12 +1772,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         if (statement.requestsPlayerReply !== true) continue;
         const messageEffects = effects.filter((effect) => effect.type === 'message.received');
         const questionSourceId =
-          snapshot.channel.kind === 'private'
+          deliveryChannel.kind === 'private'
             ? `message:${messageEffects[questionIndex]!.id}`
-            : `${snapshot.channel.kind === 'group' ? 'group' : 'scene'}:${nativeAgentProjectionId(eventId, snapshot.channel.kind, snapshot.channel.kind === 'group' ? 0 : questionIndex)}`;
+            : `${deliveryChannel.kind === 'group' ? 'group' : 'scene'}:${nativeAgentProjectionId(eventId, deliveryChannel.kind, deliveryChannel.kind === 'group' ? 0 : questionIndex)}`;
         accepted.state.focus = {
-          channel: snapshot.channel.kind,
-          threadId: snapshot.channel.threadId,
+          channel: deliveryChannel.kind,
+          threadId: deliveryChannel.threadId,
           subjectId: accepted.state.focus?.subjectId ?? null,
           questionSourceId,
           replyToActorId: attempt.actorId,
@@ -1753,8 +1785,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         const existingQuestion = accepted.state.questions?.find(
           (q) =>
             q.sourceId === questionSourceId &&
-            q.channel === snapshot.channel.kind &&
-            q.threadId === snapshot.channel.threadId,
+            q.channel === deliveryChannel.kind &&
+            q.threadId === deliveryChannel.threadId,
         );
         if (existingQuestion) {
           if (statement.questionForResponsibilityId !== undefined) {
@@ -1769,8 +1801,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         }
         (accepted.state.questions ??= []).push({
           id: `${eventId}_question_${questionIndex}`,
-          channel: snapshot.channel.kind,
-          threadId: snapshot.channel.threadId,
+          channel: deliveryChannel.kind,
+          threadId: deliveryChannel.threadId,
           sourceId: questionSourceId,
           text: statement.text,
           askedAt: at,
@@ -1869,6 +1901,51 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           statements: accepted.statements,
         });
       } else if (accepted.statements.length || proposal.recallLast) {
+        const sceneEntries = sceneDelivery
+          ? buildSceneStatementEntries({
+              worldId: attempt.worldId,
+              ownerId,
+              sceneId: sceneDelivery.scene.id,
+              eventId,
+              version: frame.commitVersion,
+              actorId: attempt.actorId,
+              present: sceneDelivery.present,
+              statements: accepted.statements,
+            })
+          : [];
+        if (sceneDelivery) {
+          if (sceneDepartures.some((d) => d.sceneId === sceneDelivery.scene.id))
+            throw new AgentValidationError('SCENE_REPLY_DEPARTURE_CONFLICT');
+          const old = (
+            await sql.query(
+              'SELECT id,version FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND (id=ANY($3::text[]) OR version=ANY($4::int[]))',
+              [
+                attempt.worldId,
+                ownerId,
+                [
+                  sceneDelivery.scene.sourceEventId,
+                  ...sceneDelivery.scene.presence.map((p) => p.sourceEventId),
+                ],
+                sceneDelivery.scene.presence.flatMap((p) =>
+                  p.leftVersion === undefined ? [] : [p.leftVersion],
+                ),
+              ],
+            )
+          ).rows;
+          const context = {
+            world: { ...frame.world, version: frame.commitVersion },
+            events: [
+              ...old.map((r) => ({
+                id: String(r.id),
+                version: Number(r.version),
+                worldId: attempt.worldId,
+                ownerId,
+              })),
+              { id: eventId, version: frame.commitVersion, worldId: attempt.worldId, ownerId },
+            ],
+          };
+          for (const entry of sceneEntries) assertSceneEntry(context, sceneDelivery.scene, entry);
+        }
         const event: WorldEvent = {
           schemaVersion: 1,
           id: eventId,
@@ -1881,6 +1958,9 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           data: {
             actorId: attempt.actorId,
             userText: command.text,
+            ...(sceneDelivery && sceneEntries.length
+              ? { sceneReply: { sceneId: sceneDelivery.scene.id, entries: sceneEntries } }
+              : {}),
             effects: appendUnits
               ? effects.filter(
                   (effect) =>
@@ -1914,6 +1994,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           legacyProgress: false,
           finalizePrefixEvent: !appendUnits && committedSegmentRows.length > 0,
         });
+        for (const entry of sceneEntries)
+          await sql.query(
+            "INSERT INTO parallel_life.scene_items(id,world_id,owner_id,scene_id,source_event_id,kind,document) VALUES($1,$2,$3,$4,$5,'entry',$6)",
+            [entry.id, attempt.worldId, ownerId, entry.sceneId, eventId, entry],
+          );
       } else {
         // Do not force an empty or fabricated message to satisfy the legacy character-turn contract.
         const event: AgentStateCommittedEvent = {
@@ -2080,7 +2165,14 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               ],
             );
         if (!results.length) throw new AgentValidationError('STREAM_MEDIA_NOT_READY');
-        return { eventId, state: accepted.state, results };
+        return {
+          eventId,
+          state: accepted.state,
+          results,
+          ...(sceneDelivery && accepted.statements.length
+            ? { sceneReply: { sceneId: sceneDelivery.scene.id } }
+            : {}),
+        };
       }
       if (allSegmentRows.length > 0) {
         const userMessageId = appendUnits
@@ -2170,7 +2262,14 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         attempt.worldId,
         'NPC_DELIVERY_DEFERRED',
       );
-      return { eventId, state: accepted.state, results };
+      return {
+        eventId,
+        state: accepted.state,
+        results,
+        ...(sceneDelivery && accepted.statements.length
+          ? { sceneReply: { sceneId: sceneDelivery.scene.id } }
+          : {}),
+      };
     });
   }
 }

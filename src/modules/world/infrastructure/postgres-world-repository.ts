@@ -41,8 +41,6 @@ import { PublicationStoryRepository } from '../../settings/infrastructure/public
 import { applyActorEventAssessments } from './actor-goal-repository.ts';
 import { actorContext } from '../application/actor-context.ts';
 import type { EventGoalAssessment } from '../domain/types.ts';
-import { validateCharacterEffects } from '../domain/character-policy.ts';
-import { parseProposal } from '../domain/validation.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 import { PostgresClockStore } from './clock-repository.ts';
 import type {
@@ -674,21 +672,12 @@ export class PostgresWorldRepository implements WorldRepository {
           facts: rawHydrated.facts.filter((f) => f.sourceEventId !== event.id),
         }
       : rawHydrated;
-    validateCharacterEffects(
-      command.actorId,
-      event.data.stream && event.data.effects.length === 0
-        ? []
-        : parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
-      false,
-      command.origin,
-      Boolean(event.data.stream),
-    );
     if (
       event.data.effects.some((effect) => effect.type === 'information.shared') &&
       event.data.disclosurePolicyVersion !== 2
     )
       throw new DomainError('INVALID_PROPOSAL', 'Disclosure policy version required');
-    const { state, jobs } = applyEvent(hydrated, event);
+    const { state, jobs } = applyEvent(hydrated, event, { allowLegacyReplay: false });
     if (options.finalizePrefixEvent) {
       await sql.query(
         'UPDATE parallel_life.world_events SET payload=$4,occurred_at=$5 WHERE id=$1 AND world_id=$2 AND owner_id=$3',

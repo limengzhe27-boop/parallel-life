@@ -1,4 +1,5 @@
 import { readEpisodeQuestionLinksInTransaction } from './episode-question-links.ts';
+import { readActorSceneDelivery } from './agent-scene-delivery.ts';
 import { currentActorWorkState } from '../application/agent-state-context.ts';
 import { readRetainedActorEpisodeBriefs } from './actor-episode-intent-repository.ts';
 import { summaryReplacedMessages } from '../../memory/infrastructure/conversation-summary.ts';
@@ -13,7 +14,7 @@ import {
   readVerifiedPublicationGenesisEvidence,
   verifiedPublicationGenesisRecord,
 } from './verified-publication-genesis-evidence.ts';
-import { readActorObservationInbox } from './actor-observation-inbox.ts';
+import { readActorObservationInbox, readActorSceneRecall } from './actor-observation-inbox.ts';
 import { readActorEpisodeResults } from './episode-result-context-repository.ts';
 import {
   readEpisodeLifecycleContext,
@@ -1012,5 +1013,19 @@ async function attachAgentWorldContextInTransaction(
     contextual.observations = contextual.observations.map((o) => bySource.get(o.sourceId) ?? o);
   }
   contextual.episodeResults = await readActorEpisodeResults(sql, ownerId, contextual, blocked);
+  if (contextual.channel.kind === 'private') {
+    const recall = await readActorSceneRecall(sql, ownerId, contextual);
+    const known = new Set(contextual.sources.map((s) => s.id));
+    const extra = new Set(recall.sources.filter((s) => !known.has(s.id)).map((s) => s.id));
+    contextual.sources.push(...recall.sources.filter((s) => extra.has(s.id)));
+    contextual.observations.push(...recall.observations.filter((o) => extra.has(o.sourceId)));
+    const delivery = await readActorSceneDelivery(
+      sql,
+      ownerId,
+      contextual.state.worldId,
+      contextual.state.actorId,
+    );
+    if (delivery) contextual.sceneReplyContext = delivery.context;
+  }
   return contextual;
 }

@@ -495,6 +495,8 @@ export type WorldEvent = {
     stream?: import('./npc-stream-segment.ts').AgentStreamUnit;
     /** Kernel-only persistent NPC transition; never accepted as model-authored world facts. */
     agentRuntime?: import('./agent-state-event.ts').AgentRuntimeTransition;
+    /** Same paid turn: original private input stays private, actual speech is projected to this scene. */
+    sceneReply?: { sceneId: string; entries: import('./experience-rules.ts').SceneEntry[] };
   };
 };
 export type OutboxJob = {

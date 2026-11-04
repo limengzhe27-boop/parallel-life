@@ -16,6 +16,7 @@ import {
 } from './agent-input-interpretation.ts';
 
 export type AgentValidationContext = {
+  sceneReplyContext?: { sceneId: string; placeName: string; audienceActorIds: string[] };
   episodeManifest?: PlayerEpisodeManifest;
   state: ActorAgentState;
   viewState?: ActorAgentState;
@@ -252,6 +253,30 @@ export function validateAgentProposal(
   context: AgentValidationContext,
   proposal: AgentProposal,
 ): void {
+  const sceneDelivery =
+    context.channel.kind === 'scene' ||
+    (context.channel.kind === 'private' &&
+      proposal.replyChannel === 'scene' &&
+      context.sceneReplyContext);
+  if (proposal.replyChannel !== undefined)
+    requireValid(
+      context.channel.kind === 'private' && Boolean(context.sceneReplyContext),
+      'REPLY_CHANNEL_SCOPE',
+    );
+  if (proposal.replyChannel === 'scene')
+    requireValid(!proposal.recallLast, 'SCENE_REPLY_RECALL_SCOPE');
+  for (const statement of proposal.statements) {
+    if (statement.kind === 'narration')
+      requireValid(
+        Boolean(sceneDelivery) && !statement.requestsPlayerReply && !statement.stickerId,
+        'NARRATION_SCOPE',
+      );
+    if (sceneDelivery)
+      requireValid(
+        !statement.stickerId && statement.text.trim().length > 0,
+        'SCENE_EXPRESSION_REQUIRED',
+      );
+  }
   const state = context.viewState ?? context.state;
   if (context.input.origin === 'coordination') {
     let request: { type?: unknown } | null = null;
@@ -287,7 +312,9 @@ export function validateAgentProposal(
             context.channel.threadId === context.state.actorId &&
             decision.requestId === context.episodeManifest.requestId &&
             decision.sourceIds.includes(context.episodeManifest.sourceId))) &&
-        !(context.viewState ?? context.state).episodeParticipations?.some((p) => p.id === decision.requestId) &&
+        !(context.viewState ?? context.state).episodeParticipations?.some(
+          (p) => p.id === decision.requestId,
+        ) &&
         ['engage', 'decline', 'defer', 'need_information', 'quiet'].includes(decision.choice) &&
         typeof decision.reason === 'string' &&
         decision.reason.trim().length > 0 &&
@@ -428,7 +455,10 @@ export function validateAgentProposal(
       );
     conditions(plan.triggers);
     if (plan.status === 'active')
-      requireValid(plan.goalId === null || goals.get(plan.goalId)?.status === 'active', 'PLAN_GOAL_NOT_ACTIVE');
+      requireValid(
+        plan.goalId === null || goals.get(plan.goalId)?.status === 'active',
+        'PLAN_GOAL_NOT_ACTIVE',
+      );
     // Do not retroactively invalidate unchanged historical plans on ordinary dialogue.
     if (!previous || !sameValue(previous, plan)) {
       const missing = plan.missingConditions.some((text) => text.trim().length > 0);

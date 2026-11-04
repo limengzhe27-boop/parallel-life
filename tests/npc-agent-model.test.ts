@@ -131,7 +131,7 @@ function capture(
   return { calls, adapter: new NpcAgentModel(transport) };
 }
 
-test('all three channels use one protocol and preserve the same actor identity/revision/state', async () => {
+test('all three channels preserve the same actor identity/revision/state with scoped scene expression', async () => {
   const { calls, adapter } = capture();
   for (const channel of ['private', 'group', 'scene'] as const) {
     const input = snapshot(channel),
@@ -162,7 +162,10 @@ test('all three channels use one protocol and preserve the same actor identity/r
   }
   assert.equal(calls.length, 3);
   assert.equal(calls[0]!.messages[0]!.content, calls[1]!.messages[0]!.content);
-  assert.equal(calls[1]!.messages[0]!.content, calls[2]!.messages[0]!.content);
+  assert.equal(
+    calls[1]!.messages[0]!.content.replaceAll('npc-wire-v19', 'npc-wire-v20'),
+    calls[2]!.messages[0]!.content,
+  );
 });
 
 test('unknown server/director properties and source record pointers are not serialized', async () => {

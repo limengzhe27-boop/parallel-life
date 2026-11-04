@@ -344,7 +344,8 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
           o.kind === 'speech' &&
           !(
             snapshot.channel.kind === 'private' &&
-            snapshot.actorObservationInbox?.sourceIds.includes(o.sourceId) &&
+            (snapshot.actorObservationInbox?.sourceIds.includes(o.sourceId) ||
+              snapshot.sources.some((s) => s.id === o.sourceId && s.kind === 'scene_entry')) &&
             ['player_report', 'actor_report'].includes(o.evidenceKind ?? '') &&
             snapshot.sources.some(
               (s) =>
@@ -352,6 +353,12 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
                 ['scene_entry', 'group_message'].includes(s.kind) &&
                 /^[a-f0-9]{64}$/.test(s.contentHash ?? ''),
             )
+          ) &&
+          !(
+            snapshot.channel.kind !== 'private' &&
+            (o.speaker?.kind === 'player' ||
+              (o.speaker?.kind === 'actor' && o.speaker.actorId === snapshot.state.actorId)) &&
+            snapshot.sources.some((s) => s.id === o.sourceId && s.kind === 'private_message')
           )),
     )
   )

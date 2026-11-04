@@ -11,7 +11,10 @@ import { reserveOwnAgendaBudgetInTransaction } from './own-agenda-budget-reposit
 import { requireAgendaInitializeInputInTransaction } from './actor-agenda-initialization-repository.ts';
 import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
-import { validateActorObservationInbox } from './actor-observation-inbox.ts';
+import {
+  validateActorObservationInbox,
+  validateActorSceneRecall,
+} from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
 import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
@@ -218,14 +221,9 @@ function stateShape(state: ActorAgentState) {
     state.schemaVersion !== 1 ||
     typeof state.definitionRef !== 'string' ||
     !state.definitionRef.trim() ||
-    [
-      'knowledgeSourceIds',
-      'goals',
-      'plans',
-      'actions',
-      'responsibilities',
-      'decisions',
-    ].some((k) => !Array.isArray((state as any)[k]))
+    ['knowledgeSourceIds', 'goals', 'plans', 'actions', 'responsibilities', 'decisions'].some(
+      (k) => !Array.isArray((state as any)[k]),
+    )
   )
     fail('INVALID_INPUT');
   return json(state, 240000);
@@ -601,8 +599,7 @@ export class PostgresAgentRuntimeRepository
                 existingStatus: old.status,
                 incoming:
                   k === 'inputHash' ? input.inputHash.slice(0, 8) : (input[k] as string | number),
-                stored:
-                  k === 'inputHash' ? a.inputHash.slice(0, 8) : (a[k] as string | number),
+                stored: k === 'inputHash' ? a.inputHash.slice(0, 8) : (a[k] as string | number),
               }),
             );
             fail('COMMAND_CONFLICT');
@@ -770,6 +767,7 @@ export class PostgresAgentRuntimeRepository
           await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
           await validateActorEpisodeResults(sql, ownerId, snapshot);
           await validateSceneObservationContext(sql, ownerId, snapshot);
+          await validateActorSceneRecall(sql, ownerId, snapshot);
           await validateGroupObservationContext(sql, ownerId, snapshot);
           await validateActorObservationInbox(sql, ownerId, snapshot);
         }
@@ -809,6 +807,7 @@ export class PostgresAgentRuntimeRepository
           const strategy = snapshot.sources.filter(
             (source) =>
               source.usage === 'private_strategy' &&
+              !(source.kind === 'scene_entry' && source.contentHash) &&
               !snapshot.actorObservationInbox?.sourceIds.includes(source.id),
           );
           if (strategy.length) {
@@ -818,7 +817,7 @@ export class PostgresAgentRuntimeRepository
               state.document,
               snapshot.worldVersion,
               snapshot.storyAt,
-              { skipEmptyMediaHeadCheck: true },
+              { skipEmptyMediaHeadCheck: true, referencedSourceIds: strategy.map((s) => s.id) },
             );
             if (strategy.some((source) => !actual.some((item) => isDeepStrictEqual(source, item))))
               fail('AGENT_REVISION_CONFLICT');

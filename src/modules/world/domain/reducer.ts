@@ -35,7 +35,6 @@ function hasValidSceneReply(event: WorldEvent, current: WorldState): boolean {
     !proposal ||
     proposal.replyChannel !== 'scene' ||
     reply.entries.length !== proposal.statements.length ||
-    event.data.origin === 'director' ||
     event.data.effects.some((e) => e.type === 'message.received')
   )
     reject();
@@ -94,6 +93,7 @@ function hasValidSceneReply(event: WorldEvent, current: WorldState): boolean {
 export function applyEvent(
   current: WorldState,
   event: WorldEvent,
+  options: { allowLegacyReplay?: boolean } = {},
 ): { state: WorldState; jobs: OutboxJob[] } {
   if (event.worldId !== current.id || event.version !== current.version + 1)
     throw new DomainError('VERSION_CONFLICT');
@@ -121,7 +121,7 @@ export function applyEvent(
   validateCharacterEffects(
     event.data.actorId,
     effects,
-    true,
+    options.allowLegacyReplay ?? true,
     event.data.origin,
     Boolean(event.data.stream) || sceneReply,
   );
