@@ -3581,3 +3581,21 @@ SCENE-RESPONSE-42接续验收：原2fb同办公室新问题task01838929 succeede
 PROACTIVE-CONTINUITY-43冻结451caec2：独立PG55743 evidence13/13、typecheck/边界767通过，过期unknown仅释放actor围栏，原family禁止重买；原档5人物同断点只读取证。无service实际领取/真实模型验收，root集成check/build与3218；37/41长期推进仍未完成。
 
 PROACTIVE-CONTINUITY-43 root集成866c44bf：check4201/build、子PG13通过；3218/build-proactive43、queue85243、proactive85161已更新/恢复。原档正常调度仍no_candidates及导演旧unknown，0主动新消息，不称持续演绎通过；proactive43继续定位下一准入断点。场景42原档对话及刷新保留已通过；旧500/unknown保留。
+
+PROACTIVE-CONTINUITY-43继续进行中：root授权proactive43独占director-frame-retirement.ts、tests/director-frame-retirement.test.ts、tests/integration/director-frame-lifecycle.test.ts与报告；独立树同步3f873001。复用认证新变化退休旧unknown执行帧，原付费记录不重买；不改emptyDirectorRecoveryDue/模型/运行配置。
+
+PROACTIVE-CONTINUITY-43导演接续待验收：冻结fc2629bc，复用认证current changes允许非作者关联新计划/决定/结果退休旧unknown执行帧；原付费原文和迟到响应保留。隔离PG55743 4/4、domain3/3、typecheck/边界767通过；0模型/原档写。无新依据重复unknown读取尚未改，root门禁/本地原档验收。
+
+|SCENE-CONTINUITY-44|[x] 本批本地交付完成|root-scene44唯一集成；memory44/protocol44并行|root独占snapshot共享接线/运行端口类型、npc-agent-services/kernel/channel-projector、world event/replay/scene source验证接线、contracts回执及phone呈现、必要tests/report；子任务专属文件另登记|同人物经历连续、同场微信输入保留私聊来源但可现场回应、同次调用现场动作旁白；复用现有记录，不增DB列/表；原档有限真实验收、check/build/PG、本地3218更新。|
+
+|SCENE-CONTINUITY-44-M|[x] 已集成验证|memory44；root唯一集成|独立scene-memory44/codex/scene-delivery44-tests；inbox、scene-source、channel-snapshot、source-resolver及专属测试/report；公共source WIP只复制验证不提交|双向召回已接；消费者修复1ef76f20；整条PG8fcfa42c、报告9268c8dc。真实私聊→scene speech/narration、重复HTTP、后续native私人召回、离场/缺席拒绝均通过；原档真实体验及更新运行归root。|
+
+|SCENE-CONTINUITY-44-P|[x] 已集成验证|scene-protocol44；root集成|独立scene-protocol44；agent-runtime statement/proposal、agent-proposal-schema、npc-model-protocol、npc-agent-model及专属测试|场景表达/回复渠道最小动态协议，旧raw保持；root负责提交投影。|
+
+|SCENE-RECEIPT-44|[x] 本地原档验证完成|proactive43/scene-receipt44；root集成|独立.local/worktrees/scene-receipt44自700f58e0；npc-agent-services、world-interaction契约、phone world-app/partial-replies/apps types/messages及专属测试/report|已认证现场回复回执提示，不复制NPC微信气泡；无DB迁移，kernel归root。|
+
+SCENE-RECEIPT-44冻结de49d8a3：新committed/lookup/complete hint与微信原玩家消息旁现场链接；16/16聚焦、边界767。root ports/run-agent WIP借用验证不包含提交；PG/真实页面/本地更新归root。无模型/原档写。
+
+SCENE-CONTINUITY-44 root进展：原档v676微信输入→现场回复、v678/679现场继续、v682再次微信→现场均真实成功；修复召回误ACK与accepted-only重复版本准入(979e0a58)，PG对照通过。check4217/build通过。刷新hint丢失已定位旧receipt协议头并集成77db0e4e，正在最后web构建；未称长期主动推进完成，43继续保留unknown/no_candidates及高历史查询成本。
+
+SCENE-CONTINUITY-44收口：业务77db0e4e、本地3218/build-scene44-final；原档v676/679/682/684微信↔现场连续真实回复、刷新hint和现场导航通过，check4217、build及PG通过；手机框/PC已查，物理手机未测，真实模型旁白未采到。无DB迁移/假消息/位置篡改。43仍有INVALID_OWN_AGENDA_REVIEW_EVIDENCE与旧unknown/no_candidates，0主动消息，交proactive43继续定位，未合并宣称完成。
