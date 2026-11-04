@@ -33,3 +33,7 @@
 复用 `director-unified-actor-tasks15.test.ts`，新增一项循环覆盖单参与者/多参与者作者事件：单参与者必须是非空 task 引用，其余 cast 强制 null；多参与者 anyOf 各分支保持完整 required/禁止额外字段并要求至少一个非空 task。defer 仍无需任务；全 null consider 仍由原 decoder 拒绝；合法 task 可解析；未绑定人物任务被拒绝。
 
 临时复制 root 公共 protocol 修复后本套 **6/6 通过**。恢复旧公共实现，新增测试明确失败在单参与者 $ref 缺失（旧实现仍允许 null），原五项通过。typecheck 通过。没有增加 validator 依赖、协议版本、字段或模型调用，未重复 PG。公共源码已恢复，不在提交内。
+
+## 共享 schema 引用收口
+
+root 将 actorTasks 提取到共享 `$defs`，减少多角色 anyOf 重复体积。本子任务仅将两份原测试的四处 shape 读取改成 `$ref` 解引用；非空、完整分区、非法人物及 24,000 字符上限断言均保留。临时最新 protocol 下两套 **30/30 通过**，包括 6/12 人预算样例。未重复 PG，未修改公共实现或原档。

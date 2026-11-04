@@ -224,8 +224,9 @@ test('v15 schema and decoder reserve 0/1/2 authored slots under the original tot
     const p = schema.properties.opportunities.items.properties;
     assert.equal(p.actors, undefined);
     assert.equal(p.stagingIntents, undefined);
-    assert.deepEqual(p.actorTasks.required, ['actor:1', 'actor:2']);
-    assert.equal(p.actorTasks.additionalProperties, false);
+    const tasks = schema.$defs[p.actorTasks.$ref.split('/').at(-1)];
+    assert.deepEqual(tasks.required, ['actor:1', 'actor:2']);
+    assert.equal(tasks.additionalProperties, false);
     f.wire.opportunities = Array.from({ length: 2 - count }, (_, i) => ({
       ...f.opportunity,
       id: 'emergent-' + i,
@@ -349,7 +350,7 @@ test('v15 consider schema requires a real allowed task while defer remains avail
     assert.equal(choice.anyOf.length, 2);
     assert.deepEqual(choice.anyOf[0].properties.kind.enum, ['defer']);
     const opportunity = resolve(choice.anyOf[1].properties.opportunity);
-    const tasks = opportunity.properties.actorTasks;
+    const tasks = resolve(opportunity.properties.actorTasks);
     assert.deepEqual(tasks.required, ['actor:1', 'actor:2']);
     assert.equal(tasks.additionalProperties, false);
     if (allowed.length === 1) {

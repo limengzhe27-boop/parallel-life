@@ -249,8 +249,9 @@ test('current provider uses single author opportunity and exact keyed nullable a
   const s: any = format.schema,
     p = s.$defs.director_author_opportunity.properties;
   for (const key of ['id', 'origin', 'actors', 'stagingIntents']) assert.equal(p[key], undefined);
-  assert.deepEqual(p.actorTasks.required, ['actor:1', 'actor:2']);
-  assert.equal(p.actorTasks.additionalProperties, false);
+  const tasks = s.$defs[p.actorTasks.$ref.split('/').at(-1)];
+  assert.deepEqual(tasks.required, ['actor:1', 'actor:2']);
+  assert.equal(tasks.additionalProperties, false);
   const consider = s.$defs.director_author_choice.anyOf.find(
     (x: any) => x.properties.kind.enum[0] === 'consider',
   );
@@ -295,7 +296,9 @@ test('v9 schema requires three bounded personal fields while v8 saved task remai
   );
   const format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
-  const tasks: any = (format.schema as any).$defs.director_author_opportunity.properties.actorTasks;
+  const schema: any = format.schema;
+  const ref = schema.$defs.director_author_opportunity.properties.actorTasks.$ref;
+  const tasks: any = schema.$defs[ref.split('/').at(-1)];
   assert.equal(tasks.properties['actor:1'].anyOf[0].$ref, '#/$defs/director_actor_task');
   const personal = (format.schema as any).$defs.director_actor_task;
   assert.equal(JSON.stringify(format.schema).split('本人与玩家可交流的具体议题').length - 1, 1);
