@@ -3629,3 +3629,15 @@ AGENDA-LIFECYCLE-49扩围：root独占agent-source-resolver.ts及必要原source
 AGENDA-LIFECYCLE-49接续：root扩围agent-schedule-collectors.ts及原单测，复用已认证episodeFollowUps/episode-intent为engage但无后续安排提供一次稳定、可去重的本人承接候选；不重作参与选择、不强制台词、不按时间换ID。
 
 AGENDA-LIFECYCLE-49最终代码接续：v2周期身份/原receipt冻结、历史位置来源与engage恢复、一次稳定本人下一步候选、wake历史quiet裁剪及暂缓范围已接；check4229、PG16+8+5、build通过；3218 build-agenda49-scoped/v94、队列与主动worker已更新，0DB表列。原档此前47次v2仍quiet，v812具体候选也quiet，不能称主动演绎通过；未改48/h预算，待正常新窗口验收。Mac锁定，页面目视待续；根报告AGENDA-LIFECYCLE-49.md，整体仍进行中。
+
+AGENDA-LIFECYCLE-49真实续验：v94正常预算窗口原档v814—825共12次提交仍无消息/计划，未称主动通过。为避免持续空耗暂止本地主动进程（web/queue继续），待50修复再启动。Mac锁定目视仍受阻。
+
+|DIRECTOR-DELIBERATION-50|[ ] 进行中|root-director50唯一集成；proactive43只读核对|main e2d6d057；director-runtime.ts、director-snapshot-repository.ts及原领域/真实PG测试、50报告；必要现有导演周期/入口/模型接线由root统一修改|修普通全局复盘作者窗口被置空，复用现有周期/资格/原始评估顺序，不新建timer/清付费账/硬编码台词；旧unknown不重买。原档人物真实收到具体作者机会并自主推进，本地3218更新。|
+
+DIRECTOR-DELIBERATION-50恢复收口扩围：root独占director-model-protocol.ts、director-handoff-revalidation.ts、director-runtime-repository.ts及NEW 0125_director_quiet_revalidation.sql（仅原proof表机会数约束1—2放到0—2，不加表列）、root模型/消费测试；proactive43独占原director-frame/hand-off相关指定tests。确认原档4.7首轮其实committed quiet，汇总TIMEOUT属4953，已纠正；原档后续invalid确因为漏固定null openingContext。将移去无authority时机械必填null，复用原完整raw及revalidation proof结清无副作用quiet，不重买原调用，数据/权限/付费保护保留。
+
+DIRECTOR-DELIBERATION-50全局窗口收口：原档13个eligible节点固定两槽盲轮转至少7次/35分钟；root将现有deliberationWindow升级v2供周期一次获得≤32个合格未占用作者节点，机会仍总≤2，旧v1两槽快照严格按原版本恢复。复用v15输出，schema提取共享定义、周期只输出本事件cast槽，非参与null由代码绑定（不补任务）。原档离线预检13节点schema20190字符<24000；尚非真实主动成功。proactive43独占tests/director-{deliberation-window,periodic-review,unified-actor-tasks15}.test.ts、原director-frame-lifecycle PG及报告，root负责源/主表/集成/原档真实验收。
+
+DIRECTOR-DELIBERATION-50当前工作视图扩围：proactive43独占episode-pending-work-repository.ts共享读分类及专属测试/原PG报告；root独占director-snapshot-repository.ts接线。原档4条遗留proposed在生产episodeRequestWorkState均为paid_terminal，当前导演视图却仍当待推进；复用现有分类+hasHandoffFollowup排除确定未呈现、无效果/后续的失败交接，只改当前读取，不改历史、状态、回执、未知付费围栏。grok4.3 v41/v42全库仍quiet；原mini模型对照也quiet，非仅模型配置根因；不继续相同条件付费空跑。
+
+DIRECTOR-DELIBERATION-50当前读者接通：root接管agent容量中断的pending-work helper，仅当前读取排除严格认证的未呈现paid_terminal失败交接；原档4条排除、8相关返回行、两条真实active保留，历史/玩家状态不改。check4250/build/真实PG8/模型62通过；v43-current-work于3218+共享worker验收中，先前v41/v42及mini比较均quiet，仍未有新主动消息，任务保持进行中。

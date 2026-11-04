@@ -656,12 +656,15 @@ export function npcAgentAdvanceServices(
           storyAt,
         }),
       );
-      // Establish the global opening before hydrating every character's private context.
+      // Establish a qualified global opening/review before hydrating generic
+      // character initiative candidates; those are not waiting player requests.
       // This uses the same Director authority, payment fence and commit path.
       if (
         !retryCommandId &&
-        !wake.hasPendingDirector &&
-        (wake.cause?.kind === 'bootstrap' || wake.cause?.kind === 'opening_context')
+        (!wake.hasPendingDirector || wake.cause?.kind === 'periodic_review') &&
+        (wake.cause?.kind === 'bootstrap' ||
+          wake.cause?.kind === 'opening_context' ||
+          wake.cause?.kind === 'periodic_review')
       ) {
         const decision = await coordinate([], [], 'wake');
         if (

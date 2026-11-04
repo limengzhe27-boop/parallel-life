@@ -375,6 +375,191 @@ test('director frame lifecycle uses real publication, personal plan and protecte
     ).rows;
   }
   await t.test(
+    'paid failed handoff leaves current work without consuming its historical request',
+    async () => {
+      const f = await fixture({ periodic: true });
+      const { directorWireCatalog, directorOpeningOwnerCatalog } =
+        await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
+      const { dispatchPendingAgentEpisode } =
+        await import('../../src/server/npc-agent-episode-dispatch.ts');
+      const { readTerminalUnperformedEpisodeIds } =
+        await import('../../src/modules/world/infrastructure/episode-pending-work-repository.ts');
+      const run = async (snapshot: DirectorSnapshot, consider: boolean) =>
+        runDirectorAgent(
+          {
+            attempts: directors,
+            parse: parseDirectorDecision,
+            model: {
+              async decide() {
+                const catalog = directorWireCatalog(snapshot);
+                return JSON.stringify({
+                  protocol: 'director-wire-v15',
+                  openingContext: snapshot.openingContextAuthority
+                    ? {
+                        informationOwners: Object.fromEntries(
+                          directorOpeningOwnerCatalog(snapshot).information.map((i) => [
+                            i.ref,
+                            { actorRef: null, reason: 'Public fixture' },
+                          ]),
+                        ),
+                      }
+                    : null,
+                  authoredChoices: Object.fromEntries(
+                    catalog.events.map((event, i) => [
+                      event.ref,
+                      consider && i === 0
+                        ? {
+                            kind: 'consider',
+                            opportunity: {
+                              title: 'Small optional proposal',
+                              description: 'Offer a future conversation',
+                              playerImpact: 'Player may decline',
+                              places: [],
+                              activity: 'conversation',
+                              actorTasks: Object.fromEntries(
+                                catalog.actors.map((actor) => [
+                                  actor.ref,
+                                  snapshot.authoredMaterials?.materials
+                                    .find((m) => m.ref.nodeKey === event.authoredEventKey)
+                                    ?.participantRefs.some(
+                                      (ref) =>
+                                        ref.status === 'resolved' && ref.actorId === actor.actorId,
+                                    )
+                                    ? {
+                                        topic: 'Discuss tomorrow',
+                                        personalObjective: 'Arrange my own shop opening',
+                                        proposedInteraction: 'Offer one optional discussion',
+                                      }
+                                    : null,
+                                ]),
+                              ),
+                              actorTopics: null,
+                            },
+                          }
+                        : { kind: 'defer', reason: 'Keep for later' },
+                    ]),
+                  ),
+                  candidates: [],
+                  opportunities: [],
+                  audit: { reason: 'Fixture', sourceRefs: [] },
+                });
+              },
+            },
+          },
+          f.owner,
+          claim(snapshot),
+          snapshot,
+        );
+      await run(await snap(f), false);
+      const decision = await run(await snap(f), true);
+      const episodeId = decision.opportunities[0]!.id;
+      const states = async () =>
+        (
+          await app.transaction(f.owner, (sql) =>
+            sql.query(
+              'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2',
+              [f.id, f.owner],
+            ),
+          )
+        ).rows.map((r) => r.document);
+      const read = async (given?: any[]) => {
+        const values = given ?? (await states());
+        return app.transaction(f.owner, (sql) =>
+          readTerminalUnperformedEpisodeIds(
+            sql,
+            f.owner,
+            { worldId: f.id, engineEpoch: 2 },
+            values,
+          ),
+        );
+      };
+      assert.equal((await read()).has(episodeId), false, 'available request remains current');
+      let calls = 0;
+      const w = await worlds.get({ userId: f.owner }, f.id);
+      await assert.rejects(
+        dispatchPendingAgentEpisode(
+          app,
+          {
+            async decide() {
+              calls++;
+              return {};
+            },
+          },
+          f.owner,
+          w,
+          2,
+          w.time,
+        ),
+      );
+      assert.equal(calls, 1);
+      assert.equal(
+        (await read()).has(episodeId),
+        true,
+        'paid invalid transport is not active director work',
+      );
+      const pending = (
+        await admin.query(
+          'SELECT * FROM parallel_life.agent_episode_requests WHERE world_id=$1 AND episode_id=$2',
+          [f.id, episodeId],
+        )
+      ).rows[0];
+      assert.equal(pending.status, 'pending');
+      assert.equal(pending.receipt_id, null);
+      const failed = (
+        await admin.query(
+          'SELECT a.*,r.id AS receipt FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r ON r.id=a.input_receipt_id AND r.world_id=a.world_id WHERE a.world_id=$1',
+          [f.id],
+        )
+      ).rows[0];
+      assert.equal(failed.status, 'invalid_output');
+      const before = JSON.stringify({
+        response: failed.response,
+        hash: failed.input_hash,
+        sent: failed.sent_at,
+      });
+      const withWork = await states();
+      withWork
+        .find((s) => s.actorId === pending.actor_id)
+        .goals.push({
+          id: 'linked-followup',
+          summary: 'Still relevant work',
+          status: 'active',
+          sourceIds: [failed.receipt],
+          resultIds: [],
+        });
+      assert.equal(
+        (await read(withWork)).has(episodeId),
+        false,
+        'input receipt lineage preserves real followup',
+      );
+      assert.equal(
+        (await read([])).has(episodeId),
+        false,
+        'missing actor state cannot prove retirement',
+      );
+      await read();
+      const after = (
+        await admin.query(
+          'SELECT response,input_hash,sent_at FROM parallel_life.agent_attempts WHERE id=$1',
+          [failed.id],
+        )
+      ).rows[0];
+      assert.equal(
+        JSON.stringify({ response: after.response, hash: after.input_hash, sent: after.sent_at }),
+        before,
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT document FROM parallel_life.shared_episodes WHERE world_id=$1 AND id=$2',
+            [f.id, episodeId],
+          )
+        ).rows[0].document.status,
+        'proposed',
+      );
+    },
+  );
+  await t.test(
     'fully received quiet with omitted mechanical null recovers without another model call',
     async () => {
       const f = await fixture();

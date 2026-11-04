@@ -1,4 +1,4 @@
-import type { DirectorSnapshot } from './director-runtime.ts';
+import { canConsiderAuthoredEvent, type DirectorSnapshot } from './director-runtime.ts';
 import {
   authoredReconsiderationEvidence,
   type AuthoredReconsiderationReason,
@@ -11,6 +11,30 @@ export function directorFrameRetirementEvidence(
   authenticatedReasons: readonly AuthoredReconsiderationReason[],
 ): string[] {
   const cause = current.evaluationCause;
+  // A timed review can own only its two authored slots (no emergent slot).
+  // Once the repository proves that no-response lease expired, a separately
+  // authenticated disjoint window need not wait for an unrelated player action.
+  // The original paid scope remains quarantined; this is not a story fact.
+  const oldKeys = previous.deliberationWindow?.nodeKeys ?? [];
+  const nextKeys = current.deliberationWindow?.nodeKeys ?? [];
+  if (
+    cause?.kind === 'periodic_review' &&
+    previous.evaluationCause?.kind === 'periodic_review' &&
+    cause.id !== previous.evaluationCause.id &&
+    previous.worldId === current.worldId &&
+    previous.engineEpoch === current.engineEpoch &&
+    previous.worldVersion <= current.worldVersion &&
+    !previous.nativeTurn &&
+    !current.nativeTurn &&
+    previous.candidates.length === 0 &&
+    oldKeys.length === 2 &&
+    nextKeys.length > 0 &&
+    current.authoredMaterials?.source?.sourceHash &&
+    current.authoredMaterials.source.sourceHash ===
+      previous.authoredMaterials?.source?.sourceHash &&
+    nextKeys.every((key) => !oldKeys.includes(key) && canConsiderAuthoredEvent(current, key))
+  )
+    return [cause.id];
   if (
     previous.worldId !== current.worldId ||
     previous.engineEpoch !== current.engineEpoch ||

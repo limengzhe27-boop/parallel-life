@@ -379,8 +379,7 @@ test('model adapter performs input preflight without spending, uses JSON output 
   assert.equal(calls.length, 1);
   assert.equal(calls[0]!.tokens, 4096);
   assert.equal(calls[0]!.output?.format, 'json_schema');
-  assert.match(JSON.stringify(calls[0]!.output), /仅为 A（actor:1）/);
-  assert.match(JSON.stringify(calls[0]!.output), /仅为 B（actor:2）/);
+  assert.match(JSON.stringify(calls[0]!.output), /director_actor_task/);
   assert.equal(calls[0]!.signal, controller.signal);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal(payload.promptVersion, DIRECTOR_RUNTIME_PROMPT_VERSION);
@@ -553,10 +552,7 @@ test('system protocol avoids copyable quiet verdicts without repairing malformed
   assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
   rejected(f, example); // An empty example cannot silently discard the real candidates.
   assert.match(system, /保持安静是合法判断/);
-  assert.match(
-    system,
-    /顶层为protocol、openingContext、authoredChoices、candidates、opportunities、audit/,
-  );
+  assert.match(system, /顶层为protocol、authoredChoices、candidates、opportunities、audit/);
   assert.match(system, /保持安静时所有候选defer/);
   assert.match(system, /nativeTurn仍最多选一个候选/);
 });
@@ -858,7 +854,9 @@ test('Director strict response grammar binds each reference namespace to this im
   assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
   assert.equal(opportunity.actors, undefined);
   assert.equal(opportunity.stagingIntents, undefined);
-  assert.deepEqual(opportunity.actorTasks.required, ['actor:1', 'actor:2']);
+  const tasks = root.$defs[opportunity.actorTasks.$ref.split('/').at(-1)];
+  for (const branch of tasks.anyOf ?? [tasks])
+    assert.deepEqual(branch.required, ['actor:1', 'actor:2']);
   assert.equal(root.$defs.director_author_opportunity.properties.origin, undefined);
   assert.deepEqual(root.properties.authoredChoices.required, ['event:1']);
   assert.equal(opportunity.actorTopics, undefined);
@@ -1206,4 +1204,124 @@ test('existing episode identity is continued through existing work, never rename
   });
   assert.deepEqual(f.parse(JSON.stringify(f.bounded)).opportunities, []);
   assert.equal(f.snapshot.episodes[0]!.status, 'active');
+});
+
+test('director current work omits historical quiet without losing explicit participation or refusal', async () => {
+  const f = fixture();
+  const state = f.snapshot.actorStates[0]!;
+  state.episodeParticipations = [
+    {
+      id: 'past-quiet',
+      choice: 'quiet',
+      reason: '当时没有表达内容',
+      sourceIds: ['a-source'],
+      recordedAtVersion: 2,
+    },
+    {
+      id: 'accepted-work',
+      choice: 'engage',
+      reason: '本人参与',
+      sourceIds: ['a-source'],
+      recordedAtVersion: 3,
+    },
+    {
+      id: 'refused-work',
+      choice: 'decline',
+      reason: '本人拒绝',
+      sourceIds: ['a-source'],
+      recordedAtVersion: 4,
+    },
+  ];
+  const original = structuredClone(state);
+  let payload: any;
+  await new WorldDirectorAgentModel({
+    async complete(messages) {
+      payload = JSON.parse(messages[1]!.content);
+      return JSON.stringify(f.quiet);
+    },
+  }).decide(f.snapshot);
+  assert.deepEqual(
+    payload.actorStates[0].episodeParticipations.map((p: any) => p.id),
+    ['accepted-work', 'refused-work'],
+  );
+  assert.deepEqual(state, original, 'the protected snapshot and receipt history remain unchanged');
+});
+
+test('empty periodic review keeps global state and actual results while focusing historical prose', async () => {
+  const f = await wireFixture();
+  f.snapshot.evaluationCause = {
+    id: 'periodic-review',
+    kind: 'periodic_review',
+    genesisHash: 'a'.repeat(32),
+    admittedAtVersion: 0,
+    qualifications: f.snapshot.authoredEligibility!.map(
+      ({ nodeKey, nodeHash, qualificationKey }) => ({ nodeKey, nodeHash, qualificationKey }),
+    ),
+  };
+  const { selectDirectorDeliberationWindow } =
+    await import('../src/modules/world/domain/director-runtime.ts');
+  f.snapshot.deliberationWindow = selectDirectorDeliberationWindow(f.snapshot);
+  f.snapshot.observations.push({
+    sourceId: 'actual-b-result',
+    kind: 'result',
+    text: 'B_ACTUAL_RESULT',
+    knownByActorIds: ['b'],
+  });
+  f.snapshot.actorStates[0]!.responsibilities.push({
+    id: 'actual-request',
+    revision: 0,
+    subject: { kind: 'request', id: 'actual-request' },
+    summary: 'A waits for the specific offered request',
+    status: 'waiting',
+    waitingOn: 'player',
+    sourceIds: ['a-source'],
+    nextCheck: [],
+  });
+  f.snapshot.actorStates[0]!.questions = [
+    {
+      id: 'linked-question',
+      channel: 'private',
+      threadId: 'a',
+      sourceId: 'a-source',
+      text: 'Confirm the offered request?',
+      askedAt: '2026-10-15T08:00:00.000Z',
+      status: 'open',
+      responsibilityId: 'actual-request',
+    },
+  ];
+  f.snapshot.actorStates[1]!.questions = [
+    {
+      id: 'old-smalltalk',
+      channel: 'private',
+      threadId: 'b',
+      sourceId: 'b-source',
+      text: 'Have you eaten?',
+      askedAt: '2026-10-14T08:00:00.000Z',
+      status: 'open',
+    },
+  ];
+  const original = structuredClone(f.snapshot);
+  let payload: any;
+  await new WorldDirectorAgentModel({
+    async complete(messages) {
+      payload = JSON.parse(messages[1]!.content);
+      return JSON.stringify(f.quiet);
+    },
+  }).decide(f.snapshot);
+  assert.equal(JSON.stringify(payload.observations).includes('DIRECTOR_PRIVATE_B'), false);
+  assert.equal(JSON.stringify(payload.observations).includes('B_ACTUAL_RESULT'), true);
+  assert.equal(payload.actorStates[0].questions[0].id, 'linked-question');
+  assert.deepEqual(payload.actorStates[1].questions ?? [], []);
+  assert.equal(f.snapshot.actorStates[1]!.questions![0]!.id, 'old-smalltalk');
+  assert.deepEqual(
+    payload.actorStates.map((s: any) => s.actorId),
+    ['a', 'b'],
+  );
+  assert.deepEqual(
+    payload.wireCatalog.sources.map((s: any) => s.ref),
+    (await import('../src/modules/world/infrastructure/director-model-protocol.ts'))
+      .directorWireCatalog(original)
+      .sources.map((s) => s.ref),
+  );
+  assert.deepEqual(f.snapshot, original, 'focusing does not mutate evidence or source identities');
 });

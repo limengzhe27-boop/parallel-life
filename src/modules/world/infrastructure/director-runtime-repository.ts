@@ -332,7 +332,7 @@ const Snapshot = z
         }),
         z.strictObject({
           id: Key,
-          kind: z.literal('authored_eligibility'),
+          kind: z.enum(['authored_eligibility', 'periodic_review']),
           genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
           admittedAtVersion: z.number().int().nonnegative(),
           qualifications: z
@@ -342,7 +342,10 @@ const Snapshot = z
       ])
       .optional(),
     deliberationWindow: z
-      .strictObject({ version: z.literal(1), nodeKeys: z.array(Key).max(2) })
+      .union([
+        z.strictObject({ version: z.literal(1), nodeKeys: z.array(Key).max(2) }),
+        z.strictObject({ version: z.literal(2), nodeKeys: z.array(Key).max(32) }),
+      ])
       .optional(),
     openingContextAuthority: OpeningContextAuthoritySchema.optional(),
     worldSetting: z.string().max(100000).optional(),

@@ -580,7 +580,41 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
       }
   }
   if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
-    const current = CurrentWire.parse(normalized);
+    // In the global author view only the event's own cast slots are requested.
+    // Bind mechanically absent nonparticipants to null; never infer a task or
+    // fill a missing participant slot. Old full maps still decode unchanged.
+    if (snapshot.deliberationWindow?.version === 2) {
+      const catalog = directorWireCatalog(snapshot);
+      const choices = normalized.authoredChoices;
+      if (choices && typeof choices === 'object' && !Array.isArray(choices))
+        for (const [ref, rawChoice] of Object.entries(choices)) {
+          const choice = rawChoice as {
+            kind?: string;
+            opportunity?: { actorTasks?: Record<string, unknown> };
+          };
+          if (choice?.kind !== 'consider' || !choice.opportunity?.actorTasks) continue;
+          const event = catalog.events.find((event) => event.ref === ref);
+          const material = snapshot.authoredMaterials?.materials.find(
+            (m) => m.ref.nodeKey === event?.authoredEventKey,
+          );
+          const allowed = new Set(
+            material ? authoredOpportunityActorIds(material, snapshot.boundary.actorIds) : [],
+          );
+          for (const actor of catalog.actors) {
+            if (allowed.has(actor.actorId)) {
+              if (!Object.hasOwn(choice.opportunity.actorTasks, actor.ref))
+                throw Error('DIRECTOR_ACTOR_TASK_PARTITION');
+            } else if (!Object.hasOwn(choice.opportunity.actorTasks, actor.ref)) {
+              choice.opportunity.actorTasks[actor.ref] = null;
+            }
+          }
+        }
+    }
+    const current = CurrentWire.parse(
+      !snapshot.openingContextAuthority && !Object.hasOwn(normalized, 'openingContext')
+        ? { ...normalized, openingContext: null }
+        : normalized,
+    );
     if (current.opportunities.length > directorEmergentOpportunityBudget(snapshot))
       throw Error('DIRECTOR_EMERGENT_BUDGET_EXCEEDED');
     const actorRefs = directorWireCatalog(snapshot).actors.map((a) => a.ref);
@@ -1211,15 +1245,46 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   });
   authorProperties.actorTasks = object(
     Object.fromEntries(
-      catalog.actors.map((a) => [
-        a.ref,
-        {
-          description: `仅为 ${a.name ?? a.actorId}（${a.ref}）安排本人愿意考虑的互动，身份与设定见taskParticipants。`,
-          anyOf: [{ $ref: '#/$defs/director_actor_task' }, { type: 'null' }],
-        },
-      ]),
+      catalog.actors.map((a) => [a.ref, { $ref: '#/$defs/director_optional_actor_task' }]),
     ),
   );
+  const actorTasksObject = (allowed: ReadonlySet<string>): Schema => {
+    const taskActors =
+      snapshot.deliberationWindow?.version === 2
+        ? catalog.actors.filter((actor) => allowed.has(actor.actorId))
+        : catalog.actors;
+    const refs = catalog.actors.filter((a) => allowed.has(a.actorId)).map((a) => a.ref);
+    const all = (originalActorTasks.properties ?? {}) as Record<string, Schema>;
+    const properties = Object.fromEntries(
+      taskActors.map((a) => [a.ref, allowed.has(a.actorId) ? all[a.ref]! : { type: 'null' }]),
+    );
+    // The decoder already requires a real task. Express that same invariant in
+    // the model schema: choosing consider must not produce an all-null handoff.
+    if (refs.length === 1)
+      return object({ ...properties, [refs[0]!]: { $ref: '#/$defs/director_actor_task' } });
+    if (refs.length > 1)
+      return {
+        anyOf: refs.map((selected) =>
+          object(
+            Object.fromEntries(
+              taskActors.map((a) => [
+                a.ref,
+                a.ref === selected
+                  ? { $ref: '#/$defs/director_actor_task' }
+                  : allowed.has(a.actorId)
+                    ? { $ref: '#/$defs/director_optional_actor_task' }
+                    : { type: 'null' },
+              ]),
+            ),
+          ),
+        ),
+      };
+    return object(properties);
+  };
+  const allActorIds = new Set(catalog.actors.map((a) => a.actorId));
+  const originalActorTasks = authorProperties.actorTasks!;
+  const allActorTasks = actorTasksObject(allActorIds);
+  authorProperties.actorTasks = { $ref: '#/$defs/director_actor_tasks_all' };
   const authorItem = object(authorProperties);
   const deferChoice = object({
     kind: { type: 'string', enum: ['defer'] },
@@ -1230,7 +1295,11 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     },
   });
   schema.$defs = {
+    director_actor_tasks_all: allActorTasks,
     director_actor_task: actorTaskSchema,
+    director_optional_actor_task: {
+      anyOf: [{ $ref: '#/$defs/director_actor_task' }, { type: 'null' }],
+    },
     director_author_opportunity: authorItem,
     director_author_choice: {
       anyOf: [
@@ -1266,26 +1335,19 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       const suffix = scopedChoices.size === 0 ? '' : '_' + (scopedChoices.size + 1);
       const opportunityKey = 'director_author_opportunity' + suffix;
       const choiceKey = 'director_author_choice' + suffix;
-      const taskProperties = (authorProperties.actorTasks!.properties ?? {}) as Record<
-        string,
-        Schema
-      >;
+      const taskKey =
+        allowed.size === allActorIds.size
+          ? 'director_actor_tasks_all'
+          : 'director_actor_tasks_scope' + suffix;
+      if (taskKey !== 'director_actor_tasks_all')
+        (schema.$defs as Record<string, Schema>)[taskKey] = actorTasksObject(allowed);
       (schema.$defs as Record<string, Schema>)[opportunityKey] = object({
         ...authorProperties,
-        actorTasks: object(
-          Object.fromEntries(
-            catalog.actors.map((a) => [
-              a.ref,
-              allowed.has(a.actorId)
-                ? taskProperties[a.ref]!
-                : { type: 'null', description: '此作者事件未绑定该人物，本项只能为null。' },
-            ]),
-          ),
-        ),
+        actorTasks: { $ref: '#/$defs/' + taskKey },
       });
       (schema.$defs as Record<string, Schema>)[choiceKey] = {
         anyOf: [
-          deferChoice,
+          { $ref: '#/$defs/director_author_defer' },
           object({
             kind: { type: 'string', enum: ['consider'] },
             opportunity: { $ref: '#/$defs/' + opportunityKey },
@@ -1296,6 +1358,13 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       scopedChoices.set(key, choiceRef);
     }
     choices[event.ref] = { $ref: choiceRef };
+  }
+  if (
+    scopedChoices.size > 0 &&
+    directorEmergentOpportunityBudget(snapshot) === 0 &&
+    !scopedChoices.has([...allActorIds].sort().join('|'))
+  ) {
+    delete (schema.$defs as Record<string, Schema>).director_actor_tasks_all;
   }
   delete properties.events;
   properties.authoredChoices = object(choices);
@@ -1320,7 +1389,9 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
         ? 0
         : directorEmergentOpportunityBudget(snapshot),
   };
-  properties.openingContext = { type: 'null' };
+  if (directorEmergentOpportunityBudget(snapshot) === 0)
+    properties.opportunities = { type: 'array', items: { type: 'null' }, maxItems: 0 };
+  delete properties.openingContext;
   if (snapshot.openingContextAuthority) {
     const openingCatalog = directorOpeningOwnerCatalog(snapshot),
       owners = openingCatalog.actors

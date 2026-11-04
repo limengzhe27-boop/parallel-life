@@ -56,7 +56,8 @@ const nonempty = (value: string) => typeof value === 'string' && value.trim().le
 /**
  * Revalidate an ENTIRE already parsed arrangement, never reinterpret an old wire
  * response with today's source directory or select the convenient subset. This
- * grants only delivery of future tasks to independent NPCs. A caller must still
+ * grants only delivery of future tasks to independent NPCs or acknowledgment of
+ * a fully received, zero-effect quiet judgment. A caller must still
  * authenticate the protected raw/attempt, lock the current frame, save an immutable
  * application receipt and use the original Director/NPC transaction boundaries.
  */
@@ -114,13 +115,19 @@ function evaluate({
     Date.parse(current.storyAt) < Date.parse(original.storyAt)
   )
     return deny('version_or_time_regressed');
+  const quiet =
+    decision.mode === 'quiet' &&
+    decision.opportunities.length === 0 &&
+    decision.selectedCandidateIds.length === 0 &&
+    decision.nudges.length === 0 &&
+    !decision.openingContext;
   if (
     original.nativeTurn ||
     current.nativeTurn ||
     decision.selectedCandidateIds.length ||
     decision.nudges.length ||
-    !decision.opportunities.length ||
-    decision.mode !== 'bounded_opportunity' ||
+    decision.openingContext ||
+    (!quiet && (!decision.opportunities.length || decision.mode !== 'bounded_opportunity')) ||
     !unique(decision.opportunities.map((o) => o.id)) ||
     decision.opportunities.some(
       (o) =>
@@ -194,9 +201,11 @@ function evaluate({
       )
       .map((state) => `definition:${state.definitionRef.replace(/^definition:/, '')}`),
   );
+  const historicalAuditSources = new Set(quiet ? original.observations.map((o) => o.sourceId) : []);
   if (
     decision.audit.basisSourceIds.some(
-      (id) => !authorSources.has(id) && !unchangedDefinitions.has(id),
+      (id) =>
+        !authorSources.has(id) && !unchangedDefinitions.has(id) && !historicalAuditSources.has(id),
     )
   )
     return deny('non_author_basis');

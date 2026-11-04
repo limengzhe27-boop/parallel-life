@@ -22,7 +22,7 @@ export type DirectorEvaluationCause =
     }
   | {
       id: string;
-      kind: 'authored_eligibility';
+      kind: 'authored_eligibility' | 'periodic_review';
       genesisHash: string;
       admittedAtVersion: number;
       qualifications: AuthoredWakeQualification[];

@@ -15,13 +15,13 @@ export async function readOpeningReviewEvidence(
   if (!openingActorIds.length) return [];
   const prior = (
     await sql.query(
-      `SELECT a.response,a.status,a.expected_world_version,a.snapshot,d.id AS actual_decision_id
+      `SELECT a.status,a.expected_world_version,a.snapshot,d.id AS actual_decision_id,d.document->>'mode' AS decision_mode
      FROM parallel_life.director_runtime_attempts a
      LEFT JOIN parallel_life.director_decisions d ON d.world_id=a.world_id AND d.owner_id=a.owner_id
        AND d.id=a.decision_id AND d.input_hash=a.input_hash AND d.attempt_id=a.id
        AND d.engine_epoch=a.engine_epoch AND d.world_version=a.expected_world_version
      WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3
-       AND a.snapshot#>>'{evaluationCause,kind}' IN ('authored_eligibility','bootstrap')
+       AND a.snapshot#>>'{evaluationCause,kind}' IN ('authored_eligibility','bootstrap','periodic_review')
        AND ((a.status='committed' AND d.id IS NOT NULL
          AND jsonb_typeof(a.snapshot->'observations')='array'
          AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(a.snapshot->'observations') o WHERE o->>'kind'='speech'))
@@ -32,15 +32,11 @@ export async function readOpeningReviewEvidence(
   ).rows;
   const incomplete = prior.find((a) => {
     if (a.status === 'invalid_output') return true;
-    let response;
-    try {
-      response = typeof a.response === 'string' ? JSON.parse(a.response) : a.response;
-    } catch {
-      return false;
-    }
     return (
-      response?.mode === 'quiet' &&
-      a.snapshot?.evaluationCause?.kind === 'authored_eligibility' &&
+      a.decision_mode === 'quiet' &&
+      ['bootstrap', 'authored_eligibility', 'periodic_review'].includes(
+        a.snapshot?.evaluationCause?.kind,
+      ) &&
       Array.isArray(a.snapshot.observations) &&
       !a.snapshot.observations.some((o: { kind: string }) => o.kind === 'speech')
     );

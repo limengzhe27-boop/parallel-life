@@ -43,7 +43,7 @@ export type DirectorSnapshot = {
   }[];
   occupiedAuthoredEventKeys?: string[];
   /** Exact paid deliberation scope; absent only on protected legacy snapshots. */
-  deliberationWindow?: { version: 1; nodeKeys: string[] };
+  deliberationWindow?: { version: 1 | 2; nodeKeys: string[] };
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
   /** Optional on older protected snapshots; stable actorId binding, never array/name inference. */
   actorDirectionMaterials?: DirectorActorDirectionMaterial[];
@@ -196,14 +196,23 @@ export function selectDirectorDeliberationWindow(
     const opening = eligible.filter((q) => openings.has(q.nodeKey));
     if (opening.length) eligible = opening;
   } else {
-    eligible = eligible.filter((q) =>
-      cause.qualifications.some(
-        (u) =>
+    const permitted = (u: (typeof cause.qualifications)[number]) =>
+      eligible.find(
+        (q) =>
           u.nodeKey === q.nodeKey &&
           u.nodeHash === q.nodeHash &&
           u.qualificationKey === q.qualificationKey,
-      ),
-    );
+      );
+    // The existing periodic review freezes fair, oldest-assessment-first order in
+    // its authenticated qualifications. Semantic wakes keep their canonical order.
+    if (cause.kind === 'periodic_review')
+      return {
+        version: snapshot.deliberationWindow?.version === 1 ? 1 : 2,
+        nodeKeys: cause.qualifications
+          .flatMap((u) => (permitted(u) ? [u.nodeKey] : []))
+          .slice(0, snapshot.deliberationWindow?.version === 1 ? 2 : 32),
+      };
+    eligible = eligible.filter((q) => cause.qualifications.some((u) => permitted(u) === q));
   }
   return {
     version: 1,
@@ -216,7 +225,9 @@ export function selectDirectorDeliberationWindow(
 export function validDirectorDeliberationWindow(snapshot: DirectorSnapshot): boolean {
   if (snapshot.deliberationWindow === undefined) return true;
   return (
-    snapshot.deliberationWindow.version === 1 &&
+    [1, 2].includes(snapshot.deliberationWindow.version) &&
+    (snapshot.deliberationWindow.version !== 2 ||
+      snapshot.evaluationCause?.kind === 'periodic_review') &&
     JSON.stringify(snapshot.deliberationWindow.nodeKeys) ===
       JSON.stringify(selectDirectorDeliberationWindow(snapshot).nodeKeys)
   );

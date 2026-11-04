@@ -1,3 +1,4 @@
+import { readTerminalUnperformedEpisodeIds } from './episode-pending-work-repository.ts';
 import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
 import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
 import { readOpeningContextAuthority } from './opening-context-repository.ts';
@@ -924,6 +925,15 @@ export class PostgresDirectorSnapshotRepository {
           })
         ).map((handoff) => handoff.episodeId),
       );
+      const terminalHandoffIds = await readTerminalUnperformedEpisodeIds(
+        sql,
+        owner,
+        {
+          worldId: h.world.id,
+          engineEpoch: h.epoch,
+        },
+        states,
+      );
       const episodes = (
         await sql.query(
           'SELECT id,document FROM parallel_life.shared_episodes WHERE world_id=$1 AND owner_id=$2 ORDER BY id',
@@ -939,7 +949,9 @@ export class PostgresDirectorSnapshotRepository {
             fail('DIRECTOR_EPISODE_CONFLICT');
           return r.document as SharedEpisode;
         })
-        .filter((episode) => !settledHandoffIds.has(episode.id));
+        .filter(
+          (episode) => !settledHandoffIds.has(episode.id) && !terminalHandoffIds.has(episode.id),
+        );
       const changes = (
         await sql.query(
           `SELECT p.document,p.id,p.source_event_id,p.source_version,e.id AS event_id,e.version,c.status,c.result_event_id

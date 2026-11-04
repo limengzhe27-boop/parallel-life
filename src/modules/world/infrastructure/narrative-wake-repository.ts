@@ -1,3 +1,4 @@
+import { nextDirectorReviewAt } from '../domain/director-review.ts';
 import { directorExplicitRetryCommandId } from './director-trial-recovery.ts';
 import { readInvalidAuthoredEpisodeIds } from './authored-episode-scope-read.ts';
 import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
@@ -51,7 +52,7 @@ export async function readDirectorNarrativeWakeInTransaction(
     await sql.query(
       // The director response is not read here; selecting it would pull every
       // protected TOAST payload on the entry path for a field this reader never uses.
-      `SELECT a.id,a.status,a.sent_at,a.snapshot,a.response_hash,a.decision_id,d.id actual_decision_id,d.document actual_decision
+      `SELECT a.id,a.status,a.sent_at,a.created_at,a.lease_until<=clock_timestamp() lease_expired,a.response IS NOT NULL has_response,a.snapshot,a.response_hash,a.decision_id,d.id actual_decision_id,d.document actual_decision
      FROM parallel_life.director_runtime_attempts a
      LEFT JOIN parallel_life.director_decisions d ON d.world_id=a.world_id AND d.owner_id=a.owner_id
        AND d.id=a.decision_id AND d.input_hash=a.input_hash AND d.attempt_id=a.id
@@ -224,6 +225,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   // A paid assessment fences this evidence context, never completes the author event.
   const paidReviewContexts = new Set<string>();
   const lastAssessedVersion = new Map<string, number>();
+  const lastPeriodicAssessmentOrder = new Map<string, number>();
   const paidFrames = attempts.filter(
     (a) =>
       (a.status === 'committed' || a.sent_at !== null) &&
@@ -245,7 +247,7 @@ export async function readDirectorNarrativeWakeInTransaction(
           a.actual_decision.authoredAssessments.length > 0,
       )
       .at(-1) ?? predecessors.at(-1);
-  for (const a of attempts) {
+  for (const [assessmentOrder, a] of attempts.entries()) {
     if (a.status === 'committed' && !a.actual_decision_id)
       throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_DECISION_RECEIPT_MISSING');
     const suppress =
@@ -285,6 +287,8 @@ export async function readDirectorNarrativeWakeInTransaction(
     for (const q of entries)
       if (q.status === 'eligible' && !previousOccupied.has(q.nodeKey)) {
         paidReviewContexts.add(contextToken(q, a.snapshot.worldVersion));
+        if (a.status === 'committed' && a.snapshot.evaluationCause?.kind === 'periodic_review')
+          lastPeriodicAssessmentOrder.set(token(q), assessmentOrder);
         lastAssessedVersion.set(
           token(q),
           Math.max(lastAssessedVersion.get(token(q)) ?? -1, a.snapshot.worldVersion),
@@ -301,8 +305,7 @@ export async function readDirectorNarrativeWakeInTransaction(
         `SELECT
        COALESCE((SELECT jsonb_agg(ep.document) FROM parallel_life.shared_episodes ep WHERE ep.world_id=$1 AND ep.owner_id=$2),'[]'::jsonb) episodes,
        COALESCE((SELECT jsonb_agg(s.actor_id) FROM parallel_life.actor_agent_states s WHERE s.world_id=$1 AND s.owner_id=$2 AND (
-         EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'questions','[]'::jsonb)) q WHERE q->>'status'='open') OR
-         EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'responsibilities','[]'::jsonb)) r WHERE r->>'status' IN ('open','waiting')))),'[]'::jsonb) pending_player_actors`,
+         EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'responsibilities','[]'::jsonb)) r WHERE r->>'status' IN ('open','waiting','deferred') AND r->>'waitingOn'='player'))),'[]'::jsonb) pending_player_actors`,
         [input.worldId, ownerId],
       )
     ).rows[0];
@@ -392,7 +395,81 @@ export async function readDirectorNarrativeWakeInTransaction(
       });
     });
   }
-  if (!unseen.length) return { cause: null, hasPendingDirector, deferred: false };
+  if (!unseen.length) {
+    // Reuse the already existing global review cadence. A prior defer records a
+    // judgment for that read frame; it is not an author-node completion. Never
+    // reopen an unknown/failed call or manufacture a new fact from passing time.
+    const predecessors = attempts.filter((a) => a.id !== allowAttemptId);
+    const isolatable = (a: (typeof attempts)[number]) =>
+      a.snapshot?.evaluationCause?.kind === 'periodic_review' &&
+      a.snapshot?.deliberationWindow?.nodeKeys?.length === 2 &&
+      a.snapshot?.candidates?.length === 0 &&
+      a.sent_at !== null &&
+      !a.response_hash &&
+      !a.has_response &&
+      a.lease_expired &&
+      ['unknown_after_send', 'stale_discarded'].includes(a.status);
+    const uncertainContexts = new Set(
+      predecessors
+        .filter(isolatable)
+        .flatMap((a) =>
+          (a.snapshot.authoredEligibility ?? [])
+            .filter((q: AuthoredWakeQualification) =>
+              a.snapshot.deliberationWindow.nodeKeys.includes(q.nodeKey),
+            )
+            .map((q: AuthoredWakeQualification) => contextToken(q, a.snapshot.worldVersion)),
+        ),
+    );
+    const periodicQualifications = qualifications.filter(
+      (q) => !uncertainContexts.has(contextToken(q, input.worldVersion)),
+    );
+    const paid = predecessors.filter((a) => a.status === 'committed' || a.sent_at !== null);
+    const latest = paid.at(-1);
+    const previous =
+      latest && isolatable(latest) ? paid.filter((a) => a.status === 'committed').at(-1) : latest;
+    const pending = predecessors.some(
+      (a) =>
+        ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
+          a.status,
+        ) && !isolatable(a),
+    );
+    const lastAt = previous?.sent_at ?? previous?.created_at;
+    if (
+      previous?.status === 'committed' &&
+      previous.actual_decision_id &&
+      lastAt &&
+      !pending &&
+      periodicQualifications.length &&
+      Date.now() >= Date.parse(nextDirectorReviewAt(new Date(lastAt).toISOString(), 'committed'))
+    ) {
+      // The manuscript's existing order is only a fair default, never an
+      // execution prerequisite. Historical semantic defers do not make later
+      // story endings outrank an invitation never offered in a periodic pass.
+      const sourceOrder = new Map(view.catalog.materials.map((m, i) => [m.ref.nodeKey, i]));
+      const ranked = [...periodicQualifications].sort(
+        (a, b) =>
+          (lastPeriodicAssessmentOrder.get(token(a)) ?? -1) -
+            (lastPeriodicAssessmentOrder.get(token(b)) ?? -1) ||
+          (sourceOrder.get(a.nodeKey) ?? 0) - (sourceOrder.get(b.nodeKey) ?? 0),
+      );
+      return {
+        cause: {
+          id:
+            'director-periodic:' +
+            createHash('sha256')
+              .update(JSON.stringify([input.worldId, input.engineEpoch, previous.id, ranked]))
+              .digest('hex'),
+          kind: 'periodic_review',
+          genesisHash: admission.genesis_hash,
+          admittedAtVersion: admission.admitted_at_version,
+          qualifications: ranked,
+        },
+        hasPendingDirector,
+        deferred: false,
+      };
+    }
+    return { cause: null, hasPendingDirector, deferred: false };
+  }
   // Only confirmed zero-send cancellations can change retry identity. No paid/unknown retry.
   const unseenTokens = new Set(unseen.map(token));
   const preSendCancellations = attempts

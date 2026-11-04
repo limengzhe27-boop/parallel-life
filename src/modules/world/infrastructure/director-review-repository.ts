@@ -15,7 +15,7 @@ export class PostgresDirectorReviewRepository {
     return this.db.transaction(ownerId, async (sql) => {
       const last = (
         await sql.query(
-          `SELECT created_at,updated_at,status
+          `SELECT created_at,sent_at,status
              FROM parallel_life.director_runtime_attempts
             WHERE owner_id=$1 AND world_id=$2
             ORDER BY created_at DESC LIMIT 1`,
@@ -30,7 +30,7 @@ export class PostgresDirectorReviewRepository {
           [ownerId, worldId],
         )
       ).rows[0];
-      const lastReviewedAt = new Date(last.updated_at ?? last.created_at).toISOString();
+      const lastReviewedAt = new Date(last.sent_at ?? last.created_at).toISOString();
       const lastStatus = String(last.status);
       return {
         nextReviewAt: nextDirectorReviewAt(lastReviewedAt, lastStatus),

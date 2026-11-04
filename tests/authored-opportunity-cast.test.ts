@@ -162,8 +162,10 @@ test('author event cast binds the source schema and canonical parser to the same
     first.anyOf.find((v: any) => v.properties?.kind?.enum?.includes('consider')).properties
       .opportunity,
   );
-  assert.equal(author.properties.actorTasks.properties['actor:2'].type, 'null');
-  assert.ok(author.properties.actorTasks.properties['actor:1'].anyOf);
+  const tasks = resolve(author.properties.actorTasks);
+  assert.equal(tasks.properties['actor:2'].type, 'null');
+  assert.equal(tasks.properties['actor:1'].$ref, '#/$defs/director_actor_task');
+  assert.equal(resolve(tasks.properties['actor:1']).type, 'object');
   assert.deepEqual(f.parse(selected(f)).opportunities[0]!.participantActorIds, ['a']);
   assert.throws(() => f.parse(selected(f, true)), /authorized boundary/);
   const second = resolve(schema.properties.authoredChoices.properties[f.events[1]!.ref]);
@@ -171,7 +173,7 @@ test('author event cast binds the source schema and canonical parser to the same
     second.anyOf.find((v: any) => v.properties?.kind?.enum?.includes('consider')).properties
       .opportunity,
   );
-  assert.equal(secondAuthor.properties.actorTasks.properties['actor:1'].type, 'null');
+  assert.equal(resolve(secondAuthor.properties.actorTasks).properties['actor:1'].type, 'null');
 });
 test('unconfigured legacy cast stays open; explicitly unresolved cast cannot become everybody', () => {
   const f = fixture(),
