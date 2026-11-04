@@ -623,7 +623,7 @@ async function readNativeStrategyBasis(
         AND (e.payload->>'storyAt')::timestamptz<=$6::timestamptz AND (('scene:'||item.id)=ANY($4::text[]) OR e.command_id=ANY($7::text[]))
         AND item.document->>'worldId'=item.world_id AND item.document->>'ownerId'=item.owner_id AND item.document->>'id'=item.id
         AND item.document->>'sceneId'=item.scene_id AND item.document->>'sourceEventId'=e.id AND (item.document->>'sourceVersion')::integer=e.version
-        AND e.payload->'data'->>'sceneId'=item.scene_id
+        AND COALESCE(e.payload->'data'->>'sceneId',e.payload->'data'->'sceneReply'->>'sceneId')=item.scene_id
         AND item.document->'observableTo' @> jsonb_build_array(jsonb_build_object('kind','actor','actorId',$3::text))
         AND EXISTS(SELECT 1 FROM jsonb_array_elements(scene.document->'presence') presence
           WHERE presence->'participant'=jsonb_build_object('kind','actor','actorId',$3::text)
@@ -634,7 +634,13 @@ async function readNativeStrategyBasis(
                 AND joined.version=(presence->>'sourceVersion')::integer AND joined.version=(presence->>'joinedVersion')::integer
                 AND joined.payload->'data'->>'sceneId'=scene.id
                 AND joined.payload->>'type' IN ('scene.entered','scene.opened','scene.action_resolved','scene.reaction_recorded')))
-        AND ((item.document->>'kind'='user_action' AND e.payload->>'type'='scene.input_recorded' AND COALESCE(e.payload->'data'->>'privateThought','false')='false'
+        AND ((e.payload->>'type'='turn.resolved'
+          AND e.payload->'data'->'sceneReply'->>'sceneId'=item.scene_id
+          AND item.document->>'kind' IN ('dialogue','narration')
+          AND EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(e.payload->'data'->'sceneReply'->'entries','[]'::jsonb)) entry WHERE entry=item.document))
+          OR (item.document->>'kind'='narration' AND e.payload->>'type' IN ('scene.action_resolved','scene.reaction_recorded')
+            AND EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(e.payload->'data'->'dialogues','[]'::jsonb)) entry WHERE entry=item.document))
+          OR (item.document->>'kind'='user_action' AND e.payload->>'type'='scene.input_recorded' AND COALESCE(e.payload->'data'->>'privateThought','false')='false'
           AND e.payload->'playerInput'->>'text'=item.document->>'text'
           AND EXISTS(SELECT 1 FROM parallel_life.scene_items action WHERE action.world_id=item.world_id AND action.owner_id=item.owner_id
             AND action.scene_id=item.scene_id AND action.source_event_id=e.id AND action.kind='action' AND action.id=item.document->>'actionId' AND action.document->>'text'=item.document->>'text'))

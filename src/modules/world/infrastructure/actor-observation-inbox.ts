@@ -298,6 +298,7 @@ export async function validateActorSceneRecall(
   const supplied = snapshot.sources.filter(
     (s) =>
       s.kind === 'scene_entry' &&
+      Boolean(s.contentHash) &&
       s.usage === 'private_strategy' &&
       !snapshot.actorObservationInbox?.sourceIds.includes(s.id),
   );
