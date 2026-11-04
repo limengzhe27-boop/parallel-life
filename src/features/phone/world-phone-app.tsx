@@ -178,11 +178,12 @@ export function WorldPhoneApp({
       )
         return;
       const partial = receipt.streamSummary?.completionStatus === 'partial_interrupted';
-      if (partial) partialCommands.current[command.commandId] = command;
+      const retain = partial || !!receipt.sceneReply;
+      if (retain) partialCommands.current[command.commandId] = command;
       else delete partialCommands.current[command.commandId];
       setPartialReceipts((current) => {
         const next = { ...current };
-        if (partial) next[receipt.commandId] = receipt;
+        if (retain) next[receipt.commandId] = receipt;
         else delete next[receipt.commandId];
         return next;
       });

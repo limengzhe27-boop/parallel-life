@@ -237,7 +237,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
       async (sql) =>
         (
           await sql.query(
-            'SELECT id,version FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+            "SELECT id,version,payload#>'{data,sceneReply}' AS scene_reply FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3",
             [command.worldId, ownerId, attempt.eventId],
           )
         ).rows[0],
@@ -248,6 +248,9 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           status: 'committed',
           eventId: String(event.id),
           version: Number(event.version),
+          ...(event.scene_reply?.sceneId
+            ? { sceneReply: { sceneId: String(event.scene_reply.sceneId) } }
+            : {}),
         }
       : { ...identity(command), status: 'unconfirmed', recovery: 'unknown' };
   }
@@ -550,7 +553,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
             async (sql) =>
               (
                 await sql.query(
-                  'SELECT id,version FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+                  "SELECT id,version,payload#>'{data,sceneReply}' AS scene_reply FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3",
                   [command.worldId, ownerId, previous.eventId],
                 )
               ).rows[0],
@@ -626,6 +629,9 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
             actorId: command.actorId,
             eventId: String(row.id),
             version: Number(row.version),
+            ...(row.scene_reply?.sceneId
+              ? { sceneReply: { sceneId: String(row.scene_reply.sceneId) } }
+              : {}),
           };
         }
         if (
@@ -976,6 +982,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           actorId: command.actorId,
           eventId: result.eventId,
           version: result.state.projectedWorldVersion,
+          ...(result.sceneReply ? { sceneReply: result.sceneReply } : {}),
         };
       } catch (error) {
         const serverTotalMs = roundDurationMs(performance.now() - tTurn0);

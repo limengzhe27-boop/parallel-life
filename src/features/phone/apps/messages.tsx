@@ -1,3 +1,4 @@
+import { routeHash } from '../navigation.ts';
 import {
   emptyChatReadingPosition,
   restoreVisibleChatPosition,
@@ -1853,6 +1854,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   <Links links={m.links} open={open} />
                 </div>
               </div>
+              {m.sceneReplyId && (
+                <a
+                  href={routeHash(worldId, { app: null, panel: 'scene', target: m.sceneReplyId })}
+                  style={{ alignSelf: 'flex-end', marginRight: 48, color: '#64748b', fontSize: 12 }}
+                >
+                  对方在现场回应了你 · 查看现场
+                </a>
+              )}
               {m.replyInterrupted && (
                 <small
                   style={{

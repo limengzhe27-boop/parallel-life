@@ -94,6 +94,7 @@ export const WorldMessageReceiptSchema = z.strictObject({
     .optional(),
   metrics: ChatTurnServerMetricsSchema.optional(),
   streamSummary: NpcStreamTurnSummarySchema.optional(),
+  sceneReply: z.strictObject({ sceneId: Id }).optional(),
 });
 export type WorldMessageReceipt = z.infer<typeof WorldMessageReceiptSchema>;
 
@@ -129,6 +130,7 @@ export function worldMessageClientReceipt(
     messageEvents: _events,
     metrics: _metrics,
     streamSummary: _streamSummary,
+    sceneReply: _sceneReply,
     ...legacy
   } = receipt;
   return legacy;

@@ -34,6 +34,8 @@ export type PhoneMessage = {
   status: 'pending' | 'sent' | 'failed' | 'unknown';
   /** A durable NPC prefix exists, but this reply did not finish. Not a failed user send. */
   replyInterrupted?: boolean;
+  /** Transient authenticated receipt hint, not a second conversation message. */
+  sceneReplyId?: string;
   /** Initial server-verified history does not become a new notification. */
   initialRead?: boolean;
   /** Authored preset contents never count as runtime delivery. */

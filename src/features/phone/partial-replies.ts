@@ -30,9 +30,22 @@ export function annotatePartialReplies(
       .find((m) => m.role === 'assistant' && m.actorId === receipt.actorId);
     if (last) interrupted.set(last.id, receipt.actorId);
   }
+  const sceneReplies = new Map<string, { actorId: string; sceneId: string }>();
+  for (const receipt of receipts) {
+    if (!receipt.sceneReply) continue;
+    const userId =
+      receipt.messages?.find((m) => m.role === 'user')?.id ?? `${receipt.eventId}_user`;
+    sceneReplies.set(userId, { actorId: receipt.actorId, sceneId: receipt.sceneReply.sceneId });
+    sceneReplies.set(receipt.commandId, {
+      actorId: receipt.actorId,
+      sceneId: receipt.sceneReply.sceneId,
+    });
+  }
   return messages.map((message) =>
-    message.role === 'assistant' && interrupted.get(message.id) === message.actorId
-      ? { ...message, replyInterrupted: true }
-      : message,
+    message.role === 'user' && sceneReplies.get(message.id)?.actorId === message.actorId
+      ? { ...message, sceneReplyId: sceneReplies.get(message.id)!.sceneId }
+      : message.role === 'assistant' && interrupted.get(message.id) === message.actorId
+        ? { ...message, replyInterrupted: true }
+        : message,
   );
 }
