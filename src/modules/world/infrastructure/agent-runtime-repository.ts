@@ -646,12 +646,10 @@ export class PostgresAgentRuntimeRepository
       )
         fail('INVALID_INPUT');
       await requireInputAuthority(sql, ownerId, r, input.actorId, input.expectedWorldVersion);
-      if (
-        r.origin === 'player' &&
-        r.channel === 'private' &&
-        !(await acceptsAgentInputVersion(sql, ownerId, r, input.expectedWorldVersion))
-      )
-        fail('VERSION_CONFLICT');
+      // Acceptance already authenticated the immutable input. With no previous
+      // attempt, prepare against the current world/actor (checked above), rather
+      // than requiring the world to remain frozen since that input was accepted.
+      // Paid attempts retain their original snapshot in the replay branch above.
       await requireOwnAgendaReviewAuthorityInTransaction(sql, ownerId, r, {
         phase: 'claim',
         config: this.agendaConfig,

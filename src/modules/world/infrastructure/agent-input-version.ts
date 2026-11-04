@@ -2,9 +2,10 @@ import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentInputReceipt } from '../domain/agent-runtime.ts';
 
 /**
- * Input identity keeps the client's version. Only an unchanged recipient may
- * interpret an older private input; paid execution retains its own world CAS.
- * Call under the world lock both at acceptance and before claiming a model run.
+ * Input identity keeps the client's version. At first acceptance, an older
+ * private input requires an unchanged recipient. An accepted input with no
+ * attempt is prepared against current state; paid execution retains its own CAS.
+ * Call under the world lock when accepting a new input.
  */
 export async function acceptsAgentInputVersion(
   sql: SqlClient,
