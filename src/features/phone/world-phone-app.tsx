@@ -1864,6 +1864,13 @@ export function WorldPhoneSurface({
         }
         referenceTime={currentReferenceTime}
         onOpenNotification={(notification) => {
+          if (notification.app === 'scenes' && notification.target) {
+            // Following a new arrival opens the latest scene exchange; ordinary re-entry
+            // still restores the reader's position through ScenePanel's existing key.
+            try {
+              sessionStorage.removeItem('pl-scene-scroll:' + data.id + ':' + notification.target);
+            } catch {}
+          }
           window.location.hash = routeHash(data.id, {
             app: notification.app,
             ...(notification.app === 'scenes' ? { panel: 'scene' as const } : {}),
