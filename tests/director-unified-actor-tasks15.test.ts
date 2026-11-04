@@ -18,7 +18,7 @@ import {
   decodeDirectorWire,
   directorWireCatalog,
 } from '../src/modules/world/infrastructure/director-model-protocol.ts';
-function fixture() {
+function fixture(eventActorKeys = ['ak', 'bk']) {
   const s: DirectorSnapshot = {
     schemaVersion: 1,
     worldId: 'world',
@@ -79,7 +79,7 @@ function fixture() {
           kind: 'candidate',
           title: key,
           editorialIntent: 'A future optional authored opportunity.',
-          actorKeys: ['ak', 'bk'],
+          actorKeys: eventActorKeys,
           prerequisites: [],
           mutuallyExclusiveNodeKeys: [],
           intent: { kind: 'director_event' },
@@ -121,8 +121,8 @@ function fixture() {
   return { s, a, wire, events, parse: (raw: unknown) => parseDirectorDecision(s, raw, a) };
 }
 
-function current(windowCount = 0) {
-  const f = fixture();
+function current(windowCount = 0, eventActorKeys = ['ak', 'bk']) {
+  const f = fixture(eventActorKeys);
   f.s.deliberationWindow = {
     version: 1,
     nodeKeys: f.s
@@ -333,4 +333,59 @@ test('v14 read/recovery remains strict and unchanged; new fields never silently 
   assert.throws(() => newShape.parse());
   newShape.wire.protocol = 'director-wire-v16';
   assert.throws(() => newShape.parse());
+});
+
+test('v15 consider schema requires a real allowed task while defer remains available', () => {
+  for (const allowed of [['ak'], ['ak', 'bk']]) {
+    const f = current(1, allowed);
+    const format = directorResponseFormat(f.s);
+    assert.equal(format.format, 'json_schema');
+    if (format.format !== 'json_schema') throw Error('format');
+    const schema: any = format.schema;
+    const resolve = (node: any): any =>
+      node.$ref ? schema.$defs[node.$ref.split('/').at(-1)] : node;
+    const key = Object.keys(f.wire.authoredChoices)[0]!;
+    const choice = resolve(schema.properties.authoredChoices.properties[key]);
+    assert.equal(choice.anyOf.length, 2);
+    assert.deepEqual(choice.anyOf[0].properties.kind.enum, ['defer']);
+    const opportunity = resolve(choice.anyOf[1].properties.opportunity);
+    const tasks = opportunity.properties.actorTasks;
+    assert.deepEqual(tasks.required, ['actor:1', 'actor:2']);
+    assert.equal(tasks.additionalProperties, false);
+    if (allowed.length === 1) {
+      assert.equal(tasks.properties['actor:1'].$ref, '#/$defs/director_actor_task');
+      assert.equal(tasks.properties['actor:2'].type, 'null');
+      assert.equal(tasks.anyOf, undefined);
+    } else {
+      assert.equal(tasks.anyOf.length, 2);
+      tasks.anyOf.forEach((branch: any, i: number) => {
+        assert.equal(branch.type, 'object');
+        assert.equal(branch.additionalProperties, false);
+        assert.deepEqual(branch.required, ['actor:1', 'actor:2']);
+        assert.equal(branch.properties[`actor:${i + 1}`].$ref, '#/$defs/director_actor_task');
+      });
+    }
+    assert.equal(f.parse().opportunities.length, 0, 'defer requires no invented task');
+    f.wire.authoredChoices[key] = {
+      kind: 'consider',
+      opportunity: {
+        title: '本人独立考虑',
+        description: '具体可拒绝互动',
+        playerImpact: '可自由回应',
+        places: [],
+        activity: 'conversation',
+        actorTasks: { 'actor:1': null, 'actor:2': null },
+        actorTopics: null,
+      },
+    };
+    assert.throws(() => f.parse(), 'decoder must continue rejecting all-null consider');
+    f.wire.authoredChoices[key].opportunity.actorTasks['actor:1'] =
+      f.opportunity.actorTasks['actor:1'];
+    assert.deepEqual(f.parse().opportunities[0]!.participantActorIds, ['a']);
+    if (allowed.length === 1) {
+      f.wire.authoredChoices[key].opportunity.actorTasks['actor:2'] =
+        f.opportunity.actorTasks['actor:1'];
+      assert.throws(() => f.parse(), 'event-unbound actor cannot receive a task');
+    }
+  }
 });
