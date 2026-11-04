@@ -3609,3 +3609,7 @@ PROACTIVE-CONTINUITY-43 现场投递消费者接续进行中：root授权proacti
 PROACTIVE-CONTINUITY-43现场投递消费者待验收：冻结7ec414b5，仅reader+原PG测试+43报告；实际scene投递按已有sceneReply及scene_items认证。隔离PG55743 14/14、typecheck0、边界768通过，测试PG已停。0真实模型/原档写/运行修改；root集成check/build及原档验收。长期主动、unknown无lease消费者和重复扫描仍未完成。
 
 SCENE-EXPERIENCE-45收口：faea9b26/3218 build-scene45-release，check4219、最终聚焦70、PG15、build通过；原档v714真实narration+2speech、顶部通知点击现场、刷新不重弹已验。实际投递认证六人可读；0新增DB表列，3219/Vercel不动。长期主动仍未完成：导演后阶段接受条件误当整个邀约启动条件，当前6人无active计划；scene长期摘要未覆盖，详45/43/consumer45报告。
+
+|ACTOR-RECOVERY-46|[x] 本地原档交付|root-recovery46唯一集成|主目录；agent-runtime-repository.ts、agent-runtime.test.ts及报告|未知旧调用不占用新玩家输入，保留同请求不重买/迟到结果不可执行；真实PG、原档及3218本地更新，不增字段。|
+
+ACTOR-RECOVERY-46收口：c8d1af2e/build-recovery46/3218；新player输入可退休无结果旧unknown，原请求不重买/迟到不可执行。check4219、PG38+9、build通过；原被挡372ec7bb接续v729、1模型约7.4s，现场2entry页面可见。上游网络异常根因尚未证实、长期主动/记忆/成本继续未完。
