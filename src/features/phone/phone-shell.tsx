@@ -44,6 +44,7 @@ export type PhoneNotification = {
   id: string;
   title: string;
   summary: string;
+  avatarUrl?: string;
   app: PhoneApp;
   target?: string;
   timeLabel?: string;
@@ -287,7 +288,15 @@ function LifePhone({
         onClick={() => openNotification(n)}
       >
         <span className={`${styles.notificationIcon} ${styles[n.app]}`}>
-          <PhoneIcon name={n.app} />
+          {n.avatarUrl ? (
+            <img
+              src={n.avatarUrl}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <PhoneIcon name={n.app} />
+          )}
         </span>
         <span>
           <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

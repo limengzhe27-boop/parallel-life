@@ -1,4 +1,6 @@
 'use client';
+
+import { resolveAvatarArt } from './avatar-art.ts';
 import { restoreSceneEntry } from './scenes/state.ts';
 import { annotatePartialReplies, restorePartialReplyCommands } from './partial-replies.ts';
 import { useAdvanceRecovery } from './use-advance-recovery.ts';
@@ -1487,7 +1489,15 @@ export function WorldPhoneSurface({
       .then((scene) => {
         if (!cancelled)
           setSceneNotifications(
-            projectSceneNotifications(scene, sceneArrivalBaseline.current.version, data.actors),
+            projectSceneNotifications(
+              scene,
+              sceneArrivalBaseline.current.version,
+              data.actors.map((actor) => ({
+                id: actor.id,
+                name: actor.name,
+                avatarUrl: resolveAvatarArt(data, actor).url,
+              })),
+            ),
           );
       })
       .catch(() => {

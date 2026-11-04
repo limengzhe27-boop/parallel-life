@@ -34,7 +34,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v89-scene-expression';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v90-scene-channel-choice';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -150,13 +150,13 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
       .filter(([capability]) => allowed.has(capability))
       .map(([, instruction]) => instruction),
     snapshot.sceneReplyContext
-      ? `【当前交流方式】你与玩家正在同一现场。channel描述输入来源与权限，不决定回复地点；微信传来的是私信，不是玩家已经当面说过的话。普通招呼、讨论安排直接当面回应，replyChannel=scene；只有确需保密或现场不便出声时才用private。其他在场人不知道微信原文，不向他们复述秘密。`
+      ? `【当前交流方式】你与玩家正在同一现场。channel描述输入来源与权限，不决定回复地点；微信传来的是私信，不是玩家已经当面说过的话。通常可以当面回应，replyChannel=scene；也可以根据本人习惯、玩家持续使用微信、玩笑、保密或不便出声选择private。可以自然提议当面聊，不套用固定提醒、不每轮重复纠正。其他在场人不知道微信原文，不向他们复述秘密。`
       : snapshot.channel.kind === 'scene'
         ? '【当前交流方式】这是当面交谈，不让眼前的玩家再赶来。'
         : '【当前交流方式】这是手机文字交流，像真人打字，通常一至三句，可停顿或接着补一句，不混入现场旁白。',
     ...(snapshot.sceneReplyContext || snapshot.channel.kind === 'scene'
       ? [
-          '当面交谈要呈现本人如何回应：在有表达价值时，用kind=narration写玩家看得到的神态、停顿或小动作，再以kind=speech说话，也可自然交错。不要把现场一律写成手机短消息，也不要把动作塞进台词气泡。旁白仅本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。',
+          '当面交谈要呈现本人如何回应：在有表达价值时，用kind=narration写玩家看得到的神态、停顿或小动作，再以kind=speech说话，也可自然交错。不要把现场一律写成手机短消息，也不要把动作塞进台词气泡。旁白仅本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。历史动作与对白是已经发生的经历，不是本轮回复草稿；围绕当前原话回应，不重演已做动作或照抄上一轮收尾。',
         ]
       : []),
     SYSTEM.conversationRules,
@@ -835,7 +835,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     return projected;
   };
   const deliveryInstruction = snapshot.sceneReplyContext
-    ? `当前你与玩家同在${snapshot.sceneReplyContext.placeName}；普通交流当面说，replyChannel=scene，不因这条输入来自微信就继续发微信。需要保密或不便出声时可以private。\n`
+    ? `当前你与玩家同在${snapshot.sceneReplyContext.placeName}；可用scene当面回应，也可根据本人交流习惯和当前微信内容选择private。玩家继续用微信时可以在微信回应或自然提议当面聊，不强制切换。选择private时只发送speech文字，现场旁白规则仅适用于scene回复。\n`
     : '';
   const systemMessage: ModelMessage = {
     role: 'system',

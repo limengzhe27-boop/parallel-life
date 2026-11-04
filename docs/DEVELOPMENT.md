@@ -3613,3 +3613,7 @@ SCENE-EXPERIENCE-45收口：faea9b26/3218 build-scene45-release，check4219、�
 |ACTOR-RECOVERY-46|[x] 本地原档交付|root-recovery46唯一集成|主目录；agent-runtime-repository.ts、agent-runtime.test.ts及报告|未知旧调用不占用新玩家输入，保留同请求不重买/迟到结果不可执行；真实PG、原档及3218本地更新，不增字段。|
 
 ACTOR-RECOVERY-46收口：c8d1af2e/build-recovery46/3218；新player输入可退休无结果旧unknown，原请求不重买/迟到不可执行。check4219、PG38+9、build通过；原被挡372ec7bb接续v729、1模型约7.4s，现场2entry页面可见。上游网络异常根因尚未证实、长期主动/记忆/成本继续未完。
+
+|SCENE-EXPRESSION-47|[ ] 代码及原档微信渠道验收完成，头像通知目视待续|root-scene47唯一集成|main；npc-agent-model.ts、phone-shell.tsx、notification-projection.ts及聚焦tests/report|人物头像通知、同场微信渠道自主选择、重复旧回应原始输出核对；不增数据库字段，不重发旧输入，更新3218。|
+
+SCENE-EXPRESSION-47：原始response确认旧句复述来自模型；头像复用联系人解析，现有replyChannel允许同场微信自然回应。check4219、聚焦70+4、typecheck/build通过；3218 build-scene47，原档v752 private实际微信气泡、HTTP8843ms，1次新发送不重试。本轮无新scene通知，头像目视未验；长期复读与主动推进仍未完成，见SCENE-EXPRESSION-47.md。

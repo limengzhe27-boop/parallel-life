@@ -16,7 +16,7 @@ type Message = MessageNotificationState & {
   photo?: { mediaType?: string };
   attachment?: { kind: string };
 };
-type Contact = { id: string; name: string };
+type Contact = { id: string; name: string; avatarUrl?: string };
 type LockInvitation = {
   id: string;
   title: string;
@@ -244,6 +244,7 @@ export function projectSceneNotifications(
         app: 'scenes',
         target: entry.sceneId,
         title: (actors.find((a) => a.id === actorId)?.name ?? '现场') + ' · 当面回应',
+        avatarUrl: actors.find((a) => a.id === actorId)?.avatarUrl,
         summary: entry.text,
       });
   }

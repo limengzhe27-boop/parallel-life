@@ -232,11 +232,14 @@ test('scene arrivals use committed visible dialogue, group one reply, and exclud
       { ...entry, sourceEventId: 'input', kind: 'user_action' },
     ],
   } as unknown as import('../src/contracts/scenes.ts').SceneRead;
-  const result = projectSceneNotifications(scene, 10, [{ id: 'a', name: '阿宁' }]);
+  const result = projectSceneNotifications(scene, 10, [
+    { id: 'a', name: '阿宁', avatarUrl: '/avatar/a' },
+  ]);
   assert.equal(result.length, 1);
   assert.ok(result[0]);
   assert.equal(result[0].target, 'scene1');
   assert.equal(result[0].app, 'scenes');
+  assert.equal(result[0].avatarUrl, '/avatar/a');
   assert.equal(result[0].summary, '抬头看看我。 我就在这里。');
   assert.deepEqual(projectSceneNotifications(scene, 12, []), []);
 });

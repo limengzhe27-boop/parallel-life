@@ -41,6 +41,16 @@ test('co-present private input chooses scene, ordinary private cannot', () => {
   );
   assert.throws(() => decodeNpcWire(context('private'), { ...wire(), replyChannel: 'scene' }));
   assert.throws(() => decodeNpcWire(c, { ...wire(), replyChannel: 'private' }));
+  assert.equal(
+    (
+      decodeNpcWire(c, {
+        ...wire(),
+        statements: [wire().statements[1]],
+        replyChannel: 'private',
+      }) as any
+    ).replyChannel,
+    'private',
+  );
 });
 test('narration cannot ask questions and old wire cannot acquire new expression semantics', () => {
   const w = wire();
