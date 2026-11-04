@@ -407,6 +407,8 @@ test('deterministic scene environment: real owner SQL, actual entry/lease, atomi
         replaySceneEnvironment(f.beforeWorld, f.beforeScene, event, rows).scene,
         read.scene,
       );
+      assert.equal(f.beforeScene.presence.filter(p => p.participant.kind === 'actor').length, 1,
+        'this regression starts with a real entry-seeded actor, not a player-only scene');
       const circular = structuredClone(event);
       circular.data.environment.presenceProofs[1].sourceEventId = event.id;
       circular.data.environment.presenceProofs[1].worldVersion = event.version;

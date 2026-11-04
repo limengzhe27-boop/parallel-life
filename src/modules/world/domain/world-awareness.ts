@@ -439,6 +439,7 @@ export function committedAwarenessDelta(
           continue;
         if (presence.participant.kind === 'actor' && !actorIds.has(presence.participant.actorId))
           continue;
+        if (event.type === 'scene.entered' && presence.participant.kind === 'actor') continue;
         // A deterministic environment can introduce a view of independently
         // verified presence; viewing that scene is not a new physical move.
         const environment = object(data.environment);

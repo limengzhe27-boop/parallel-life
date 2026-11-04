@@ -147,7 +147,19 @@ export function replaySceneEnvironment(
     before.placeId !== environment.placeId ||
     world.space?.currentPlaceId !== environment.placeId ||
     !place ||
-    before.presence.length !== 1 ||
+    before.presence.length < 1 ||
+    before.presence.some(
+      (p) =>
+        p.leftVersion !== undefined ||
+        p.sourceEventId !== before.sourceEventId ||
+        p.sourceVersion !== before.sourceVersion ||
+        p.joinedVersion !== before.sourceVersion,
+    ) ||
+    new Set(
+      before.presence.map((p) =>
+        p.participant.kind === 'player' ? 'player' : `actor:${p.participant.actorId}`,
+      ),
+    ).size !== before.presence.length ||
     before.presence[0]!.participant.kind !== 'player' ||
     before.presence[0]!.leftVersion !== undefined ||
     before.presence[0]!.sourceEventId !== before.sourceEventId ||
@@ -157,7 +169,12 @@ export function replaySceneEnvironment(
     reject('SCENE_ENVIRONMENT_SOURCE_MISMATCH');
   const keys = new Set<string>();
   let hasPlayer = false;
-  const scene = structuredClone(before);
+  // Entry seeding is a provisional projection of the same authoritative
+  // positions. Confirm it once here, so live opening and event replay agree.
+  const scene = {
+    ...structuredClone(before),
+    presence: structuredClone(before.presence.filter((p) => p.participant.kind === 'player')),
+  };
   for (const proof of environment.presenceProofs) {
     const key = proof.subject.kind === 'player' ? 'player' : `actor:${proof.subject.actorId}`;
     const source = proof.sourceEventId ? sources.find((s) => s.id === proof.sourceEventId) : null;
