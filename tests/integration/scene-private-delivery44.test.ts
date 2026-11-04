@@ -308,16 +308,34 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
     )
   ).rows;
   const historical = completed.find((row) =>
-    row.response.suppliedContext.observations.some(
-      (ref: any) => !row.response.snapshot.actorObservationInbox?.sourceIds.includes(ref.sourceId),
+    row.response.snapshot.sources.some(
+      (source: any) =>
+        source.kind === 'scene_entry' &&
+        source.usage === 'private_strategy' &&
+        !row.response.snapshot.actorObservationInbox?.sourceIds.includes(source.id),
     ),
   );
-  assert.ok(historical, 'completion must actually contain supplied historical recall');
+  assert.ok(historical, 'completion must actually retain historical recall in its snapshot');
   const saved = historical.response;
-  const onlyRecall = structuredClone(saved);
-  onlyRecall.suppliedContext.observations = onlyRecall.suppliedContext.observations.filter(
-    (ref: any) => !saved.snapshot.actorObservationInbox?.sourceIds.includes(ref.sourceId),
+  const recallSources = saved.snapshot.sources.filter(
+    (source: any) =>
+      source.kind === 'scene_entry' &&
+      source.usage === 'private_strategy' &&
+      !saved.snapshot.actorObservationInbox?.sourceIds.includes(source.id),
   );
+  assert.ok(
+    recallSources.every(
+      (source: any) =>
+        !saved.suppliedContext.observations.some((ref: any) => ref.sourceId === source.id),
+    ),
+    'new completions exclude historical recall from notification ACK',
+  );
+  // Simulate a previously persisted completion using genuine source evidence, without editing it.
+  const onlyRecall = structuredClone(saved);
+  onlyRecall.suppliedContext.observations = recallSources.map((source: any) => ({
+    sourceId: source.id,
+    contentHash: source.contentHash,
+  }));
   delete onlyRecall.snapshot.actorObservationInbox;
   const readWithSupplied = (response: typeof saved) =>
     db.transaction(f.owner, (sql) =>
@@ -384,7 +402,9 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
         ),
       );
       return JSON.stringify({
-        statements: [{ text: '可以，当面聊。', dependsOnActionIds: [] }],
+        statements: [
+          { text: '今晚一起吃饭吗？', dependsOnActionIds: [], requestsPlayerReply: true },
+        ],
         goals: [],
         plans: [],
         actions: [],
@@ -406,6 +426,69 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
     },
   );
   assert.equal(nativeCalls, 1);
+  const questionState = (
+    await admin.query(
+      'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND actor_id=$2',
+      [f.worldId, f.a],
+    )
+  ).rows[0].document;
+  const sceneQuestion = questionState.questions.find(
+    (q: any) => q.status === 'open' && q.channel === 'scene',
+  );
+  assert.ok(sceneQuestion, 'native turn creates a scene question');
+  const replyApi = npcAgentServices(db, () => ({
+    async complete(messages) {
+      const payload = JSON.parse(messages[1]!.content);
+      const target = Object.entries(payload.playerReplyTargets).find(
+        ([, value]) => (value as { questionId?: string }).questionId === sceneQuestion.id,
+      );
+      assert.ok(target, 'private input in same scene receives authorized scene question target');
+      return JSON.stringify({
+        protocol: 'npc-wire-v20',
+        replyChannel: 'scene',
+        statements: [
+          {
+            text: '好，听到了。',
+            kind: 'speech',
+            dependsOnActionIds: [],
+            requestsPlayerReply: false,
+            questionForResponsibilityId: null,
+            stickerId: null,
+          },
+        ],
+        executions: [],
+        changes: {
+          inputInterpretation: {
+            kind: 'related_reply',
+            sourceId: payload.wireCatalog.inputSourceRef,
+            quote: '好呀',
+            replies: [{ targetRef: target[0], relation: 'answer', decision: null }],
+          },
+        },
+      });
+    },
+  }));
+  const beforeAnswer = await worlds.get({ userId: f.owner }, f.worldId);
+  assert.equal(
+    (
+      await replyApi.sendMessageIfEnabled(f.owner, {
+        id: randomUUID(),
+        worldId: f.worldId,
+        actorId: f.a,
+        expectedVersion: beforeAnswer.version,
+        text: '好呀',
+      })
+    )?.status,
+    'committed',
+  );
+  const answered = (
+    await admin.query(
+      'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND actor_id=$2',
+      [f.worldId, f.a],
+    )
+  ).rows[0].document;
+  assert.equal(answered.questions.find((q: any) => q.id === sceneQuestion.id).status, 'answered');
+
   const preLeave = await worlds.get({ userId: f.owner }, f.worldId);
   const priorScene = await db.transaction(f.owner, (sql) => loadScene(sql, f.worldId, f.sceneId));
   const lateApi = npcAgentServices(db, () => ({
