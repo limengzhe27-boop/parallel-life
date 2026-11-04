@@ -204,7 +204,7 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
     },
   );
   await t.test(
-    'recipient changes after acceptance stop a stale input before a model claim',
+    'accepted input first claims against current world without rewriting its original version',
     async () => {
       const f = await fixture();
       await store.accept(f.owner, f.receipt);
@@ -213,7 +213,13 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
         "UPDATE parallel_life.actor_agent_states SET projected_world_version=1,document=jsonb_set(document,'{projectedWorldVersion}','1') WHERE world_id=$1 AND actor_id=$2",
         [f.worldId, f.a],
       );
-      await assert.rejects(() => claim(f, { expectedWorldVersion: 1 }), /VERSION_CONFLICT/);
+      await assert.rejects(
+        () => claim(f, { expectedWorldVersion: 1, expectedActorRevision: 99 }),
+        /AGENT_REVISION_CONFLICT/,
+      );
+      const current = await claim(f, { expectedWorldVersion: 1 });
+      assert.equal(current.attempt.expectedWorldVersion, 1);
+      assert.equal(f.receipt.expectedWorldVersion, 0);
       await assert.rejects(
         () => store.accept(f.owner, { ...f.receipt, id: randomUUID(), commandId: randomUUID() }),
         /VERSION_CONFLICT/,
@@ -226,7 +232,7 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
             [f.worldId],
           )
         ).rows[0].n,
-        0,
+        1,
       );
     },
   );
@@ -370,6 +376,38 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
       a = await store.saveResponse(f.owner, a, { late: 'received' });
       assert.equal(a.status, 'response_received');
       assert.deepEqual(await raw(f.owner, a), { late: 'received' });
+    },
+  );
+  await t.test(
+    'new player input retires unknown execution before lease expiry without rebuying old input',
+    async () => {
+      const f = await fixture();
+      let old = (await claim(f)).attempt;
+      old = await store.mark(f.owner, old, 'request_sent');
+      old = await store.mark(f.owner, old, 'unknown_after_send');
+      const next = {
+        ...f,
+        receipt: {
+          ...f.receipt,
+          id: randomUUID(),
+          commandId: randomUUID(),
+          inputHash: hash('new player input'),
+          text: '换个话题吧。',
+        },
+      };
+      const fresh = await claim(next);
+      assert.equal(fresh.replay, false);
+      assert.notEqual(fresh.attempt.id, old.id);
+      const replay = await store.claim(f.owner, { ...old, id: randomUUID(), token: randomUUID() });
+      assert.equal(replay.replay, true);
+      assert.equal(replay.attempt.status, 'stale_discarded');
+      const late = await store.saveResponse(f.owner, old, { late: 'paid result' });
+      assert.equal(late.status, 'stale_discarded');
+      assert.deepEqual(await raw(f.owner, late), { late: 'paid result' });
+      await assert.rejects(
+        () => app.transaction(f.owner, (sql) => beginAgentCommitInTransaction(sql, f.owner, late)),
+        /ATTEMPT_STALE/,
+      );
     },
   );
   await t.test(

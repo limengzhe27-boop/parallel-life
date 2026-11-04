@@ -659,15 +659,16 @@ export class PostgresAgentRuntimeRepository
           .rows[0].live
       )
         fail('ATTEMPT_STALE');
-      // An expired, unanswered paid call keeps its receipt and billing uncertainty,
-      // but its fenced execution right cannot occupy this actor forever. Same-command
+      // An unanswered paid call keeps its receipt and billing uncertainty,
+      // but a distinct player input may retire its execution right immediately. Same-command
       // replay was resolved above; this only admits a distinct, already authorized input.
       await sql.query(
         `UPDATE parallel_life.agent_attempts SET status='stale_discarded',updated_at=now()
          WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3
-           AND status='unknown_after_send' AND lease_until<=clock_timestamp()
+           AND status='unknown_after_send'
+           AND (lease_until<=clock_timestamp() OR ($4='player' AND input_receipt_id<>$5))
            AND sent_at IS NOT NULL AND response IS NULL AND response_hash IS NULL AND event_id IS NULL`,
-        [input.worldId, ownerId, input.actorId],
+        [input.worldId, ownerId, input.actorId, r.origin, r.id],
       );
       const busy = (
         await sql.query(
