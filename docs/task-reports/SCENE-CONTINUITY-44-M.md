@@ -42,3 +42,7 @@ actor-observation-inbox.ts 新增 readActorSceneRecall(sql, owner, snapshot)：�
 真实PG整旅程增加连续3轮私聊：首轮消费现场、第二轮携带历史召回完成、第三轮准备成功。并校验历史recall-only可读、篡改原文仍拒绝。特殊历史形态用读取结果包装模拟，不改不可变attempt。最终typecheck exit0。
 
 旧消费套件基线对照：修复前13项7pass6fail，修复后相同13项7pass6fail，失败项目一致（旧协议fixture、UNKNOWN_SOURCE等）；未将这些报成通过或本批修复。原档恢复与worker验证由root执行。
+
+## 跨渠道回答最终回归
+
+测试冻结25f86bcc，使用最新main和root的kernel/model三份WIP（不提交WIP）。真实PG整旅程1/1通过；新断言原native任务现场提问→同场私聊回答→playerReplyTargets授权scene问题→v20 related_reply提交→原question=answered。确认新suppliedContext不再将历史召回列入ACK，但snapshot保留；旧completion兼容验证继续保留。tsc完整等待结束exit0。只新增测试，无模型费用、原档修改或运行端口操作。
