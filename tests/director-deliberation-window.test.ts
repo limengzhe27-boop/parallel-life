@@ -61,3 +61,62 @@ test('protected old snapshots retain legacy assessment scope and are never silen
   s.deliberationWindow = selectDirectorDeliberationWindow(s);
   assert.deepEqual(s.deliberationWindow.nodeKeys, []);
 });
+
+function periodicFixture() {
+  const s = fixture();
+  s.evaluationCause = {
+    kind: 'periodic_review',
+    genesisHash: 'genesis',
+    admittedAtVersion: 10,
+    qualifications: ['c', 'a', 'b', 'opening'].map((key) => ({
+      ...s.authoredEligibility!.find((q) => q.nodeKey === key)!,
+    })),
+  } as unknown as DirectorSnapshot['evaluationCause'];
+  return s;
+}
+
+test('periodic review preserves authenticated least-recently-assessed order and two-event bound', () => {
+  const s = periodicFixture();
+  s.deliberationWindow = selectDirectorDeliberationWindow(s);
+  assert.deepEqual(s.deliberationWindow.nodeKeys, ['c', 'a']);
+  assert.equal(validDirectorDeliberationWindow(s), true);
+  s.deliberationWindow.nodeKeys = ['a', 'c'];
+  assert.equal(validDirectorDeliberationWindow(s), false);
+  // Semantic qualification wake keeps its existing canonical order.
+  s.evaluationCause = {
+    ...s.evaluationCause!,
+    kind: 'authored_eligibility',
+  } as DirectorSnapshot['evaluationCause'];
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, ['a', 'b']);
+});
+
+test('periodic review cannot admit occupied, blocked or mismatched author evidence', () => {
+  const s = periodicFixture();
+  s.occupiedAuthoredEventKeys = ['c'];
+  const a = s.authoredEligibility!.find((q) => q.nodeKey === 'a')!;
+  a.status = 'blocked' as typeof a.status;
+  const b = s.authoredEligibility!.find((q) => q.nodeKey === 'b')!;
+  b.nodeHash = 'not-the-authored-material';
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, ['opening']);
+  s.occupiedAuthoredEventKeys.push('opening');
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, []);
+});
+
+test('periodic scope never leaks into native turns, opening context or old unscoped snapshots', () => {
+  const s = periodicFixture();
+  s.nativeTurn = {} as NonNullable<DirectorSnapshot['nativeTurn']>;
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, []);
+  delete s.nativeTurn;
+  s.evaluationCause = { kind: 'opening_context' } as DirectorSnapshot['evaluationCause'];
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, []);
+  delete s.evaluationCause;
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, []);
+  delete s.deliberationWindow;
+  assert.equal(validDirectorAuthoredAssessments(s, { opportunities: [] }), true);
+});
+
+test('periodic qualification identity must still match current authenticated eligibility', () => {
+  const s = periodicFixture();
+  s.authoredEligibility!.find((q) => q.nodeKey === 'c')!.qualificationKey = 'changed-proof';
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, ['a', 'b']);
+});
