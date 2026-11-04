@@ -351,7 +351,12 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
             return {
               ...(f.sceneId ? { replyChannel: 'scene' } : {}),
               statements: options.say
-                ? [{ text: '我会按自己的安排准备。', dependsOnActionIds: [] }]
+                ? [
+                    { text: '我会按自己的安排准备。', dependsOnActionIds: [] },
+                    ...(f.sceneId
+                      ? [{ kind: 'narration' as const, text: 'A抬起头。', dependsOnActionIds: [] }]
+                      : []),
+                  ]
                 : [],
               goals: options.goal
                 ? [
@@ -413,25 +418,34 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     );
     return attemptId;
   }
-  async function nativeGroupCommit(f: F) {
+  async function nativeGroupCommit(f: F, scene = false) {
     const groups = new PostgresGroupRepository(db),
       tasks = new TaskRepository(db);
-    const created = await groups.create(f.owner, {
-      worldId: f.worldId,
-      commandId: randomUUID(),
-      expectedVersion: (await worlds.get({ userId: f.owner }, f.worldId)).version,
-      title: 'Synthetic native group',
-      actorIds: [ACTOR_A, ACTOR_B],
-    });
+    const created = scene
+      ? { groupId: f.sceneId!, version: (await worlds.get({ userId: f.owner }, f.worldId)).version }
+      : await groups.create(f.owner, {
+          worldId: f.worldId,
+          commandId: randomUUID(),
+          expectedVersion: (await worlds.get({ userId: f.owner }, f.worldId)).version,
+          title: 'Synthetic native group',
+          actorIds: [ACTOR_A, ACTOR_B],
+        });
     const parentCommand = randomUUID(),
       text = '群里有一条新的真实输入。';
-    const accepted = await groups.send(f.owner, {
-      worldId: f.worldId,
-      groupId: created.groupId,
-      commandId: parentCommand,
-      expectedVersion: created.version,
-      text,
-    });
+    const accepted = scene
+      ? await new SceneRepository(db).input(f.owner, f.worldId, f.sceneId!, {
+          commandId: parentCommand,
+          expectedVersion: created.version,
+          text,
+          relatedMatterIds: [],
+        })
+      : await groups.send(f.owner, {
+          worldId: f.worldId,
+          groupId: created.groupId,
+          commandId: parentCommand,
+          expectedVersion: created.version,
+          text,
+        });
     await tasks.cancel(f.owner, accepted.task!.id);
     const world = await worlds.get({ userId: f.owner }, f.worldId);
     const receipt = (
@@ -457,7 +471,12 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
         model: {
           async decide() {
             return {
-              statements: [{ text: '我看到了，按自己的安排来。', dependsOnActionIds: [] }],
+              statements: [
+                { text: '我看到了，按自己的安排来。', dependsOnActionIds: [] },
+                ...(scene
+                  ? [{ kind: 'narration' as const, text: 'A点点头。', dependsOnActionIds: [] }]
+                  : []),
+              ],
               goals: [],
               plans: [],
               actions: [],
@@ -616,7 +635,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       assert.ok(evidence.lastPresentedRealAt);
       const row = (
         await admin.query(
-          `SELECT m.id,m.document FROM parallel_life.scene_items m JOIN parallel_life.agent_attempts a ON a.event_id=m.source_event_id WHERE a.id=$1 AND m.kind='entry'`,
+          `SELECT m.id,m.document FROM parallel_life.scene_items m JOIN parallel_life.agent_attempts a ON a.event_id=m.source_event_id WHERE a.id=$1 AND m.kind='entry' AND m.document->>'kind'='narration'`,
           [id],
         )
       ).rows[0];
@@ -633,6 +652,16 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       await read(x);
       await admin.query('DELETE FROM parallel_life.scene_items WHERE id=$1', [row.id]);
       await assert.rejects(read(x), invalid('committed_source'));
+    },
+  );
+  await t.test(
+    'native scene speech plus observable narration remain authenticated agenda presentation',
+    async () => {
+      const x = await fixture(true);
+      await nativeGroupCommit(x, true);
+      const evidence = await read(x);
+      assert.equal(evidence.anchor, null);
+      assert.ok(evidence.lastPresentedRealAt);
     },
   );
   const attemptId = await commitOriginalQuiet(f);

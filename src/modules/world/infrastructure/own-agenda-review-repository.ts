@@ -154,8 +154,12 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
                   AND m.scene_id::text=e.payload#>>'{data,sceneReply,sceneId}'
                   AND m.source_event_id=e.id AND m.kind='entry'
                   AND m.document=entry
-                  AND m.document#>>'{speaker,kind}'='actor'
-                  AND m.document#>>'{speaker,actorId}'=a.actor_id
+                  AND ((m.document->>'kind'='dialogue' AND m.document#>>'{speaker,kind}'='actor'
+                    AND m.document#>>'{speaker,actorId}'=a.actor_id)
+                    OR (m.document->>'kind'='narration' AND NOT (m.document ? 'speaker')
+                      AND m.document->>'perspective'='observable'
+                      AND m.document->'observableTo' @> '[{"kind":"player"}]'::jsonb
+                      AND m.document->'observableTo' @> jsonb_build_array(jsonb_build_object('kind','actor','actorId',a.actor_id))))
                   AND m.document->>'worldId'=a.world_id AND m.document->>'ownerId'=a.owner_id
                   AND m.document->>'sceneId'=m.scene_id::text
                   AND m.document->>'sourceEventId'=e.id::text
@@ -172,7 +176,20 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
               WHEN i.document->>'channel'='group' THEN
               (SELECT count(*) FROM parallel_life.world_group_messages m WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.group_id::text=i.document->>'threadId' AND m.source_event_id=e.id AND m.source_version=e.version AND m.document#>>'{sender,actorId}'=a.actor_id AND m.document#>>'{sender,kind}'='actor')
               WHEN i.document->>'channel'='scene' THEN
-              (SELECT count(*) FROM parallel_life.scene_items m WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.scene_id::text=i.document->>'threadId' AND m.source_event_id=e.id AND m.kind='entry' AND m.document#>>'{speaker,actorId}'=a.actor_id AND m.document#>>'{speaker,kind}'='actor' AND m.document->>'sourceEventId'=e.id::text AND m.document->>'sourceVersion'=e.version::text) END,
+              (SELECT count(DISTINCT m.id) FROM parallel_life.scene_items m
+                JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.payload#>'{data,dialogues}')='array'
+                  THEN e.payload#>'{data,dialogues}' ELSE '[]'::jsonb END) entry ON entry->>'id'=m.id::text
+                WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.scene_id::text=i.document->>'threadId'
+                  AND m.source_event_id=e.id AND m.kind='entry' AND m.document=entry
+                  AND ((m.document->>'kind'='dialogue' AND m.document#>>'{speaker,kind}'='actor'
+                    AND m.document#>>'{speaker,actorId}'=a.actor_id)
+                    OR (m.document->>'kind'='narration' AND NOT (m.document ? 'speaker')
+                      AND m.document->>'perspective'='observable'
+                      AND m.document->'observableTo' @> '[{"kind":"player"}]'::jsonb
+                      AND m.document->'observableTo' @> jsonb_build_array(jsonb_build_object('kind','actor','actorId',a.actor_id))))
+                  AND m.document->>'worldId'=a.world_id AND m.document->>'ownerId'=a.owner_id
+                  AND m.document->>'sceneId'=m.scene_id::text
+                  AND m.document->>'sourceEventId'=e.id::text AND m.document->>'sourceVersion'=e.version::text) END,
             'payload',jsonb_build_object('id',e.payload->'id','worldId',e.payload->'worldId',
               'commandId',e.payload->'commandId','schemaVersion',e.payload->'schemaVersion',
               'version',e.payload->'version','occurredAt',e.payload->'occurredAt',

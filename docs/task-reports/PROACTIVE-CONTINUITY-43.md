@@ -76,3 +76,9 @@ root统一集成；proactive43独立工作树，基线1af2ce12。
 隔离PG55743原入口回归14/14：真实旧现场开场建立合法presence→原awareness建立位置→同一NPC runner/kernel实际提交replyChannel=scene→议程reader得到anchor和lastPresentedRealAt；篡改scene条目正文即拒绝，恢复后可读，删除投影再次拒绝。其他原微信、原生群聊、unknown支付围栏、伪造来源测试通过。typecheck 0、boundaries768通过。没有调用真实模型、没有写原档或修改运行进程。独立PG测试结束后停止；完整check/build及原档运行验收由root集成处理。
 
 同类消费者定向复核：own-agenda-budget只读取既有预算凭据，不另行按输入渠道认证消息；own-agenda-review-authority消费本reader返回的anchor/presentation，本次修正直接覆盖。agent-observation-schedule-read永久unknown过滤与导演unknown重复扫描仍是此前未完项，本批不改。此结论仅针对以上邻近消费者，不声称全仓已无遗漏；修复读取不代表已经生成主动消息。
+
+### 45审查补齐：旁白也属于实际现场呈现
+
+root审查发现首版只计speaker.kind=actor，会遗漏原projector生成的无speaker旁白。已修正同一reader的私聊→现场与原生scene分支：合法本人dialogue，或perspective=observable、无speaker且对玩家及本人可观察的narration；两者都必须与原事件entries/dialogues完整一致并保留来源/所属认证。原生scene同样存在旧计数遗漏，已在同文件修复，没有删完整性保护。
+
+隔离PG55743复验15/15，新增真实kernel speech+narration混合：私聊→现场建立anchor/presentation，原生scene建立presentation但不伪造private anchor。篡改/删除旁白投影仍拒绝，恢复后可读。typecheck 0；0真实模型/原档写。先前14/14范围被本轮15/15替代；整体长期推进仍未验收。集成需包含7ec414b5及本补充提交。
