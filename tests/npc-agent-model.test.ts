@@ -170,6 +170,8 @@ test('all three channels preserve the same actor identity/revision/state with sc
     /像真人在手机打字|按behavior自然发1至3条短句/,
   );
   assert.doesNotMatch(calls[0]!.messages[0]!.content, /kind=narration写玩家看得到/);
+  assert.doesNotMatch(calls[2]!.messages.at(-1)!.content, /拆成1–3条短/);
+  assert.match(calls[2]!.messages.at(-1)!.content, /narration与speech/);
 });
 
 test('unknown server/director properties and source record pointers are not serialized', async () => {

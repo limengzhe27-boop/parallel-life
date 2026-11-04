@@ -800,6 +800,7 @@
   color: var(--phone-ink);
 }
 .banner .notification {
+  background: var(--phone-white);
   padding-right: 36px;
   box-shadow: 0 8px 24px var(--phone-shadow);
 }
