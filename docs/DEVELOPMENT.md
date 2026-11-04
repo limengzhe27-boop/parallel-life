@@ -3599,3 +3599,13 @@ SCENE-RECEIPT-44冻结de49d8a3：新committed/lookup/complete hint与微信原�
 SCENE-CONTINUITY-44 root进展：原档v676微信输入→现场回复、v678/679现场继续、v682再次微信→现场均真实成功；修复召回误ACK与accepted-only重复版本准入(979e0a58)，PG对照通过。check4217/build通过。刷新hint丢失已定位旧receipt协议头并集成77db0e4e，正在最后web构建；未称长期主动推进完成，43继续保留unknown/no_candidates及高历史查询成本。
 
 SCENE-CONTINUITY-44收口：业务77db0e4e、本地3218/build-scene44-final；原档v676/679/682/684微信↔现场连续真实回复、刷新hint和现场导航通过，check4217、build及PG通过；手机框/PC已查，物理手机未测，真实模型旁白未采到。无DB迁移/假消息/位置篡改。43仍有INVALID_OWN_AGENDA_REVIEW_EVIDENCE与旧unknown/no_candidates，0主动消息，交proactive43继续定位，未合并宣称完成。
+
+|SCENE-EXPERIENCE-45|[x] 本地原档交付|root-scene45唯一集成；proactive43/consumer45并行|root主目录；npc-agent-model.ts、phone world-phone-app/phone-shell/notification projection/state/styles及必要tests/report、现有scene read/receipt最小接线；43独占own-agenda reader，consumer45只读与测试|现场表达区分对白/小动作旁白；复用顶部通知，真实scene回复只提醒一次、当前现场不打断、旧历史不弹；修44遗漏调度投递消费者。原2fb有限真实验收、check/build、3218本地更新，3219/Vercel不动；不增DB字段。|
+
+PROACTIVE-CONTINUITY-43 现场投递消费者接续进行中：root授权proactive43独占 own-agenda-review-repository.ts、tests/integration/own-agenda-review-evidence.test.ts、专属43报告；工作树.local/worktrees/scene-receipt44。基线9a48ae02。只用隔离PG，不改原档/模型/运行。
+
+|SCENE-CONSUMERS-45-M|[ ] 审查待集成|memory45；root唯一集成|独立scene-memory44/codex/scene-consumers45；仅tests/integration/scene-delivery-consumers45.test.ts及专属report，公共源码只读|审查sceneReply实际投递与source/inbox/memory/recovery/known-topic消费者一致性；只报告可复现断点，不改原档。报告3ae79647：未发现新增同步阻塞，长期摘要仅phone不含sceneReply/native，超近期召回窗口未覆盖；未新增测试或运行。|
+
+PROACTIVE-CONTINUITY-43现场投递消费者待验收：冻结7ec414b5，仅reader+原PG测试+43报告；实际scene投递按已有sceneReply及scene_items认证。隔离PG55743 14/14、typecheck0、边界768通过，测试PG已停。0真实模型/原档写/运行修改；root集成check/build及原档验收。长期主动、unknown无lease消费者和重复扫描仍未完成。
+
+SCENE-EXPERIENCE-45收口：faea9b26/3218 build-scene45-release，check4219、最终聚焦70、PG15、build通过；原档v714真实narration+2speech、顶部通知点击现场、刷新不重弹已验。实际投递认证六人可读；0新增DB表列，3219/Vercel不动。长期主动仍未完成：导演后阶段接受条件误当整个邀约启动条件，当前6人无active计划；scene长期摘要未覆盖，详45/43/consumer45报告。
