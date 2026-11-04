@@ -1,3 +1,5 @@
+import type { SqlClient } from '../../src/modules/storage/infrastructure/postgres.ts';
+import { readConsumedSceneObservationSourcesInTransaction } from '../../src/modules/world/infrastructure/actor-observation-consumption-repository.ts';
 import { readActorStrategyBasis } from '../../src/modules/world/infrastructure/agent-source-resolver.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import {
@@ -271,6 +273,79 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
     basis.some((s) => s.id === 'scene:' + speechEntry.id),
     'own private-to-scene speech remains a usable strategy source',
   );
+  // First completion consumed the opening; later completions contain historical recall.
+  // Reading the following snapshot must not reinterpret that recall as a fresh ACK.
+  for (let turn = 0; turn < 2; turn++) {
+    const current = await worlds.get({ userId: f.owner }, f.worldId);
+    const next = await api.sendMessageIfEnabled(f.owner, {
+      id: randomUUID(),
+      worldId: f.worldId,
+      actorId: f.a,
+      expectedVersion: current.version,
+      text: '继续当面聊第' + turn + '轮',
+    });
+    assert.equal(next?.status, 'committed');
+  }
+  assert.equal(calls, 3);
+  const currentAfterRecall = await worlds.get({ userId: f.owner }, f.worldId);
+  const consumptionFrame = {
+    worldId: f.worldId,
+    actorId: f.a,
+    engineEpoch: 2,
+    worldVersion: currentAfterRecall.version,
+  };
+  const consumed = await db.transaction(f.owner, (sql) =>
+    readConsumedSceneObservationSourcesInTransaction(sql, f.owner, consumptionFrame),
+  );
+  assert.equal(
+    new Set(consumed.map((x) => x.sourceId + ':' + x.contentHash)).size,
+    consumed.length,
+  );
+  const completed = (
+    await admin.query(
+      "SELECT id,response FROM parallel_life.agent_attempts WHERE world_id=$1 AND actor_id=$2 AND status='committed' ORDER BY expected_world_version DESC",
+      [f.worldId, f.a],
+    )
+  ).rows;
+  const historical = completed.find((row) =>
+    row.response.suppliedContext.observations.some(
+      (ref: any) => !row.response.snapshot.actorObservationInbox?.sourceIds.includes(ref.sourceId),
+    ),
+  );
+  assert.ok(historical, 'completion must actually contain supplied historical recall');
+  const saved = historical.response;
+  const onlyRecall = structuredClone(saved);
+  onlyRecall.suppliedContext.observations = onlyRecall.suppliedContext.observations.filter(
+    (ref: any) => !saved.snapshot.actorObservationInbox?.sourceIds.includes(ref.sourceId),
+  );
+  delete onlyRecall.snapshot.actorObservationInbox;
+  const readWithSupplied = (response: typeof saved) =>
+    db.transaction(f.owner, (sql) =>
+      readConsumedSceneObservationSourcesInTransaction(
+        {
+          query: (async (text: string, values?: unknown[]) => {
+            const result = await sql.query(text, values);
+            if (text.includes('SELECT a.*,e.version AS committed_version'))
+              return {
+                ...result,
+                rows: result.rows.map((row) =>
+                  row.id === historical.id ? { ...row, response } : row,
+                ),
+              };
+            return result;
+          }) as SqlClient['query'],
+        } as SqlClient,
+        f.owner,
+        consumptionFrame,
+      ),
+    );
+  await readWithSupplied(onlyRecall);
+  const sourceId = onlyRecall.suppliedContext.observations[0].sourceId;
+  onlyRecall.snapshot.observations.find((o: any) => o.sourceId === sourceId).text =
+    '伪造的历史现场文字';
+  await assert.rejects(readWithSupplied(onlyRecall), {
+    code: 'SCENE_OBSERVATION_CONSUMPTION_PROOF_INVALID',
+  });
   const accepted = await input(f, '@甲 现在当面说吧。');
   let nativeCalls = 0;
   const handler = nativeNpcTaskHandler(db, () => ({

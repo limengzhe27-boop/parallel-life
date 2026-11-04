@@ -1,3 +1,6 @@
+import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
+import { isDeepStrictEqual } from 'node:util';
+import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import { isStreamPrefixWorldVersion } from './npc-stream-segment-repository.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -134,6 +137,84 @@ export async function readConsumedSceneObservationSourcesInTransaction(
     )
       fail();
     if (!supplied.observations.length) continue;
+    if (!Array.isArray(snapshot.sources) || !Array.isArray(snapshot.observations)) fail();
+    // Supplied historical recall proves model context, not notification acknowledgement.
+    // Authenticate old stored completions as well; never rewrite their supplied metadata.
+    const acknowledgements = [];
+    const suppliedIds = new Set<string>();
+    for (const ref of supplied.observations) {
+      if (
+        !object(ref) ||
+        !key(ref.sourceId) ||
+        !digest(ref.contentHash) ||
+        suppliedIds.has(ref.sourceId)
+      )
+        fail();
+      suppliedIds.add(ref.sourceId);
+      const sources = snapshot.sources.filter(
+        (source: unknown) => object(source) && source.id === ref.sourceId,
+      );
+      const observations = snapshot.observations.filter(
+        (observation: unknown) => object(observation) && observation.sourceId === ref.sourceId,
+      );
+      const source = sources[0];
+      const selected =
+        input.channel === 'private'
+          ? snapshot.actorObservationInbox?.sourceIds
+          : input.channel === 'scene'
+            ? snapshot.sceneObservationContext?.selectedSourceIds
+            : snapshot.groupObservationContext?.selectedSourceIds;
+      if (
+        source?.kind !== 'scene_entry' ||
+        source.usage !== 'private_strategy' ||
+        selected?.includes(ref.sourceId)
+      ) {
+        acknowledgements.push(ref);
+        continue;
+      }
+      if (
+        sources.length !== 1 ||
+        observations.length !== 1 ||
+        source.id !== 'scene:' + source.recordId ||
+        source.contentHash !== ref.contentHash
+      )
+        fail();
+      const item = (
+        await sql.query(
+          "SELECT scene_id,source_event_id FROM parallel_life.scene_items WHERE world_id=$1 AND owner_id=$2 AND id=$3 AND kind='entry'",
+          [frame.worldId, owner, source.recordId],
+        )
+      ).rows[0];
+      if (!item) fail();
+      const packet = await readActorSceneObservationSourcesInTransaction(sql, owner, {
+        worldId: frame.worldId,
+        actorId: frame.actorId,
+        sceneId: item.scene_id,
+        worldVersion: frame.worldVersion,
+        storyAt: world.state.time,
+        sourceIds: [ref.sourceId],
+      });
+      const verified = packet.sources.find((s) => s.id === ref.sourceId);
+      const observation = packet.observations.find((o) => o.sourceId === ref.sourceId);
+      if (!verified) {
+        const forgotten = await forgottenAgentSourceIds(sql, owner, frame.worldId, frame.actorId);
+        if ([source.id, source.recordId, item.source_event_id].some((id) => forgotten.has(id)))
+          continue;
+      }
+
+      if (
+        !verified ||
+        !isDeepStrictEqual({ ...verified, usage: 'private_strategy' }, source) ||
+        verified.worldVersion > snapshot.worldVersion ||
+        observations[0].retrievedAt !== snapshot.storyAt ||
+        !isDeepStrictEqual(
+          observation && { ...observation, retrievedAt: snapshot.storyAt },
+          observations[0],
+        )
+      )
+        fail();
+    }
+    if (!acknowledgements.length) continue;
     const context =
       input.channel === 'scene'
         ? snapshot.sceneObservationContext
@@ -176,7 +257,7 @@ export async function readConsumedSceneObservationSourcesInTransaction(
     const selectedSourceIds =
       input.channel === 'private' ? context.sourceIds : context.selectedSourceIds;
     const seen = new Set<string>();
-    for (const ref of supplied.observations) {
+    for (const ref of acknowledgements) {
       if (!object(ref) || !key(ref.sourceId) || !digest(ref.contentHash) || seen.has(ref.sourceId))
         fail();
       seen.add(ref.sourceId);
