@@ -1,3 +1,8 @@
+import { readActorStrategyBasis } from '../../src/modules/world/infrastructure/agent-source-resolver.ts';
+import {
+  npcSourceReferences,
+  npcSourceRef,
+} from '../../src/modules/world/infrastructure/npc-source-reference.ts';
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -33,7 +38,7 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 async function checkInitialPositionScene(t: TestContext, sceneMode: string) {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55673);
+  assert.equal(cfg.port, Number(process.env.AGENT_INITIAL_POSITION_TEST_PORT ?? 55673));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(
@@ -416,6 +421,129 @@ async function checkInitialPositionScene(t: TestContext, sceneMode: string) {
   assert.equal(next.snapshot.worldContext?.initialPlacement, undefined);
   assert.ok(next.snapshot.channel.allowedCapabilities.includes('travel.begin'));
   assert.equal(next.snapshot.worldContext?.travelRoutes?.[0]?.id, 'home_cafe');
+  if (sceneMode === 'no_scene') {
+    const historical = `self-position:${out.eventId}`;
+    const sourceRef = npcSourceRef(npcSourceReferences(next.snapshot.sources), historical)!;
+    assert.ok(sourceRef);
+    const plan = parseAgentProposal(
+      next.snapshot,
+      JSON.stringify({
+        protocol: 'npc-wire-v19',
+        statements: [],
+        executions: [],
+        changes: {
+          planIntents: [
+            {
+              kind: 'create',
+              ref: 'keep-place-memory',
+              summary: '保留本人原地点安排',
+              sourceIds: [sourceRef],
+              nextStep: { kind: 'blocked', missing: ['尚需自己的安排信息'] },
+            },
+          ],
+        },
+      }),
+    );
+    const planned = await runNpcAgent(
+      {
+        attempts: store,
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+        model: {
+          async decide() {
+            return JSON.stringify(plan);
+          },
+        },
+      },
+      owner,
+      next.claim,
+      next.snapshot,
+    );
+    const planId = planned.state.plans[0]!.id;
+    const moving = await admission();
+    // Use the established kernel travel proposal contract; this fixture tests
+    // committed movement provenance, not model-native travel intent parsing.
+    const travel: AgentProposal = {
+      statements: [],
+      goals: [
+        {
+          id: 'depart-purpose',
+          summary: '去咖啡馆',
+          status: 'active',
+          sourceIds: [historical, moving.snapshot.input.sourceId],
+          resultIds: [],
+        },
+      ],
+      plans: planned.state.plans,
+      responsibilities: [],
+      decisions: [],
+      actions: [
+        {
+          id: 'go-cafe',
+          goalId: 'depart-purpose',
+          capability: 'travel.begin',
+          targetIds: [],
+          parameters: { routeId: 'home_cafe' },
+          status: 'proposed',
+          sourceIds: [historical, moving.snapshot.input.sourceId],
+          preconditions: [],
+          dependsOnActionIds: [],
+          handlesResponsibilityIds: [],
+        },
+      ],
+    };
+    const moved = await runNpcAgent(
+      {
+        attempts: store,
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+        model: {
+          async decide() {
+            return JSON.stringify(travel);
+          },
+        },
+      },
+      owner,
+      moving.claim,
+      moving.snapshot,
+    );
+    assert.equal(moved.state.actions.at(-1)?.status, 'succeeded');
+    const after = await admission();
+    assert.equal(after.snapshot.worldContext?.selfPosition.status, 'in_transit');
+    assert.ok(
+      after.snapshot.sources.some((s) => s.id === historical && s.usage === 'private_strategy'),
+    );
+    assert.ok(after.snapshot.viewState.plans.some((p) => p.id === planId));
+    const w = await worlds.get({ userId: owner }, worldId);
+    const own = (await store.read(owner, { worldId, actorId }))!;
+    const readBasis = (state: typeof own, ids: string[]) =>
+      db.transaction(owner, (sql) =>
+        readActorStrategyBasis(sql, owner, state, w.version, w.time, { referencedSourceIds: ids }),
+      );
+    const otherState = (await store.read(owner, { worldId, actorId: other }))!;
+    assert.ok(
+      !(await readBasis(otherState, [historical])).some((s) => s.id === historical),
+      'another actor cannot claim own-location evidence',
+    );
+    const fake = `self-position:${planned.eventId}`;
+    assert.ok(
+      !(await readBasis(own, [fake])).some((s) => s.id === fake),
+      'a successful plan-only event is not location evidence',
+    );
+    await admin.query(
+      "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Synthetic forgotten original position',$5,'agent_inference',$6,'forgotten')",
+      [randomUUID(), owner, actorId, worldId, randomUUID(), JSON.stringify([out.eventId])],
+    );
+    assert.ok(
+      !(await readBasis(own, [historical])).some((s) => s.id === historical),
+      'forgotten event alias cannot resurrect as self-position',
+    );
+    const forgotten = await admission();
+    assert.ok(!forgotten.snapshot.viewState.plans.some((p) => p.id === planId));
+    assert.equal(
+      forgotten.snapshot.worldContext?.selfPosition.status,
+      'in_transit',
+      'independent current location remains current',
+    );
+  }
   const base = {
     worldId,
     actorId,

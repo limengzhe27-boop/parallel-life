@@ -27,3 +27,11 @@ root须在所有阶段使用原receipt冻结的reviewAt；collect用当前服务
 修复夹具的compact输入路由：promptVersion可省略，人物身份用replyAs.actorId；明确现有initialPlaceId与space，避免本套议程测试先进入initial_position工作；来源使用本轮合法inputSourceRef，不假设已裁剪的authored来源目录仍在。当前quiet回合改v19 changes:null，验证不创建计划或已退休continuation，继续严格检查successor时间、原请求不重复模型。历史v8/v9显式计划与raw恢复样例保留兼容验证。
 
 结果8/8通过，typecheck通过。默认v2没有回退v1。保留unknown同窗口不重买/独立人物继续、预算竞争、CAS/零发送恢复、raw恢复零新调用和零新预算断言。本套为受控adapter+真实PG，不等于原档自然主动验收。
+
+## 历史位置来源导致有效计划消失：聚焦回归
+
+接管原`tests/integration/agent-initial-position.test.ts`，新增no_scene分支，复用真实内核建立初始位置、v19创建引用该位置来源的独立计划、随后真实kernel travel.begin。在移动成为in_transit后，断言历史self-position来源以private_strategy保留，计划仍进入viewState，worldContext.selfPosition仍为in_transit。其他人物不能借用该来源；成功的非位置plan事件不能冒充位置；现有forgotten元数据登记原event后来源/相关计划不可重现，独立当前位置保持有效。
+
+复制root resolver WIP验证：原套件5/5通过，typecheck通过。还原基线resolver做对照，no_scene在历史来源断言失败，证明测试确实覆盖此回归；随后恢复测试用WIP。无公共源码提交、无原档/付费调用。隔离PG55743。
+
+范围说明：移动使用既有agent-travel-kernel canonical AgentProposal，经原runNpcAgent/kernel产生真实结果；直接native v19 execution travel.begin在当前解析器不支持（RESPONSE_WIRE_SHAPE），本测试不宣称自然模型旅程已支持。参与回执历史恢复由root原档只读证据覆盖，本子任务证明同源持久计划的完整读取链。
