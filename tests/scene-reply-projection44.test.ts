@@ -77,3 +77,12 @@ test('empty private turn, unrelated scene entry and mixed phone reply stay inval
   missing.data.sceneReply.entries = [];
   assert.throws(() => applyEvent(world, missing));
 });
+
+test('co-present NPC wake can speak in scene without inventing player input', () => {
+  const event = fixture();
+  event.data.origin = 'director';
+  event.data.userText = 'internal wake context';
+  const { state } = applyEvent(world, event);
+  assert.equal(state.messages.length, 0);
+  assert.equal(state.version, 1);
+});
