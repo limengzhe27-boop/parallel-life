@@ -48,3 +48,31 @@ root统一集成；proactive43独立工作树，基线1af2ce12。
 2. unknown重复只读扫描有三个入口：`emptyDirectorRecoveryDue`不看时间；`wake.hasPendingDirector`包括unknown；`observed.needsEvaluation`可能仍指旧帧已带入但未确认的变化。仅改第一个函数不能解决完整链路。后续优先复用原attempt.snapshot的已观察范围及既有nextReviewAt，区分有已存response可恢复、真实新认证变化、原unknown无新依据；不新增缓存或状态字段。新证据仍交原prepareRecovery认证，普通时间/世界版本不授予新购买。
 
 本次仅报告，不改业务/原档/模型/运行进程，避免干扰root的44真实验收。既有43PG证据不当成这两项已修，也不称长期主动剧情已通过。
+
+## 44现场投递后的主动证据读取遗漏（2026-11-04，只读诊断）
+
+原档 `2fb97a4a` v685，`.local/scene44/worker-delivery.log` 持续出现 `INVALID_OWN_AGENDA_REVIEW_EVIDENCE`。通过应用角色只读事务逐人物调用原 `readOwnAgendaReviewEvidenceInTransaction`：青青、林白语、李之之、舒雅婷、欣欣均通过；刘胜男在 repository 第423行报 `reason=committed_source`。
+
+明确断点：输入 receipt.channel 仍为 private，而44允许回复正式投递到 scene。该读取者的 projectionCount 仍按输入渠道只计 world_messages，随后要求等于 proposal.statements 数。因此实际合法现场回复被当作缺失投影。
+
+| attempt | 实际版本 | statements | 当前reader计数 | 原scene_items同源同人物计数 |
+|---|---:|---:|---:|---:|
+|70f7b6fe-5795-4f2f-9631-02b64562f092|676|2|0|2|
+|77e2690b-554d-41a2-a649-35058a640a38|682|3|0|3|
+|60f3eef6-71ac-475a-809b-7e968fb576f0|684|2|0|2|
+
+读取计数依据：sceneReply.sceneId、world/owner、source_event_id、speaker.actorId、sourceVersion。现场事件与entries存在，不能归因模型未回复，也不能通过重新生成或改历史补齐。
+
+调用影响：npc-agent-advance-services.ts 879行人物循环直接await readOwnAgendaReviewWorkInTransaction → own-agenda-review-authority.ts 309行证据读取；错误发生在候选包装为actor scope之前，导致这一轮world调度抛错，后面的导演观察和候选执行到不了。修好此处只解除明确异常，不能据此声称其他quiet人物已经主动推进。
+
+下一批最小文件范围：own-agenda-review-repository.ts 与现有 own-agenda PG测试。按已提交输出的实际目的地认证投影：sceneReply分支使用现有scene_items，与原event.sceneReply.entries逐项核对来源/ID/人物/文本/版本，普通微信保持原认证，原生scene/group保持原路径。复用已有结构，不增加字段，不删除完整性检查，不跳过坏记录。必要PG覆盖私聊→现场完整提交成为合法anchor/presentation、普通私聊/原生现场不回归、丢失/伪造现场投影仍拒绝。同源认证修好后由root在原档验证调度不再报此错误，长期主动消息及计划仍须单独实测。
+
+本轮未修改业务源码/原档/运行配置，未调用模型。只读诊断脚本与输出在忽略目录 `.local/proactive43/scene-evidence.*`；既有unknown无lease消费者及重复扫描两项继续保留。
+
+## 45接续修复：依据实际投递读取已提交讲话（待集成）
+
+基线9a48ae02；独占own-agenda-review-repository.ts、原own-agenda-review-evidence PG测试与本报告。私聊输入的已提交event含sceneReply时，projectionCount改用真实scene_items与event.sceneReply.entries逐项相等匹配；校验world/owner/scene、speaker、sourceEventId/sourceVersion，并按不同条目ID计数。普通私聊、原生群聊/现场继续原路径。不增加业务字段/查询往返，不吞异常、不删历史。
+
+隔离PG55743原入口回归14/14：真实旧现场开场建立合法presence→原awareness建立位置→同一NPC runner/kernel实际提交replyChannel=scene→议程reader得到anchor和lastPresentedRealAt；篡改scene条目正文即拒绝，恢复后可读，删除投影再次拒绝。其他原微信、原生群聊、unknown支付围栏、伪造来源测试通过。typecheck 0、boundaries768通过。没有调用真实模型、没有写原档或修改运行进程。独立PG测试结束后停止；完整check/build及原档运行验收由root集成处理。
+
+同类消费者定向复核：own-agenda-budget只读取既有预算凭据，不另行按输入渠道认证消息；own-agenda-review-authority消费本reader返回的anchor/presentation，本次修正直接覆盖。agent-observation-schedule-read永久unknown过滤与导演unknown重复扫描仍是此前未完项，本批不改。此结论仅针对以上邻近消费者，不声称全仓已无遗漏；修复读取不代表已经生成主动消息。

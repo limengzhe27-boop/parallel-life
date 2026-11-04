@@ -1,3 +1,9 @@
+import { projectCommittedWorldAwareness } from '../../src/modules/world/infrastructure/world-awareness-repository.ts';
+import {
+  SceneRepository,
+  commitSceneProposal,
+} from '../../src/modules/world/infrastructure/scene-repository.ts';
+import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -76,7 +82,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     await db.close();
     await admin.end();
   });
-  async function fixture() {
+  async function fixture(withScene = false) {
     const owner = randomUUID(),
       worldId = randomUUID();
     await new IdentityRepository(db).ensureGuest(owner);
@@ -96,21 +102,99 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       appointments: [],
       mediaRequests: [],
     };
+    if (withScene) {
+      const source = {
+        kind: 'seed_genesis' as const,
+        seedId: randomUUID(),
+        snapshotVersion: 0 as const,
+      };
+      world.space = {
+        currentPlaceId: 'room',
+        positionSource: source,
+        places: [
+          {
+            id: 'room',
+            name: 'Room',
+            description: 'Test room',
+            source,
+            contactActorIds: [ACTOR_A],
+            appointmentIds: [],
+          },
+        ],
+        routes: [],
+      };
+    }
     await worlds.initialize({ userId: owner }, world);
+    let sceneId: string | undefined;
+    if (withScene) {
+      const queue = new PostgresTaskQueue(
+        `postgresql://pl_worker:${cfg.workerPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+      );
+      try {
+        const entered = await new SceneRepository(db).enterPlace(owner, worldId, {
+          commandId: randomUUID(),
+          expectedVersion: 0,
+          placeId: 'room',
+        });
+        sceneId = entered.sceneId;
+        const lease = await queue.claimForOwner(entered.task!.id, owner, ['world']);
+        assert.ok(lease);
+        const version = await db.transaction(owner, (sql) =>
+          commitSceneProposal(
+            sql,
+            owner,
+            worldId,
+            lease.input as Parameters<typeof commitSceneProposal>[3],
+            {
+              location: 'Room',
+              narration: '室内很安静。',
+              presentActorIds: [ACTOR_A],
+              outcome: null,
+              observation: null,
+              matterTitle: null,
+              initialMatters: [],
+              matterUpdates: [],
+              dialogues: [],
+              stepProposals: [],
+              npcActions: [],
+            },
+            randomUUID(),
+          ),
+        );
+        await queue.finish(lease, { status: 'succeeded', resultVersion: version });
+        Object.assign(world, await worlds.get({ userId: owner }, worldId));
+      } finally {
+        await queue.close();
+      }
+    }
     await db.transaction(owner, async (sql) => {
       for (const a of world.actors)
         await initializeActorAgentStateInTransaction(
           sql,
           owner,
-          emptyActorAgentState({ worldId, actorId: a.id }, agentDefinitionRef(world, a.id), 0),
+          emptyActorAgentState(
+            { worldId, actorId: a.id },
+            agentDefinitionRef(world, a.id),
+            world.version,
+          ),
         );
       await switchAgentEngineEpochInTransaction(sql, owner, {
         worldId,
-        expectedWorldVersion: 0,
+        expectedWorldVersion: world.version,
         expectedEpoch: 1,
         nextEpoch: 2,
       });
-      await admitNewAgentNarrativeInTransaction(sql, owner, { worldId, engineEpoch: 2 });
+      if (!withScene)
+        await admitNewAgentNarrativeInTransaction(sql, owner, { worldId, engineEpoch: 2 });
+      else {
+        const event = (
+          await sql.query(
+            'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version=$2',
+            [worldId, world.version],
+          )
+        ).rows[0].payload;
+        await projectCommittedWorldAwareness(sql, owner, event);
+      }
     });
     await clocks.write(owner, worldId, {
       storyNow: world.time,
@@ -127,7 +211,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       definitionRef: agentDefinitionRef(world, ACTOR_A),
     };
     fixtures.push({ owner, worldId });
-    return { owner, worldId, world, identity };
+    return { owner, worldId, world, identity, sceneId };
   }
   type F = Awaited<ReturnType<typeof fixture>>;
   async function read(f: F) {
@@ -265,6 +349,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
         model: {
           async decide() {
             return {
+              ...(f.sceneId ? { replyChannel: 'scene' } : {}),
               statements: options.say
                 ? [{ text: '我会按自己的安排准备。', dependsOnActionIds: [] }]
                 : [],
@@ -519,6 +604,35 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
           ),
           invalid('scope'),
         );
+    },
+  );
+  await t.test(
+    'private input with actual scene delivery authenticates presentation; missing or altered projection fails',
+    async () => {
+      const x = await fixture(true);
+      const id = await nativePrivateCommit(x, { player: true, say: true });
+      const evidence = await read(x);
+      assert.equal(evidence.anchor?.attemptId, id);
+      assert.ok(evidence.lastPresentedRealAt);
+      const row = (
+        await admin.query(
+          `SELECT m.id,m.document FROM parallel_life.scene_items m JOIN parallel_life.agent_attempts a ON a.event_id=m.source_event_id WHERE a.id=$1 AND m.kind='entry'`,
+          [id],
+        )
+      ).rows[0];
+      assert.ok(row);
+      await admin.query(
+        `UPDATE parallel_life.scene_items SET document=jsonb_set(document,'{text}','"tampered"') WHERE id=$1`,
+        [row.id],
+      );
+      await assert.rejects(read(x), invalid('committed_source'));
+      await admin.query('UPDATE parallel_life.scene_items SET document=$2 WHERE id=$1', [
+        row.id,
+        row.document,
+      ]);
+      await read(x);
+      await admin.query('DELETE FROM parallel_life.scene_items WHERE id=$1', [row.id]);
+      await assert.rejects(read(x), invalid('committed_source'));
     },
   );
   const attemptId = await commitOriginalQuiet(f);

@@ -146,7 +146,21 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
             'nativeMatches',cmd.request_payload->'event'=e.payload) END command,
           CASE WHEN e.id IS NULL THEN NULL ELSE jsonb_build_object('id',e.id,'worldId',e.world_id,
             'ownerId',e.owner_id,'version',e.version,'commandId',e.command_id,'realAt',e.occurred_at,
-            'projectionCount',CASE WHEN e.payload#>'{data,agentRuntime,proposal,statements}'='[]'::jsonb THEN 0 WHEN i.document->>'channel'='private' THEN
+            'projectionCount',CASE WHEN e.payload#>'{data,agentRuntime,proposal,statements}'='[]'::jsonb THEN 0 WHEN i.document->>'channel'='private' AND e.payload#>'{data,sceneReply}' IS NOT NULL THEN
+              (SELECT count(DISTINCT m.id) FROM parallel_life.scene_items m
+                JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.payload#>'{data,sceneReply,entries}')='array'
+                  THEN e.payload#>'{data,sceneReply,entries}' ELSE '[]'::jsonb END) entry ON entry->>'id'=m.id::text
+                WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id
+                  AND m.scene_id::text=e.payload#>>'{data,sceneReply,sceneId}'
+                  AND m.source_event_id=e.id AND m.kind='entry'
+                  AND m.document=entry
+                  AND m.document#>>'{speaker,kind}'='actor'
+                  AND m.document#>>'{speaker,actorId}'=a.actor_id
+                  AND m.document->>'worldId'=a.world_id AND m.document->>'ownerId'=a.owner_id
+                  AND m.document->>'sceneId'=m.scene_id::text
+                  AND m.document->>'sourceEventId'=e.id::text
+                  AND m.document->>'sourceVersion'=e.version::text)
+              WHEN i.document->>'channel'='private' THEN
               (SELECT count(*) FROM parallel_life.world_messages m
                 JOIN parallel_life.world_events me ON me.world_id=m.world_id AND me.owner_id=m.owner_id AND me.id=m.document->>'sourceEventId' AND me.version::text=m.document->>'sourceVersion'
                 WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.actor_id=a.actor_id
