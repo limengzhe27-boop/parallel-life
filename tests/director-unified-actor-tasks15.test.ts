@@ -18,7 +18,7 @@ import {
   decodeDirectorWire,
   directorWireCatalog,
 } from '../src/modules/world/infrastructure/director-model-protocol.ts';
-function fixture(eventActorKeys = ['ak', 'bk']) {
+function fixture(eventActorKeys = ['ak', 'bk'], nodeKeys = ['opening', 'next']) {
   const s: DirectorSnapshot = {
     schemaVersion: 1,
     worldId: 'world',
@@ -74,7 +74,7 @@ function fixture(eventActorKeys = ['ak', 'bk']) {
         places: [{ key: 'home', name: 'Home' }],
         history: [],
         openingEventKey: 'opening',
-        nodes: ['opening', 'next'].map((key) => ({
+        nodes: nodeKeys.map((key) => ({
           key,
           kind: 'candidate',
           title: key,
@@ -122,7 +122,7 @@ function fixture(eventActorKeys = ['ak', 'bk']) {
 }
 
 function current(windowCount = 0, eventActorKeys = ['ak', 'bk']) {
-  const f = fixture(eventActorKeys);
+  const f = fixture(eventActorKeys, windowCount > 2 ? ['opening', 'next', 'third'] : undefined);
   f.s.deliberationWindow = {
     version: 1,
     nodeKeys: f.s
@@ -221,12 +221,17 @@ test('v15 schema and decoder reserve 0/1/2 authored slots under the original tot
     assert.equal(format.name, 'director_response_v15');
     assert.equal(schema.properties.opportunities.maxItems, 2 - count);
     assert.equal(directorEmergentOpportunityBudget(f.s), 2 - count);
-    const p = schema.properties.opportunities.items.properties;
-    assert.equal(p.actors, undefined);
-    assert.equal(p.stagingIntents, undefined);
-    const tasks = schema.$defs[p.actorTasks.$ref.split('/').at(-1)];
-    assert.deepEqual(tasks.required, ['actor:1', 'actor:2']);
-    assert.equal(tasks.additionalProperties, false);
+    if (count < 2) {
+      const item = schema.properties.opportunities.items;
+      const p = (item.$ref ? schema.$defs[item.$ref.split('/').at(-1)] : item).properties;
+      assert.equal(p.actors, undefined);
+      assert.equal(p.stagingIntents, undefined);
+      const tasks = schema.$defs[p.actorTasks.$ref.split('/').at(-1)];
+      for (const branch of tasks.anyOf ?? [tasks]) {
+        assert.deepEqual(branch.required, ['actor:1', 'actor:2']);
+        assert.equal(branch.additionalProperties, false);
+      }
+    } else assert.equal(schema.properties.opportunities.items.type, 'null');
     f.wire.opportunities = Array.from({ length: 2 - count }, (_, i) => ({
       ...f.opportunity,
       id: 'emergent-' + i,
@@ -348,11 +353,13 @@ test('v15 consider schema requires a real allowed task while defer remains avail
     const key = Object.keys(f.wire.authoredChoices)[0]!;
     const choice = resolve(schema.properties.authoredChoices.properties[key]);
     assert.equal(choice.anyOf.length, 2);
-    assert.deepEqual(choice.anyOf[0].properties.kind.enum, ['defer']);
+    assert.deepEqual(resolve(choice.anyOf[0]).properties.kind.enum, ['defer']);
     const opportunity = resolve(choice.anyOf[1].properties.opportunity);
     const tasks = resolve(opportunity.properties.actorTasks);
-    assert.deepEqual(tasks.required, ['actor:1', 'actor:2']);
-    assert.equal(tasks.additionalProperties, false);
+    for (const branch of tasks.anyOf ?? [tasks]) {
+      assert.deepEqual(branch.required, ['actor:1', 'actor:2']);
+      assert.equal(branch.additionalProperties, false);
+    }
     if (allowed.length === 1) {
       assert.equal(tasks.properties['actor:1'].$ref, '#/$defs/director_actor_task');
       assert.equal(tasks.properties['actor:2'].type, 'null');
@@ -417,4 +424,67 @@ test('current quiet omits mechanical opening null only when no opening authority
   };
   delete g.wire.openingContext;
   assert.throws(() => g.parse(), 'actual opening authority still requires an explicit judgment');
+});
+
+test('periodic v2 offers three author choices but still executes at most two authorized opportunities', () => {
+  const f = current(3, ['ak']);
+  f.s.evaluationCause = {
+    ...f.s.evaluationCause!,
+    kind: 'periodic_review',
+  } as DirectorSnapshot['evaluationCause'];
+  f.s.deliberationWindow = {
+    version: 2,
+    nodeKeys: (f.s.evaluationCause as any).qualifications.map((q: any) => q.nodeKey),
+  };
+  const format = directorResponseFormat(f.s);
+  if (format.format !== 'json_schema') throw Error('schema');
+  assert(JSON.stringify(format.schema).length < 24_000);
+  const keys = Object.keys(f.wire.authoredChoices);
+  assert.equal(keys.length, 3);
+  const choice = () => ({
+    kind: 'consider',
+    opportunity: {
+      title: '个人提议',
+      description: '可拒绝的未来机会',
+      playerImpact: '玩家独立选择',
+      places: [],
+      activity: 'conversation',
+      actorTasks: structuredClone(f.opportunity.actorTasks),
+      actorTopics: null,
+    },
+  });
+  f.wire.authoredChoices[keys[0]!] = choice();
+  f.wire.authoredChoices[keys[1]!] = choice();
+  assert.equal(f.parse().opportunities.length, 2);
+  const schema: any = format.schema;
+  const resolve = (node: any): any =>
+    node.$ref ? schema.$defs[node.$ref.split('/').at(-1)] : node;
+  const authored = resolve(schema.properties.authoredChoices.properties[keys[0]!]);
+  const opportunity = resolve(authored.anyOf[1].properties.opportunity);
+  const tasks = resolve(opportunity.properties.actorTasks);
+  assert.deepEqual(tasks.required, ['actor:1']);
+  assert.equal(
+    tasks.properties['actor:2'],
+    undefined,
+    'irrelevant null slots are absent from v2 schema',
+  );
+  delete f.wire.authoredChoices[keys[0]!].opportunity.actorTasks['actor:2'];
+  assert.equal(
+    f.parse().opportunities.length,
+    2,
+    'only mechanical nonparticipant null may be omitted',
+  );
+  const task = f.wire.authoredChoices[keys[0]!].opportunity.actorTasks['actor:1'];
+  delete f.wire.authoredChoices[keys[0]!].opportunity.actorTasks['actor:1'];
+  assert.throws(() => f.parse(), 'actual participating task cannot be omitted');
+  f.wire.authoredChoices[keys[0]!].opportunity.actorTasks['actor:1'] = task;
+  f.wire.authoredChoices[keys[2]!] = choice();
+  assert.throws(
+    () => f.parse(),
+    'three author choices must not raise the two-opportunity execution limit',
+  );
+  f.wire.authoredChoices[keys[2]!] = { kind: 'defer', reason: '保留后续' };
+  f.wire.authoredChoices[keys[0]!].opportunity.actorTasks['actor:2'] =
+    f.opportunity.actorTasks['actor:1'];
+  assert.throws(() => f.parse(), 'periodic breadth does not authorize another cast member');
 });

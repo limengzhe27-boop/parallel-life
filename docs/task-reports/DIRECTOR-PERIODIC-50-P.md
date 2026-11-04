@@ -59,3 +59,15 @@ root 将 actorTasks 提取到共享 `$defs`，减少多角色 anyOf 重复体积
 生产周期已统一采用 `sent_at ?? created_at`，恢复时间不代表重新评估。移除测试中两处 `updated_at` 回拨，用各子测试的 `t.mock.method(Date, 'now', ...)` 将 JS 周期判断推进六分钟并自动恢复。lease 使用未 mock 的 `new Date().getTime()`，短 lease 与数据库实际时间一致；sent/input/lease/raw 均未修改。
 
 原 quiet 恢复、两条周期 unknown/raw 分支及三条旧未知保护真实 PG **7/7 通过**，typecheck 通过。此条替代前文“age updated_at”的旧夹具说明。公共实现及迁移仅复制验证，不提交；0 原档与主进程变更。
+
+## 2026-11-05：周期全局窗口 v2 验证
+
+本批只改四份专属测试及本报告，公共实现由 root 提供临时复制验证，不提交源码。新周期 window v2 可见全部合格未占用节点（最多 32），真正机会总数仍不超过 2；现有 v1 两槽快照保持原认证与恢复语义。
+
+- 领域/协议 17/17：v2 全资格、32 上限、范围外拒绝、blocked/occupied/证据不匹配排除、native 不泄漏、v1 历史不升级；三项作者选择可见但第三个实际 opportunity 被拒绝。
+- v15 复用 schema 定义，测试解引用而不依赖展开对象；v2 省略非参与者机械 null 可以解析，缺本事件参与者键仍拒绝，外人非 null 仍拒绝。3 节点 schema 保持 <24k。
+- 真实隔离 PG（55743）lifecycle 7/7：新周期读取 v2 全 3 节点，claim/send/save/commit 自身重验证通过；defer 不创建 episode、不算完成，重复请求不新增模型调用，原 paid row 的 raw/input/sent 不变。
+- 旧两槽 unknown 旅程明确构造并保存合法 v1 window，保持 live/raw 阻止隔离、无 raw 过期后仅允许不重叠新窗口、旧 late response 不重新执行等断言；未把全范围 v2 unknown 当作可分离的两槽请求。
+- quiet 已知原响应恢复、无副作用结清、重复恢复不新增、未知无 raw 不恢复等原旅程全部保留。
+
+未调用真实模型、未写原用户存档、未变更本地运行进程或部署。真实原档导演选择及人物主动承接仍由 root 验收；测试通过不能代替原档主动消息与持续演绎通过。

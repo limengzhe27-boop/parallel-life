@@ -75,10 +75,11 @@ function periodicFixture() {
   return s;
 }
 
-test('periodic review preserves authenticated least-recently-assessed order and two-event bound', () => {
+test('periodic review preserves authenticated least-recently-assessed order across the full qualified window', () => {
   const s = periodicFixture();
   s.deliberationWindow = selectDirectorDeliberationWindow(s);
-  assert.deepEqual(s.deliberationWindow.nodeKeys, ['c', 'a']);
+  assert.deepEqual(s.deliberationWindow.nodeKeys, ['c', 'a', 'b', 'opening']);
+  assert.equal(s.deliberationWindow.version, 2);
   assert.equal(validDirectorDeliberationWindow(s), true);
   s.deliberationWindow.nodeKeys = ['a', 'c'];
   assert.equal(validDirectorDeliberationWindow(s), false);
@@ -118,5 +119,5 @@ test('periodic scope never leaks into native turns, opening context or old unsco
 test('periodic qualification identity must still match current authenticated eligibility', () => {
   const s = periodicFixture();
   s.authoredEligibility!.find((q) => q.nodeKey === 'c')!.qualificationKey = 'changed-proof';
-  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, ['a', 'b']);
+  assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, ['a', 'b', 'opening']);
 });

@@ -569,7 +569,8 @@ test('director frame lifecycle uses real publication, personal plan and protecte
             periodic.evaluationCause.qualifications.length,
           3,
         );
-        assert.equal(periodic.deliberationWindow!.nodeKeys.length, 2);
+        assert.equal(periodic.deliberationWindow!.version, 2);
+        assert.equal(periodic.deliberationWindow!.nodeKeys.length, 3);
         assert.equal(
           periodic.deliberationWindow!.nodeKeys[0],
           'always',
@@ -609,14 +610,16 @@ test('director frame lifecycle uses real publication, personal plan and protecte
         reviewOffset = 6 * 60 * 1000;
         const following = await snap(f);
         assert.equal(following.evaluationCause?.kind, 'periodic_review');
-        const unreviewed = ['always', 'p_a', 'p_b'].find(
-          (k) => !periodic.deliberationWindow!.nodeKeys.includes(k),
+        assert.deepEqual(
+          following.deliberationWindow!.nodeKeys,
+          periodic.deliberationWindow!.nodeKeys,
         );
-        assert.equal(
-          following.deliberationWindow!.nodeKeys[0],
-          unreviewed,
-          'reviewed nodes move behind the older assessment',
-        );
+        // Restore an authentic legacy two-slot frame shape; v2's full scope
+        // must never be misrepresented as an independent disjoint scope.
+        following.deliberationWindow = {
+          version: 1,
+          nodeKeys: following.deliberationWindow!.nodeKeys.slice(0, 2),
+        };
         assert.equal(calls, 3);
         const unknownClaim = {
           ...claim(following),
