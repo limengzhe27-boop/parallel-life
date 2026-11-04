@@ -34,3 +34,11 @@ actor-observation-inbox.ts 新增 readActorSceneRecall(sql, owner, snapshot)：�
 - 既有strategy来源SQL补sceneReply完整entry认证及自有private输出归属；旧无hash strategy source不误进带hash recall重验。
 - 独立测试PG55744；typecheck通过。0付费模型、0原档写、0运行端口启停。
 - 原档真实模型、前端现场显示与本地构建切换归root；本报告不将受控PG视为真实人物体验完成。
+
+## 历史召回与通知ACK消费者修复
+
+冻结 fb5ba876。原档由root发现：已提交completion的suppliedContext包含历史scene recall，旧消费reader将其当作inbox ACK要求selected/sourceIds，导致下一轮准备及主动worker失败。修复在既有消费reader识别private_strategy且未被selected的scene recall，用原scene source adapter精确认证完整来源/原文/hash/当时presence；认证后只作为历史上下文，不生成ACK。recall-only无需伪造inbox；已有completion无需改写。已遗忘来源不恢复、不ACK。
+
+真实PG整旅程增加连续3轮私聊：首轮消费现场、第二轮携带历史召回完成、第三轮准备成功。并校验历史recall-only可读、篡改原文仍拒绝。特殊历史形态用读取结果包装模拟，不改不可变attempt。最终typecheck exit0。
+
+旧消费套件基线对照：修复前13项7pass6fail，修复后相同13项7pass6fail，失败项目一致（旧协议fixture、UNKNOWN_SOURCE等）；未将这些报成通过或本批修复。原档恢复与worker验证由root执行。
