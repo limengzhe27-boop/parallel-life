@@ -35,3 +35,16 @@ root统一集成；proactive43独立工作树，基线1af2ce12。
 隔离PG55743 director-frame-lifecycle 4/4：两条原作者旅程及一条非作者参与NPC新计划；最后一条changed.evaluationCause明确undefined。真实NPC kernel写入计划→原unknown执行帧退休→新frame可claim；旧snapshot/inputHash/sent_at不变，原模型仅1次；迟到raw仍保存但旧frame不能重新执行；无关note版本变化不解锁。纯域3/3、typecheck和boundaries通过。
 
 未修改emptyDirectorRecoveryDue：无新依据时仍可能重复只读查询unknown，需复用现有nextReviewAt后续处理，不新增调度字段。未运行真实模型/原档写/本地切换，root集成门禁和原档验收。整体主动剧情仍待验证。
+
+## 44验收期间只读复核（基线20d9344f，2026-11-04）
+
+`.local/scene44/worker-v88.log`记录10次同一`SCENE_OBSERVATION_CONSUMPTION_PROOF_INVALID`，没有证据表明这些失败是导演unknown或新付费调用。memory44已独立确认：suppliedContext含private_strategy scene recall，旧消费reader按inbox来源检查而失败；recall-only还可能先在context检查失败。该源码归memory44，本任务不重复修改。
+
+调用影响：snapshot→actorObservationInbox→readConsumedSceneObservationSources；主动narrative候选reader也调用同一消费reader。认证异常会在候选/模型执行之前抛出，因此worker活着不代表推进成功。应先修消费证明，再核失败计数；不通过吞异常、假ACK或强制消息处理。
+
+### 下一批明确接续，当前不改
+
+1. `agent-observation-schedule-read.ts`第46–52行仍将人物任何unknown_after_send永久continue，SQL没有lease字段。这是43已修agenda/episode准入规则的另一个消费者遗漏；对真正新narrative knowledge会过度阻断。拟复用episodeActorAttemptBlocks，同时保留同candidate已付费历史围栏，不通过改candidateID重买。需独立PG验证live/expired/raw/event及同candidate/不同新来源边界。
+2. unknown重复只读扫描有三个入口：`emptyDirectorRecoveryDue`不看时间；`wake.hasPendingDirector`包括unknown；`observed.needsEvaluation`可能仍指旧帧已带入但未确认的变化。仅改第一个函数不能解决完整链路。后续优先复用原attempt.snapshot的已观察范围及既有nextReviewAt，区分有已存response可恢复、真实新认证变化、原unknown无新依据；不新增缓存或状态字段。新证据仍交原prepareRecovery认证，普通时间/世界版本不授予新购买。
+
+本次仅报告，不改业务/原档/模型/运行进程，避免干扰root的44真实验收。既有43PG证据不当成这两项已修，也不称长期主动剧情已通过。
