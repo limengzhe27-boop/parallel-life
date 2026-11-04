@@ -390,3 +390,31 @@ test('v15 consider schema requires a real allowed task while defer remains avail
     }
   }
 });
+
+test('current quiet omits mechanical opening null only when no opening authority exists', () => {
+  const f = current();
+  delete f.wire.openingContext;
+  assert.equal(f.parse().mode, 'quiet');
+  const schema: any = (directorResponseFormat(f.s) as any).schema;
+  assert.equal(schema.properties.openingContext, undefined);
+  assert(!schema.required.includes('openingContext'));
+  f.wire.openingContext = null;
+  assert.equal(f.parse().mode, 'quiet');
+  delete f.wire.candidates;
+  assert.throws(() => f.parse(), 'business field omission is not repaired');
+  const g = current(1);
+  const material = g.s.authoredMaterials!.materials[0]!;
+  g.s.openingContextAuthority = {
+    policy: 'opening_context_v1',
+    reviewKey: 'd'.repeat(64),
+    nodeKey: material.ref.nodeKey,
+    nodeHash: material.ref.nodeHash,
+    sourceHash: g.s.authoredMaterials!.source!.sourceHash,
+    initialAt: g.s.storyAt,
+    sourceField: 'editorialIntent',
+    sourceExcerpt: material.node.editorialIntent!,
+    actorKnowledge: [],
+  };
+  delete g.wire.openingContext;
+  assert.throws(() => g.parse(), 'actual opening authority still requires an explicit judgment');
+});

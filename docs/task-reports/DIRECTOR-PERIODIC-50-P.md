@@ -45,3 +45,11 @@ root 将 actorTasks 提取到共享 `$defs`，减少多角色 anyOf 重复体积
 边界观察：若独立 snapshot 读取后、claim 前旧 raw 晚到，原 claim 正确拒绝 `DIRECTOR_EVALUATION_CAUSE_CONFLICT`，不能用旧快照绕过重新出现的付费结果。测试最终成功旅程在独立提交后才保存旧晚到结果；没有修改 immutable lease 或删除 raw。
 
 最新 root WIP 下领域+真实 PG **10/10 通过**，typecheck 通过；隔离55743，0真实模型、0原档、0主运行进程修改。测试只证明独立执行资格及旧付费请求保护，不证明模型必然发消息。
+
+## 已收到 quiet 的原结果恢复
+
+新增领域和既有 PG 旅程：无 opening authority 的 v15 省略机械 null 可解析，显式 null 保持兼容；有 authority 仍必须提供判断，缺 candidates 等业务字段不修补。完整零副作用 quiet 可使用原快照观察作审计来源，来源/cast/边界/选择保护不放宽。
+
+隔离 PG 应用 root 0125 后，以真实原 runner 完成 bootstrap，再原 claim/send/saveResponse 保存缺机械 openingContext 的 quiet raw，标 invalid_output 模拟旧 decoder；原 world.saveNote 前进世界后，revalidateKnownHandoff 直接 committed。原 raw/input hash/sent_at 不变，proof opportunity_ids=[]，0 episode/request；重复恢复不新增 proof。live 未发送、unknown 无 raw、缺业务字段的已保存 invalid_output 均不冒充 quiet。没有恢复模型调用。
+
+三套合计 **48/48 通过**；typecheck 通过（补齐测试观察的 knownByActorIds）。仅提交三份测试和本报告；0125 与公共源码临时复制验证后移除/恢复。0 原档写入、0 真实模型、0 主运行进程改动。

@@ -374,6 +374,133 @@ test('director frame lifecycle uses real publication, personal plan and protecte
       )
     ).rows;
   }
+  await t.test(
+    'fully received quiet with omitted mechanical null recovers without another model call',
+    async () => {
+      const f = await fixture();
+      const { directorWireCatalog, directorOpeningOwnerCatalog } =
+        await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
+      const initial = await snap(f);
+      await runDirectorAgent(
+        {
+          attempts: directors,
+          parse: parseDirectorDecision,
+          model: {
+            async decide() {
+              return JSON.stringify({
+                protocol: 'director-wire-v15',
+                openingContext: initial.openingContextAuthority
+                  ? {
+                      informationOwners: Object.fromEntries(
+                        directorOpeningOwnerCatalog(initial).information.map((i) => [
+                          i.ref,
+                          { actorRef: null, reason: 'Public fixture' },
+                        ]),
+                      ),
+                    }
+                  : null,
+                authoredChoices: Object.fromEntries(
+                  directorWireCatalog(initial).events.map((e) => [
+                    e.ref,
+                    { kind: 'defer', reason: 'Wait' },
+                  ]),
+                ),
+                candidates: [],
+                opportunities: [],
+                audit: { reason: 'Fixture', sourceRefs: [] },
+              });
+            },
+          },
+        },
+        f.owner,
+        claim(initial),
+        initial,
+      );
+      const original = await snap(f);
+      assert.equal(original.openingContextAuthority, undefined);
+      const input = claim(original);
+      let { attempt } = await directors.claim(f.owner, input, original);
+      assert.equal(
+        await directors.revalidateKnownHandoff(f.owner, original),
+        null,
+        'live unsent frame cannot be quiet recovered',
+      );
+      attempt = await directors.mark(f.owner, attempt, 'request_sent');
+      await directors.mark(f.owner, attempt, 'unknown_after_send');
+      assert.equal(
+        await directors.revalidateKnownHandoff(f.owner, original),
+        null,
+        'unknown without raw cannot be quiet recovered',
+      );
+      const raw = JSON.stringify({
+        protocol: 'director-wire-v15',
+        candidates: [],
+        authoredChoices: {},
+        opportunities: [],
+        audit: { reason: 'Known quiet', sourceRefs: [] },
+      });
+      attempt = await directors.saveResponse(f.owner, attempt, raw);
+      await directors.mark(f.owner, attempt, 'invalid_output');
+      const before = (await attempts(f)).find((a) => a.id === input.id)!;
+      await worlds.saveNote(
+        { userId: f.owner },
+        {
+          worldId: f.id,
+          commandId: randomUUID(),
+          expectedVersion: original.worldVersion,
+          title: 'Independent note',
+          text: 'Unrelated change',
+        },
+      );
+      const current = await snap(f);
+      assert(current.worldVersion > original.worldVersion);
+      const decision = await directors.revalidateKnownHandoff(f.owner, current);
+      assert.equal(decision?.mode, 'quiet');
+      assert.deepEqual(decision?.opportunities, []);
+      assert.equal((await directors.lookup(f.owner, f.id, input.commandId))!.status, 'committed');
+      const after = (await attempts(f)).find((a) => a.id === input.id)!;
+      assert.deepEqual(after.response, before.response);
+      assert.equal(after.input_hash, before.input_hash);
+      assert.deepEqual(after.sent_at, before.sent_at);
+      const counts = async () =>
+        (
+          await admin.query(
+            `SELECT (SELECT count(*) FROM parallel_life.shared_episodes WHERE world_id=$1) episodes,(SELECT count(*) FROM parallel_life.agent_episode_requests WHERE world_id=$1) requests,(SELECT count(*) FROM parallel_life.director_handoff_revalidations WHERE world_id=$1) proofs`,
+            [f.id],
+          )
+        ).rows[0];
+      assert.deepEqual(await counts(), { episodes: '0', requests: '0', proofs: '1' });
+      assert.deepEqual(
+        (
+          await admin.query(
+            'SELECT opportunity_ids FROM parallel_life.director_handoff_revalidations WHERE world_id=$1',
+            [f.id],
+          )
+        ).rows[0].opportunity_ids,
+        [],
+      );
+      assert.equal(await directors.revalidateKnownHandoff(f.owner, await snap(f)), null);
+      assert.deepEqual(await counts(), { episodes: '0', requests: '0', proofs: '1' });
+      const badSnapshot = await snap(f),
+        badInput = claim(badSnapshot);
+      let bad = (await directors.claim(f.owner, badInput, badSnapshot)).attempt;
+      bad = await directors.mark(f.owner, bad, 'request_sent');
+      const businessMissing = JSON.parse(raw);
+      delete businessMissing.candidates;
+      bad = await directors.saveResponse(f.owner, bad, JSON.stringify(businessMissing));
+      await directors.mark(f.owner, bad, 'invalid_output');
+      assert.equal(
+        await directors.revalidateKnownHandoff(f.owner, await snap(f)),
+        null,
+        'missing business output is not quiet',
+      );
+      assert.equal(
+        (await directors.lookup(f.owner, f.id, badInput.commandId))!.status,
+        'invalid_output',
+      );
+      assert.deepEqual(await counts(), { episodes: '0', requests: '0', proofs: '1' });
+    },
+  );
   for (const lateRaw of [false, true])
     await t.test(
       `periodic review and disjoint unknown protection (late raw: ${lateRaw})`,

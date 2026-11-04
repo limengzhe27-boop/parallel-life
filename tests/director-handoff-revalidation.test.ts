@@ -449,3 +449,42 @@ test('known definition audit citations require the same actor definition in both
     reason: 'non_author_basis',
   });
 });
+
+test('zero-effect received quiet can be acknowledged with original observation audit, never invented authority', () => {
+  const input = fixture();
+  input.decision.mode = 'quiet';
+  input.decision.opportunities = [];
+  input.decision.authoredAssessments!.forEach((a) => {
+    a.decision = 'defer';
+  });
+  input.original.observations = [
+    { sourceId: 'original-fact', kind: 'fact', text: 'Known', knownByActorIds: ['a'] },
+  ];
+  input.decision.audit.basisSourceIds = ['original-fact'];
+  const before = JSON.stringify(input);
+  const result = revalidateDirectorHandoff(input);
+  assert.equal(result.allowed, true);
+  if (result.allowed) assert.deepEqual(result.readSet.opportunities, []);
+  assert.equal(JSON.stringify(input), before);
+  for (const mutate of [
+    (x: typeof input) => {
+      x.decision.audit.basisSourceIds = ['not-in-original'];
+    },
+    (x: typeof input) => {
+      x.decision.selectedCandidateIds = ['invented'];
+    },
+    (x: typeof input) => {
+      x.current.boundary.actorIds = ['a'];
+    },
+    (x: typeof input) => {
+      x.current.engineEpoch = 3;
+    },
+    (x: typeof input) => {
+      x.current.cast![0]!.persona = 'changed';
+    },
+  ]) {
+    const x = structuredClone(input);
+    mutate(x);
+    assert.equal(revalidateDirectorHandoff(x).allowed, false);
+  }
+});
