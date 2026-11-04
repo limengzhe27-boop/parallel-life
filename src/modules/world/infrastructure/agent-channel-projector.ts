@@ -44,6 +44,42 @@ export function nativeAgentProjectionId(
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
+/** Shared expression projection; caller authenticates current presence and validates entries. */
+export function buildSceneStatementEntries(input: {
+  worldId: string;
+  ownerId: string;
+  sceneId: string;
+  eventId: string;
+  version: number;
+  actorId: string;
+  present: SceneEntry['observableTo'];
+  statements: AgentStatement[];
+}): SceneEntry[] {
+  return input.statements.map((s, index) => {
+    if (
+      !s.text.trim() ||
+      (s.kind !== undefined && !['speech', 'narration'].includes(s.kind)) ||
+      s.text.length > 4000 ||
+      s.stickerId ||
+      (s.kind === 'narration' && (s.requestsPlayerReply || s.questionForResponsibilityId))
+    )
+      reject('NATIVE_SCENE_EXPRESSION');
+    const base = {
+      id: nativeAgentProjectionId(input.eventId, 'scene', index),
+      worldId: input.worldId,
+      ownerId: input.ownerId,
+      sceneId: input.sceneId,
+      sourceEventId: input.eventId,
+      sourceVersion: input.version,
+      text: s.text,
+      observableTo: input.present,
+    };
+    return s.kind === 'narration'
+      ? { ...base, kind: 'narration', perspective: 'observable' }
+      : { ...base, kind: 'dialogue', speaker: { kind: 'actor', actorId: input.actorId } };
+  });
+}
+
 /** App-only UoW component. Caller owns begin/finishAgentCommit and the transaction. */
 export async function projectNativeAgentChannelInTransaction(
   sql: SqlClient,
@@ -280,23 +316,18 @@ export async function projectNativeAgentChannelInTransaction(
       world: { ...world, version },
       events: [...oldEvents, { id: eventId, version, worldId: world.id, ownerId }],
     };
-    sceneEntries = statements.map((s, index) => {
-      if (!s.text.trim() || s.text.length > 4000) reject('NATIVE_SCENE_TEXT_LIMIT');
-      const entry: SceneEntry = {
-        id: nativeAgentProjectionId(eventId, 'scene', index),
-        worldId: world.id,
-        ownerId,
-        sceneId: current.scene.id,
-        sourceEventId: eventId,
-        sourceVersion: version,
-        kind: 'dialogue',
-        speaker: { kind: 'actor', actorId: attempt.actorId },
-        text: s.text,
-        observableTo: present,
-      };
-      assertSceneEntry(context, current.scene, entry, current.actions);
-      return entry;
+    sceneEntries = buildSceneStatementEntries({
+      worldId: world.id,
+      ownerId,
+      sceneId: current.scene.id,
+      eventId,
+      version,
+      actorId: attempt.actorId,
+      present,
+      statements,
     });
+    for (const entry of sceneEntries)
+      assertSceneEntry(context, current.scene, entry, current.actions);
     event = {
       ...common,
       type: 'scene.reaction_recorded' as const,

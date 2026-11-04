@@ -15,6 +15,81 @@ import { createWorldMatter, transitionWorldMatter } from './matters.ts';
 import type { WorldState, WorldEvent, OutboxJob, ActorTie } from './types.ts';
 import { linkAppointmentVenue } from './space.ts';
 
+function hasValidSceneReply(event: WorldEvent, current: WorldState): boolean {
+  const reply = (
+    event.data as WorldEvent['data'] & {
+      sceneReply?: { sceneId: string; entries: import('./experience-rules.ts').SceneEntry[] };
+    }
+  ).sceneReply;
+  if (reply === undefined) return false;
+  const proposal = event.data.agentRuntime?.proposal;
+  const reject = () => {
+    throw new DomainError('INVALID_PROPOSAL', 'INVALID_SCENE_REPLY');
+  };
+  if (
+    !reply ||
+    typeof reply.sceneId !== 'string' ||
+    !reply.sceneId ||
+    !Array.isArray(reply.entries) ||
+    !reply.entries.length ||
+    !proposal ||
+    proposal.replyChannel !== 'scene' ||
+    reply.entries.length !== proposal.statements.length ||
+    event.data.origin === 'director' ||
+    event.data.effects.some((e) => e.type === 'message.received')
+  )
+    reject();
+  const ids = new Set<string>();
+  let cursor = 0;
+  for (const e of reply.entries) {
+    if (!(e.kind === 'dialogue' || e.kind === 'narration'))
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_SCENE_REPLY');
+    if (
+      !e ||
+      typeof e.id !== 'string' ||
+      !e.id ||
+      ids.has(e.id) ||
+      e.worldId !== current.id ||
+      e.ownerId !== current.ownerId ||
+      e.sceneId !== reply.sceneId ||
+      e.sourceEventId !== event.id ||
+      e.sourceVersion !== event.version ||
+      typeof e.text !== 'string' ||
+      !e.text.trim() ||
+      e.text.length > 4000 ||
+      !Array.isArray(e.observableTo) ||
+      !e.observableTo.every(
+        (p) =>
+          p.kind === 'player' ||
+          (p.kind === 'actor' && current.actors.some((a) => a.id === p.actorId)),
+      ) ||
+      !e.observableTo.some((p) => p.kind === 'player') ||
+      !e.observableTo.some((p) => p.kind === 'actor' && p.actorId === event.data.actorId) ||
+      new Set(e.observableTo.map((p) => JSON.stringify(p))).size !== e.observableTo.length
+    )
+      reject();
+    if (
+      !(
+        e.kind === 'dialogue' &&
+        e.speaker.kind === 'actor' &&
+        e.speaker.actorId === event.data.actorId
+      ) &&
+      !(e.kind === 'narration' && e.perspective === 'observable')
+    )
+      reject();
+    const index = proposal!.statements.findIndex(
+      (p, i) =>
+        i >= cursor &&
+        p.text === e.text &&
+        (p.kind === 'narration' ? e.kind === 'narration' : e.kind === 'dialogue'),
+    );
+    if (index < 0) reject();
+    cursor = index + 1;
+    ids.add(e.id);
+  }
+  return true;
+}
+
 /** Pure reducer. All effects validate before the caller commits anything. */
 export function applyEvent(
   current: WorldState,
@@ -38,8 +113,9 @@ export function applyEvent(
   });
   const actorIds = new Set(current.actors.map((actor) => actor.id));
   if (!actorIds.has(event.data.actorId)) throw new DomainError('INVALID_COMMAND');
+  const sceneReply = hasValidSceneReply(event, current);
   const effects =
-    event.data.stream && event.data.effects.length === 0
+    (event.data.stream || sceneReply) && event.data.effects.length === 0
       ? []
       : parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects;
   validateCharacterEffects(
@@ -47,7 +123,7 @@ export function applyEvent(
     effects,
     true,
     event.data.origin,
-    Boolean(event.data.stream),
+    Boolean(event.data.stream) || sceneReply,
   );
   const replyAt = event.storyAt ?? current.time;
   const userAt = event.data.userAt ?? current.time;
