@@ -372,10 +372,11 @@ test('director frame lifecycle uses real publication, personal plan and protecte
       )
     ).rows;
   }
-  for (const openingKnowledge of [false, true])
+  for (const scenario of ['ordinary', 'opening', 'independent'])
     await t.test(
-      `expired unknown ${openingKnowledge ? 'opening context' : 'bootstrap'} retires only for verified evidence`,
+      `expired unknown ${scenario === 'independent' ? 'non-author actor' : scenario === 'opening' ? 'opening context' : 'bootstrap'} retires only for verified evidence`,
       async () => {
+        const openingKnowledge = scenario === 'opening';
         const f = await fixture({ openingKnowledge });
         const originalFrame = await snap(f);
         assert.equal(originalFrame.evaluationCause?.kind, 'bootstrap');
@@ -426,7 +427,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
           'blocked',
           'version alone never retires unknown',
         );
-        const actorId = f.world.actors[0]!.id;
+        const actorId = f.world.actors[scenario === 'independent' ? 1 : 0]!.id;
         const npcs = new PostgresAgentRuntimeRepository(app);
         const world = await worlds.get({ userId: f.owner }, f.id);
         const commandId = randomUUID(),
@@ -512,8 +513,11 @@ test('director frame lifecycle uses real publication, personal plan and protecte
           snapshot,
         );
         const changed = await snap(f);
-        assert.ok(changed.evaluationCause);
-        assert.notEqual(changed.evaluationCause.id, originalFrame.evaluationCause!.id);
+        if (scenario === 'independent') assert.equal(changed.evaluationCause, undefined);
+        if (scenario !== 'independent') {
+          assert.ok(changed.evaluationCause);
+          assert.notEqual(changed.evaluationCause.id, originalFrame.evaluationCause!.id);
+        }
         assert.equal((await directors.prepareRecovery(f.owner, changed)).status, 'none');
         const retired = await directors.lookup(f.owner, f.id, originalClaim.commandId);
         assert.equal(retired!.status, 'stale_discarded');

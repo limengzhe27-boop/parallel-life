@@ -16,7 +16,35 @@ export function directorFrameRetirementEvidence(
     previous.engineEpoch !== current.engineEpoch ||
     previous.worldVersion >= current.worldVersion ||
     previous.nativeTurn ||
-    current.nativeTurn ||
+    current.nativeTurn
+  )
+    return [];
+  // A committed independent decision/result is global coordination work even when
+  // it does not qualify an authored node. The reader authenticates the underlying
+  // event; current() authenticates this exact pending range before calling us.
+  const priorRefs = new Set(
+    (previous.changes ?? []).map((r) =>
+      JSON.stringify([r.ref.kind, 'actorId' in r.ref ? r.ref.actorId : null, r.ref.id]),
+    ),
+  );
+  const currentIds = new Set((current.changes ?? []).map((r) => r.id));
+  const independent = authenticatedReasons
+    .filter(
+      (r) =>
+        r.worldVersion > previous.worldVersion &&
+        r.worldVersion <= current.worldVersion &&
+        currentIds.has(r.id) &&
+        !priorRefs.has(
+          JSON.stringify([r.ref.kind, 'actorId' in r.ref ? r.ref.actorId : null, r.ref.id]),
+        ) &&
+        ((r.kind === 'player_decision' && r.ref.kind === 'decision') ||
+          (r.kind === 'action_result' && r.ref.kind === 'action_result') ||
+          (r.kind === 'plan_changed' && r.ref.kind === 'plan') ||
+          (r.kind === 'cross_impact' && r.ref.kind === 'event' && !!r.actorId)),
+    )
+    .map((r) => r.id);
+  if (independent.length) return [...new Set(independent)].sort();
+  if (
     !cause ||
     cause.kind === 'bootstrap' ||
     cause.id === previous.evaluationCause?.id ||

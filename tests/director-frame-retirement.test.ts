@@ -93,3 +93,24 @@ test('new actor-scoped question progress can retire only a different later cause
   assert.deepEqual(directorFrameRetirementEvidence(old, next, [question, question]), [question.id]);
   assert.deepEqual(old, prior);
 });
+
+test('independent authenticated current work retires unknown without authored wake', () => {
+  const prior = { ...old, changes: [] };
+  const next = { ...current, evaluationCause: undefined, changes: [evidence] };
+  assert.deepEqual(directorFrameRetirementEvidence(prior, next, [evidence]), [evidence.id]);
+  assert.deepEqual(directorFrameRetirementEvidence(prior, next, []), []);
+  assert.deepEqual(
+    directorFrameRetirementEvidence(prior, { ...next, changes: [] }, [evidence]),
+    [],
+  );
+  assert.deepEqual(
+    directorFrameRetirementEvidence({ ...prior, changes: [evidence] }, next, [
+      { ...evidence, id: 'renamed' },
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    directorFrameRetirementEvidence(prior, next, [{ ...evidence, worldVersion: 2 }]),
+    [],
+  );
+});

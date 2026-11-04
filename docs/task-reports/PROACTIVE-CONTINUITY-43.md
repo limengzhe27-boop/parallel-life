@@ -25,3 +25,13 @@ root统一集成；proactive43独立工作树，基线1af2ce12。
 一次正常原服务advance因已有调度占用返回scheduler_busy，0新attempt，未重复手动调用。恢复原调度进程后正常领取原2fb：no_candidates，导演原unknown_after_send仍待核对，scheduler报UNKNOWN；0新主动消息。不能把执行进程恢复/阻塞规则修复当作主动剧情已跑通。
 
 后续已交proactive43继续：逐人定位解除actor fence后的family/anchor/责任条件，以及导演旧unknown对独立合法机会的具体影响。禁止重新购买同请求，保留未接受状态。
+
+## 接续：导演unknown与独立新变化（基线3f873001）
+
+只读原档正常readOwnAgendaReviewWork确认：五个人物当前family本身已有unknown付费记录，authority paid围栏仍应保留，不能解锁重买。刘胜男有新anchor、预算有余，短时检查落在原quiet退避窗口。原档脚本仅只读，无模型/原档写。
+
+导演prepareRecovery已先认证当前完整snapshot及独立来源，但directorFrameRetirementEvidence仅接受作者事件资格；合法非作者关联人物新计划/决定/行动结果即使进入changes，也无法越过旧unknown。现在该纯函数复用authenticatedReasons与current.changes，允许旧帧之后、当前范围内、未出现在旧changes的业务ref（计划/决定/行动结果/有actor归属的问题进展）作为独立依据。普通speech、时间、版本、同旧ref改id不获得资格。原作者事件条件通道保留。无新增字段/表/协议。
+
+隔离PG55743 director-frame-lifecycle 4/4：两条原作者旅程及一条非作者参与NPC新计划；最后一条changed.evaluationCause明确undefined。真实NPC kernel写入计划→原unknown执行帧退休→新frame可claim；旧snapshot/inputHash/sent_at不变，原模型仅1次；迟到raw仍保存但旧frame不能重新执行；无关note版本变化不解锁。纯域3/3、typecheck和boundaries通过。
+
+未修改emptyDirectorRecoveryDue：无新依据时仍可能重复只读查询unknown，需复用现有nextReviewAt后续处理，不新增调度字段。未运行真实模型/原档写/本地切换，root集成门禁和原档验收。整体主动剧情仍待验证。
