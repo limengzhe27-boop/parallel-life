@@ -690,6 +690,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
               state: viewState,
               input: snapshot.input,
               channel: snapshot.channel,
+              sceneReplyContext: snapshot.sceneReplyContext,
               authorizedSourceIds: new Set(snapshot.sources.map((source) => source.id)),
             }).map((target) => [
               target.ref,
@@ -971,7 +972,11 @@ export class NpcAgentModel implements NpcAgentModelPort {
       observations: snapshot.sources
         .filter(
           (s) =>
-            (s.kind === 'scene_entry' ||
+            ((s.kind === 'scene_entry' &&
+              ((snapshot.channel.kind === 'private' &&
+                snapshot.actorObservationInbox?.sourceIds.includes(s.id)) ||
+                (snapshot.channel.kind === 'scene' &&
+                  snapshot.sceneObservationContext?.selectedSourceIds.includes(s.id)))) ||
               (s.kind === 'world_event' &&
                 s.id.startsWith('narrative:') &&
                 s.usage === 'private_strategy' &&

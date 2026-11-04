@@ -274,15 +274,15 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       const proposal = parseAgentProposal(snapshot, input.proposal);
       validateActorContinuation(snapshot, proposal);
       const frame = await beginAgentCommitFrameInTransaction(sql, ownerId, attempt, options);
-      const sceneDelivery =
-        proposal.replyChannel === 'scene'
-          ? await readActorSceneDelivery(sql, ownerId, attempt.worldId, attempt.actorId)
-          : null;
+      const currentScene = snapshot.sceneReplyContext
+        ? await readActorSceneDelivery(sql, ownerId, attempt.worldId, attempt.actorId)
+        : null;
       if (
-        proposal.replyChannel === 'scene' &&
-        (!sceneDelivery || !isDeepStrictEqual(sceneDelivery.context, snapshot.sceneReplyContext))
+        snapshot.sceneReplyContext &&
+        (!currentScene || !isDeepStrictEqual(currentScene.context, snapshot.sceneReplyContext))
       )
         throw new AgentValidationError('SCENE_REPLY_PRESENCE_CHANGED');
+      const sceneDelivery = proposal.replyChannel === 'scene' ? currentScene : null;
       const deliveryChannel = sceneDelivery
         ? { ...snapshot.channel, kind: 'scene' as const, threadId: sceneDelivery.scene.id }
         : snapshot.channel;

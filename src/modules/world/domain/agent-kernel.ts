@@ -12,6 +12,7 @@ import type {
 import { applyQuestionChanges, AgentQuestionError } from './agent-questions.ts';
 import {
   bindPlayerInputInterpretation,
+  playerReplyCrossChannelGrants,
   type PlayerInputInterpretation,
 } from './agent-input-interpretation.ts';
 
@@ -37,6 +38,7 @@ export function interpretCurrentPlayerInput(
       state: context.viewState ?? context.state,
       input: context.input,
       channel: context.channel,
+      sceneReplyContext: context.sceneReplyContext,
       authorizedSourceIds: new Set(context.sources.map((s) => s.id)),
     },
     interpretation,
@@ -682,6 +684,13 @@ function applyAgentQuestionChanges(context: AgentValidationContext, proposal: Ag
             threadId: q.threadId,
           })),
         withdrawalSourceIds: [...permitted],
+        crossChannelGrants: playerReplyCrossChannelGrants({
+          state: visible,
+          input: context.input,
+          channel: context.channel,
+          sceneReplyContext: context.sceneReplyContext,
+          authorizedSourceIds: permitted,
+        }),
       },
       { replyAssessments: proposal.replyAssessments, withdrawals: proposal.questionWithdrawals },
     );

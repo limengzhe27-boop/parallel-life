@@ -751,6 +751,12 @@ test('supplied context manifest matches the final cached model messages and excl
   const { createHash } = await import('node:crypto');
   for (const oversized of [false, true]) {
     const input = snapshot('scene');
+    input.sceneObservationContext = {
+      sceneId: input.channel.threadId,
+      status: 'complete',
+      selectedSourceIds: ['scene:observed'],
+      omittedSourceIds: [],
+    };
     input.sources.push({
       id: 'scene:observed',
       kind: 'scene_entry',
@@ -957,7 +963,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v87-single-plan');
+  assert.equal(payload.promptVersion, 'npc-agent-v88-scene-continuity');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /本轮和自动唤醒不再提该事项，直到玩家主动重提/);
   assert.match(system, /安慰、道歉或对方认真难过时不以嘲讽图代替回应/);
@@ -1957,4 +1963,30 @@ test('named instructions retain wake, episode and capability permissions indepen
       assert.match(system, /明确区分愿望与承诺/);
     }
   }
+});
+
+test('remembered scene speech stays in model context without becoming a new inbox ACK', async () => {
+  const input = snapshot();
+  input.sources.push({
+    id: 'scene:remembered',
+    recordId: 'remembered',
+    kind: 'scene_entry',
+    usage: 'private_strategy',
+    worldVersion: 8,
+    at: input.storyAt,
+    contentHash: 'a'.repeat(64),
+  });
+  input.observations.push({
+    sourceId: 'scene:remembered',
+    kind: 'speech',
+    evidenceKind: 'actor_report',
+    text: 'Earlier in person we discussed the schedule.',
+  });
+  const { adapter, calls } = capture();
+  const supplied = adapter.describeSuppliedContext(input);
+  assert(!supplied.observations.some((o) => o.sourceId === 'scene:remembered'));
+  await adapter.decide(input);
+  assert(
+    JSON.stringify(calls[0]!.messages).includes('Earlier in person we discussed the schedule.'),
+  );
 });
