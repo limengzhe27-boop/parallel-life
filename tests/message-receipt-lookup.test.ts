@@ -1,3 +1,8 @@
+import {
+  worldMessageClientReceipt,
+  WORLD_MESSAGE_PROJECTION_HEADER,
+  WorldMessageReceiptSchema,
+} from '../src/contracts/world-interaction.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -160,4 +165,45 @@ test('protected recovery rejects a mismatched receipt without automatic retry', 
   });
   await assert.rejects(client.recover(worldId, command), { code: 'UNAVAILABLE' });
   assert.equal(calls, 2);
+});
+
+test('lookup and protected recovery negotiate scene and partial receipts instead of legacy stripping', async () => {
+  const sceneId = randomUUID();
+  const saved = WorldMessageReceiptSchema.parse({
+    ...identity,
+    status: 'committed',
+    version: 1,
+    eventId: randomUUID(),
+    sceneReply: { sceneId },
+    streamSummary: {
+      completionStatus: 'partial_interrupted',
+      committedSegmentCount: 1,
+      totalSegmentCount: 2,
+    },
+  });
+  const paths: string[] = [];
+  const client = new MessageReceiptClient(async (url, options) => {
+    paths.push(String(url));
+    if (String(url).endsWith('/session'))
+      return response({ kind: 'guest', csrfToken: 's'.repeat(32) });
+    return response(
+      worldMessageClientReceipt(
+        saved,
+        new Headers(options?.headers).get(WORLD_MESSAGE_PROJECTION_HEADER),
+      ),
+    );
+  });
+  for (const result of [
+    await client.lookup(worldId, command),
+    await client.recover(worldId, command),
+  ]) {
+    assert.equal(result.status, 'committed');
+    if (result.status !== 'committed') throw Error('expected committed');
+    assert.deepEqual(result.sceneReply, { sceneId });
+    assert.equal(result.streamSummary?.completionStatus, 'partial_interrupted');
+  }
+  assert.deepEqual(
+    paths.map((p) => p.split('/').at(-1)),
+    ['session', 'receipt', 'recover'],
+  );
 });

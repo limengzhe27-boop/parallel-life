@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ApiErrorSchema, Id, SessionSchema } from '../../contracts/api.ts';
 import {
+  WORLD_MESSAGE_PROJECTION_HEADER,
+  WORLD_MESSAGE_PROJECTION_VERSION,
   WorldMessageRequestSchema,
   type WorldMessageRequest,
 } from '../../contracts/world-interaction.ts';
@@ -31,6 +33,7 @@ export class MessageReceiptClient {
           ...(body ? { 'Content-Type': 'application/json' } : {}),
           ...(this.csrf ? { 'X-CSRF-Token': this.csrf } : {}),
           'X-Message-Recovery': '1',
+          [WORLD_MESSAGE_PROJECTION_HEADER]: WORLD_MESSAGE_PROJECTION_VERSION,
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
