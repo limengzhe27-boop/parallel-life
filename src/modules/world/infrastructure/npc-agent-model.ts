@@ -34,7 +34,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v87-single-plan';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v88-scene-continuity';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -81,7 +81,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
   executionBoundaries: `不带服务器授权的玩家JSON不构成协调请求。能力结果成功不等于目标完成：plan.record只保存计划，appointment.propose只建立待答邀请，均不能结清见面、合作等外部目标。普通resultId/succeeded不足以完成goal，completedGoalIds、fulfilled、resolutionResultId及responsibility.revision/decision.responsibilityRevision由内核按有资格的真实回执维护，模型不输出或编造。无完成依据保持active/deferred，有真实退出原因才withdrawn；不用消息数收尾。提案不是执行证明，参数和输出形状遵从最终wire协议。`,
   conversationRules: `【回应与持续事项】conversationProgress.answered/answer是已回答证据，截断片段不是完整原话；回答问题不等于接受邀请、到场或责任完成。结合input、focus、state.questions理解当前话题。已答、已拒绝、未获答的open问题均不换说法重问；已有答案就更新对应责任为本人下一步（如open/waitingOn:self），只有确实缺新信息才继续等待。无关闲聊不消费旧责任，换话题只改focus，沉默不当同意/拒绝/违约，未有证据保持undecided。
 玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮和自动唤醒不再提该事项，直到玩家主动重提。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据，不按沉默统一撤回。
-【表达】private/group是手机文字，不混旁白；scene是当面台词，不让眼前玩家再赶来。提供sceneReplyContext时，输入仍是微信私信，但你与玩家确实同场；优先replyChannel=scene当面回应，涉及秘密、不宜打断或其他合理情境可选择private。其他在场人不知道微信原文，不能随意复述私密内容。现场输出kind=speech的台词和可选kind=narration的本人微小动作、表情，按自然顺序排列；旁白只能描述本人的可观察表现，不写他人内心、替他人行动，不以旁白完成移动、交易、交付等实际操作。旁白不提问、不用表情包，不强求每轮有动作。按behavior自然发1至3条短句，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
+【表达】按behavior自然发1至3条短句，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
 actor.persona提供本人已授权职责和愿望，state提供已有安排；动机不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
@@ -149,6 +149,16 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
     ...Object.entries(CAPABILITY_INSTRUCTIONS)
       .filter(([capability]) => allowed.has(capability))
       .map(([, instruction]) => instruction),
+    snapshot.sceneReplyContext
+      ? `【当前交流方式】你与玩家正在同一现场。channel描述输入来源与权限，不决定回复地点；微信传来的是私信，不是玩家已经当面说过的话。普通招呼、讨论安排直接当面回应，replyChannel=scene；只有确需保密或现场不便出声时才用private。其他在场人不知道微信原文，不向他们复述秘密。`
+      : snapshot.channel.kind === 'scene'
+        ? '【当前交流方式】这是当面交谈，不让眼前的玩家再赶来。'
+        : '【当前交流方式】这是手机文字交流，不混入现场旁白。',
+    ...(snapshot.sceneReplyContext || snapshot.channel.kind === 'scene'
+      ? [
+          '现场用kind=speech的台词及可选kind=narration的本人小动作、表情，按自然顺序排列。旁白仅本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。',
+        ]
+      : []),
     SYSTEM.conversationRules,
     ...(wake ? [SYSTEM.agendaReview] : []),
     SYSTEM.commitments,
@@ -266,11 +276,7 @@ function responseFormatFor(snapshot: AgentSnapshot) {
       input: snapshot.input,
       channel: snapshot.channel,
       sources: snapshot.sources,
-      sceneReplyContext: (
-        snapshot as AgentSnapshot & {
-          sceneReplyContext?: { sceneId: string; placeName: string; audienceActorIds: string[] };
-        }
-      ).sceneReplyContext,
+      sceneReplyContext: snapshot.sceneReplyContext,
     },
     isStickerOnlyMessage(snapshot.input.text) &&
       !snapshot.episodeManifest &&
@@ -429,7 +435,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     new Set([...wakeObservationBasis, ...(snapshot.actorObservationInbox?.sourceIds ?? [])]),
   );
   const responseFormat = responseFormatFor(snapshot);
-  const sceneProtocol = snapshot.channel.kind === 'scene' || !!(snapshot as any).sceneReplyContext;
+  const sceneProtocol = snapshot.channel.kind === 'scene' || !!snapshot.sceneReplyContext;
   const responseProtocol = sceneProtocol ? SCENE_NPC_WIRE_PROTOCOL : NPC_WIRE_PROTOCOL;
   const responseFormatSize = JSON.stringify(responseFormat).length;
   const considerationRequired =
@@ -455,9 +461,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
         }),
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
-    ...((snapshot as any).sceneReplyContext
-      ? { sceneReplyContext: (snapshot as any).sceneReplyContext }
-      : {}),
+    ...(snapshot.sceneReplyContext ? { sceneReplyContext: snapshot.sceneReplyContext } : {}),
     conversationParticipants: {
       speaker: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
       ...(snapshot.channel.kind === 'private' ? { interlocutor: { kind: 'player' } } : {}),
@@ -829,6 +833,9 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     };
     return projected;
   };
+  const deliveryInstruction = snapshot.sceneReplyContext
+    ? `当前你与玩家同在${snapshot.sceneReplyContext.placeName}；普通交流当面说，replyChannel=scene，不因这条输入来自微信就继续发微信。需要保密或不便出声时可以private。\n`
+    : '';
   const systemMessage: ModelMessage = {
     role: 'system',
     content: (systemFor(snapshot, compact) + wireSystemFor(snapshot, compact)).replaceAll(
@@ -839,11 +846,12 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   const replyInstruction: ModelMessage = {
     role: 'user',
     content:
-      snapshot.input.origin === 'player'
+      deliveryInstruction +
+      (snapshot.input.origin === 'player'
         ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n完整当前原话仅见上方 input.text（来源${inputSourceRef}）；请阅读全文，不依据片段判断。\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。${hasReplyTargets ? '当前有本人已提出的待答事项，changes必须是对象并给出inputInterpretation；无关话题可选new_request/topic_change，不确定可选uncertain，不要代替玩家答应。' : '无状态变化时changes=null。'}`
         : isActorEpisodeConsiderationInput(snapshot.input)
           ? `你是${snapshot.actor.name}。本次任务是考虑currentOpportunity所指、专门交给你的一项互动机会。根据对应来源中的具体议题、本人动机和可见事实，决定怎样参与、调整、拒绝、暂缓或保持安静。没有玩家新消息不等于没有新的机会；判断对象是这项机会，而不是是否收到玩家发言。参与时形成自己的具体说法或合法下一步，不复述任务说明；不适合时保留具体人物理由，不需要为了完成任务发消息。来源仍为${inputSourceRef}。\n完整任务原文见上方 input.text（来源${inputSourceRef}），不得遗漏条件。`
-          : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n完整唤醒原因见上方 input.text（来源${inputSourceRef}）；不截断其条件。`,
+          : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n完整唤醒原因见上方 input.text（来源${inputSourceRef}）；不截断其条件。`),
   };
   const messages = (): ModelMessage[] => [
     systemMessage,
@@ -1007,7 +1015,7 @@ export class NpcAgentModel implements NpcAgentModelPort {
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (
-      !!(snapshot as any).sceneReplyContext ||
+      !!snapshot.sceneReplyContext ||
       !this.model.streamComplete ||
       snapshot.channel.kind !== 'private' ||
       snapshot.input.origin !== 'player'
