@@ -59,9 +59,10 @@ const quiet = () => ({
 
 test('own-agenda authenticated read evidence: original runner/kernel plus adversarial ledger fixtures, no real models', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55588);
+  const port = Number(process.env.AGENDA_EVIDENCE_TEST_PORT ?? 55588);
+  assert.equal(cfg.port, port);
   const admin = await adminClient('parallel_life_test');
-  assert.equal((await admin.query('SELECT inet_server_port() port')).rows[0].port, 55588);
+  assert.equal((await admin.query('SELECT inet_server_port() port')).rows[0].port, port);
   await migrate(admin);
   const db = new PostgresDatabase(
     `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
@@ -174,7 +175,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       id: randomUUID(),
       worldId: f.worldId,
       commandId,
-      inputHash: hash(text),
+      inputHash: hash(JSON.stringify([f.worldId, ACTOR_A, grant.candidateId, text])),
       channel: 'private',
       threadId: ACTOR_A,
       recipientActorId: ACTOR_A,
@@ -425,6 +426,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     f: F,
     envelope: unknown,
     opts: {
+      expired?: boolean;
       status?: string;
       sent?: boolean;
       raw?: boolean;
@@ -461,7 +463,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     try {
       await admin.query(
         `INSERT INTO parallel_life.agent_attempts(id,world_id,owner_id,actor_id,command_id,input_receipt_id,input_hash,engine_epoch,expected_world_version,expected_actor_revision,token,lease_until,status,sent_at,response,response_hash,event_id)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10,now()+interval '4 minutes',$11,$12,$13,$14,$15)`,
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10,now()+interval '${opts.expired ? '-1 second' : '4 minutes'}',$11,$12,$13,$14,$15)`,
         [
           id,
           f.worldId,
@@ -629,6 +631,31 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     },
   );
   await t.test(
+    'expired unknown releases only actor fence, retaining original family payment fence',
+    async () => {
+      for (const sameFamily of [false, true]) {
+        const row = await ledger(f, sameFamily ? grantFor(initial, 'v1') : 'independent old wake', {
+          status: 'unknown_after_send',
+          sent: true,
+          expired: true,
+        });
+        const e = await read(f);
+        assert.deepEqual(e.actorBlockers, []);
+        assert.equal(e.attempts.length, sameFamily ? 1 : 0);
+        if (sameFamily) assert.equal(e.attempts[0]!.status, 'unknown_after_send');
+        await remove(row);
+      }
+      const raw = await ledger(f, 'saved response remains recoverable', {
+        expired: true,
+        status: 'unknown_after_send',
+        sent: true,
+        raw: true,
+      });
+      assert.equal((await read(f)).actorBlockers[0]!.attemptId, raw.id);
+      await remove(raw);
+    },
+  );
+  await t.test(
     'strict envelope parsing rejects extra fields, fake anchors, forged family and definition, old-epoch laundering',
     async () => {
       const g = grantFor(initial, 'v1');
@@ -639,11 +666,11 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
         { ...g, basisSourceIds: ['definition:' + '0'.repeat(64)] },
         { ...g, basisSourceIds: 'not-array' },
       ]) {
-        const row = await ledger(f, envelope);
+        const row = await ledger(f, envelope, { status: 'reserved' });
         await assert.rejects(read(f), invalid('envelope'));
         await remove(row);
       }
-      const old = await ledger(f, g, { epoch: 1 });
+      const old = await ledger(f, g, { epoch: 1, status: 'reserved' });
       await assert.rejects(read(f), invalid('envelope'));
       await remove(old);
       const player = await ledger(f, g, { origin: 'player' });

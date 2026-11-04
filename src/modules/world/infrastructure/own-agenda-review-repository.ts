@@ -1,3 +1,4 @@
+import { episodeActorAttemptBlocks } from './agent-episode-dispatch-eligibility.ts';
 import { readActorDefinitionSources } from './actor-definition-sources.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -133,6 +134,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         SELECT a.id,EXISTS(SELECT 1 FROM family_or_active fa WHERE fa.id=a.id) AS check_envelope,a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
           a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,
           a.sent_at IS NOT NULL AS sent,a.response IS NOT NULL AS has_response,a.response_hash,
+          a.lease_until<=clock_timestamp() AS lease_expired,a.event_id IS NOT NULL AS has_event,
           (COALESCE(a.response->>'kind'='npc_agent_partial_stream',false) OR EXISTS (
             SELECT 1 FROM parallel_life.agent_attempt_stream_segments sg WHERE sg.world_id=a.world_id AND sg.owner_id=a.owner_id
               AND sg.attempt_id=a.id AND sg.completion_status IN ('partial_interrupted','superseded'))) incomplete_stream,
@@ -561,7 +563,21 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
           });
       }
     }
-    if (['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(r.status))
+    // Preserve the original family in attempts above; expiry releases only the actor-wide
+    // execution fence, exactly as episode dispatch and claim already do.
+    if (
+      episodeActorAttemptBlocks({
+        actorId: input.actorId,
+        commandId: r.command_id,
+        status: r.status,
+        paid: r.sent || r.has_response,
+        requestId: null,
+        sent: r.sent,
+        leaseExpired: r.lease_expired,
+        hasResponse: r.has_response,
+        hasEvent: r.has_event,
+      })
+    )
       actorBlockers.push({
         attemptId: r.id,
         commandId: r.command_id,
