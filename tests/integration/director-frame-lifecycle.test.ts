@@ -364,7 +364,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
     expectedWorldVersion: s.worldVersion,
     inputHash: directorSnapshotInputHash(s),
     token: randomUUID(),
-    leaseUntil: new Date(Date.now() + 120000).toISOString(),
+    leaseUntil: new Date(new Date().getTime() + 120000).toISOString(),
   });
   async function attempts(f: Fixture) {
     return (
@@ -504,7 +504,10 @@ test('director frame lifecycle uses real publication, personal plan and protecte
   for (const lateRaw of [false, true])
     await t.test(
       `periodic review and disjoint unknown protection (late raw: ${lateRaw})`,
-      async () => {
+      async (t) => {
+        const realNow = Date.now;
+        let reviewOffset = 0;
+        t.mock.method(Date, 'now', () => realNow() + reviewOffset);
         const f = await fixture({ periodic: true });
         const { directorWireCatalog, directorOpeningOwnerCatalog } =
           await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
@@ -558,10 +561,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
         assert.equal(remaining.evaluationCause?.kind, 'authored_eligibility');
         const prior = await run(remaining);
         assert.equal((await snap(f)).evaluationCause, undefined);
-        await admin.query(
-          "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
-          [prior.id, f.id],
-        );
+        reviewOffset = 6 * 60 * 1000;
         const periodic = await snap(f);
         assert.equal(periodic.evaluationCause?.kind, 'periodic_review');
         assert.equal(
@@ -594,6 +594,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
             })),
           original,
         );
+        reviewOffset = 0;
         const after = await snap(f);
         assert.equal(
           after.evaluationCause,
@@ -605,10 +606,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
           0,
           'defer is neither a presented episode nor completion',
         );
-        await admin.query(
-          "UPDATE parallel_life.director_runtime_attempts SET updated_at=now()-interval '6 minutes' WHERE id=$1 AND world_id=$2",
-          [next.id, f.id],
-        );
+        reviewOffset = 6 * 60 * 1000;
         const following = await snap(f);
         assert.equal(following.evaluationCause?.kind, 'periodic_review');
         const unreviewed = ['always', 'p_a', 'p_b'].find(
@@ -622,7 +620,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
         assert.equal(calls, 3);
         const unknownClaim = {
           ...claim(following),
-          leaseUntil: new Date(Date.now() + 1200).toISOString(),
+          leaseUntil: new Date(new Date().getTime() + 1200).toISOString(),
         };
         let unknownCalls = 0;
         await assert.rejects(
@@ -716,7 +714,7 @@ test('director frame lifecycle uses real publication, personal plan and protecte
         if (openingKnowledge) assert.ok(originalFrame.openingContextAuthority);
         const originalClaim = {
           ...claim(originalFrame),
-          leaseUntil: new Date(Date.now() + 1200).toISOString(),
+          leaseUntil: new Date(new Date().getTime() + 1200).toISOString(),
         };
         let calls = 0;
         await assert.rejects(

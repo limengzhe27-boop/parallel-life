@@ -53,3 +53,9 @@ root 将 actorTasks 提取到共享 `$defs`，减少多角色 anyOf 重复体积
 隔离 PG 应用 root 0125 后，以真实原 runner 完成 bootstrap，再原 claim/send/saveResponse 保存缺机械 openingContext 的 quiet raw，标 invalid_output 模拟旧 decoder；原 world.saveNote 前进世界后，revalidateKnownHandoff 直接 committed。原 raw/input hash/sent_at 不变，proof opportunity_ids=[]，0 episode/request；重复恢复不新增 proof。live 未发送、unknown 无 raw、缺业务字段的已保存 invalid_output 均不冒充 quiet。没有恢复模型调用。
 
 三套合计 **48/48 通过**；typecheck 通过（补齐测试观察的 knownByActorIds）。仅提交三份测试和本报告；0125 与公共源码临时复制验证后移除/恢复。0 原档写入、0 真实模型、0 主运行进程改动。
+
+## 周期基线改用原发送时刻后的夹具调整
+
+生产周期已统一采用 `sent_at ?? created_at`，恢复时间不代表重新评估。移除测试中两处 `updated_at` 回拨，用各子测试的 `t.mock.method(Date, 'now', ...)` 将 JS 周期判断推进六分钟并自动恢复。lease 使用未 mock 的 `new Date().getTime()`，短 lease 与数据库实际时间一致；sent/input/lease/raw 均未修改。
+
+原 quiet 恢复、两条周期 unknown/raw 分支及三条旧未知保护真实 PG **7/7 通过**，typecheck 通过。此条替代前文“age updated_at”的旧夹具说明。公共实现及迁移仅复制验证，不提交；0 原档与主进程变更。
