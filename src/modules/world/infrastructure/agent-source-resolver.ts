@@ -612,6 +612,7 @@ async function readNativeStrategyBasis(
       await sql.query(
         `SELECT item.id,item.scene_id AS thread_id,e.id AS event_id,e.command_id,e.version,
       e.payload->>'storyAt' AS at,item.document->'speaker'->>'actorId' AS speaker,
+      (e.payload->>'type'='turn.resolved' AND e.payload->'data'->'sceneReply'->>'sceneId'=item.scene_id) AS private_scene_reply,
       ARRAY(SELECT r.id FROM parallel_life.agent_input_receipts r WHERE r.world_id=item.world_id AND r.owner_id=item.owner_id
         AND r.command_id=e.command_id AND r.document->>'channel'='scene' AND r.document->>'threadId'=item.scene_id
         AND (r.document->>'expectedWorldVersion')::integer=e.version AND r.document->>'text'=item.document->>'text') AS input_ids
@@ -656,7 +657,10 @@ async function readNativeStrategyBasis(
       const aliases = [row.event_id, row.command_id, ...row.input_ids];
       if (
         ownObserved('scene:' + row.id, 'scene', row.thread_id, row.id, row.version, row.at) ||
-        (row.speaker === state.actorId && ownSpeech(row.event_id, 'scene', row.thread_id))
+        (row.speaker === state.actorId &&
+          (ownSpeech(row.event_id, 'scene', row.thread_id) ||
+            (row.private_scene_reply === true &&
+              ownEvents.get(row.event_id)?.channel === 'private')))
       )
         add('scene:' + row.id, 'scene_entry', row.id, row.version, row.at, aliases);
       processed(row, 'scene');
