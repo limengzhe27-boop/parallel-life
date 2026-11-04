@@ -125,6 +125,7 @@ test('settled unpresented handoffs: authentic quiet receipts release only finite
   const time = (h: number, m = 0, s = 0) =>
     `2026-10-12T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.000Z`;
   base.world.startAt = time(9);
+  for (const actor of base.actors) actor.initialPlaceKey = base.places[0].key;
   base.history = [
     {
       key: 'anchor',
@@ -244,7 +245,7 @@ test('settled unpresented handoffs: authentic quiet receipts release only finite
       const model: TextModel = {
         async complete(messages) {
           const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
-          if (p.promptVersion.startsWith('director-')) {
+          if (p.protocol?.startsWith('director-wire-')) {
             directorCalls++;
             const events = p.wireCatalog.events;
             const pick = events.find((e: any) => !selectedKeys.includes(e.authoredEventKey));
@@ -399,6 +400,17 @@ test('settled unpresented handoffs: authentic quiet receipts release only finite
       assert(receipts.every((r) => r.presented_message_ids.length === 0));
       assert.equal((await directors.readEpisodes(f.owner, f.id))[0]!.status, 'proposed');
       const settled = await read();
+      const currentView = await snapshots.read(f.owner, {
+        ...(await frame()),
+        candidates: [],
+        blockers: [],
+      });
+      assert.equal(
+        currentView.episodes.some((episode) => episode.id === ep.id),
+        secondChoice === 'defer',
+      );
+      // Filtering current work must not rewrite the historical episode or participation receipts.
+      assert.equal((await directors.readEpisodes(f.owner, f.id))[0]!.status, 'proposed');
       if (secondChoice === 'defer') {
         assert.deepEqual(settled, []);
         return;

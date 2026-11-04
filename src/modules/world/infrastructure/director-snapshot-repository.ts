@@ -1,4 +1,5 @@
 import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
+import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
 import { readOpeningContextAuthority } from './opening-context-repository.ts';
 import { selectDirectorDeliberationWindow } from '../domain/director-runtime.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
@@ -914,20 +915,31 @@ export class PostgresDirectorSnapshotRepository {
       if (input.nativeTurn)
         await validateNativeDirectorTurn(sql, owner, h.world, input.nativeTurn, input.candidates);
       const revisions = new Map(states.map((s) => [s.actorId, s.revision]));
+      const settledHandoffIds = new Set(
+        (
+          await readSettledUnpresentedHandoffs(sql, owner, {
+            worldId: h.world.id,
+            engineEpoch: h.epoch,
+            worldVersion: h.world.version,
+          })
+        ).map((handoff) => handoff.episodeId),
+      );
       const episodes = (
         await sql.query(
           'SELECT id,document FROM parallel_life.shared_episodes WHERE world_id=$1 AND owner_id=$2 ORDER BY id',
           [h.world.id, owner],
         )
-      ).rows.map((r) => {
-        if (
-          r.document.id !== r.id ||
-          r.document.worldId !== h.world.id ||
-          r.document.participantActorIds.some((id: string) => !revisions.has(id))
-        )
-          fail('DIRECTOR_EPISODE_CONFLICT');
-        return r.document as SharedEpisode;
-      });
+      ).rows
+        .map((r) => {
+          if (
+            r.document.id !== r.id ||
+            r.document.worldId !== h.world.id ||
+            r.document.participantActorIds.some((id: string) => !revisions.has(id))
+          )
+            fail('DIRECTOR_EPISODE_CONFLICT');
+          return r.document as SharedEpisode;
+        })
+        .filter((episode) => !settledHandoffIds.has(episode.id));
       const changes = (
         await sql.query(
           `SELECT p.document,p.id,p.source_event_id,p.source_version,e.id AS event_id,e.version,c.status,c.result_event_id

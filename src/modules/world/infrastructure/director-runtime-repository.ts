@@ -1,4 +1,5 @@
 import { readActorEpisodeParticipations } from './episode-lifecycle-repository.ts';
+import { readSettledUnpresentedHandoffs } from './settled-episode-handoff-read.ts';
 import { validAuthoredOpportunityCast } from '../domain/authored-opportunity-cast.ts';
 import { directorDecisionSourceIds } from './director-model-protocol.ts';
 import { isReceivedModelTruncation } from '../../ai/application/model-output-truncation.ts';
@@ -897,10 +898,25 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         [world.id, owner],
       )
     ).rows.map((r) => r.document as SharedEpisode);
+    const settledIds = new Set(
+      (
+        await readSettledUnpresentedHandoffs(sql, owner, {
+          worldId: world.id,
+          engineEpoch: s.engineEpoch,
+          worldVersion: world.version,
+        })
+      ).map((handoff) => handoff.episodeId),
+    );
     if (
       !equal(
-        ordered(episodes, (e) => e.id),
-        ordered(s.episodes, (e) => e.id),
+        ordered(
+          episodes.filter((episode) => !settledIds.has(episode.id)),
+          (e) => e.id,
+        ),
+        ordered(
+          s.episodes.filter((episode) => !settledIds.has(episode.id)),
+          (e) => e.id,
+        ),
       )
     )
       fail('DIRECTOR_EPISODE_CONFLICT');

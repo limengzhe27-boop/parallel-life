@@ -232,7 +232,19 @@ export async function readDirectorNarrativeWakeInTransaction(
   );
   // Revalidating a claimed window must retain its predecessor. Its own in-flight
   // assessment is neither a new predecessor nor evidence that the window vanished.
-  const latestPaid = paidFrames.filter((a) => a.id !== allowAttemptId).at(-1);
+  // A later ordinary review must not move the authored evidence baseline or
+  // erase a confirmed authored predecessor it never assessed.
+  const predecessors = paidFrames.filter((a) => a.id !== allowAttemptId);
+  const latestPaid =
+    predecessors
+      .filter(
+        (a) =>
+          a.status === 'committed' &&
+          a.actual_decision_id &&
+          Array.isArray(a.actual_decision?.authoredAssessments) &&
+          a.actual_decision.authoredAssessments.length > 0,
+      )
+      .at(-1) ?? predecessors.at(-1);
   for (const a of attempts) {
     if (a.status === 'committed' && !a.actual_decision_id)
       throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_DECISION_RECEIPT_MISSING');
@@ -288,9 +300,9 @@ export async function readDirectorNarrativeWakeInTransaction(
       await sql.query(
         `SELECT
        COALESCE((SELECT jsonb_agg(ep.document) FROM parallel_life.shared_episodes ep WHERE ep.world_id=$1 AND ep.owner_id=$2),'[]'::jsonb) episodes,
-       EXISTS(SELECT 1 FROM parallel_life.actor_agent_states s WHERE s.world_id=$1 AND s.owner_id=$2 AND (
+       COALESCE((SELECT jsonb_agg(s.actor_id) FROM parallel_life.actor_agent_states s WHERE s.world_id=$1 AND s.owner_id=$2 AND (
          EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'questions','[]'::jsonb)) q WHERE q->>'status'='open') OR
-         EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'responsibilities','[]'::jsonb)) r WHERE r->>'status' IN ('open','waiting')))) pending_player_work`,
+         EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'responsibilities','[]'::jsonb)) r WHERE r->>'status' IN ('open','waiting')))),'[]'::jsonb) pending_player_actors`,
         [input.worldId, ownerId],
       )
     ).rows[0];
@@ -310,14 +322,35 @@ export async function readDirectorNarrativeWakeInTransaction(
           invalidAuthoredEpisodes.has(e.id) &&
           !previousEpisodes.some((p: { id: string }) => p.id === e.id)),
     );
-    const outstanding =
-      (await hasPendingEpisodeWork(sql, ownerId, input.worldId, input.engineEpoch)) ||
-      !!load?.pending_player_work ||
-      episodes.some(
-        (e: { id: string; status: string }) =>
-          e.status === 'active' || (e.status === 'proposed' && !invalidAuthoredEpisodes.has(e.id)),
-      );
+    const pendingDispatch = await hasPendingEpisodeWork(
+      sql,
+      ownerId,
+      input.worldId,
+      input.engineEpoch,
+    );
+    const settledIds = new Set(settledHandoffs.map((handoff) => handoff.episodeId));
     unseen = unseen.filter((q) => {
+      const participants = new Set(
+        view.catalog.materials
+          .find((m) => m.ref.nodeKey === q.nodeKey)
+          ?.participantRefs.flatMap((ref) =>
+            ref.status === 'resolved' && ref.actorId ? [ref.actorId] : [],
+          ) ?? [],
+      );
+      const outstanding =
+        pendingDispatch ||
+        (load?.pending_player_actors ?? []).some(
+          (actorId: string) => !participants.size || participants.has(actorId),
+        ) ||
+        episodes.some(
+          (e: { id: string; status: string; participantActorIds: string[] }) =>
+            !settledIds.has(e.id) &&
+            (e.status === 'active' ||
+              (e.status === 'proposed' && !invalidAuthoredEpisodes.has(e.id))) &&
+            (!participants.size ||
+              !e.participantActorIds.length ||
+              e.participantActorIds.some((actorId) => participants.has(actorId))),
+        );
       const assessedAt = lastAssessedVersion.get(token(q));
       const baseline = assessedAt ?? latestPaid.snapshot.worldVersion;
       const oldEvidence = new Set(evidenceFor(q, baseline));

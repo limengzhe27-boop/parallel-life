@@ -3617,3 +3617,7 @@ ACTOR-RECOVERY-46收口：c8d1af2e/build-recovery46/3218；新player输入可退
 |SCENE-EXPRESSION-47|[ ] 代码及原档微信渠道验收完成，头像通知目视待续|root-scene47唯一集成|main；npc-agent-model.ts、phone-shell.tsx、notification-projection.ts及聚焦tests/report|人物头像通知、同场微信渠道自主选择、重复旧回应原始输出核对；不增数据库字段，不重发旧输入，更新3218。|
 
 SCENE-EXPRESSION-47：原始response确认旧句复述来自模型；头像复用联系人解析，现有replyChannel允许同场微信自然回应。check4219、聚焦70+4、typecheck/build通过；3218 build-scene47，原档v752 private实际微信气泡、HTTP8843ms，1次新发送不重试。本轮无新scene通知，头像目视未验；长期复读与主动推进仍未完成，见SCENE-EXPRESSION-47.md。
+
+|PROGRESSION-48|[ ] 进行中|root-progression48唯一集成|main19557eb1；agent-observation-schedule-read.ts及测试、导演材料/调度资格与必要现有协议/测试、报告；本地3218|先统一旧unknown恢复消费者，再按原档证据修导演当前可演步骤与真实交接；复用原结构不增数据库字段，不强制消息，不重复购买原调用。|
+
+PROGRESSION-48阶段记录：当前episode视图/提交校验统一、作者评估基线与关联waiting已修改；check4219/build、真实PG3及领域通过，3218 build-progression48更新。原档29事件仅6当前、16231→3401字符，历史不动；后台仍no_candidates，0新主动来信，整体任务继续进行中。旧semantic-wake套件2/30通过、改前基线同为2/30，未称回归全通过；精确新分支PG及真正原档主动验收待续。见PROGRESSION-48.md。
