@@ -1,3 +1,8 @@
+import {
+  readActorSceneRecall,
+  validateActorSceneRecall,
+} from '../../src/modules/world/infrastructure/actor-observation-inbox.ts';
+import type { AgentSnapshot } from '../../src/modules/world/application/agent-runtime-ports.ts';
 import { readNativeAgentSnapshot } from '../../src/modules/world/infrastructure/agent-channel-snapshot.ts';
 import { validateSceneObservationContext } from '../../src/modules/world/infrastructure/scene-observation-context-validation.ts';
 import test from 'node:test';
@@ -184,6 +189,36 @@ test('scene observation adapter authenticates actual producer and historical aud
       const view = await read(f);
       const claim = view.observations.find((o) => o.text === '我说：我已经到公园了。');
       assert.ok(claim);
+      const currentFrame = await frame(f);
+      const recallSnapshot = {
+        state: { worldId: f.worldId, actorId: f.a },
+        worldVersion: currentFrame.worldVersion,
+        storyAt: currentFrame.storyAt,
+        sources: [],
+        observations: [],
+      } as unknown as AgentSnapshot;
+      const recalled = await db.transaction(f.owner, (sql) =>
+        readActorSceneRecall(sql, f.owner, recallSnapshot),
+      );
+      assert.ok(recalled.observations.some((o) => o.text === claim.text));
+      const consumed = await db.transaction(f.owner, (sql) =>
+        readSources(sql, f.owner, {
+          ...currentFrame,
+          consumedSources: recalled.sources.map((s) => ({
+            sourceId: s.id,
+            contentHash: s.contentHash!,
+          })),
+        }),
+      );
+      assert.ok(!consumed.observations.some((o) => o.text === claim.text));
+      await db.transaction(f.owner, (sql) =>
+        validateActorSceneRecall(sql, f.owner, { ...recallSnapshot, ...recalled }),
+      );
+      assert.deepEqual(
+        await db.transaction(f.owner, (sql) => readActorSceneRecall(sql, f.owner, recallSnapshot)),
+        recalled,
+      );
+
       assert.equal(claim.kind, 'speech');
       assert.equal(claim.evidenceKind, 'player_report');
       assert.equal(claim.learnedAt, claim.storyAt);
@@ -462,8 +497,8 @@ test('scene observation adapter authenticates actual producer and historical aud
           const receipt = (
             await db.transaction(f.owner, (sql) =>
               sql.query(
-                'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND id=$2',
-                [f.worldId, payload.input.sourceId],
+                "SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND document->>'threadId'=$2 ORDER BY created_at DESC LIMIT 1",
+                [f.worldId, f.sceneId],
               ),
             )
           ).rows[0].document;
@@ -471,7 +506,7 @@ test('scene observation adapter authenticates actual producer and historical aud
             await db.transaction(f.owner, (sql) =>
               sql.query(
                 'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND actor_id=$2',
-                [f.worldId, payload.state.actorId],
+                [f.worldId, f.a],
               ),
             )
           ).rows[0].document;
@@ -479,9 +514,9 @@ test('scene observation adapter authenticates actual producer and historical aud
             db,
             f.owner,
             await worlds.get({ userId: f.owner }, f.worldId),
-            payload.state.actorId,
+            f.a,
             receipt,
-            payload.storyAt,
+            receipt.storyAt,
             state,
           );
           await db.transaction(f.owner, (sql) =>

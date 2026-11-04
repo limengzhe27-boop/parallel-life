@@ -288,3 +288,56 @@ export async function readActorSceneRecall(sql: SqlClient, owner: string, snapsh
   }
   return { sources, observations };
 }
+
+/** Reauthorize exactly supplied historical experiences, not a newly selected recent window. */
+export async function validateActorSceneRecall(
+  sql: SqlClient,
+  owner: string,
+  snapshot: AgentSnapshot,
+) {
+  const supplied = snapshot.sources.filter(
+    (s) =>
+      s.kind === 'scene_entry' &&
+      s.usage === 'private_strategy' &&
+      !snapshot.actorObservationInbox?.sourceIds.includes(s.id),
+  );
+  if (!supplied.length) return;
+  const rows = (
+    await sql.query(
+      `SELECT id,scene_id FROM parallel_life.scene_items
+    WHERE world_id=$1 AND owner_id=$2 AND id=ANY($3::text[])`,
+      [snapshot.state.worldId, owner, supplied.map((s) => s.recordId)],
+    )
+  ).rows;
+  const verified: AgentSnapshot['sources'] = [];
+  const observations: AgentSnapshot['observations'] = [];
+  for (const sceneId of new Set(rows.map((r) => String(r.scene_id)))) {
+    const ids = rows.filter((r) => String(r.scene_id) === sceneId).map((r) => `scene:${r.id}`);
+    const packet = await readActorSceneObservationSourcesInTransaction(sql, owner, {
+      worldId: snapshot.state.worldId,
+      actorId: snapshot.state.actorId,
+      sceneId,
+      worldVersion: snapshot.worldVersion,
+      storyAt: snapshot.storyAt,
+      sourceIds: ids,
+      maxEntries: 80,
+      maxBytes: 16000,
+    });
+    verified.push(...packet.sources.map((s) => ({ ...s, usage: 'private_strategy' as const })));
+    observations.push(...packet.observations);
+  }
+  const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+  const bySource = (a: { sourceId: string }, b: { sourceId: string }) =>
+    a.sourceId.localeCompare(b.sourceId);
+  const ids = new Set(supplied.map((s) => s.id));
+  if (
+    !isDeepStrictEqual([...supplied].sort(byId), verified.sort(byId)) ||
+    !isDeepStrictEqual(
+      snapshot.observations.filter((o) => ids.has(o.sourceId)).sort(bySource),
+      observations.sort(bySource),
+    )
+  )
+    throw Object.assign(Error('ACTOR_SCENE_RECALL_CONFLICT'), {
+      code: 'ACTOR_SCENE_RECALL_CONFLICT',
+    });
+}

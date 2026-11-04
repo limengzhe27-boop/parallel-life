@@ -13,3 +13,11 @@ actor-observation-inbox.ts 新增 readActorSceneRecall(sql, owner, snapshot)：�
 ## 验证及限制
 
 新增纯测试验证无现场时有界读取、owner/actor参数与无消费读写。typecheck通过。未做真实PG/模型/原档写入；root应在现场源认证PG夹具里补“ACK后仍召回且不新增wake、遗忘/他人不可见”集成验证。单独helper尚未接入实际请求，不能称双向记忆已完成。
+
+## 扩围实施
+
+新增validateActorSceneRecall，按实际supplied source ids定位scene_items，再用原adapter认证本人当时在场、原event、文本与来源。native snapshot从world.messages选择本人近12条/8KB，经readActorStrategyBasis新可选referencedSourceIds认证后才作为private_strategy speech/speaker；不复制私聊授权SQL。
+
+支持root新增turn.resolved.data.sceneReply.entries的严格原entry匹配；普通scene.reaction_recorded的narration也按dialogues中完整entry匹配。native事件读取只追加sceneReply投影，不带turn userText。
+
+独立PG55744观察来源测试10/10，通过新增已消费过滤与独立召回、重认证、遗忘及旧隔离。修旧native测试receipt短引用错误，按当前线程查询实际receipt；未放宽生产。typecheck通过。未验证root尚未接的sceneReply实际commit，native私聊回忆需root追加正常私聊入口夹具。npc-agent-model validateSnapshot当前禁止非inbox的private_strategy speech，root必须统一更新该消费者，否则新召回输入会被拒绝。

@@ -152,7 +152,7 @@ export async function readActorSceneObservationSourcesInTransaction(
       event?.id !== row.id ||
       event.version !== row.version ||
       event.worldId !== frame.worldId ||
-      event.data?.sceneId !== frame.sceneId ||
+      (event.data?.sceneId ?? event.data?.sceneReply?.sceneId) !== frame.sceneId ||
       !Number.isFinite(Date.parse(event.storyAt)) ||
       !Number.isFinite(Date.parse(event.occurredAt)) ||
       Date.parse(event.storyAt) > Date.parse(frame.storyAt)
@@ -204,6 +204,10 @@ export async function readActorSceneObservationSourcesInTransaction(
     if (!witnessed) continue;
     const original = event.data;
     const proposal = original.proposal;
+    const privateSceneReply =
+      event.type === 'turn.resolved' &&
+      original.sceneReply?.sceneId === frame.sceneId &&
+      Array.isArray(original.sceneReply?.entries);
     const sceneProducer = [
       'scene.opened',
       'scene.reaction_recorded',
@@ -230,20 +234,28 @@ export async function readActorSceneObservationSourcesInTransaction(
       evidenceKind = 'player_report';
     } else if (entry.kind === 'dialogue') {
       matches =
-        sceneProducer &&
+        (sceneProducer || privateSceneReply) &&
         entry.speaker.kind === 'actor' &&
-        (original.agentRuntime
-          ? Array.isArray(original.dialogues) &&
-            original.dialogues.some((d: SceneEntry) => isDeepStrictEqual(d, entry))
-          : Array.isArray(proposal?.dialogues) &&
-            proposal.dialogues.some(
-              (d: { actorId: string; text: string }) =>
-                entry.speaker.kind === 'actor' &&
-                d.actorId === entry.speaker.actorId &&
-                d.text === entry.text,
-            ));
+        (privateSceneReply
+          ? original.sceneReply.entries.some((d: SceneEntry) => isDeepStrictEqual(d, entry))
+          : original.agentRuntime
+            ? Array.isArray(original.dialogues) &&
+              original.dialogues.some((d: SceneEntry) => isDeepStrictEqual(d, entry))
+            : Array.isArray(proposal?.dialogues) &&
+              proposal.dialogues.some(
+                (d: { actorId: string; text: string }) =>
+                  entry.speaker.kind === 'actor' &&
+                  d.actorId === entry.speaker.actorId &&
+                  d.text === entry.text,
+              ));
     } else if (entry.kind === 'narration') {
-      matches = sceneProducer && proposal?.narration === entry.text;
+      matches = privateSceneReply
+        ? original.sceneReply.entries.some((d: SceneEntry) => isDeepStrictEqual(d, entry))
+        : sceneProducer &&
+          (original.agentRuntime
+            ? Array.isArray(original.dialogues) &&
+              original.dialogues.some((d: SceneEntry) => isDeepStrictEqual(d, entry))
+            : proposal?.narration === entry.text);
       kind = 'fact';
       evidenceKind = 'scene_record';
     } else if (entry.kind === 'adjudicated_result') {

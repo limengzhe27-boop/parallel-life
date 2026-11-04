@@ -31,6 +31,7 @@ export async function readActorStrategyBasis(
   storyAt: string,
   options: {
     omitEpisodeIntents?: boolean;
+    referencedSourceIds?: readonly string[];
     /** Authenticated from receipts in this same transaction, never copied from stored actor JSON. */
     participations?: NonNullable<ActorAgentState['episodeParticipations']>;
     /** Same-transaction packet already read by the private snapshot reader. */
@@ -45,6 +46,7 @@ export async function readActorStrategyBasis(
   const handles = [
     ...new Set([
       ...state.knowledgeSourceIds,
+      ...(options.referencedSourceIds ?? []),
       ...[...state.goals, ...state.plans, ...state.actions, ...state.responsibilities].flatMap(
         (x) => x.sourceIds,
       ),

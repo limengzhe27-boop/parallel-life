@@ -209,7 +209,7 @@ export async function readNativeAgentSnapshot(
         `SELECT e.id,e.version,jsonb_build_object('id',e.id,'type',e.payload->>'type',
           'storyAt',e.payload->>'storyAt','storyTime',e.payload->>'storyTime',
           'data',jsonb_build_object('groupId',e.payload->'data'->'groupId','sceneId',e.payload->'data'->'sceneId',
-            'text',e.payload->'data'->'text','replies',e.payload->'data'->'replies',
+            'sceneReply',e.payload->'data'->'sceneReply','text',e.payload->'data'->'text','replies',e.payload->'data'->'replies',
             'privateThought',e.payload->'data'->'privateThought','dialogues',e.payload->'data'->'dialogues',
             'proposal',jsonb_build_object('narration',e.payload->'data'->'proposal'->'narration',
               'observation',e.payload->'data'->'proposal'->'observation','dialogues',e.payload->'data'->'proposal'->'dialogues'))) AS payload
@@ -218,6 +218,7 @@ export async function readNativeAgentSnapshot(
        WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version<=$3 AND (
         ($4='group' AND e.payload->>'type' IN ('group.message_sent','group.turn_resolved') AND e.payload->'data'->>'groupId'=$5)
         OR ($4='scene' AND e.payload->>'type' IN ('scene.input_recorded','scene.opened','scene.action_resolved','scene.reaction_recorded') AND e.payload->'data'->>'sceneId'=$5)
+        OR ($4='scene' AND e.payload->>'type'='turn.resolved' AND e.payload#>>'{data,sceneReply,sceneId}'=$5)
         OR e.id=ANY($6::text[]))`,
         [
           world.id,
@@ -385,6 +386,16 @@ export async function readNativeAgentSnapshot(
       worldVersion: input.expectedWorldVersion,
       at: input.storyAt,
     });
+    // Recall only this person's authenticated private exchanges; never grant public disclosure.
+    const privateRecall: typeof world.messages = [];
+    let recallBytes = 0;
+    for (const message of [...world.messages].reverse()) {
+      if (message.actorId !== actorId || !message.text.trim()) continue;
+      const bytes = Buffer.byteLength(message.text);
+      if (privateRecall.length >= 12 || recallBytes + bytes > 8000) continue;
+      privateRecall.unshift(message);
+      recallBytes += bytes;
+    }
     // Own structured strategy can cross channels without importing private speech.
     // Existing channel sources retain their channel_context usage.
     for (const basis of await readActorStrategyBasis(
@@ -395,10 +406,22 @@ export async function readNativeAgentSnapshot(
       storyAt,
       {
         participations: state.episodeParticipations,
+        referencedSourceIds: privateRecall.map((m) => `message:${m.id}`),
       },
     )) {
       if (!sources.has(basis.id) && !blocked.has(basis.id) && !blocked.has(basis.recordId))
         sources.set(basis.id, basis);
+    }
+    for (const message of privateRecall) {
+      const id = `message:${message.id}`;
+      const source = sources.get(id);
+      if (!source || source.usage !== 'private_strategy') continue;
+      observations.push({
+        sourceId: id,
+        text: message.text,
+        kind: 'speech',
+        speaker: message.role === 'user' ? { kind: 'player' } : { kind: 'actor', actorId },
+      });
     }
     return {
       state: originalState,
