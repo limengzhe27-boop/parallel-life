@@ -250,3 +250,41 @@ export async function validateActorObservationInbox(
       code: 'ACTOR_OBSERVATION_INBOX_CONFLICT',
     });
 }
+
+/** Recall is not delivery: already consumed experiences remain known, without creating inbox work. */
+export async function readActorSceneRecall(sql: SqlClient, owner: string, snapshot: AgentSnapshot) {
+  const scenes = (
+    await sql.query(
+      `SELECT id FROM parallel_life.scene_sessions
+       WHERE world_id=$1 AND owner_id=$2
+       AND document->'presence' @> jsonb_build_array(jsonb_build_object('participant',jsonb_build_object('kind','actor','actorId',$3::text)))
+       ORDER BY (document->>'sourceVersion')::integer DESC,id DESC LIMIT 3`,
+      [snapshot.state.worldId, owner, snapshot.state.actorId],
+    )
+  ).rows;
+  const sources: AgentSnapshot['sources'] = [];
+  const observations: AgentSnapshot['observations'] = [];
+  let bytes = 0;
+  for (const scene of scenes) {
+    const packet = await readActorSceneObservationSourcesInTransaction(sql, owner, {
+      worldId: snapshot.state.worldId,
+      actorId: snapshot.state.actorId,
+      sceneId: String(scene.id),
+      worldVersion: snapshot.worldVersion,
+      storyAt: snapshot.storyAt,
+      maxBytes: 16000,
+      maxEntries: 12,
+    });
+    for (const source of [...packet.sources].reverse()) {
+      if (sources.some((s) => s.id === source.id)) continue;
+      const observation = packet.observations.find((o) => o.sourceId === source.id)!;
+      const size = Buffer.byteLength(JSON.stringify({ source, observation }));
+      if (sources.length >= 12 || bytes + size > 16000) continue;
+      sources.push({ ...source, usage: 'private_strategy' });
+      observations.push(observation);
+      bytes += size;
+    }
+    if (sources.length >= 12) break;
+  }
+  return { sources, observations };
+}
