@@ -19,3 +19,11 @@
 ## 集成边界
 
 root须在所有阶段使用原receipt冻结的reviewAt；collect用当前服务器时间。近期全窗口lastReviewRealAt与连续失败退避必须在authority实现，不能将60秒身份粒度当成每分钟付费计划。旧v1原调用仍保持旧策略恢复；新窗口不重试旧unknown。saved response优先恢复、晚到结果的revision/依赖保护仍归原内核。失败/unknown要继续计入已有预算。不得补跑离线历史窗口。
+
+## 旧runtime夹具现代化接续
+
+按root交接独占更新`tests/integration/own-agenda-runtime.test.ts`，基于785bd2ad复制root的49 authority/repository WIP仅用于验证（公共源码不提交）。端口支持原root提供的OWN_AGENDA_RUNTIME_TEST_PORT；使用隔离55743。
+
+修复夹具的compact输入路由：promptVersion可省略，人物身份用replyAs.actorId；明确现有initialPlaceId与space，避免本套议程测试先进入initial_position工作；来源使用本轮合法inputSourceRef，不假设已裁剪的authored来源目录仍在。当前quiet回合改v19 changes:null，验证不创建计划或已退休continuation，继续严格检查successor时间、原请求不重复模型。历史v8/v9显式计划与raw恢复样例保留兼容验证。
+
+结果8/8通过，typecheck通过。默认v2没有回退v1。保留unknown同窗口不重买/独立人物继续、预算竞争、CAS/零发送恢复、raw恢复零新调用和零新预算断言。本套为受控adapter+真实PG，不等于原档自然主动验收。

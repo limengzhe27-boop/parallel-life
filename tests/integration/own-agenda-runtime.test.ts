@@ -42,9 +42,9 @@ const ACTOR_A = '11111111-1111-4111-8111-111111111111',
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 test('own-agenda original scheduling, v6 plans, paid fences and zero-send transport recovery', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55587);
+  assert.equal(cfg.port, Number(process.env.OWN_AGENDA_RUNTIME_TEST_PORT ?? 55587));
   const admin = await adminClient('parallel_life_test');
-  assert.equal((await admin.query('SELECT inet_server_port() port')).rows[0].port, 55587);
+  assert.equal((await admin.query('SELECT inet_server_port() port')).rows[0].port, cfg.port);
   await migrate(admin);
   const db = new PostgresDatabase(
     `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
@@ -85,6 +85,27 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
       appointments: [],
       mediaRequests: [],
     };
+    const source = {
+      kind: 'seed_genesis' as const,
+      seedId: randomUUID(),
+      snapshotVersion: 0 as const,
+    };
+    world.space = {
+      currentPlaceId: 'room',
+      positionSource: source,
+      places: [
+        {
+          id: 'room',
+          name: 'Room',
+          description: 'Fixture initial place',
+          source,
+          contactActorIds: [],
+          appointmentIds: [],
+        },
+      ],
+      routes: [],
+    };
+    for (const actor of world.actors) actor.initialPlaceId = 'room';
     await worlds.initialize({ userId: owner }, world);
     await db.transaction(owner, async (sql) => {
       for (const a of world.actors)
@@ -148,7 +169,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           'no database transaction surrounds a model',
         );
         const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
-        if (p.promptVersion.startsWith('director-')) {
+        if (p.promptVersion?.startsWith('director-')) {
           calls.push({ kind: 'director', input: p, actor: '' });
           return JSON.stringify({
             protocol: 'director-wire-v4',
@@ -168,7 +189,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           });
         }
         const input = JSON.parse(p.input.text),
-          actor = p.state.actorId;
+          actor = p.replyAs.actorId;
         calls.push({ kind: 'npc', input, actor });
         if (input.type === 'npc_agenda_initialize')
           return JSON.stringify(v9({ agendaReview: null }));
@@ -223,14 +244,10 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
                 goal: {
                   kind: 'new',
                   summary: actor === ACTOR_A ? '考虑陈列方案' : '核对预算方案',
-                  sourceIds: [
-                    p.wireCatalog.sources.find((s: { kind: string }) => s.kind === 'authored').ref,
-                  ],
+                  sourceIds: [p.wireCatalog.inputSourceRef],
                 },
                 summary: '等真实信息后继续本人安排',
-                sourceIds: [
-                  p.wireCatalog.sources.find((s: { kind: string }) => s.kind === 'authored').ref,
-                ],
+                sourceIds: [p.wireCatalog.inputSourceRef],
                 nextStep: { kind: 'blocked', missing: ['尚需具体的方案信息'] },
               },
             ],
@@ -351,7 +368,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
     return h;
   }
   await t.test(
-    'v12 complete quiet continuation respects real successor windows and family payment fences',
+    'current quiet reply respects real successor windows and family payment fences',
     async () => {
       const f = await fixture();
       await prime(f);
@@ -366,29 +383,22 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           async complete() {
             reviewCalls++;
             return JSON.stringify({
-              ...v9(),
-              protocol: 'npc-wire-v12',
-              agendaReview: {
-                decision: 'quiet',
-                reason: 'No personal change that calls for another contact.',
-                basisSourceIds: ['source:1'],
-              },
-              continuation: {
-                decision: 'no_current_intent',
-                reason: 'No pending personal action; await relevant new information.',
-                sourceIds: ['source:1'],
-                planIds: [],
-                questionIds: [],
-                conditions: [],
-              },
+              protocol: 'npc-wire-v19',
+              statements: [],
+              executions: [],
+              changes: null,
             });
           },
         }),
       };
       await runNpcAgent(deps, f.owner, prepared.claim, prepared.snapshot);
       const saved = await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A });
-      assert.equal(saved!.continuation?.decision, 'no_current_intent');
-      assert.match(saved!.continuation!.basisHash, /^[a-f0-9]{64}$/);
+      assert.equal(saved!.plans.length, 0, 'quiet does not fabricate a plan');
+      assert.equal(
+        saved!.continuation,
+        undefined,
+        'current protocol does not recreate retired continuation state',
+      );
       const bounded = structuredClone(fast);
       Object.assign(bounded.policy, {
         realGapMs: 500,
@@ -784,10 +794,10 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
                   goal: {
                     kind: 'new',
                     summary: '核对本人的陈列安排',
-                    sourceIds: [p.wireCatalog.sources.find((s: any) => s.kind === 'authored').ref],
+                    sourceIds: [p.wireCatalog.inputSourceRef],
                   },
                   summary: '保留安排待核对',
-                  sourceIds: [p.wireCatalog.sources.find((s: any) => s.kind === 'authored').ref],
+                  sourceIds: [p.wireCatalog.inputSourceRef],
                   nextStep: { kind: 'blocked', missing: ['等待方案信息'] },
                 },
               ],
