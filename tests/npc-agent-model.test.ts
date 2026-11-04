@@ -982,7 +982,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v95-background-inference');
+  assert.equal(payload.promptVersion, 'npc-agent-v96-wake-purpose');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /后续按玩家实际给出的暂缓范围与已有合法条件继续/);
   assert.match(system, /不把“晚点”扩大为永久停止/);
@@ -1890,6 +1890,39 @@ test('a transformed internal record never replaces the original recent-self text
     payload.presentationContext.internalContext[0].observation.text,
     '本人获知的开场报告（不是已投递聊天或执行回执）：完整开场报告：家人正在医院，仍须确认现场情况。',
   );
+});
+
+test('an empty-plan wake retains its existing planning duty without expanding compact transport', async () => {
+  const input = snapshot();
+  input.state.goals = [];
+  input.state.plans = [];
+  input.state.actions = [];
+  input.state.responsibilities = [];
+  input.state.questions = [];
+  input.state.continuation = undefined;
+  input.viewState = structuredClone(input.state);
+  input.input.origin = 'player';
+  const chat = capture();
+  await chat.adapter.decide(input);
+  input.input.origin = 'wake';
+  const wake = capture();
+  await wake.adapter.decide(input);
+  assert.match(wake.calls[0]!.messages[0]!.content, /尚无计划是需要你作出安排的对象/);
+  assert.match(wake.calls[0]!.messages[0]!.content, /服务器唤醒若包含planReview/);
+  assert.doesNotMatch(chat.calls[0]!.messages[0]!.content, /尚无计划是需要你作出安排的对象/);
+  const wakeSchema = (wake.calls[0]!.output as any).schema;
+  const chatSchema = (chat.calls[0]!.output as any).schema;
+  assert.deepEqual(
+    wakeSchema.properties.changes.anyOf[0].properties.planIntents,
+    chatSchema.properties.changes.anyOf[0].properties.planIntents,
+  );
+  assert.equal('continuation' in wakeSchema.properties.changes.anyOf[0].properties, false);
+  assert.ok(
+    JSON.stringify(wakeSchema).length <= JSON.stringify(chatSchema).length,
+    'wake-purpose instructions do not expand the compact schema',
+  );
+  assert.equal(wake.calls.length, 1);
+  assertRequestBudget(wake.calls[0]!);
 });
 
 test('ordinary chat uses the compact changes schema while keeping promises available', async () => {

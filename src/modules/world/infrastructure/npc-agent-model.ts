@@ -34,7 +34,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v95-background-inference';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v96-wake-purpose';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -134,7 +134,9 @@ focus只用focusChange:{kind:"keep"}|{kind:"clear"}|{kind:"set",value:{channel,t
 
 /** Select instructions by input/permission, never by matching their wording. */
 function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
-  const wake = !compact && snapshot.input.origin !== 'player';
+  // Compact transport is independent of why the actor woke. An actor with no
+  // plan still needs its planning/reconsideration instructions to form one.
+  const wake = snapshot.input.origin !== 'player';
   const opportunity =
     !compact && (!!snapshot.episodeManifest || isActorEpisodeConsiderationInput(snapshot.input));
   const allowed = new Set(snapshot.channel.allowedCapabilities);

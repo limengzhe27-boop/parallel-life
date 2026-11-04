@@ -3657,3 +3657,5 @@ DIRECTOR-DELIBERATION-50实际行动根因扩围：root独占space-travel-policy
 DIRECTOR-DELIBERATION-50主动来源去重：root接管own-agenda-review-authority.ts及原own-agenda聚焦PG验证。原档林白语两次actor_local评估只有旧observations出窗口、无新增外部信息，仍因全量上下文hash变化获得新联系候选。删除普通localInitiative收集与suppressLocalInitiative重复开关，普通自主联系归现有own_agenda_review统一资格/预算；保留已承接事件actor_local、初始位置、独立观察、计划/约定/结果来源与已付费恢复。无新字段/定时器。
 
 DIRECTOR-DELIBERATION-50本地收口：删除普通localInitiative收集及无消费者domain文件/旧机制专属测试；现有自主复盘维护普通联系，保留episode/条件/观察/约定/结果。修个人grantId被当共享资源、单人物已选中后重复送导演到期审批；模拟原全局复盘到期的真实PG8/8，双NPC计划写入且无额外导演调用；forceDirectorReview/受保护付费帧仍保留。own-agenda-window05修正v2 grant与base family混淆，8/8；default travel真实PG9/9，0126仅本地clone应用且原档v958内容/位置hash不变。check4247、build通过；3218最终artifact build-director50-global、队列和主动进程已重启。原档真实持续演绎/计划质量和通知目视未通过，50整体仍进行中，不将上述门禁当完整交付。
+
+DIRECTOR-DELIBERATION-50 v96接续：systemFor不再以compact状态是否为空决定是否提供既有wake规划职责；compact schema不扩大，63模型测试/check4248/build通过；3218切build-director50-global，队列与主动进程共享v96。原档欣欣受保护快照离线v95/v96都已有规划说明，因此本项不能被宣称原档无计划的全部原因；原档此前六人plans/goals仍0，持续剧情质量未通过，整体继续进行中。已提交核心e1df47b9；无Vercel/3219，无手动补消息/移动/重置历史。

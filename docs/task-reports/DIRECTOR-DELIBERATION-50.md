@@ -118,3 +118,11 @@ root继续独占集成。已退出的proactive43不再修改文件。以下均�
 最终本地门禁：check4247/4247、边界/typecheck、build通过（减少测试数来自退休普通联系机制及其专属旧测试，非删除仍在使用的安全断言）。own-agenda-runtime8、window05 8、travel-kernel9、director-frame9、independent-opening1均通过；通知16回归保留。当前3218 artifact build-director50-global，队列/主动worker使用共享最新源；health200只证明服务可用。正在原档正常有界后台验收；UI因Mac锁定仍未目视，整体不勾完成。
 
 最后运行切换（覆盖上一阶段artifact说明）：最后两处独立工作审批修复已重新check4247/build验证，并切到3218 build-director50-current；四个核心源文件与artifact逐文件SHA相同，旧主动进程正常完成在途批次、确认stopped后新进程才启动，没有删除活锁或并跑两个调度。队列同批重启。新进程沿原存档正常资格验收，尚不以health200或消息数量结清主动剧情质量。
+
+## v96：唤醒职责与compact格式分开
+
+`systemFor`原wake判断依赖`!compact`，真正空状态人物会同时失去原planReview/agendaReview说明。现仅按input.origin选择这些已有说明，compact schema保持；未新增字段、调用或强制计划。模型63/63、check4248通过。
+
+**归因限制与纠正**：对原档欣欣afdca822受保护快照，用v95/v96实际组包离线比较，原请求已有规划说明，两者schema均10458字符，messages34163/34155字符（非token/延迟测试）；因此不能用这个通用条件错误解释原档所有无计划。不得将本项修复声称为原档自主计划已通过。v96仅修复真实空状态分支，原档下一步质量仍待验收。
+
+v96运行切换：3218当前使用build-director50-global（不覆盖正在运行的artifact），队列和有界主动worker均重启。此前e1df47b9已提交核心修复；v96空状态通用修复单独提交。check4248/build及63模型单测通过。完整体验仍保持未通过标记；不以新来信数量消除计划/事件进展缺口。
