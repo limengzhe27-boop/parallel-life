@@ -34,4 +34,4 @@ root须在所有阶段使用原receipt冻结的reviewAt；collect用当前服务
 
 复制root resolver WIP验证：原套件5/5通过，typecheck通过。还原基线resolver做对照，no_scene在历史来源断言失败，证明测试确实覆盖此回归；随后恢复测试用WIP。无公共源码提交、无原档/付费调用。隔离PG55743。
 
-范围说明：移动使用既有agent-travel-kernel canonical AgentProposal，经原runNpcAgent/kernel产生真实结果；直接native v19 execution travel.begin在当前解析器不支持（RESPONSE_WIRE_SHAPE），本测试不宣称自然模型旅程已支持。参与回执历史恢复由root原档只读证据覆盖，本子任务证明同源持久计划的完整读取链。
+范围说明与纠正：首次fixture错误沿用position.establish的parameters对象简写，漏掉travel通用执行的sourceIds，导致RESPONSE_WIRE_SHAPE，不能据此推断产品不支持native travel。已改用现有v19独立执行语法：action.parameters=[{name:"routeId",value:"home_cafe"}]，action.sourceIds为合法历史位置和当前输入的sourceRef。聚焦no_scene原parseAgentProposal→runNpcAgent→kernel旅程再次通过，实际出发成功且计划保留。无需goal/plan机械包装。参与回执历史恢复由root原档只读证据覆盖，本子任务证明同源持久计划的完整读取链；受控模型不等于自然模型主动选择旅行。
