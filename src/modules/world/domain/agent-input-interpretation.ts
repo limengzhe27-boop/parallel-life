@@ -1,3 +1,4 @@
+import type { QuestionContext } from './agent-questions.ts';
 import type { ActorAgentState, PlayerDecisionKind } from './agent-runtime.ts';
 
 export type PlayerReplyTarget = {
@@ -18,11 +19,46 @@ export type PlayerInputInterpretation =
       })[];
     };
 export type PlayerInterpretationScope = {
-  state: Pick<ActorAgentState, 'responsibilities' | 'questions' | 'focus'>;
+  state: Pick<ActorAgentState, 'responsibilities' | 'questions' | 'focus'> &
+    Partial<Pick<ActorAgentState, 'actorId'>>;
+  sceneReplyContext?: { sceneId: string; placeName: string; audienceActorIds: string[] };
   input: { origin: string; sourceId: string; text: string };
   channel: { kind: 'private' | 'group' | 'scene'; threadId: string };
   authorizedSourceIds?: ReadonlySet<string>;
 };
+/** Derived from an already authenticated actor snapshot; no disclosure or persistent grant. */
+export function playerReplyCrossChannelGrants(
+  scope: PlayerInterpretationScope,
+): NonNullable<QuestionContext['crossChannelGrants']> {
+  const actorId = scope.state.actorId;
+  if (
+    scope.input.origin !== 'player' ||
+    !actorId ||
+    !scope.authorizedSourceIds?.has(scope.input.sourceId)
+  )
+    return [];
+  return (scope.state.questions ?? [])
+    .filter(
+      (q) =>
+        q.status === 'open' &&
+        scope.authorizedSourceIds!.has(q.sourceId) &&
+        q.sourceId !== scope.input.sourceId &&
+        ((scope.channel.kind === 'private' &&
+          scope.channel.threadId === actorId &&
+          scope.sceneReplyContext?.audienceActorIds.includes(actorId) &&
+          q.channel === 'scene' &&
+          q.threadId === scope.sceneReplyContext.sceneId) ||
+          (scope.channel.kind === 'scene' && q.channel === 'private' && q.threadId === actorId)),
+    )
+    .map((q) => ({
+      questionId: q.id,
+      questionSourceId: q.sourceId,
+      inputSourceId: scope.input.sourceId,
+      from: { channel: q.channel, threadId: q.threadId },
+      to: { channel: scope.channel.kind, threadId: scope.channel.threadId },
+    }));
+}
+
 /** Topic links are evidence already persisted by the kernel, never a model-created join. */
 export function playerReplyTargets(scope: PlayerInterpretationScope): PlayerReplyTarget[] {
   if (scope.input.origin !== 'player') return [];
@@ -37,12 +73,13 @@ export function playerReplyTargets(scope: PlayerInterpretationScope): PlayerRepl
       )
       .map((r) => [r.id, r]),
   );
+  const grants = playerReplyCrossChannelGrants(scope);
   const targets: PlayerReplyTarget[] = (scope.state.questions ?? [])
     .filter(
       (q) =>
         q.status === 'open' &&
-        q.channel === scope.channel.kind &&
-        q.threadId === scope.channel.threadId &&
+        ((q.channel === scope.channel.kind && q.threadId === scope.channel.threadId) ||
+          grants.some((g) => g.questionId === q.id && g.questionSourceId === q.sourceId)) &&
         visible(q.sourceId) &&
         q.sourceId !== scope.input.sourceId,
     )
@@ -59,8 +96,14 @@ export function playerReplyTargets(scope: PlayerInterpretationScope): PlayerRepl
     });
   const focus = scope.state.focus;
   if (
-    focus?.channel === scope.channel.kind &&
-    focus.threadId === scope.channel.threadId &&
+    focus &&
+    ((focus.channel === scope.channel.kind && focus.threadId === scope.channel.threadId) ||
+      grants.some(
+        (g) =>
+          g.from.channel === focus.channel &&
+          g.from.threadId === focus.threadId &&
+          g.questionSourceId === focus.questionSourceId,
+      )) &&
     focus.subjectId
   ) {
     const r = responsibilities.get(focus.subjectId);

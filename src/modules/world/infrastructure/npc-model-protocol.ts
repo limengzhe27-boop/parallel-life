@@ -1894,6 +1894,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
       state: context.viewState ?? context.state,
       input: context.input,
       channel: context.channel,
+      sceneReplyContext: context.sceneReplyContext,
       authorizedSourceIds: new Set(context.sources.map((s) => s.id)),
     }).length &&
     !mapped.changes.inputInterpretation
@@ -2032,6 +2033,7 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
             state: visible,
             input: context.input,
             channel: context.channel,
+            sceneReplyContext: context.sceneReplyContext,
             authorizedSourceIds: new Set(context.sources.map((source) => source.id)),
           },
           CompactInterpretation.parse(rawInterpretation),
