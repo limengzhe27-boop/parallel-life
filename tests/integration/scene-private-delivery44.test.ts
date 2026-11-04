@@ -184,7 +184,7 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
   const api = npcAgentServices(db, () => ({
     async complete(messages) {
       calls++;
-      const p = JSON.parse(messages[1].content);
+      const p = JSON.parse(messages[1]!.content);
       assert.equal(p.sceneReplyContext.sceneId, f.sceneId);
       return JSON.stringify({
         protocol: 'npc-wire-v20',
@@ -371,12 +371,12 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
     }),
   );
   const left = await db.transaction(f.owner, (sql) => loadScene(sql, f.worldId, f.sceneId));
-  assert.ok(!left.entries.some((e) => e.text === '这条迟到现场回复不能保存。'));
+  assert.ok(!left.entries.some((e) => 'text' in e && e.text === '这条迟到现场回复不能保存。'));
   assert.equal(left.entries.length, priorScene.entries.length);
 
   const absentApi = npcAgentServices(db, () => ({
     async complete(messages) {
-      assert.equal(JSON.parse(messages[1].content).sceneReplyContext, undefined);
+      assert.equal(JSON.parse(messages[1]!.content).sceneReplyContext, undefined);
       return JSON.stringify({
         protocol: 'npc-wire-v20',
         replyChannel: 'scene',
@@ -407,7 +407,7 @@ test('scene-private delivery44 uses one actor turn and preserves input privacy (
   );
   assert.ok(
     !(await db.transaction(f.owner, (sql) => loadScene(sql, f.worldId, f.sceneId))).entries.some(
-      (e) => e.text === '缺席人物不能现场说话。',
+      (e) => 'text' in e && e.text === '缺席人物不能现场说话。',
     ),
   );
 });
