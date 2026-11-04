@@ -35,7 +35,11 @@ import { SceneClient } from './scenes/client.ts';
 import { SceneWorldSync } from './scenes/world-sync.ts';
 import { useGroups } from './groups/use-groups.ts';
 import { isJoined, groupTarget } from './groups/state.ts';
-import { projectMessageNotifications, lockScreenNotifications } from './notification-projection.ts';
+import {
+  projectMessageNotifications,
+  projectSceneNotifications,
+  lockScreenNotifications,
+} from './notification-projection.ts';
 import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { MessageReceiptClient } from '../api/message-receipt-client.ts';
@@ -1465,6 +1469,34 @@ export function WorldPhoneSurface({
   scenePhoneVersion.current = data.version ?? 0;
   const groups = useGroups(data.id, !preview, onReload, transport);
   const map = useWorldMap(data.id, data.version ?? 0, !preview, onReload, transport);
+  const sceneArrivalBaseline = useRef({ worldId: data.id, version: data.version ?? 0 });
+  if (sceneArrivalBaseline.current.worldId !== data.id)
+    sceneArrivalBaseline.current = { worldId: data.id, version: data.version ?? 0 };
+  const [sceneNotifications, setSceneNotifications] = useState<
+    ReturnType<typeof projectSceneNotifications>
+  >([]);
+  const currentSceneId = map.data?.currentSceneId;
+  useEffect(() => {
+    if (preview || !currentSceneId || (data.version ?? 0) <= sceneArrivalBaseline.current.version) {
+      setSceneNotifications([]);
+      return;
+    }
+    let cancelled = false;
+    void sceneClient
+      .read(data.id, currentSceneId)
+      .then((scene) => {
+        if (!cancelled)
+          setSceneNotifications(
+            projectSceneNotifications(scene, sceneArrivalBaseline.current.version, data.actors),
+          );
+      })
+      .catch(() => {
+        /* Keep confirmed notifications; the ordinary scene view owns read errors. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneClient, data.id, data.version, data.actors, currentSceneId, preview]);
   useEffect(() => {
     if (!sceneWaiting || preview) return;
     const timer = setInterval(() => {
@@ -1579,6 +1611,7 @@ export function WorldPhoneSurface({
     }
   }
   const phoneNotifications = [
+    ...sceneNotifications,
     ...projectMessageNotifications(
       basePhoneData.messages.filter((message) => message.status === 'sent'),
       data.actors,
@@ -1833,6 +1866,7 @@ export function WorldPhoneSurface({
         onOpenNotification={(notification) => {
           window.location.hash = routeHash(data.id, {
             app: notification.app,
+            ...(notification.app === 'scenes' ? { panel: 'scene' as const } : {}),
             target:
               notification.conversationKind === 'group' && notification.target
                 ? groupTarget(notification.target)

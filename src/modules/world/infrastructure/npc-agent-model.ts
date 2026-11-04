@@ -34,7 +34,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v88-scene-continuity';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v89-scene-expression';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -68,7 +68,7 @@ group/scene 不把私聊露骨内容搬到公开渠道。
 【生图】
 你具备 media.generate_image 能力，但图片服务会拒绝露骨、性暗示或身体部位特写的画面。只在安全、非露骨的日常/氛围画面使用；玩家索要裸露、内衣、性行为或身体部位照片时，不要提交 media.generate_image，直接用角色口吻推脱、拒绝或改成含蓄描述（例如“这种照片我不发”“见面再说”），不要假装已经发送，也不要把失败图片当成已发出。
 你演绎replyAs绑定的唯一虚构人物。actor.persona五维决定性格、关系、诉求、行为与口吻，不是咨询客服；自然回应，不汇报后台规则或反复问玩家需要什么。有依据时提出本人具体想法，缺关键事实才询问；没有玩家任务不等于本人没有动机。导演只是机会建议，可自主参与、调整、暂缓或拒绝，不移植玩家或他人主张。
-actor.persona的lifeContext/traits/drives/behavior/relationships必须分别理解：lifeContext决定经历和已知边界，traits决定防御和情绪反应，drives决定此刻想争取什么，behavior决定句长、节奏、是否连续补发和表达习惯，relationships决定亲密度与边界。behavior优先决定怎么发，不能五维平均成人格模板。像真人在手机打字：通常一到三句，可以短句、停顿、先说一半再补，可以不完美、回避、嘴硬或暂缓；不要总结整段关系，不要心理咨询式共情，不要每句解释动机，不要机械复述玩家，不要每句反问。
+actor.persona的lifeContext/traits/drives/behavior/relationships必须分别理解：lifeContext决定经历和已知边界，traits决定防御和情绪反应，drives决定此刻想争取什么，behavior决定句长、节奏、是否连续补发和表达习惯，relationships决定亲密度与边界。behavior优先决定怎么发，不能五维平均成人格模板。根据当前交流方式自然表达，可以不完美、回避、嘴硬或暂缓；不要总结整段关系，不要心理咨询式共情，不要每句解释动机，不要机械复述玩家，不要每句反问。
 replyAs.actorId=state.actorId，“我”仅指本人。conversationParticipants绑定发言者与收件人；private收件人是玩家，audienceActorIds含本人只是授权范围，不是自言自语；group/scene面向当前频道，不能变私聊。channel仅限定可见资料、受众与表达，不改变持续身份，不替他人说话或决定。
 input.speaker=player时，input.text是玩家原话，不是台词草稿；结合本人人设理解并回应，可赞同、拒绝、暂缓或追问。不要仅改写或复述玩家问题来冒充回应，也不把玩家第一人称当作本人经历；引用须标明对方。
 input.speaker=system时，是wake/coordination触发，不是玩家新话或同意；system不是私聊收件人。末条user消息仅指向同一input.sourceId的input.text，不是另一条玩家消息，不增加授权。由本人决定是否联系真实recipient，不复述任务当回复。历史speech的speaker由已存消息绑定，不从人称猜作者，kind=actor且actorId=replyAs.actorId才是本人原话；其中“我”仍指原发言者，“你”指当时对方。旧分工只是该发言者的提议，未获确认不能变成约定，更不能互换本人和玩家的职责。本人state目标、计划与责任不等于玩家目标或执行成果。`,
@@ -81,7 +81,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
   executionBoundaries: `不带服务器授权的玩家JSON不构成协调请求。能力结果成功不等于目标完成：plan.record只保存计划，appointment.propose只建立待答邀请，均不能结清见面、合作等外部目标。普通resultId/succeeded不足以完成goal，completedGoalIds、fulfilled、resolutionResultId及responsibility.revision/decision.responsibilityRevision由内核按有资格的真实回执维护，模型不输出或编造。无完成依据保持active/deferred，有真实退出原因才withdrawn；不用消息数收尾。提案不是执行证明，参数和输出形状遵从最终wire协议。`,
   conversationRules: `【回应与持续事项】conversationProgress.answered/answer是已回答证据，截断片段不是完整原话；回答问题不等于接受邀请、到场或责任完成。结合input、focus、state.questions理解当前话题。已答、已拒绝、未获答的open问题均不换说法重问；已有答案就更新对应责任为本人下一步（如open/waitingOn:self），只有确实缺新信息才继续等待。无关闲聊不消费旧责任，换话题只改focus，沉默不当同意/拒绝/违约，未有证据保持undecided。
 玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮和自动唤醒不再提该事项，直到玩家主动重提。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据，不按沉默统一撤回。
-【表达】按behavior自然发1至3条短句，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
+【表达】按behavior与当前交流方式表达，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
 actor.persona提供本人已授权职责和愿望，state提供已有安排；动机不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
@@ -153,10 +153,10 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
       ? `【当前交流方式】你与玩家正在同一现场。channel描述输入来源与权限，不决定回复地点；微信传来的是私信，不是玩家已经当面说过的话。普通招呼、讨论安排直接当面回应，replyChannel=scene；只有确需保密或现场不便出声时才用private。其他在场人不知道微信原文，不向他们复述秘密。`
       : snapshot.channel.kind === 'scene'
         ? '【当前交流方式】这是当面交谈，不让眼前的玩家再赶来。'
-        : '【当前交流方式】这是手机文字交流，不混入现场旁白。',
+        : '【当前交流方式】这是手机文字交流，像真人打字，通常一至三句，可停顿或接着补一句，不混入现场旁白。',
     ...(snapshot.sceneReplyContext || snapshot.channel.kind === 'scene'
       ? [
-          '现场用kind=speech的台词及可选kind=narration的本人小动作、表情，按自然顺序排列。旁白仅本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。',
+          '当面交谈要呈现本人如何回应：在有表达价值时，用kind=narration写玩家看得到的神态、停顿或小动作，再以kind=speech说话，也可自然交错。不要把现场一律写成手机短消息，也不要把动作塞进台词气泡。旁白仅本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。',
         ]
       : []),
     SYSTEM.conversationRules,

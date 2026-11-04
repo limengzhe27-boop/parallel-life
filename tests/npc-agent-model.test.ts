@@ -164,6 +164,12 @@ test('all three channels preserve the same actor identity/revision/state with sc
   assert.equal(calls[0]!.messages[0]!.content, calls[1]!.messages[0]!.content);
   assert.match(calls[1]!.messages[0]!.content, /这是手机文字交流/);
   assert.match(calls[2]!.messages[0]!.content, /这是当面交谈/);
+  assert.match(calls[2]!.messages[0]!.content, /kind=narration写玩家看得到/);
+  assert.doesNotMatch(
+    calls[2]!.messages[0]!.content,
+    /像真人在手机打字|按behavior自然发1至3条短句/,
+  );
+  assert.doesNotMatch(calls[0]!.messages[0]!.content, /kind=narration写玩家看得到/);
 });
 
 test('unknown server/director properties and source record pointers are not serialized', async () => {
@@ -963,7 +969,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v88-scene-continuity');
+  assert.equal(payload.promptVersion, 'npc-agent-v89-scene-expression');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /本轮和自动唤醒不再提该事项，直到玩家主动重提/);
   assert.match(system, /安慰、道歉或对方认真难过时不以嘲讽图代替回应/);

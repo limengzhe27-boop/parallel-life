@@ -141,25 +141,36 @@ function LifePhone({
       return;
     }
     const incoming = arrivingIds(knownIds.current, ids);
-    knownIds.current = new Set(ids);
+    knownIds.current = new Set([...knownIds.current, ...ids]);
     // Delivery and unread state continue during conversation; unrelated banners
     // need not interrupt the player who is reading or responding.
     const inConversation = !locked && route.app === 'messages' && !!route.target;
     // A different conversation may still arrive as a quiet top banner. It never
     // switches the current thread; the current chat's own messages stay silent.
+    const outsideCurrentScene = incoming.filter((id) => {
+      const item = notifications.find((n) => n.id === id);
+      return (
+        locked ||
+        item?.app !== 'scenes' ||
+        !(
+          (route.panel === 'scene' || route.app === 'scenes') &&
+          (!route.target || route.target === item.target)
+        )
+      );
+    });
     const incomingOther = inConversation
-      ? incoming.filter((id) => {
+      ? outsideCurrentScene.filter((id) => {
           const item = notifications.find((n) => n.id === id);
           return !!item && item.target !== route.target;
         })
-      : incoming;
+      : outsideCurrentScene;
     if (incomingOther.length) {
       const incomingSet = new Set(incomingOther);
       const newest = latestNotification(notifications.filter((item) => incomingSet.has(item.id)));
       setBannerId(newest?.id ?? incoming.at(-1));
       playReceiveSound();
     }
-  }, [notificationSignature, notifications, locked, route.app, route.target]);
+  }, [notificationSignature, notifications, locked, route.app, route.target, route.panel]);
   useEffect(() => {
     if (!bannerId) return;
     const timer = window.setTimeout(() => setBannerId(undefined), 6000);
@@ -263,7 +274,7 @@ function LifePhone({
     setOpenedIds((current) => new Set([...current, n.id]));
     setBannerId(undefined);
     setLocked(false);
-    if (n.conversationKind === 'group') onOpenNotification?.(n);
+    if (onOpenNotification) onOpenNotification(n);
     else open(n.app, n.target);
   }
   function notificationCard(n: PhoneNotification) {

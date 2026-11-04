@@ -218,3 +218,34 @@ export function groupNotifications(
       return Number.isNaN(difference) ? 0 : difference;
     });
 }
+
+/** Only newly committed, player-visible scene speech is a live arrival, never old history. */
+export function projectSceneNotifications(
+  scene: import('../../contracts/scenes.ts').SceneRead,
+  baselineVersion: number,
+  actors: readonly Contact[],
+): PhoneNotification[] {
+  const events = new Map<string, PhoneNotification>();
+  for (const entry of scene.entries) {
+    if (
+      entry.sourceVersion <= baselineVersion ||
+      entry.kind !== 'dialogue' ||
+      entry.speaker.kind !== 'actor' ||
+      !entry.observableTo.some((p) => p.kind === 'player')
+    )
+      continue;
+    const actorId = entry.speaker.actorId;
+    const key = `scene:${entry.sourceEventId}:${actorId}`;
+    const existing = events.get(key);
+    if (existing) existing.summary += ' ' + entry.text;
+    else
+      events.set(key, {
+        id: key,
+        app: 'scenes',
+        target: entry.sceneId,
+        title: (actors.find((a) => a.id === actorId)?.name ?? '现场') + ' · 当面回应',
+        summary: entry.text,
+      });
+  }
+  return [...events.values()];
+}

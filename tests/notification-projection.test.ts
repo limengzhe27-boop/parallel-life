@@ -4,6 +4,7 @@ import {
   groupNotifications,
   latestNotification,
   projectMessageNotifications,
+  projectSceneNotifications,
 } from '../src/features/phone/notification-projection.ts';
 import { arrivingIds } from '../src/features/phone/notification-state.ts';
 import type { PhoneNotification } from '../src/features/phone/phone-shell.tsx';
@@ -210,4 +211,32 @@ test('a sticker-only message has a visible notification summary', () => {
     (at) => at,
   );
   assert.equal(result[0]?.summary, '[可以]');
+});
+
+test('scene arrivals use committed visible dialogue, group one reply, and exclude history', () => {
+  const entry = {
+    sceneId: 'scene1',
+    sourceEventId: 'event2',
+    sourceVersion: 12,
+    kind: 'dialogue',
+    speaker: { kind: 'actor', actorId: 'a' },
+    observableTo: [{ kind: 'player' }],
+    text: '抬头看看我。',
+  };
+  const scene = {
+    entries: [
+      { ...entry, sourceVersion: 10, sourceEventId: 'old' },
+      entry,
+      { ...entry, text: '我就在这里。' },
+      { ...entry, sourceEventId: 'secret', observableTo: [{ kind: 'actor', actorId: 'a' }] },
+      { ...entry, sourceEventId: 'input', kind: 'user_action' },
+    ],
+  } as unknown as import('../src/contracts/scenes.ts').SceneRead;
+  const result = projectSceneNotifications(scene, 10, [{ id: 'a', name: '阿宁' }]);
+  assert.equal(result.length, 1);
+  assert.ok(result[0]);
+  assert.equal(result[0].target, 'scene1');
+  assert.equal(result[0].app, 'scenes');
+  assert.equal(result[0].summary, '抬头看看我。 我就在这里。');
+  assert.deepEqual(projectSceneNotifications(scene, 12, []), []);
 });
