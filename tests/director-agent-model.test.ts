@@ -852,7 +852,8 @@ test('Director strict response grammar binds each reference namespace to this im
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
   assert.equal(root.properties.audit.properties.sourceRefs.maxItems, 64);
-  assert.equal(root.properties.audit.properties.reason.maxLength, 2000);
+  assert.equal(root.properties.audit.properties.reason.$ref, '#/$defs/reason');
+  assert.equal(root.$defs.reason.maxLength, 2000);
   assert.equal(opportunity.id.maxLength, 240);
   assert.equal(opportunity.title.maxLength, 120);
   assert.equal(opportunity.playerImpact.maxLength, 1000);
@@ -871,6 +872,7 @@ test('Director strict response grammar binds each reference namespace to this im
   assert.equal(opportunity.actorTopics, undefined);
   const walk = (schema: any) => {
     if (!schema || typeof schema !== 'object') return;
+    if (schema.$ref) assert.deepEqual(Object.keys(schema), ['$ref']);
     if (schema.type === 'object') {
       assert.equal(schema.additionalProperties, false);
       assert.deepEqual(schema.required.sort(), Object.keys(schema.properties).sort());

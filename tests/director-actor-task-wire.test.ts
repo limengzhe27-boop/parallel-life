@@ -302,7 +302,7 @@ test('v9 schema requires three bounded personal fields while v8 saved task remai
   const ref = schema.$defs.director_author_opportunity.properties.actorTasks.$ref;
   const tasks: any = schema.$defs[ref.split('/').at(-1)];
   const branch = (tasks.anyOf ?? [tasks])[0];
-  assert.equal(branch.properties['actor:1'].$ref, '#/$defs/director_actor_task');
+  assert.equal(branch.properties['actor:1'].anyOf[0].$ref, '#/$defs/director_actor_task');
   const personal = (format.schema as any).$defs.director_actor_task;
   assert.equal(JSON.stringify(format.schema).split('本人与玩家可交流的具体议题').length - 1, 1);
   assert.deepEqual(personal.required, ['topic', 'personalObjective', 'proposedInteraction']);

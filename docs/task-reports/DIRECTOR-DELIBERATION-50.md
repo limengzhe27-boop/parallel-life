@@ -150,3 +150,11 @@ check4250通过；原档持续演绎尚未通过。此前六人goals/plans仍0�
 沿实际任务继续发现一个遗漏消费者：actorOpportunityContext的历史规范化只覆盖导演v9—v15，v16/v17任务退回嵌套task字符串，丢掉现成的具体机会解读。直接改变仓储directive会改变旧来源hash，损害付费恢复；本次提取同一v1任务语法，统一在已有npcPresentationContext将经认证director_intent/future_proposal_only转换为现有结构化机会，仅改变本次模型呈现。原始observation/source/hash及历史付费snapshot不变；玩家同形文本不转换。原档42c03a62离线真实组包已含currentOpportunity source:20及结构化机会/不证明已发生的解释，0模型、0写入。
 
 作者标题由事件绑定，任务槽在schema以已有姓名标注执行者；来源/地点目录各只定义一次，减少schema重复。原13节点窗口schema仍在24000字符以内。check4251、受影响真实PG、build通过；3218已切build-director50-current，三个变更核心文件与运行artifact逐文件SHA一致，队列与主动worker均重新加载。尚不能宣称原档持续计划/真实行动、锁屏通知目视通过；50保持进行中。
+
+### 同轮发现并纠正的提供方格式错误
+
+姓名注释放在$ref旁导致真实400拒绝（07080e6d）。这是本轮改动引入的错误：提供方明确禁止$ref同级title，已改为既有任务引用的一层anyOf容器，并以真实服务最小格式探针确认接收；不会将该探针算原档演绎验收。新增递归断言所有$ref无兄弟关键词，更新原cast/task夹具的引用路径，业务权限断言保留。Reason、来源和地点语法共享定义；13节点原档格式23926字符（含包装），仍在原schema预算内，没有放宽24000限制。
+
+修正后仅一次明确已知拒绝纠正：2810b827导演实际committed，a41ebf0a舒雅婷实际engage并提交新消息；但输出仍为“我会等你回复”，plans仍0，未通过持续推进验收。另有明确的上游数据问题：如node_5正文有“工作接触或热聊数轮”前提，prerequisites却为空；代码eligible只是已声明条件未阻断，导演实际输出把它理解为正文前提已被确认，仍在提出后续阶段/重复委托。后续必须处理事件库前提与导演当前阶段解释，不能把eligible当世界事实、靠更多自动评估碰到非空结果。
+
+最后运行切换覆盖前段：3218使用build-director50-global，队列/主动worker重新加载；三个核心变更源与artifact逐一SHA一致。check4251、build通过；原档真实保存链已验证，但长期自主计划和有依据的剧情推进仍未通过，保留进行中。

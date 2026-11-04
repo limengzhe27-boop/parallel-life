@@ -1218,7 +1218,7 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     const { $schema: _dialect, ...schema } = z.toJSONSchema(value);
     return schema;
   };
-  const text = valueSchema(Reason);
+  const text: Schema = { $ref: '#/$defs/reason' };
   const opportunityGrammar = Wire.shape.opportunities.element.shape;
   const boundedRefs = (grammar: z.ZodType, items: Schema): Schema => ({
     ...valueSchema(grammar),
@@ -1369,7 +1369,9 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     const refs = catalog.actors.filter((a) => allowed.has(a.actorId)).map((a) => a.ref);
     const all = (originalActorTasks.properties ?? {}) as Record<string, Schema>;
     const taskFor = (actor: (typeof taskActors)[number], required = false): Schema => ({
-      ...(required ? { $ref: '#/$defs/director_actor_task' } : all[actor.ref]!),
+      // The provider forbids sibling keywords on $ref. Keep identity on the
+      // containing schema while reusing the actual task grammar unchanged.
+      anyOf: [required ? { $ref: '#/$defs/director_actor_task' } : all[actor.ref]!],
       title: actor.name ?? actor.ref,
     });
     const properties = Object.fromEntries(
@@ -1412,12 +1414,13 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   const deferChoice = object({
     kind: { type: 'string', enum: ['defer'] },
     reason: {
-      ...text,
+      anyOf: [text],
       description:
         '阻止当前入口互动的具体前提或节奏依据。若等待玩家，说明已经向玩家提出的本事项请求；未来接受后才能执行的步骤不阻止首次邀请。',
     },
   });
   schema.$defs = {
+    reason: valueSchema(Reason),
     director_source_ref: refs(values(catalog.sources)),
     director_place_ref: refs(values(catalog.places)),
     director_actor_tasks_all: allActorTasks,

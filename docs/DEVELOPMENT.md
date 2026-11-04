@@ -3665,3 +3665,5 @@ DIRECTOR-DELIBERATION-50 v97/v17接续：原档c1b306f7任务483字符仍在私�
 DIRECTOR-DELIBERATION-50输出保存一致性收口：root接管已集成的director-unified-actor-tasks15.test.ts补断言；原档b685导演audit.sourceRefs超过64，发出schema无限、保存64，现以原Zod边界生成同一约束，来源枚举共享$defs。一次显式已知失败纠正后b6ac导演committed、欣欣7bd9 quiet；发现event:9原稿与输出标题/角色任务语义错配，当前作者标题直接绑定事件原题，不改旧结果、NPC选择和玩家状态。原档仍待自然pending消费和真实下一步验收，整体保持进行中，不以模型有输出/health200标完成。
 
 DIRECTOR-DELIBERATION-50当前任务语法消费者接续：root扩围actor-opportunity-context.ts、npc-presentation-context.ts及原专属呈现测试。历史仓储仅v9—v15识别结构化任务；v16/v17只给嵌套字符串。保持历史directive/source hash不变，抽取同一任务语法仅在现有模型呈现解包认证未来建议，玩家文本不可获得权限。原档42c03a62离线组包确认currentOpportunity/结构化机会仍在。正常后台42c/9ca有消息但含未核实剧情、六人plans仍0，验收失败如实保留；不将有来信当持续推进成功。check4251、聚焦PG/build通过，3218当前build-director50-current，队列/主动worker共享最新源。整体仍进行中。
+
+DIRECTOR-DELIBERATION-50同轮400收口：任务姓名标注的$ref兄弟title为本批引入，真实提供方已拒绝；修为anyOf容器，递归测试禁止ref兄弟关键词，保留cast权限断言，root接管authored-opportunity-cast.test.ts/director-actor-task-wire.test.ts对应引用路径。真实最小schema请求已接收，07080已知拒绝只纠正一次后2810导演/a41人物实际committed；人物仍只等待且plans0，不结清持续演绎。进一步核实node_5正文前提未编码到prerequisites，导演错误把代码eligible当正文前提已确认；列入后续根因收口，不能靠重复模型填剧情。check4251/build，3218最终artifact build-director50-global，队列/主动worker重启；整体仍进行中。

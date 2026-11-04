@@ -361,7 +361,7 @@ test('v15 consider schema requires a real allowed task while defer remains avail
       assert.equal(branch.additionalProperties, false);
     }
     if (allowed.length === 1) {
-      assert.equal(tasks.properties['actor:1'].$ref, '#/$defs/director_actor_task');
+      assert.equal(tasks.properties['actor:1'].anyOf[0].$ref, '#/$defs/director_actor_task');
       assert.equal(tasks.properties['actor:2'].type, 'null');
       assert.equal(tasks.anyOf, undefined);
     } else {
@@ -370,7 +370,10 @@ test('v15 consider schema requires a real allowed task while defer remains avail
         assert.equal(branch.type, 'object');
         assert.equal(branch.additionalProperties, false);
         assert.deepEqual(branch.required, ['actor:1', 'actor:2']);
-        assert.equal(branch.properties[`actor:${i + 1}`].$ref, '#/$defs/director_actor_task');
+        assert.equal(
+          branch.properties[`actor:${i + 1}`].anyOf[0].$ref,
+          '#/$defs/director_actor_task',
+        );
       });
     }
     assert.equal(f.parse().opportunities.length, 0, 'defer requires no invented task');

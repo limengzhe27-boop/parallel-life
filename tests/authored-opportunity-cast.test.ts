@@ -164,8 +164,8 @@ test('author event cast binds the source schema and canonical parser to the same
   );
   const tasks = resolve(author.properties.actorTasks);
   assert.equal(tasks.properties['actor:2'].type, 'null');
-  assert.equal(tasks.properties['actor:1'].$ref, '#/$defs/director_actor_task');
-  assert.equal(resolve(tasks.properties['actor:1']).type, 'object');
+  assert.equal(tasks.properties['actor:1'].anyOf[0].$ref, '#/$defs/director_actor_task');
+  assert.equal(resolve(tasks.properties['actor:1'].anyOf[0]).type, 'object');
   assert.deepEqual(f.parse(selected(f)).opportunities[0]!.participantActorIds, ['a']);
   assert.throws(() => f.parse(selected(f, true)), /authorized boundary/);
   const second = resolve(schema.properties.authoredChoices.properties[f.events[1]!.ref]);
