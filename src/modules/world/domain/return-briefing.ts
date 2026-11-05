@@ -153,12 +153,12 @@ function neutralSummary(kind: ReturnThreadKind, detail: string): string {
         : '玩家最后一条消息之后，你还没有回';
     case 'question':
       return detail
-        ? `你之前问过：「${detail}」，还没有得到回答`
-        : '你之前问过一件事，还没有得到回答';
+        ? `你之前问过：「${detail}」，还没有得到回答。不要重复或改写这个问题，只有新的具体进展才发，否则安静`
+        : '你之前问过一件事，还没有得到回答。不要只是再问一遍，没有新进展就安静';
     case 'promise':
       return detail
-        ? `你最后一条是：「${detail}」，之后还没有下文`
-        : '你之前说过会再联系，之后还没有下文';
+        ? `你最后一条是：「${detail}」，之后还没有下文。不要重复或改写这条，只有新的具体进展才发，否则安静`
+        : '你之前说过会再联系，之后还没有下文。没有新进展就安静，不要重新承诺';
     case 'plan':
       return `你手上还有一步没有走完：${detail}`;
   }

@@ -41,6 +41,19 @@
 
 ## 本地数据
 
-- 归档：`ff2f…`、`a980…`、`b095…`、`bc2a…`、`50a9…`、`13b5…`、`f099…`、`f37e…`（历史保留，未删除）。
-- 当前唯一 active：`5a040da1-2661-4b4d-b05d-a06dd5fe77b0`。
+- 归档：`ff2f…`、`a980…`、`b095…`、`bc2a…`、`50a9…`、`13b5…`、`f099…`、`f37e…`、`5a04…`（历史保留，未删除）。
+- 当前唯一 active：`d4fc15fc-7ed7-4ae9-b3fb-6c65c870b0f7`。
 - 出版物本地版本 v4–v7 为同内容版本，仅用于开新局；生产未改动。
+
+## 补充修复（同日，presence 锚点与重复提示）
+
+- `src/modules/world/infrastructure/clock-activity-repository.ts`
+  - 普通 present/browsing 心跳不再把 `last_present_at` 改写成 now；只有 `resume` 或显式 `away` 才推进。否则重新打开页面时先到的一次心跳会抹掉 4 分钟离开锚点，补演直接不触发。
+- `src/modules/world/domain/return-briefing.ts`
+  - question/promise 线索的 summary 增加「不要重复或改写这条，只有新的具体进展才发，否则安静」。
+- 复验：设置 4 分钟离开锚点后直接打开页面，即使先到普通心跳也能创建补演；5a040 返回后新消息落在 08:27 / 08:28 / 08:30。
+
+## 最终交付世界
+
+- `d4fc15fc-7ed7-4ae9-b3fb-6c65c870b0f7`（本地版本 v10）
+- 开场三条真实消息：李之之酒吧自拍、林白语见爸爸、刘胜男出差，时间 08:04 / 08:05，无串线、无「主角」。

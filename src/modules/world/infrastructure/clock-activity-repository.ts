@@ -480,7 +480,14 @@ export async function updateClockActivity(
     next.summary = '约定时间到了，请查看日程。';
   // While a briefing is pending, the original leave anchor must survive refreshes
   // and retries. Only a settled resume or an explicit hide advances presence.
-  const presentAt = briefingPending ? (leftAt ?? realNow) : realNow;
+  // A plain presence heartbeat must not erase the leave anchor before the
+  // returning resume is evaluated. Only a settled resume or an explicit hide
+  // advances the last-present timestamp.
+  const presentAt = briefingPending
+    ? (leftAt ?? realNow)
+    : input.resume || input.mode === 'away'
+      ? realNow
+      : (row?.last_present_at ?? realNow);
   await sql.query(
     `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until,continuity_mode,pause_reason,last_present_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9,$10,$11,$12) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,speed=EXCLUDED.speed,paused=EXCLUDED.paused,managed=true,active_until=EXCLUDED.active_until,summary=EXCLUDED.summary,continuity_mode=EXCLUDED.continuity_mode,pause_reason=EXCLUDED.pause_reason,last_present_at=EXCLUDED.last_present_at,updated_at=now()`,
