@@ -30,9 +30,25 @@ test('return briefing ignores short absences and freezes a live world at now', (
     speed: 3,
     paused: false,
   });
-  assert.equal(live?.storyFrom, at(900));
+  // The live clock already projected the away interval; the briefing fills it
+  // backward and ends exactly at the return instant.
+  assert.equal(live?.storyFrom, at(0));
   assert.equal(live?.storyUntil, at(900));
   assert.equal(live?.gapSeconds, 300);
+});
+
+test('a live four-minute absence gets a real window instead of one instant', () => {
+  const window = planReturnBriefingWindow({
+    leftAt: at(0),
+    returnedAt: at(240),
+    pausedAt: null,
+    storyNow: at(240),
+    speed: 1,
+    paused: false,
+  });
+  assert.equal(window?.storyFrom, at(0));
+  assert.equal(window?.storyUntil, at(240));
+  assert.deepEqual(returnBriefingBeats(window!, 3), [at(60), at(120), at(180)]);
 });
 
 test('return briefing extends only the unprojected paused interval and caps story time', () => {

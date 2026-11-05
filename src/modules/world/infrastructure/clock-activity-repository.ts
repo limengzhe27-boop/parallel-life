@@ -263,22 +263,32 @@ export async function updateClockActivity(
   let briefing: ReturnBriefing | null = null;
   let briefingSummary: ReturnBriefingSummary | undefined;
   if (input.resume && input.mode !== 'away' && leftAt) {
+    // A committed event may sit after the clock row. The replay window must start
+    // from the later of the two and always keep a forward interval.
+    const floorMs = Math.max(Date.parse(clock.storyNow), Date.parse(world.state.time));
     const window = planReturnBriefingWindow({
       leftAt,
       returnedAt: realNow,
       pausedAt: clock.paused ? clock.lastTickAt : null,
-      storyNow: clock.storyNow,
+      storyNow: new Date(floorMs).toISOString(),
       speed: clock.speed,
       paused: clock.paused,
     });
     if (window) {
+      const untilMs = Math.max(Date.parse(window.storyUntil), floorMs);
+      const fromMs = Math.min(
+        Math.max(Date.parse(window.storyFrom), floorMs),
+        untilMs - 60_000,
+      );
+      const storyFrom = new Date(fromMs).toISOString();
+      const storyUntil = new Date(untilMs).toISOString();
       briefing = await createReturnBriefingInTransaction(sql, ownerId, {
         worldId,
         leftAt: window.leftAt,
         returnedAt: window.returnedAt,
         gapSeconds: window.gapSeconds,
-        storyFrom: window.storyFrom,
-        storyUntil: window.storyUntil,
+        storyFrom,
+        storyUntil,
       });
       briefingSummary = {
         id: briefing.id,
@@ -288,15 +298,16 @@ export async function updateClockActivity(
           ? { messageIds: briefing.messageIds }
           : {}),
       };
-      // A pending briefing keeps the world frozen at the return anchor. Only the
-      // briefing itself may move story time; a resume heartbeat never simulates.
+      // A pending briefing keeps the world frozen at the replay anchor so each
+      // beat can move story time forward. The anchor is never earlier than the
+      // last committed event (see storyFrom above).
       if (briefing.status !== 'completed')
         clock = {
           ...clock,
           paused: true,
           pauseReason: 'idle',
           activeUntil: null,
-          storyNow: window.storyFrom,
+          storyNow: storyFrom,
           lastTickAt: realNow,
           summary: null,
         };
@@ -450,6 +461,14 @@ export async function updateClockActivity(
   };
   if (next.activeUntil)
     next.activeUntil = boundedDeadline(next.activeUntil, appointmentDeadline(next, appointments));
+  // A pending briefing owns story time: freeze at its replay anchor so each beat
+  // can advance the clock in order instead of collapsing onto the return instant.
+  if (briefingPending && briefing) {
+    next.storyNow = briefing.storyFrom;
+    next.lastTickAt = realNow;
+    next.paused = true;
+    next.activeUntil = null;
+  }
   if (
     paused &&
     appointments.some((a) => a.status === 'confirmed' && Date.parse(a.at) === Date.parse(storyNow))

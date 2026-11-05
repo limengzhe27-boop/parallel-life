@@ -82,29 +82,31 @@ export function planReturnBriefingWindow(input: {
   const storyNow = Date.parse(input.storyNow);
   if (!Number.isFinite(storyNow)) return null;
   const speed = Number.isFinite(input.speed) && input.speed > 0 ? input.speed : 1;
-  // A paused world froze at its own stop anchor. Extend only the part that has not
-  // already been projected; a live world is already at the return instant.
+  const maxAwayMs = input.maxAwayMs ?? RETURN_BRIEFING_MAX_AWAY_MS;
+  const maxStoryMs = input.maxStoryMs ?? RETURN_BRIEFING_MAX_STORY_MS;
+  // A paused world froze at its own stop anchor, so its away interval is still
+  // ahead and must be simulated forward. A live clock kept projecting while the
+  // player was gone, so its away interval is already behind the return instant
+  // and the briefing fills it backward. Both windows are bounded and ordered.
+  let storyFromMs = storyNow;
   let storyUntilMs = storyNow;
   if (input.paused) {
     const pausedAt = input.pausedAt ? Date.parse(input.pausedAt) : returnedAt;
     const unprojectedMs = Math.max(
       0,
-      Math.min(
-        returnedAt - (Number.isFinite(pausedAt) ? pausedAt : returnedAt),
-        input.maxAwayMs ?? RETURN_BRIEFING_MAX_AWAY_MS,
-      ),
+      Math.min(returnedAt - (Number.isFinite(pausedAt) ? pausedAt : returnedAt), maxAwayMs),
     );
-    storyUntilMs = Math.min(
-      storyNow + unprojectedMs * speed,
-      storyNow + (input.maxStoryMs ?? RETURN_BRIEFING_MAX_STORY_MS),
-    );
+    storyUntilMs = Math.min(storyNow + unprojectedMs * speed, storyNow + maxStoryMs);
+  } else {
+    const projectedMs = Math.min(gapMs, maxAwayMs);
+    storyFromMs = Math.max(storyNow - projectedMs * speed, storyNow - maxStoryMs);
   }
   return {
     leftAt: new Date(leftAt).toISOString(),
     returnedAt: new Date(returnedAt).toISOString(),
     gapSeconds: Math.floor(gapMs / 1000),
-    storyFrom: new Date(storyNow).toISOString(),
-    storyUntil: new Date(Math.max(storyNow, storyUntilMs)).toISOString(),
+    storyFrom: new Date(storyFromMs).toISOString(),
+    storyUntil: new Date(Math.max(storyFromMs, storyUntilMs)).toISOString(),
   };
 }
 

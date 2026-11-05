@@ -1627,6 +1627,26 @@ test('wake statements are player-facing bubbles, never private planning monologu
     [],
   );
   assert.deepEqual(
+    decoded(
+      '我决定要主动向你提出去西餐厅假扮情侣的邀约，这次你必须配合我一起演一场啦！你要不要考虑把男友演得逼真一点？',
+    ).statements,
+    [],
+  );
+  assert.deepEqual(
+    decoded('我决定今晚不去了。').statements.map((s) => s.text),
+    ['我决定今晚不去了。'],
+  );
+  assert.deepEqual(
+    decoded(
+      '我这次只是自己重新梳理安排，没有必要给你发消息，先把希望推进的事情记清楚。你如果有主动表达，我会根据你的说法再考虑下一步。',
+    ).statements,
+    [],
+  );
+  assert.deepEqual(
+    decoded('其实现在很想主动联系你，但你还没有新回应，我就先不打扰了。').statements,
+    [],
+  );
+  assert.deepEqual(
     decoded('今晚办公室还没散场，你要不要顺路过来一趟？').statements.map((s) => s.text),
     ['今晚办公室还没散场，你要不要顺路过来一趟？'],
   );

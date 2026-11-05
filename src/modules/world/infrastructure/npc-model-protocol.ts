@@ -1188,13 +1188,23 @@ function isPlayerFacingWakeStatement(text: string): boolean {
   // Backstage labels never belong in a player-facing bubble.
   if (value.includes('主角')) return false;
   const planning =
-    /我现在的心情|我现在的想法|我现在只能|目前我只能|该做的已经|该做的都|再作打算|也是个信号|先专心|主动权|自问自答|这个阶段|等他的反应|我只能等|接下来，没有|已经顺利发出|等不到你确切|已经表达|已经说清楚|已经做到|不会主动|不会再主动|不会继续|留给他|留给对方|只能等|安静下来/.test(
+    /我现在的心情|我现在的想法|我现在只能|目前我只能|该做的已经|该做的都|再作打算|也是个信号|先专心|主动权|自问自答|这个阶段|等他的反应|我只能等|接下来，没有|已经顺利发出|等不到你确切|已经表达|已经说清楚|已经做到|我决定|我打算|我准备|主动向你提出|没有必要给你发消息|先不打扰|还没有新回应|再考虑下一步|根据你的说法|记清楚|重新梳理|等你.*(?:愿意|有空|回应|说话)|不会主动|不会再主动|不会继续|留给他|留给对方|只能等|安静下来/.test(
       value,
     );
-  // A short direct line ("我到了。", "我还是安静等你，不打扰你。") is valid chat.
+  // A short direct line ("我到了。", "我决定今晚不去了。") is valid chat.
   // Long self-analysis about waiting/strategy is not; neither is a long third-person
-  // report that never addresses the player.
+  // report that never addresses the player. A planning verb that opens a long
+  // statement is the model narrating its next move, not talking to the player.
   if (planning && value.length > 60) return false;
+  // Messaging/waiting meta is never a chat line once it carries any detail: the
+  // player did not ask to be told that the NPC decided not to message them.
+  const messagingMeta =
+    /没有必要给你发消息|先不打扰|还没有新回应|再考虑下一步|根据你的说法|重新梳理|记清楚|主动联系你|主动找你/.test(
+      value,
+    );
+  if (messagingMeta && value.length > 20) return false;
+  if (/^(?:我决定|我打算|我准备|我现在的|目前我只能|接下来)/.test(value) && value.length > 40)
+    return false;
   if (!value.includes('你') && value.length > 40 && planning) return false;
   return true;
 }
