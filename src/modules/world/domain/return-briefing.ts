@@ -8,6 +8,12 @@ export const RETURN_BRIEFING_MAX_AWAY_MS = 24 * 60 * 60_000;
 export const RETURN_BRIEFING_MAX_STORY_MS = 72 * 60 * 60_000;
 export const RETURN_BRIEFING_MAX_THREADS = 3;
 export const RETURN_BRIEFING_LEASE_MS = 45_000;
+/**
+ * A follow-up needs time to become news. An NPC who asked something two minutes
+ * before the player stepped away has nothing new to add on return; replaying that
+ * line is the same unanswered ask again, just reworded.
+ */
+export const RETURN_BRIEFING_FOLLOW_UP_MIN_AGE_MS = 12 * 60_000;
 
 export type ReturnBriefingStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type ReturnBriefing = {
@@ -219,7 +225,12 @@ export function selectReturnThreads(input: {
         sourceId: last.id,
         at: last.at,
       });
-    else if (PROMISE.test(last.text) || QUESTION.test(last.text))
+    else if (
+      (PROMISE.test(last.text) || QUESTION.test(last.text)) &&
+      // Only a line that had already settled before the player stepped away can
+      // have a follow-up. One sent moments before leaving is not owed yet.
+      from - Date.parse(last.at) >= RETURN_BRIEFING_FOLLOW_UP_MIN_AGE_MS
+    )
       push({
         actorId,
         kind: 'promise',
@@ -247,6 +258,7 @@ export function selectReturnThreads(input: {
       if (question.threadId !== state.actorId) continue;
       const at = Date.parse(question.askedAt);
       if (!Number.isFinite(at) || at > until) continue;
+      if (from - at < RETURN_BRIEFING_FOLLOW_UP_MIN_AGE_MS) continue;
       push({
         actorId: state.actorId,
         kind: 'question',

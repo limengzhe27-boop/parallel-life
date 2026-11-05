@@ -100,6 +100,21 @@ import {
   isEpisodeConsiderationInput,
   requireEpisodeDeliveryInTransaction,
 } from './agent-episode-attention.ts';
+import { suppressRepeatedStatements } from '../domain/repeat-guard.ts';
+
+/** A proactive wake must not buy the player the same unanswered ask again. */
+function guardRepeatedProactiveStatements(snapshot: AgentSnapshot, proposal: AgentProposal) {
+  const kept = suppressRepeatedStatements(
+    {
+      origin: snapshot.input.origin,
+      storyAt: snapshot.storyAt,
+      actorId: snapshot.state.actorId,
+      observations: snapshot.observations,
+    },
+    proposal.statements,
+  );
+  if (kept !== proposal.statements) proposal.statements = [...kept];
+}
 
 /** Deterministic capability execution + one UoW; models never hold a SQL connection. */
 export class PostgresNpcAgentKernel implements AgentKernel {
@@ -123,6 +138,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
   }
   parse(snapshot: AgentSnapshot, raw: unknown) {
     const proposal = parseAgentProposal(snapshot, raw);
+    guardRepeatedProactiveStatements(snapshot, proposal);
     validateActorContinuation(snapshot, proposal);
     return proposal;
   }
@@ -274,6 +290,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       const replay = await this.committedInTransaction(sql, ownerId, attempt);
       if (replay) return replay;
       const proposal = parseAgentProposal(snapshot, input.proposal);
+      guardRepeatedProactiveStatements(snapshot, proposal);
       validateActorContinuation(snapshot, proposal);
       const frame = await beginAgentCommitFrameInTransaction(sql, ownerId, attempt, options);
       const currentScene = snapshot.sceneReplyContext

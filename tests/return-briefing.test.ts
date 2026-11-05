@@ -91,7 +91,8 @@ test('return threads prefer appointments, then owed replies, and one thread per 
         actorId: 'actor-b',
         role: 'assistant',
         text: '我晚点告诉你结果',
-        at: at(70),
+        // The promise predates the leave window by more than the follow-up age.
+        at: at(-1800),
         sourceEventId: 'e2',
       },
     ],
@@ -129,5 +130,81 @@ test('return threads prefer appointments, then owed replies, and one thread per 
       ['actor-b', 'promise'],
       ['actor-c', 'plan'],
     ],
+  );
+});
+
+test('a question asked moments before leaving is not replayed on return', () => {
+  const fresh = selectReturnThreads({
+    messages: [
+      {
+        id: 'm1',
+        actorId: 'actor-a',
+        role: 'assistant',
+        text: '今晚一起吃饭吗？',
+        at: at(-240),
+        sourceEventId: 'e1',
+      },
+    ],
+    appointments: [],
+    states: [],
+    window: { storyFrom: at(0), storyUntil: at(240) },
+  });
+  assert.deepEqual(fresh, []);
+
+  const settled = selectReturnThreads({
+    messages: [
+      {
+        id: 'm1',
+        actorId: 'actor-a',
+        role: 'assistant',
+        text: '今晚一起吃饭吗？',
+        at: at(-1800),
+        sourceEventId: 'e1',
+      },
+    ],
+    appointments: [],
+    states: [],
+    window: { storyFrom: at(0), storyUntil: at(240) },
+  });
+  assert.deepEqual(
+    settled.map((thread) => thread.kind),
+    ['promise'],
+  );
+});
+
+test('an open question state is only replayed once it has aged', () => {
+  const state = (askedAt: string) => [
+    {
+      actorId: 'actor-a',
+      plans: [],
+      questions: [
+        {
+          id: 'q1',
+          channel: 'private',
+          threadId: 'actor-a',
+          text: '周末有空吗？',
+          askedAt,
+          status: 'open',
+        },
+      ],
+    },
+  ];
+  assert.deepEqual(
+    selectReturnThreads({
+      messages: [],
+      appointments: [],
+      states: state(at(-120)),
+      window: { storyFrom: at(0), storyUntil: at(240) },
+    }),
+    [],
+  );
+  assert.equal(
+    selectReturnThreads({
+      messages: [],
+      appointments: [],
+      states: state(at(-3600)),
+      window: { storyFrom: at(0), storyUntil: at(240) },
+    }).length,
+    1,
   );
 });
