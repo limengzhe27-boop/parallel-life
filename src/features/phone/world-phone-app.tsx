@@ -629,7 +629,7 @@ export function WorldPhoneApp({
   const briefingRun = useRef<string | null>(null);
   useEffect(() => {
     const briefing = liveTime.returnBriefing;
-    if (!briefing || (briefing.status !== 'pending' && briefing.status !== 'failed')) return;
+    if (!briefing || briefing.status === 'completed') return;
     if (briefingRun.current === briefing.id) return;
     briefingRun.current = briefing.id;
     const run = async (attempt: number): Promise<void> => {
@@ -650,6 +650,7 @@ export function WorldPhoneApp({
     void run(0).catch((error) => {
       if (briefingRun.current !== briefing.id) return;
       briefingRun.current = null;
+      liveTimeRef.current.finishBriefing([]);
       setError(error instanceof ApiFailure ? error.message : '这段时间的补演没有完成，可以再试一次。');
     });
     // No cleanup cancels this run: a repeat clock heartbeat must not discard the
@@ -1027,8 +1028,8 @@ export function WorldPhoneApp({
   const clockSummary = liveTime.idleReturnNotice || liveTime.clock?.summary || '';
   const briefingWorking =
     !!liveTime.returnBriefing &&
-    liveTime.returnBriefing.status !== 'completed' &&
-    liveTime.returnBriefing.status !== 'failed';
+    (liveTime.returnBriefing.status === 'pending' ||
+      liveTime.returnBriefing.status === 'running');
   return (
     <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />

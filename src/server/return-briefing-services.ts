@@ -273,9 +273,18 @@ export function createReturnBriefingRunner(db: PostgresDatabase, modelFactory: (
       } catch (error) {
         const message = error instanceof Error ? error.message : '回访补演失败';
         await db
-          .transaction(ownerId, (sql) =>
-            failReturnBriefingInTransaction(sql, ownerId, worldId, briefing.id, message),
-          )
+          .transaction(ownerId, async (sql) => {
+            await failReturnBriefingInTransaction(sql, ownerId, worldId, briefing.id, message);
+            // A terminal failure must not leave the phone frozen forever. The
+            // world resumes at the briefing's end, honestly without new messages.
+            if (briefing.attempt >= 2)
+              await resumeAfterReturnBriefingInTransaction(
+                sql,
+                ownerId,
+                worldId,
+                briefing.storyUntil,
+              );
+          })
           .catch(() => {});
         throw error;
       }

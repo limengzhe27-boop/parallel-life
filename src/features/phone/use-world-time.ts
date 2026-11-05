@@ -426,7 +426,7 @@ export function useWorldTime(
         !!session.current?.returning ||
         working ||
         !!pendingWait ||
-        (!!briefing && briefing.status !== 'completed')),
+        (briefing?.status === 'pending' || briefing?.status === 'running')),
     displayTime: clock ? projectStoryTime(clock, new Date(now).toISOString()) : null,
     /** Entry/return is a transport opportunity, not a new model authorization. */
     requestCheck: () => {
