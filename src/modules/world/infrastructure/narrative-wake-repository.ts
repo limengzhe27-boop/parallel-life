@@ -472,6 +472,29 @@ export async function readDirectorNarrativeWakeInTransaction(
         deferred: false,
       };
     }
+    // Authored choices are exhausted but the life continues. This is a new
+    // emergent layer, not a fabricated authored node or a repeated chapter.
+    if (
+      previous?.status === 'committed' &&
+      lastAt &&
+      !pending &&
+      !periodicQualifications.length &&
+      Date.now() >= Date.parse(nextDirectorReviewAt(new Date(lastAt).toISOString(), 'committed'))
+    )
+      return {
+        cause: {
+          id:
+            'director-emergent:' +
+            createHash('sha256')
+              .update(JSON.stringify([input.worldId, input.engineEpoch, previous.id]))
+              .digest('hex'),
+          kind: 'emergent_review',
+          genesisHash: admission.genesis_hash,
+          admittedAtVersion: admission.admitted_at_version,
+        },
+        hasPendingDirector,
+        deferred: false,
+      };
     return { cause: null, hasPendingDirector, deferred: false };
   }
   // Only confirmed zero-send cancellations can change retry identity. No paid/unknown retry.

@@ -289,6 +289,12 @@ test('after every authored node is presented, an empty window permits a new emer
   }));
   f.snapshot.occupiedAuthoredEventKeys = ['opening', 'later'];
   f.snapshot.deliberationWindow = { version: 1, nodeKeys: [] };
+  f.snapshot.evaluationCause = {
+    id: 'emergent-review',
+    kind: 'emergent_review',
+    genesisHash: 'a'.repeat(32),
+    admittedAtVersion: 0,
+  };
   f.snapshot.observations = [
     {
       sourceId: 'emergent-source',

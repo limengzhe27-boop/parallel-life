@@ -26,7 +26,8 @@ export type DirectorEvaluationCause =
       genesisHash: string;
       admittedAtVersion: number;
       qualifications: AuthoredWakeQualification[];
-    };
+    }
+  | { id: string; kind: 'emergent_review'; genesisHash: string; admittedAtVersion: number };
 /** Private to this NPC. A consideration request is neither a world fact nor a goal. */
 export type EpisodeConsiderationIntent = {
   type: 'npc_episode_consideration';

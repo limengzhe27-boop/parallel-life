@@ -205,6 +205,7 @@ export function selectDirectorDeliberationWindow(
   );
   const cause = snapshot.evaluationCause;
   if (snapshot.nativeTurn || !cause || cause.kind === 'opening_context') eligible = [];
+  else if (cause.kind === 'emergent_review') eligible = [];
   else if (cause.kind === 'bootstrap') {
     const openings = new Set(
       snapshot.authoredMaterials?.materials

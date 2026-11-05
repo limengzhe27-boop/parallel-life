@@ -413,7 +413,7 @@ function evaluationCauseView(snapshot: DirectorSnapshot) {
     if (snapshot.openingContextAuthority?.reviewKey !== c.reviewKey) invalid();
     return { ...c };
   }
-  if (c.kind === 'bootstrap')
+  if (c.kind === 'bootstrap' || c.kind === 'emergent_review')
     return {
       id: c.id,
       kind: c.kind,

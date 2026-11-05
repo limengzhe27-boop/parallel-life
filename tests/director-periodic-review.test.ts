@@ -53,6 +53,19 @@ test('new periodic review sees all qualified author choices up to 32, without gr
   assert.equal(many.deliberationWindow.nodeKeys.length, 32);
   assert.equal(isDirectorDeliberationEvent(many, 'node_32'), false);
 });
+test('an exhausted authored plan opens an emergent review with an empty authored window', () => {
+  const s = periodic(2);
+  s.evaluationCause = {
+    id: 'emergent',
+    kind: 'emergent_review',
+    genesisHash: 'a'.repeat(32),
+    admittedAtVersion: 0,
+  };
+  s.deliberationWindow = selectDirectorDeliberationWindow(s);
+  assert.deepEqual(s.deliberationWindow, { version: 1, nodeKeys: [] });
+  assert.equal(validDirectorDeliberationWindow(s), true);
+});
+
 test('saved v1 periodic frames retain their original two choices and are not upgraded by validation', () => {
   const s = periodic();
   s.deliberationWindow = { version: 1, nodeKeys: ['node_0', 'node_1'] };

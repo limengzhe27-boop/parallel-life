@@ -71,6 +71,7 @@ export function directorFrameRetirementEvidence(
   if (
     !cause ||
     cause.kind === 'bootstrap' ||
+    cause.kind === 'emergent_review' ||
     cause.id === previous.evaluationCause?.id ||
     !current.authoredMaterials?.source ||
     current.authoredMaterials.source.sourceHash !== previous.authoredMaterials?.source?.sourceHash

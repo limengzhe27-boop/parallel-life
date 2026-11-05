@@ -342,6 +342,12 @@ const Snapshot = z
             .array(z.strictObject({ nodeKey: Key, nodeHash: Hash, qualificationKey: Hash }))
             .min(1),
         }),
+        z.strictObject({
+          id: Key,
+          kind: z.literal('emergent_review'),
+          genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
+          admittedAtVersion: z.number().int().nonnegative(),
+        }),
       ])
       .optional(),
     deliberationWindow: z
