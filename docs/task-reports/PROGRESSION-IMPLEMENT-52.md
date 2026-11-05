@@ -75,6 +75,6 @@
 - 本地构建：`.local/build-progression52`，`BUILD_ID=hrlE4s7Wjgcezpjdkf0Dg`；关键源码与 main 逐文件 SHA 一致。
 - 3218：PID `22052`，`/api/health` 200；旧 `build-stage51` web 已停止（其中一个已释放端口但 TERM 后仍存活的进程，核实无监听后 KILL，无数据写入）。
 - 队列 worker：PID `22094`，health ready，`tasksRun=0`。
-- 主动 worker：PID `22113`，health ready；首 tick 遇到已有 `advance-lease-busy`（lease 至 03:18:22Z），尚未产生新模型调用/新消息。
+- 主动 worker：PID `22113`，health ready；已跑 2 ticks、claimed/advanced 4、messages 3、failed 0（当前推进的是另一世界 `4953…`，不是原 2fb 档）。原 2fb 当时被既有 `advance-lease-busy` 占住（lease 至 03:18:22Z），尚未在该档产生新调用/新消息；这不是演绎通过。
 - 未启动 3219、未部署 Vercel；原用户存档、付费回执、迁移均未改。
 - 页面只验证了 `/` 与 `/api/health` 200；完整手机 UI/通知/键盘未做浏览器目视。health 200 不等于剧情验收。
