@@ -1984,6 +1984,15 @@ test('accepted episode continuation binds the existing current-opportunity refer
     kind: 'plan',
     text: 'An existing optional meeting task accepted by this actor; no player agreement.',
   });
+  (input.viewState ?? input.state).episodeParticipations = [
+    {
+      id: 'accepted-request',
+      choice: 'engage',
+      reason: '本人已选择参与',
+      sourceIds: [sourceId],
+      recordedAtVersion: 9,
+    },
+  ];
   input.episodeFollowUps = [
     {
       requestId: 'accepted-request',
@@ -2037,6 +2046,7 @@ test('accepted episode continuation binds the existing current-opportunity refer
   assert.equal(JSON.parse(forged.calls[0]!.messages[1]!.content).currentOpportunity, undefined);
   input.input.origin = 'wake';
   input.episodeFollowUps[0]!.choice = 'quiet';
+  (input.viewState ?? input.state).episodeParticipations![0]!.choice = 'quiet';
   const unaccepted = capture();
   await unaccepted.adapter.decide(input);
   assert.equal(JSON.parse(unaccepted.calls[0]!.messages[1]!.content).currentOpportunity, undefined);

@@ -511,6 +511,34 @@ export function pruneUnusedNpcSchemaDefinitions(
   return result;
 }
 
+/** The same authenticated unfinished acceptance supplies both the prompt and
+ * its durable ownership binding; an agenda wake is not a second acceptance. */
+export function unplannedAcceptedTask(context: AgentValidationContext) {
+  const state = context.viewState ?? context.state;
+  return (
+    (state.episodeParticipations ?? [])
+      .filter((p) => {
+        const sourceId = ACTOR_EPISODE_INTENT_PREFIX + p.id;
+        return (
+          p.choice === 'engage' &&
+          context.sources.some(
+            (s) =>
+              s.id === sourceId &&
+              s.usage === 'private_strategy' &&
+              ['director_intent', 'authored'].includes(s.kind),
+          ) &&
+          ![...state.plans, ...state.actions, ...state.responsibilities, ...state.goals].some(
+            (item) =>
+              item.sourceIds.includes(sourceId) ||
+              ('subject' in item && item.subject.kind === 'request' && item.subject.id === p.id),
+          )
+        );
+      })
+      .sort((a, b) => a.recordedAtVersion - b.recordedAtVersion || a.id.localeCompare(b.id))[0] ??
+    null
+  );
+}
+
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
 export function selfOwnedWakeResponsibility(
   state: { responsibilities?: ActorAgentState['responsibilities'] },
@@ -1872,6 +1900,10 @@ function bindNpcConsideration(
   if (!consideration && context.input.origin === 'wake') {
     try {
       const wake = JSON.parse(context.input.text);
+      if (wake.type === 'npc_agenda_review' && context.channel.kind === 'private') {
+        const owned = unplannedAcceptedTask(context);
+        if (owned) acceptedOwner = { id: owned.id, reason: owned.reason };
+      }
       if (
         wake.type === 'npc_own_condition_ready' &&
         wake.source === 'actor_local' &&

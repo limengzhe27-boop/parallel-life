@@ -175,6 +175,7 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
           return JSON.stringify({
             protocol:
               p.deliberationWindow?.version === 2 ? 'director-wire-v17' : 'director-wire-v14',
+            openingContext: null,
             candidates: p.wireCatalog.candidates.map((c: any) => ({
               ref: c.ref,
               decision: 'defer',
@@ -183,11 +184,15 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
             ...(p.deliberationWindow?.version === 2
               ? {}
               : {
-                  authoredChoices: p.wireCatalog.events.map((e: any) => ({
-                    eventRef: e.ref,
-                    decision: 'defer',
-                    reason: 'No new arrangement.',
-                  })),
+                  authoredChoices: Object.fromEntries(
+                    p.wireCatalog.events.map((e: any) => [
+                      e.ref,
+                      {
+                        kind: 'defer',
+                        reason: 'No new arrangement.',
+                      },
+                    ]),
+                  ),
                 }),
             opportunities: [],
             audit: { reason: 'Synthetic global quiet, not an event result.', sourceRefs: [] },

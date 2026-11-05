@@ -15,6 +15,7 @@ import {
   SCENE_NPC_WIRE_PROTOCOL,
   npcResponseFormat,
   selfOwnedWakeResponsibility,
+  unplannedAcceptedTask,
 } from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -420,26 +421,9 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       if (wake.type === 'npc_agenda_review' && snapshot.channel.kind === 'private') {
         const duty = selfOwnedWakeResponsibility(viewState, snapshot.input);
         const dutySource = duty?.sourceIds.find((id) => id.startsWith(ACTOR_EPISODE_INTENT_PREFIX));
-        const accepted = (snapshot.episodeFollowUps ?? []).filter(
-          (f) =>
-            f.choice === 'engage' &&
-            f.followUp === 'none' &&
-            snapshot.sources.some(
-              (s) =>
-                s.id === ACTOR_EPISODE_INTENT_PREFIX + f.requestId &&
-                ['director_intent', 'authored'].includes(s.kind) &&
-                s.usage === 'private_strategy',
-            ),
-        );
-        const next = accepted.sort((a, b) => {
-          const version = (id: string) =>
-            viewState.episodeParticipations?.find((p) => p.id === id)?.recordedAtVersion ?? 0;
-          return (
-            version(a.requestId) - version(b.requestId) || a.requestId.localeCompare(b.requestId)
-          );
-        })[0];
+        const next = unplannedAcceptedTask({ ...snapshot, viewState });
         if (dutySource) wakeObservationBasis = [dutySource];
-        else if (next) wakeObservationBasis = [ACTOR_EPISODE_INTENT_PREFIX + next.requestId];
+        else if (next) wakeObservationBasis = [ACTOR_EPISODE_INTENT_PREFIX + next.id];
       }
       if (
         wake.type === 'npc_own_condition_ready' &&

@@ -183,6 +183,16 @@ test('a certified legacy accepted-task wake restores ownership without accepting
   assert.deepEqual(p.responsibilities, []);
   assert.equal(p.plans[0]!.id, 'old-task:plan');
   assert.equal(p.plans[0]!.status, 'active');
+  c.input.text = JSON.stringify({ type: 'npc_agenda_review' });
+  const agenda = parseAgentProposal(c, raw);
+  assert.equal(
+    agenda.plans[0]!.id,
+    'old-task:plan',
+    'a legitimate agenda wake continues the same accepted work',
+  );
+  c.state.plans = agenda.plans;
+  assert.deepEqual(parseAgentProposal(c, raw).plans, [], 'existing work is not duplicated');
+  c.state.plans = [];
   c.state.episodeParticipations[0]!.choice = 'quiet';
   const quiet = parseAgentProposal(c, raw);
   assert.deepEqual(quiet.responsibilities, []);
