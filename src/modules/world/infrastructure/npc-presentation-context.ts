@@ -41,7 +41,10 @@ function futureTaskText(text: string): string {
   const start = text.indexOf('{');
   if (start < 0) return text;
   try {
-    const directive = JSON.parse(text.slice(start));
+    // The directive is a single JSON line. Independently scoped hints may follow.
+    const nextLine = text.indexOf('\n', start);
+    const end = nextLine === -1 ? text.length : nextLine;
+    const directive = JSON.parse(text.slice(start, end));
     if (
       directive?.kind !== 'director_future_task' ||
       directive.authority !== 'future_proposal_only' ||
@@ -49,7 +52,9 @@ function futureTaskText(text: string): string {
     )
       return text;
     const opportunity = actorInteractionOpportunity(directive.task);
-    return opportunity ? text.slice(0, start) + JSON.stringify(opportunity) : text;
+    return opportunity
+      ? text.slice(0, start) + JSON.stringify(opportunity) + text.slice(end)
+      : text;
   } catch {
     return text;
   }

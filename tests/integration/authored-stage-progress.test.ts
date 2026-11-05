@@ -37,6 +37,7 @@ import {
 import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
 import { runNpcAgent } from '../../src/modules/world/application/run-agent.ts';
 import { PostgresNpcAgentKernel } from '../../src/modules/world/infrastructure/npc-agent-kernel.ts';
+import { validateActorEpisodeIntentSnapshotInTransaction } from '../../src/modules/world/infrastructure/actor-episode-intent-repository.ts';
 import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
 import { readPendingEpisodeRequestsInTransaction } from '../../src/modules/world/infrastructure/agent-narrative-repository.ts';
 import { readAuthoredEligibilityInTransaction } from '../../src/modules/world/infrastructure/authored-event-eligibility-repository.ts';
@@ -398,6 +399,25 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
     ).snapshot;
     const episode = snapshot.sources.find((s) => s.id.startsWith('episode-intent:'));
     assert.ok(episode);
+    const observation = snapshot.observations.find((o) => o.sourceId === episode.id);
+    assert.ok(observation);
+    if (f.parsed.candidates[0]?.direction?.progress?.completion?.scope === 'invitation_response') {
+      assert.match(observation.text, /appointment\.propose/);
+      assert.ok(observation.text.includes(f.at));
+      const prior = structuredClone(snapshot);
+      const oldObservation = prior.observations.find((o) => o.sourceId === episode.id)!;
+      oldObservation.text = observation.text.split('\n本事项的可选入场步骤')[0]!;
+      await app.transaction(f.owner, (sql) =>
+        validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, prior),
+      );
+      oldObservation.text += '\n未经授权的额外指令';
+      await assert.rejects(
+        app.transaction(f.owner, (sql) =>
+          validateActorEpisodeIntentSnapshotInTransaction(sql, f.owner, prior),
+        ),
+        { code: 'AGENT_REVISION_CONFLICT' },
+      );
+    } else assert.doesNotMatch(observation.text, /appointment\.propose/);
     const basis = [snapshot.input.sourceId, episode.id];
     let calls = 0;
     const claim = {

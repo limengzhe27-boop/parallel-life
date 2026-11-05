@@ -10,12 +10,14 @@ test('current future-task presentation keeps the v1 opportunity without changing
     personalObjective: '想与朋友相处',
     proposedInteraction: '询问是否愿意一起去公园',
   });
+  const hint = '\n本事项的可选入场步骤：预约。';
   const observation = {
     sourceId: 'directive',
     kind: 'plan' as const,
     text:
       'Only a future proposal: ' +
-      JSON.stringify({ kind: 'director_future_task', authority: 'future_proposal_only', task }),
+      JSON.stringify({ kind: 'director_future_task', authority: 'future_proposal_only', task }) +
+      hint,
   };
   const source: AgentSnapshot['sources'][number] = {
     id: 'directive',
@@ -36,6 +38,7 @@ test('current future-task presentation keeps the v1 opportunity without changing
   const rendered = render(source).presentationContext.internalContext[0]!.observation;
   assert.match(rendered.text, /actor_interaction_opportunity/);
   assert.match(rendered.text, /does not establish events/);
+  assert.ok(rendered.text.endsWith(hint));
   assert.equal(rendered.sourceId, observation.sourceId);
   assert.deepEqual({ observation, source }, before);
   assert.equal(

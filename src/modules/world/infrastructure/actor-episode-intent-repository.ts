@@ -28,6 +28,7 @@ import {
 export type ActorEpisodeIntentView = {
   source: AgentSource;
   observation: AgentSnapshot['observations'][number];
+  priorObservation?: AgentSnapshot['observations'][number];
 };
 const EPISODE_BRIEF_INTRO = [
   'Director-created future interaction proposal addressed only to you. This is NOT a report, known fact, completed action, private attitude, player decision or obligation. Use only your own authorized knowledge and persona to decide whether/how to participate; ask rather than assume unknown information. You may refuse, defer or stay quiet: ',
@@ -423,6 +424,34 @@ export async function readActorEpisodeIntentsInTransaction(
       },
     });
   }
+  if (!options.historical && stagingCatalog?.status === 'complete') {
+    for (const { request, opportunity } of staged) {
+      const view = result.get(request.id);
+      if (!view || view.source.kind !== 'director_intent' || !opportunity.authoredEventKey)
+        continue;
+      const material = stagingCatalog.catalog.materials.find(
+        (entry) => entry.ref.nodeKey === opportunity.authoredEventKey,
+      );
+      if (material?.node.direction?.progress?.completion?.scope !== 'invitation_response') continue;
+      const invitation = projectActorEpisodeDirective(
+        material,
+        frame.actorId,
+        world.space?.places ?? [],
+      );
+      if (invitation?.kind !== 'invitation_suggestion') continue;
+      // A staged director task otherwise replaces the authored invitation entirely.
+      // Reuse the exact actor/place-scoped directive, with no evidence of consent.
+      view.priorObservation = view.observation;
+      view.observation = {
+        ...view.observation,
+        text:
+          view.observation.text +
+          '\n本事项的可选入场步骤（只发文字不创建日程）：' +
+          JSON.stringify(invitation) +
+          '。若你决定现在发出这项邀请，使用 appointment.propose 创建待答日程；可调整、询问、暂缓或拒绝。earliestAt 是建议的最早时刻，不是已约好的时间。只有玩家实际回应日程才可能完成此事项。',
+      };
+    }
+  }
   return result;
 }
 
@@ -549,7 +578,8 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
     if (
       intent.requestId !== id ||
       observations.length !== 1 ||
-      !isDeepStrictEqual(observations[0], view.observation)
+      (!isDeepStrictEqual(observations[0], view.observation) &&
+        !isDeepStrictEqual(observations[0], view.priorObservation))
     )
       return conflict();
   }
