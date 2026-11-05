@@ -44,3 +44,11 @@
 - 再次核实bc84dfd4：其lease早已过期，但仍为request_sent。这是进程消失后没有执行catch导致的真实恢复断点。现沿已有生命周期把“已过期、已发送、无原始响应、无已提交事件”的原调用记为unknown_after_send；不重买、不改原输入/计费证据、不处理已保存prefix/response。新合法工作仍使用原claim对已过期unknown的退休规则。
 - 新真实PG故障旅程使用真实短lease到期（不修改已发送身份字段），证明原付费grant不被重买、hash/response/event保持、其他人物可继续。own-agenda-runtime现9/9。
 - 未新增数据库字段/表/迁移；源码新增的是原advance入口内的失联状态归一，不另建恢复系统。
+
+## 最终原档恢复证据与剩余验收
+
+- 新恢复入口在正常worker到期检查中把原bc84dfd4从request_sent归为unknown；随后新合法工作由既有claim将其退休为stale_discarded。response_hash/event_id仍为NULL，没有重买该次调用。
+- 李之之随后正常调度05373251及后续复查已保存 `episode_request:5141b7…:plan`；当前blocked、nextActionId=null。这证明旧请求不再永久阻止本人后续，**仍不证明实际行动或持续剧情完成**。
+- 期间暴露新的输入边界：63992字符消息+16160字符schema超80000总上限。删除模型展示中的readyPlanIds/readyResponsibilityIds两项重复调度索引；不删源快照/执行条件/历史/责任。原档李之之重新离线组包62288+13675，当前机会来源仍在，无模型调用、无调高限额。
+- 最终check4260/4260；PG29+9=38/38；隔离最终构建`.local/build-stage51-final`通过。最后切换采用脱离验收工具会话的本地进程，避免工具退出误杀服务；进程配置/数据库/素材不变。
+- 本轮验收结论：任务承接、计划持久化、复查和失联恢复链已实际接通；原档仍大量waiting/blocked、无可证明的新行动，不勾选“持续主动演绎通过”。后续重点是旧占用事件的具体可执行阶段、真实等待解除/合理退出以及导演续接同事项，不能反复调用模型期待偶然非空或清空原档。

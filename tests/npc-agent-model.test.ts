@@ -812,7 +812,11 @@ test('episode follow-up references are private context and do not grant completi
     const payload = JSON.parse(calls[0]!.messages[1]!.content);
     assert.deepEqual(
       payload.episodeFollowUps,
-      channel === 'private' ? input.episodeFollowUps : undefined,
+      channel === 'private'
+        ? input.episodeFollowUps.map(
+            ({ readyPlanIds: _p, readyResponsibilityIds: _r, ...followUp }) => followUp,
+          )
+        : undefined,
     );
     assert.match(calls[0]!.messages[0]!.content, /不把子步骤、就绪或说法当整体完成/);
   }

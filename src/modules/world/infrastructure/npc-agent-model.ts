@@ -725,9 +725,14 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     ...(snapshot.channel.kind === 'private' &&
     snapshot.episodeFollowUps?.some((followUp) => followUp.choice !== 'quiet')
       ? {
-          episodeFollowUps: snapshot.episodeFollowUps.filter(
-            (followUp) => followUp.choice !== 'quiet',
-          ),
+          // Readiness indexes drive scheduling, not another model decision.
+          // Keep task identity, stance and durable ownership; the actual plans
+          // and responsibilities already describe their next conditions.
+          episodeFollowUps: snapshot.episodeFollowUps
+            .filter((followUp) => followUp.choice !== 'quiet')
+            .map(
+              ({ readyPlanIds: _plans, readyResponsibilityIds: _duties, ...followUp }) => followUp,
+            ),
         }
       : {}),
     ...(snapshot.channel.kind === 'private' && snapshot.episodeResults?.length
