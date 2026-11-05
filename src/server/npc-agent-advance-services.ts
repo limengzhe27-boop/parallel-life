@@ -378,6 +378,25 @@ export function npcAgentAdvanceServices(
         throw Object.assign(Error('AGENT_PROJECTION_INCOMPLETE'), {
           code: 'AGENT_PROJECTION_INCOMPLETE',
         });
+      // A process can disappear after send, before recording the transport
+      // failure. Expiry with no saved response/prefix has the same unknown
+      // outcome as a caught connection loss. Preserve that paid cause; only
+      // release its actor-wide execution fence through the existing lifecycle.
+      for (const pending of read.prior.filter(
+        (a) =>
+          a.status === 'request_sent' && !a.leaseLive && a.sent && !a.hasResponse && !a.hasEvent,
+      )) {
+        const original = await attempts.lookup(ownerId, worldId, pending.commandId);
+        if (
+          !original ||
+          original.status !== 'request_sent' ||
+          original.eventId ||
+          Date.parse(original.leaseUntil) > Date.now()
+        )
+          continue;
+        await attempts.mark(ownerId, original, 'unknown_after_send');
+        pending.status = 'unknown_after_send';
+      }
       // A received, protected result is not an unknown paid call. Resume it
       // before active-attempt blockers, otherwise its owner could never wake.
       const npcModel = new NpcAgentModel({

@@ -552,6 +552,39 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
     },
   );
   await t.test(
+    'a crashed sent request expires to unknown without repurchasing its paid cause',
+    async () => {
+      const f = await fixture(),
+        h = await prime(f);
+      const available = await work(f);
+      assert.ok(available);
+      const p = await prepare(f, available);
+      p.claim.leaseUntil = new Date(Date.now() + 1000).toISOString();
+      const claimed = await store.claim(f.owner, p.claim);
+      await store.markRequestSentWithSources(f.owner, claimed.attempt, p.snapshot);
+      await sleep(1050); // Expire the real immutable lease; never rewrite a sent attempt identity.
+      const callsBefore = h.calls.length;
+      h.setPhase('quiet');
+      await h.advance();
+      const original = (await attempts(f)).find((a) => a.id === claimed.attempt.id)!;
+      assert.ok(['unknown_after_send', 'stale_discarded'].includes(original.status));
+      assert.ok(original.sent_at);
+      assert.equal(original.response_hash, null);
+      assert.equal(original.event_id, null);
+      assert.equal(original.input_hash, p.claim.inputHash);
+      assert.equal(
+        h.calls
+          .slice(callsBefore)
+          .filter((c) => c.kind === 'npc' && c.input.grantId === available.grant.grantId).length,
+        0,
+        'the expired paid grant is not called again',
+      );
+      assert.ok(
+        (await attempts(f)).some((a) => a.actor_id === ACTOR_B && a.status === 'committed'),
+      );
+    },
+  );
+  await t.test(
     'budget race cancels the exact unsent attempt atomically; a later CAS uses authenticated same-family transport lineage',
     async () => {
       const f = await fixture();
