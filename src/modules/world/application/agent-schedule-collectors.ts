@@ -45,6 +45,8 @@ export type SchedulingView = {
   agendaInitializeGrants?: readonly ActorAgendaInitializeGrant[];
   /** Durable actionless-plan review cadence, scoped to this actor. */
   planReviews?: ReadonlyMap<string, PlanReviewState>;
+  /** Explicit Director review defers actor plan reviews to the next normal advance. */
+  suppressPlanReviews?: boolean;
   /** Per-actor last assistant time; each actor's local initiative is independent. */
   lastAssistantAtByActor?: Readonly<Record<string, string>>;
 };
@@ -529,6 +531,7 @@ async function planReconsiderations(
     const savedReview = view.planReviews?.get(plan.id);
     // The persisted review belongs to this plan, independently of unrelated chat.
     if (
+      !view.suppressPlanReviews &&
       !plan.nextActionId &&
       !plan.triggers.length &&
       !plan.missingConditions.length &&

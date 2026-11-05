@@ -1014,9 +1014,59 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       }
     }
   }
+  // Last-resort context reduction: old quiet episode deliberations are not
+  // current work and must not make the whole director review unsendable.
+  if (snapshot.episodeManifest && !fits()) {
+    const state = optional.state as {
+      episodeParticipations?: { id: string; choice: string }[];
+    } | null;
+    if (state?.episodeParticipations?.length) {
+      const retained = state.episodeParticipations.filter((p) => p.choice !== 'quiet');
+      if (retained.length < state.episodeParticipations.length) {
+        state.episodeParticipations = retained;
+        payload.contextSelection.stateDetailsWithheld = true;
+      }
+    }
+  }
+  // A long private thread can accumulate dozens of duplicate open questions.
+  // Keep the focused question, every closed/assessed one, and the recent open
+  // tails; the durable ledger remains authoritative for later exact recovery.
+  if (snapshot.episodeManifest && !fits(NPC_AGENT_REQUEST_LIMIT)) {
+    const state = optional.state as {
+      questions?: { sourceId?: string; status?: string }[];
+      focus?: { questionSourceId?: string | null } | null;
+    } | null;
+    if (state?.questions?.length) {
+      const focusSourceId = state.focus?.questionSourceId;
+      const recentStart = Math.max(0, state.questions.length - 8);
+      const retained = state.questions.filter(
+        (q, index) => q.status !== 'open' || q.sourceId === focusSourceId || index >= recentStart,
+      );
+      if (retained.length < state.questions.length) {
+        state.questions = retained;
+        if (payload.contextSelection) payload.contextSelection.stateDetailsWithheld = true;
+      }
+    }
+  }
+  // Episode follow-ups are the last large optional block. Keep the two most
+  // recent non-terminal tasks rather than failing the entire turn.
+  if (
+    snapshot.episodeManifest &&
+    !fits(NPC_AGENT_REQUEST_LIMIT) &&
+    Array.isArray(optional.episodeFollowUps)
+  ) {
+    const retained = (optional.episodeFollowUps as { followUp?: string }[])
+      .filter((followUp) => followUp.followUp !== 'terminal')
+      .slice(-2);
+    if (retained.length < optional.episodeFollowUps.length) {
+      optional.episodeFollowUps = retained;
+      if (payload.contextSelection) payload.contextSelection.stateDetailsWithheld = true;
+    }
+  }
   if (!fits(NPC_AGENT_REQUEST_LIMIT))
     throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {
       code: 'NPC_AGENT_SNAPSHOT_LIMIT',
+      actorName: snapshot.actor.name,
       contextSizes: {
         ...Object.fromEntries(
           Object.entries(payload).map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0]),

@@ -1,6 +1,6 @@
 # STORY-CHAIN-55 · Agent 运行时故事计划与开场/阶段门
 
-状态：进行中（本地实现，原档只读证据已取得；真实剧情体验与新故事包未完成）
+状态：待验收（本地真实开场/第1幕任务已跑通；新故事包、事件终结与生产未完成）
 负责人：dsh-story55-20261105（root 集成）
 基线：main `2512cf8d`
 工作目录：主目录
@@ -112,20 +112,69 @@ occupied =
 
 因此本批已证明“导演快照只暴露 opening”，但还没有证明“真实模型会成功接下 opening 并发消息”。
 
+### 3.5 2026-11-05 接续：真实开场与第 1 幕
+
+#### 旧 committed_source 阻断
+
+- 2fb 有 66 条 committed private turn 含 statements，但 `world_messages` 没有对应投影；全库同类共 260 条，分布 14 个世界，最早可追到 2026-10-20。
+- 这不是 0127–0129 的 plan/occupy 改动，也不能把“事件已 committed”当作“玩家已收到”。新增 `db/migrations/0130_agent_unprojected_commit_quarantine.sql`：
+  - 新建 `agent_runtime_evidence_quarantine`，只记录 `world_id/owner_id/attempt_id/reason/evidence`；
+  - 迁移时一次性登记既有投影缺口，不删除、不改写任何 event/receipt/message；
+  - own-agenda 读取时只排除被审计登记的 attempt；**新出现的未登记投影缺口仍 fail closed**。
+- 隔离后 2fb 六个 actor 的 own-agenda evidence 全部通过；原测试“native speaking event without projection fails closed”仍通过，并新增“audited quarantine excludes ...”回归测试。
+
+#### 强制导演被旧 actor 工作抢占
+
+- `forceDirectorReview` 现在只做导演：跳过 `actor_plan` 复查和 own-agenda review，旧计划仍保留，在后续正常 advance 中执行。
+- 导演 wake cause 的 `qualifications` 按 `authoredStory.eligibleNodeKeys` 重建；快照与提交校验使用同一 gate，避免 `DIRECTOR_EVALUATION_CAUSE_CONFLICT`。
+- 上下文达到硬上限时，只对 authored story / authored episode task 做有界的旧问题、旧 follow-up、可选观察裁剪；普通对话仍按原契约 fail closed。相关单测 110/110 通过。
+
+#### 真实结果（未手工补消息）
+
+- `worldVersion=1405` 导演决策生成 opening opportunity：
+  - `authoredEventKey=event_28910809fd5d1f8b`
+  - 六位参与者全部在 opportunity 中
+- `worldVersion=1406` 刘胜男实际发消息，`world_messages` 有对应行；opening episode 的六位参与者分别在 1406–1411 产生 receipt（engage/quiet/defer 均有）。
+- 快照 1406：
+  - `openingPresented=true`
+  - `presentedNodeKeys=[opening]`
+  - `activeNodeKeys=[opening]`
+  - `deliberationWindow.nodeKeys=["node_1","node_2"]`
+  - `occupiedAuthoredEventKeys=[opening]`
+- `worldVersion=1412` 导演为第 1 幕生成两个 episode：
+  - `node_1`（假扮男友）proposed
+  - `node_2`（母亲医院/照护追问）active
+  - 欣欣实际发消息 `20ecbb72...`；`worldVersion=1413` 舒雅婷实际发消息 `8eb7c9f1...`
+- 快照 1412/1413：
+  - `currentStageKeys=["runtime_stage_1"]`
+  - `activeNodeKeys=[opening,node_1,node_2]`
+  - `presentedNodeKeys=[opening,node_2]`
+  - `deliberationWindow.nodeKeys=[]`
+
+这说明当前门禁不是“无限开放 18 个事件”，而是 opening 真实呈现后才进入第 1 幕；第 1 幕节点在途时窗口为空，必须等实际呈现/终结才继续。
+
+#### 检查与运行
+
+- `npm run check`：**4273/4273 通过**。
+- `npm run build`：主目录集成构建通过。
+- 聚焦真实 PG：`own-agenda-review-evidence` **18/18 通过**（含新增 quarantine 回归）。
+- 0130 已应用到 `parallel_life_clone_20261026`、`parallel_life_test`、`parallel_life_dev`；本地 3218 已切到主目录构建，health 200。
+- 未推送/未部署生产；未把本地迁移当线上完成。
+
 ## 4. 还没有完成
 
 1. **新故事包**：18 个节点全部呈现/终结后，`eligibleNodeKeys=[]`，尚未生成第 19+ 个事件；下一批应新增 `story_pack` 生成/作者追加路径。
-2. **真实开场体验**：导演是否实际选中 opening、NPC 是否真实开场、玩家是否看到、后续幕是否自然推进，尚未用真实模型验收。
-3. **事件终结**：本批把“呈现”作为当前幕推进依据；非邀请类 director_event 的 `resolved` 语义仍需后续按玩家决定/结果补齐。
-4. **本地运行**：已生成 `.local/build-story55`（BUILD_ID `fs2VMAynOq-sYybo8nVJu`），3218 已切到该构建并健康；worker PID 70702 已从同一构建启动。真实强制复盘仍被上面的旧 `committed_source` 断点阻断。
-5. **生产**：0127/0128/0129 尚未应用到生产 Supabase；未推送/未部署 Vercel。不能把本地迁移当线上完成。
+2. **真实开场/第 1 幕**：opening 已真实呈现，第 1 幕 node_1/node_2 已真实发起任务；但玩家回复、事件结果与第 1 幕终结尚未验收。
+3. **事件终结**：本批仍以“呈现”推进当前幕；非邀请类 `director_event` 的 `resolved` 语义、NPC 拒绝/quiet 后如何不阻塞剧情，仍需按玩家决定/实际结果补齐。
+4. **本地运行**：3218 已切主目录构建并 health 200；旧 `.local/build-story55` 不再作为当前入口。worker 需在收尾时同步到同一构建，避免旧代码继续处理 own-agenda。
+5. **生产**：0127–0130 尚未应用到生产 Supabase；未推送/未部署 Vercel。不能把本地迁移当线上完成。
 
 ## 5. 最终提交
 
-- 业务/迁移/报告提交：`fix(story): gate authored events by runtime plan and actual presentation`（main 最新提交）
-- 本地地址：`http://localhost:3218`
-- 本地构建：`.local/build-story55` / `fs2VMAynOq-sYybo8nVJu`
-- 集成检查：4272/4272，build 通过
+- 业务/迁移/报告提交：本批改动尚在工作树，待集成提交（上一提交 `dcfca52c`）。
+- 本地地址：`http://localhost:3218`（主目录构建）
+- 集成检查：4273/4273，build 通过
+- 迁移：0127–0130 本地 clone/test/dev 已应用；生产未应用
 
 ## 5. 接续点
 

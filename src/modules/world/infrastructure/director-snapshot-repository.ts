@@ -1194,6 +1194,20 @@ export class PostgresDirectorSnapshotRepository {
       } catch {
         fail('INVALID_AUTHORED_STORY_PLAN');
       }
+      // The runtime story gate may narrow the authored catalogue to the opening
+      // or current act. The wake cause must use the same permitted qualifications,
+      // otherwise the Director request would contradict its own gate.
+      if (evaluationCause && authoredStory && 'qualifications' in evaluationCause) {
+        const permitted = new Set(authoredStory.eligibleNodeKeys);
+        const allowed = (authored?.eligibility ?? [])
+          .filter((e) => permitted.has(e.ref.nodeKey))
+          .map((e) => ({
+            nodeKey: e.ref.nodeKey,
+            nodeHash: e.ref.nodeHash,
+            qualificationKey: e.qualificationKey,
+          }));
+        if (allowed.length) evaluationCause = { ...evaluationCause, qualifications: allowed };
+      }
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         ...(openingContextAuthority ? { openingContextAuthority } : {}),

@@ -1108,4 +1108,47 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       assert.deepEqual(await read(x), before);
     },
   );
+  await t.test(
+    'an audited quarantine excludes a historical unprojected turn without rewriting it',
+    async () => {
+      const x = await fixture();
+      await commitOriginalQuiet(x);
+      const baseline = await read(x);
+      const attemptId = await nativePrivateCommit(x, { say: true });
+      const event = (
+        await admin.query(
+          'SELECT event_id,expected_world_version FROM parallel_life.agent_attempts WHERE id=$1',
+          [attemptId],
+        )
+      ).rows[0];
+      const removed = (
+        await admin.query(
+          "DELETE FROM parallel_life.world_messages WHERE world_id=$1 AND document->>'sourceEventId'=$2 AND document->>'role'='assistant' RETURNING id",
+          [x.worldId, event.event_id],
+        )
+      ).rows;
+      assert.equal(removed.length, 1);
+      await assert.rejects(read(x), invalid('committed_source'));
+      await admin.query(
+        `INSERT INTO parallel_life.agent_runtime_evidence_quarantine(
+           world_id,owner_id,attempt_id,reason,evidence
+         ) VALUES($1,$2,$3,'unprojected_committed_turn',$4)`,
+        [
+          x.worldId,
+          x.owner,
+          attemptId,
+          {
+            eventId: event.event_id,
+            eventVersion: event.expected_world_version + 1,
+            statementCount: 1,
+            projectionCount: 0,
+          },
+        ],
+      );
+      const recovered = await read(x);
+      assert.equal(recovered.anchor!.attemptId, baseline.anchor!.attemptId);
+      assert.equal(recovered.lastPresentedRealAt, null);
+      assert.equal(recovered.quietStreak, 0);
+    },
+  );
 });

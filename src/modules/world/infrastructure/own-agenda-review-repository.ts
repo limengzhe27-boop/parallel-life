@@ -42,14 +42,19 @@ export type OwnAgendaReviewEvidence = {
 export class OwnAgendaReviewEvidenceError extends Error {
   readonly code = 'INVALID_OWN_AGENDA_REVIEW_EVIDENCE';
   readonly reason: 'scope' | 'receipt' | 'committed_source' | 'envelope';
-  constructor(reason: OwnAgendaReviewEvidenceError['reason']) {
+  readonly detail?: Record<string, unknown>;
+  constructor(reason: OwnAgendaReviewEvidenceError['reason'], detail?: Record<string, unknown>) {
     super('INVALID_OWN_AGENDA_REVIEW_EVIDENCE');
     this.reason = reason;
+    this.detail = detail;
   }
 }
 type Row = Record<string, any>;
-const fail = (reason: OwnAgendaReviewEvidenceError['reason']): never => {
-  throw new OwnAgendaReviewEvidenceError(reason);
+const fail = (
+  reason: OwnAgendaReviewEvidenceError['reason'],
+  detail?: Record<string, unknown>,
+): never => {
+  throw new OwnAgendaReviewEvidenceError(reason, detail);
 };
 const object = (v: unknown): v is Row => !!v && typeof v === 'object' && !Array.isArray(v);
 const key = (v: unknown): v is string =>
@@ -100,6 +105,8 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
           AND i.document->>'channel'='private'
           AND e.payload#>>'{data,agentRuntime,stateAfter,definitionRef}'=$5
           AND COALESCE(a.response->>'kind','')<>'npc_agent_partial_stream'
+          AND NOT EXISTS (SELECT 1 FROM parallel_life.agent_runtime_evidence_quarantine q
+            WHERE q.world_id=a.world_id AND q.owner_id=a.owner_id AND q.attempt_id=a.id)
           AND NOT EXISTS (SELECT 1 FROM parallel_life.agent_attempt_stream_segments sg
             WHERE sg.world_id=a.world_id AND sg.owner_id=a.owner_id AND sg.attempt_id=a.id
               AND sg.completion_status IN ('partial_interrupted','superseded'))
@@ -115,6 +122,8 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
           AND e.payload#>>'{data,agentRuntime,stateAfter,definitionRef}'=$5
           AND jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,statements}')='array'
           AND e.payload#>'{data,agentRuntime,proposal,statements}'<>'[]'::jsonb
+          AND NOT EXISTS (SELECT 1 FROM parallel_life.agent_runtime_evidence_quarantine q
+            WHERE q.world_id=a.world_id AND q.owner_id=a.owner_id AND q.attempt_id=a.id)
         ORDER BY e.occurred_at DESC,e.version DESC LIMIT 1
       ), family_or_active AS (
         SELECT a.id,i.document FROM parallel_life.agent_attempts a
@@ -143,7 +152,10 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       pg_has_role(current_user,'pl_app','MEMBER') is_app,
       pg_has_role(current_user,'pl_worker','MEMBER') is_worker,
       COALESCE((SELECT jsonb_agg(to_jsonb(history)) FROM (
-        SELECT a.id,EXISTS(SELECT 1 FROM family_or_active fa WHERE fa.id=a.id) AS check_envelope,a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
+        SELECT a.id,EXISTS(SELECT 1 FROM family_or_active fa WHERE fa.id=a.id) AS check_envelope,
+          EXISTS(SELECT 1 FROM parallel_life.agent_runtime_evidence_quarantine q
+            WHERE q.world_id=a.world_id AND q.owner_id=a.owner_id AND q.attempt_id=a.id) AS quarantined,
+          a.world_id,a.owner_id,a.actor_id,a.command_id,a.input_receipt_id,a.input_hash,
           a.engine_epoch,a.expected_world_version,a.expected_actor_revision,a.status,a.event_id,
           a.sent_at IS NOT NULL AS sent,a.response IS NOT NULL AS has_response,a.response_hash,
           a.lease_until<=clock_timestamp() AS lease_expired,a.event_id IS NOT NULL AS has_event,
@@ -357,6 +369,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     quiet: boolean;
     presentedRealAt: string | null;
   }[] = [];
+  const projectionGapIds = new Set<string>();
   for (const r of rows) {
     if (r.status !== 'committed' || r.engine_epoch !== input.engineEpoch) continue;
     const e = r.event,
@@ -421,6 +434,13 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         ...(b.origin === 'player' ? [] : ['director']),
       ]),
     );
+    // An unprojected committed turn still advanced actor state, but the player
+    // never received its speech. Only an explicit, audited quarantine row may
+    // exclude it from evidence; a new gap remains fail-closed.
+    const projectionMismatch =
+      privateCommit &&
+      integer(rt?.statementCount) &&
+      Number(e.projectionCount) !== rt.statementCount;
     if (
       (privateCommit
         ? b.threadId !== input.actorId ||
@@ -451,8 +471,9 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       !isDeepStrictEqual(rt.proposalCounts, ['array', 'array', 'array', 'array', 'array']) ||
       (privateCommit &&
         (e.payload.type === 'agent.state_committed') !== (rt.statementCount === 0)) ||
-      Number(e.projectionCount) !==
-        (b.channel === 'group' && rt.statementCount > 0 ? 1 : rt.statementCount) ||
+      (Number(e.projectionCount) !==
+        (b.channel === 'group' && rt.statementCount > 0 ? 1 : rt.statementCount) &&
+        !(projectionMismatch && r.quarantined)) ||
       after.schemaVersion !== 1 ||
       after.worldId !== input.worldId ||
       after.actorId !== input.actorId ||
@@ -464,6 +485,12 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       Date.parse(e.payload.storyAt) > Date.parse(frame.story_at)
     )
       fail('committed_source');
+    if (projectionMismatch) {
+      if (!r.quarantined)
+        fail('committed_source', { attemptId: r.id, check: 'unprojected_speech' });
+      projectionGapIds.add(r.id);
+      continue;
+    }
     if (after.definitionRef !== input.definitionRef) {
       if (!historicalDefinitions) {
         historicalDefinitions = new Map();
@@ -545,6 +572,15 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       }
     }
     let recordFamily: string | null = null;
+    // A review request chained to a quarantined unprojected predecessor belongs
+    // to a broken family; it may still block while active, but cannot authenticate.
+    if (
+      object(envelope) &&
+      envelope.type === 'npc_agenda_review' &&
+      key(envelope.anchorAttemptId) &&
+      projectionGapIds.has(envelope.anchorAttemptId)
+    )
+      envelope = undefined;
     if (object(envelope) && envelope.type === 'npc_agenda_review') {
       if (
         !isDeepStrictEqual(

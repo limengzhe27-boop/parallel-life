@@ -742,28 +742,33 @@ export function npcAgentAdvanceServices(
           appointments: world.appointments.filter((a) => a.participantIds.includes(state.actorId)),
         })),
       );
-      const planReviewStates = new Map(
-        (
-          await Promise.all(
-            actors.map(async (actor) => {
-              const planIds = actor.snapshot.state.plans
-                .filter(
-                  (plan) =>
-                    !plan.nextActionId &&
-                    !plan.triggers.length &&
-                    ['active', 'waiting', 'blocked'].includes(plan.status),
-                )
-                .map((plan) => plan.id);
-              return planReviewRepository.read(
-                ownerId,
-                worldId,
-                actor.snapshot.state.actorId,
-                planIds,
-              );
-            }),
-          )
-        ).flatMap((reviews) => [...reviews]),
-      );
+      // An explicit Director review must not be preempted by an old actor plan
+      // review; those remain durable and run on the next normal advance.
+      const forceDirectorReview = options?.forceDirectorReview === true;
+      const planReviewStates = forceDirectorReview
+        ? new Map()
+        : new Map(
+            (
+              await Promise.all(
+                actors.map(async (actor) => {
+                  const planIds = actor.snapshot.state.plans
+                    .filter(
+                      (plan) =>
+                        !plan.nextActionId &&
+                        !plan.triggers.length &&
+                        ['active', 'waiting', 'blocked'].includes(plan.status),
+                    )
+                    .map((plan) => plan.id);
+                  return planReviewRepository.read(
+                    ownerId,
+                    worldId,
+                    actor.snapshot.state.actorId,
+                    planIds,
+                  );
+                }),
+              )
+            ).flatMap((reviews) => [...reviews]),
+          );
       const agendaReviews = new Map<string, OwnAgendaReviewWork>();
       const candidateCommand = (candidate: AgentCandidate) => {
         const agenda = agendaReviews.get(candidate.id)?.commandId;
@@ -801,7 +806,6 @@ export function npcAgentAdvanceServices(
       const directorReview = await directorReviewRepository.read(ownerId, worldId);
       // Director cadence is real-time metadata; story time can lag real time and must not freeze it.
       const directorNow = new Date().toISOString();
-      const forceDirectorReview = options?.forceDirectorReview === true;
       const forceNonce = forceDirectorReview ? randomUUID() : undefined;
       const directorDue =
         forceDirectorReview ||
@@ -823,6 +827,7 @@ export function npcAgentAdvanceServices(
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
         planReviews: planReviewStates,
+        suppressPlanReviews: forceDirectorReview,
         lastAssistantAtByActor: Object.fromEntries(
           world.messages
             .filter((message) => message.role === 'assistant' && message.actorId)
@@ -906,6 +911,7 @@ export function npcAgentAdvanceServices(
           .map((c) => c.actorId),
       );
       for (const actor of actors) {
+        if (forceDirectorReview) continue;
         const actorId = actor.snapshot.state.actorId;
         if (
           batch?.handledActorIds.has(actorId) ||

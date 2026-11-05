@@ -465,7 +465,7 @@ const trimStart = (value: unknown, keep: number) =>
   Array.isArray(value) && value.length > keep ? value.slice(0, keep) : value;
 
 /** Bounded assembly: keep what the director cannot decide without, trim the rest oldest-first. */
-export function fitWithinBudget(payload: Payload): Payload {
+export function fitWithinBudget(payload: Payload, allowObservationRemoval = false): Payload {
   const next: Payload = { ...payload };
   const observations = Array.isArray(payload.observations) ? payload.observations : [];
   const trimObservations = (keep: number) => retainDirectorEvidence(observations, keep);
@@ -683,6 +683,11 @@ export function fitWithinBudget(payload: Payload): Payload {
           ),
         }));
     },
+    () => {
+      // Authored story reviews can drop optional prose; ordinary reviews keep
+      // their recent observation so the test-visible context contract holds.
+      if (allowObservationRemoval) next.observations = [];
+    },
   ];
   for (const step of steps) {
     if (JSON.stringify(next).length <= CONTEXT_BUDGET) break;
@@ -870,7 +875,7 @@ function request(snapshot: DirectorSnapshot, concreteReview = false) {
     focus: snapshot.focus,
     conversationWithoutTarget: snapshot.conversationWithoutTarget ?? false,
   };
-  const bounded = fitWithinBudget(payload);
+  const bounded = fitWithinBudget(payload, snapshot.authoredStory !== undefined);
   const fitted =
     JSON.stringify(bounded).length > CONTEXT_BUDGET
       ? compactDirectorContextReferences(bounded)

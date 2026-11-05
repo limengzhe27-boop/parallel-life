@@ -790,7 +790,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     } else if (s.authoredEligibility !== undefined || s.occupiedAuthoredEventKeys !== undefined)
       fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
     if (!s.nativeTurn) {
-      const { cause } = await readDirectorNarrativeWakeInTransaction(
+      let { cause } = await readDirectorNarrativeWakeInTransaction(
         sql,
         owner,
         {
@@ -807,6 +807,17 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         qualified,
         allowAttemptId,
       );
+      if (s.authoredStory && cause && 'qualifications' in cause && qualified) {
+        const permitted = new Set(s.authoredStory.eligibleNodeKeys);
+        const allowed = qualified.eligibility
+          .filter((e) => permitted.has(e.ref.nodeKey))
+          .map((e) => ({
+            nodeKey: e.ref.nodeKey,
+            nodeHash: e.ref.nodeHash,
+            qualificationKey: e.qualificationKey,
+          }));
+        if (allowed.length) cause = { ...cause, qualifications: allowed };
+      }
       if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
     }
     if (s.openingContextAuthority !== undefined) {
