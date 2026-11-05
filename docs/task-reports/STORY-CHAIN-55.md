@@ -177,7 +177,7 @@ occupied =
 
 ## 4. 还没有完成
 
-1. **新故事包**：18 个节点全部呈现/终结后，`eligibleNodeKeys=[]`，尚未生成第 19+ 个事件；下一批应新增 `story_pack` 生成/作者追加路径。
+1. **新故事包**：18 个节点全部呈现/终结后，`eligibleNodeKeys=[]`，尚未生成第 19+ 个事件。已新增“空 authored window 可接受无 authoredEventKey 的 emergent opportunity”单测，证明 parser 层不会伪造作者节点；但 narrative-wake 仍没有 exhausted cause，调度层尚未真正触发新层，不能算完成。
 2. **真实开场/第 1–2 幕**：opening、第 1 幕 node_1/node_2、第 2 幕 node_4 均已真实呈现；第 2 幕剩余 `event_277.../node_5` 已进入窗口，玩家回复与事件结果尚未验收。
 3. **事件终结**：本批仍以“呈现”推进当前幕；非邀请类 `director_event` 的 `resolved` 语义、NPC 拒绝/quiet 后如何不阻塞剧情，仍需按玩家决定/实际结果补齐。
 4. **本地运行**：3218 与 worker 均已切主目录构建并 health 200；旧 `.local/build-story55` 不再作为当前入口。

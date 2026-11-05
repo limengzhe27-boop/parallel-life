@@ -281,6 +281,39 @@ test('a verified global authored opportunity needs no synthetic actor candidate 
   assert.equal(Object.hasOwn(d, 'actorUpdates'), false);
   assert.equal(Object.hasOwn(d, 'worldEvents'), false);
 });
+test('after every authored node is presented, an empty window permits a new emergent layer without a fake authored key', () => {
+  const f = fixture();
+  f.snapshot.authoredEligibility = f.snapshot.authoredEligibility!.map((entry) => ({
+    ...entry,
+    status: 'already_presented' as const,
+  }));
+  f.snapshot.occupiedAuthoredEventKeys = ['opening', 'later'];
+  f.snapshot.deliberationWindow = { version: 1, nodeKeys: [] };
+  f.snapshot.observations = [
+    {
+      sourceId: 'emergent-source',
+      text: '新层可用的当前事实',
+      kind: 'fact',
+      knownByActorIds: ['a'],
+    },
+  ];
+  const output = {
+    ...f.output,
+    audit: { reason: '新层涌现机会', basisSourceIds: ['emergent-source'] },
+    opportunities: [
+      {
+        ...f.output.opportunities[0]!,
+        authoredEventKey: undefined,
+        basisSourceIds: ['emergent-source'],
+      },
+    ],
+  };
+  const decision = parseDirectorDecision(f.snapshot, output, f.attempt);
+  assert.equal(decision.opportunities.length, 1);
+  assert.equal(decision.opportunities[0]!.authoredEventKey, undefined);
+  assert.equal(decision.authoredAssessments, undefined);
+});
+
 test('authored node references require their own exact material basis, not another node, audit-only basis or a guessed handle', () => {
   const f = fixture();
   for (const change of [

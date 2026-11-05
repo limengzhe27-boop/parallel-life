@@ -264,7 +264,10 @@ export function validDirectorAuthoredAssessments(
   decision: Pick<DirectorDecision, 'authoredAssessments' | 'opportunities'>,
 ): boolean {
   if (!validDirectorDeliberationWindow(snapshot)) return false;
-  if (decision.authoredAssessments === undefined) return snapshot.deliberationWindow === undefined;
+  if (decision.authoredAssessments === undefined)
+    return (
+      snapshot.deliberationWindow === undefined || snapshot.deliberationWindow.nodeKeys.length === 0
+    );
   const eligible =
     snapshot.authoredEligibility?.filter((q) => isDirectorDeliberationEvent(snapshot, q.nodeKey)) ??
     [];
