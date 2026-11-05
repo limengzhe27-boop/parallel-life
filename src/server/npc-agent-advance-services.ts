@@ -1104,7 +1104,12 @@ export function npcAgentAdvanceServices(
           emptyDirectorReviewDue({
             state: directorReview,
             storyAt: directorNow,
-            selectedCount: scheduled.selected.length,
+            // An optional agenda review is not an executing plan or a new
+            // observation. It must not indefinitely starve the existing bounded
+            // global review when every actor can always reconsider something.
+            selectedCount: scheduled.selected.filter(
+              (item) => item.candidate.source !== 'agenda_review',
+            ).length,
             retry: !!retryCommandId,
             handledActorCount: batch?.handledActorIds.size ?? 0,
           });
@@ -1164,7 +1169,7 @@ export function npcAgentAdvanceServices(
       // The single-actor scheduler fast path does not call its coordinator.
       // Preserve that same independence here instead of sending an already
       // selected personal grant back through the idle Director review below.
-      if (!forceDirectorReview && !wake.cause) {
+      if (!forceDirectorReview && !wake.cause && !emptyDirectorDue) {
         const ownSelected = scheduled.selected.find((item) =>
           independentActorWork([item.candidate]),
         );

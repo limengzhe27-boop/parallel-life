@@ -4,8 +4,27 @@ import {
   selectDirectorDeliberationWindow,
   validDirectorDeliberationWindow,
   validDirectorAuthoredAssessments,
+  directorAuthoredEntryStage,
+  directorOpportunityHasIndependentBasis,
+  type DirectorOpportunity,
   type DirectorSnapshot,
 } from '../src/modules/world/domain/director-runtime.ts';
+
+test('entry stage separates passed code checks, presentation and actual resolution', () => {
+  const s = fixture();
+  const q = s.authoredEligibility![0]!;
+  q.reasons = [];
+  assert.equal(directorAuthoredEntryStage(s, q.nodeKey), 'entry_not_presented');
+  s.occupiedAuthoredEventKeys = [q.nodeKey];
+  assert.equal(directorAuthoredEntryStage(s, q.nodeKey), 'opportunity_open_not_resolved');
+  q.status = 'already_presented';
+  assert.equal(directorAuthoredEntryStage(s, q.nodeKey), 'entry_presented_not_resolved');
+  q.reasons = ['already_resolved'];
+  assert.equal(directorAuthoredEntryStage(s, q.nodeKey), 'resolved');
+  q.reasons = ['stage_dependency'];
+  q.status = 'blocked';
+  assert.equal(directorAuthoredEntryStage(s, q.nodeKey), 'entry_blocked');
+});
 function fixture() {
   return {
     authoredMaterials: {
@@ -120,4 +139,49 @@ test('periodic qualification identity must still match current authenticated eli
   const s = periodicFixture();
   s.authoredEligibility!.find((q) => q.nodeKey === 'c')!.qualificationKey = 'changed-proof';
   assert.deepEqual(selectDirectorDeliberationWindow(s).nodeKeys, ['a', 'b', 'opening']);
+});
+
+test('current coordinates cannot rename an open participant matter into another opportunity', () => {
+  const snapshot = {
+    ...fixture(),
+    episodes: [
+      {
+        id: 'old',
+        status: 'active',
+        origin: { sourceId: 'decision:old' },
+        participantActorIds: ['a'],
+      },
+    ],
+  } as unknown as DirectorSnapshot;
+  const opportunity = {
+    id: 'new',
+    participantActorIds: ['a'],
+    basisSourceIds: ['actual-position:actor:a', 'actual-position:player'],
+  } as DirectorOpportunity;
+  assert.equal(directorOpportunityHasIndependentBasis(snapshot, opportunity), false);
+  assert.equal(
+    directorOpportunityHasIndependentBasis(snapshot, {
+      ...opportunity,
+      basisSourceIds: ['event:actual-arrival'],
+    }),
+    true,
+  );
+  assert.equal(
+    directorOpportunityHasIndependentBasis(snapshot, {
+      ...opportunity,
+      authoredEventKey: 'opening',
+    }),
+    true,
+  );
+  assert.equal(
+    directorOpportunityHasIndependentBasis({ ...snapshot, episodes: [] }, opportunity),
+    true,
+  );
+  assert.equal(
+    directorOpportunityHasIndependentBasis(snapshot, {
+      ...opportunity,
+      participantActorIds: ['b'],
+    }),
+    true,
+  );
 });

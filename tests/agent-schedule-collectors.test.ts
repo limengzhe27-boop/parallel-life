@@ -158,8 +158,20 @@ test('an accepted episode without a next step gets one source-bound continuation
   const first = (await collect(view([a]), 'observation')).candidates[0]!;
   assert.ok(first);
   assert.equal(first.episodeId, 'episode-a');
-  assert.equal(first.priority, 50, 'accepted work precedes optional local contact at priority 30');
+  assert.equal(
+    first.priority,
+    45,
+    'missing-step review follows concrete duties but precedes optional contact',
+  );
   assert.match(first.wakeCue!, /不是再次询问是否参与/);
+  responsibility(a, { status: 'open', waitingOn: 'self' });
+  assert.equal(
+    (await collect(view([a]), 'observation')).candidates.length,
+    0,
+    'old accepted-brief backlog does not starve disposition of an actionable duty',
+  );
+  a.snapshot.state.responsibilities = [];
+  sync(a);
   const later = view([a]);
   later.worldVersion = 6;
   later.storyAt = '2026-10-16T10:00:00.000Z';
@@ -487,6 +499,19 @@ test('responsibility condition probe reuses shared interpreter without exposing 
   assert.doesNotMatch(JSON.stringify(result), /__schedule_condition_probe__|__condition_probe__/);
   assert.deepEqual(a, original);
   a.snapshot.observations = [];
+  assert.equal((await collect(view([a]), 'responsibility')).candidates.length, 0);
+});
+test('an open self-owned duty is actionable once, without inventing a clock or player decision', async () => {
+  const a = actor();
+  responsibility(a, { status: 'open', waitingOn: 'self' });
+  const first = await collect(view([a]), 'responsibility');
+  assert.equal(first.candidates.length, 1);
+  const consumed = view([a]);
+  consumed.consumedCandidateIds = [first.candidates[0]!.id];
+  assert.equal((await collect(consumed, 'responsibility')).candidates.length, 0);
+  a.snapshot.state.responsibilities[0]!.status = 'waiting';
+  a.snapshot.state.responsibilities[0]!.waitingOn = 'player';
+  sync(a);
   assert.equal((await collect(view([a]), 'responsibility')).candidates.length, 0);
 });
 test('terminal/hidden/foreign-source responsibilities never create a probe candidate', async () => {

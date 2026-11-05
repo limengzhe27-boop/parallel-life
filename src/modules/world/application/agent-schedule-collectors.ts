@@ -356,7 +356,7 @@ async function candidate(
             ? 50
             : input.source === 'actor_local'
               ? episodes.length
-                ? 50 // Continuing an accepted event precedes optional unscheduled contact.
+                ? 45 // Missing-step review follows concrete owned duties (50), before optional contact.
                 : 30
               : 40,
     reason: input.reason,
@@ -565,7 +565,9 @@ async function planReconsiderations(
               nextReviewAt: savedReview?.nextReviewAt ?? null,
             },
             reason:
-              '本人未完成计划进入主动复查窗口；可以主动说明、等待、调整或结束，不推定执行或完成。',
+              '本人未完成计划进入主动复查窗口；必须形成具体下一步、真实等待或明确结束，不推定执行或完成。',
+            wakeCue:
+              '这是你已承接事项的主动复查。只发一条消息不算推进：请形成具体计划/执行步骤，或记录确实依赖他人答复的等待；没有依据就明确暂缓或结束。不要重复旧问题，不替玩家答应。',
           }),
         );
       continue;
@@ -737,6 +739,12 @@ async function responsibilities(view: SchedulingView, actor: ActorRead, context:
         ...responsibility.sourceIds,
         ...(responsibility.deadline ? [responsibility.deadline.sourceId] : []),
       ];
+    if (
+      responsibility.status === 'open' &&
+      responsibility.waitingOn === 'self' &&
+      !responsibility.nextCheck.length
+    )
+      triggers.push({ waitingOn: 'self' });
     if (checksReady(context, responsibility)) {
       const proof = evidence(context, responsibility.nextCheck);
       sourceIds.push(...proof.sourceIds);
@@ -898,7 +906,13 @@ async function appointmentWindows(
 async function observations(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot,
     out: AgentCandidate[] = [];
-  if (snapshot.channel.kind === 'private')
+  // Finish the actor's already actionable duty before opening another orphan
+  // handoff review. Otherwise a backlog of old accepted briefs suppresses the
+  // bounded agenda review that can actually dispose of the current duty.
+  const ownsReadyDuty = snapshot.viewState.responsibilities.some(
+    (r) => r.status === 'open' && r.waitingOn === 'self' && r.nextCheck.length === 0,
+  );
+  if (snapshot.channel.kind === 'private' && !ownsReadyDuty)
     for (const followup of snapshot.episodeFollowUps ?? []) {
       if (
         followup.choice !== 'engage' ||

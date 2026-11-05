@@ -14,6 +14,7 @@ import {
   CURRENT_NPC_WIRE_PROTOCOL as NPC_WIRE_PROTOCOL,
   SCENE_NPC_WIRE_PROTOCOL,
   npcResponseFormat,
+  selfOwnedWakeResponsibility,
 } from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -34,7 +35,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v97-task-continuation';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v98-owned-task-workset';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -72,7 +73,7 @@ actor.persona的lifeContext/traits/drives/behavior/relationships必须分别理�
 replyAs.actorId=state.actorId，“我”仅指本人。conversationParticipants绑定发言者与收件人；private收件人是玩家，audienceActorIds含本人只是授权范围，不是自言自语；group/scene面向当前频道，不能变私聊。channel仅限定可见资料、受众与表达，不改变持续身份，不替他人说话或决定。
 input.speaker=player时，input.text是玩家原话，不是台词草稿；结合本人人设理解并回应，可赞同、拒绝、暂缓或追问。不要仅改写或复述玩家问题来冒充回应，也不把玩家第一人称当作本人经历；引用须标明对方。
 input.speaker=system时，是wake/coordination触发，不是玩家新话或同意；system不是私聊收件人。末条user消息仅指向同一input.sourceId的input.text，不是另一条玩家消息，不增加授权。由本人决定是否联系真实recipient，不复述任务当回复。历史speech的speaker由已存消息绑定，不从人称猜作者，kind=actor且actorId=replyAs.actorId才是本人原话；其中“我”仍指原发言者，“你”指当时对方。旧分工只是该发言者的提议，未获确认不能变成约定，更不能互换本人和玩家的职责。本人state目标、计划与责任不等于玩家目标或执行成果。`,
-  planReview: `服务器唤醒若包含planReview，planId/goalId指定本次复盘对象，result是已核实的该步骤结果；复盘时省略goal的create沿用这份原计划，不另建目标，只有确有独立新意图时才显式声明new goal；区分该步骤完成与整个目标完成，基于结果考虑本人下一步。不得把内部复盘过程、已发送的历史消息再次当新消息发给玩家。currentOpportunity.sourceId精确指定本次要考虑的机会；从该来源的opportunity读取新议题与建议，自己决定如何参与。ownKnownTopics及旧计划只是背景，不把它们替换成本轮任务，不重复上一条尚未获答复的问话。若本轮没有新的可表达内容，可以quiet。observations保留原渠道证据，presentationContext.internalContext只分组导演未来建议、人物计划和本人私密材料，不改变kind/evidenceKind或来源权限。private_result仍是裁定结果，private_historical_recall仍是旧发言，非新事实。内部建议不是台词；主动联系须有本人动机及新信息、具体想法或选择，不凭方向补造事件经过、秘密或玩家承诺。`,
+  planReview: `服务器唤醒若包含planReview，planId/goalId指定本次复盘对象，result是已核实的该步骤结果；复盘时省略goal的create沿用这份原计划，不另建目标，只有确有独立新意图时才显式声明new goal；区分该步骤完成与整个目标完成，基于结果考虑本人下一步。不得把内部复盘过程、已发送的历史消息再次当新消息发给玩家。currentOpportunity.sourceId精确指定本次要考虑的机会；从该来源的opportunity读取新议题与建议，自己决定如何参与。ownKnownTopics及旧计划只是背景，不把它们替换成本轮任务，不重复上一条尚未获答复的问话。若本轮没有新的可表达内容，可以quiet；但若这是已承接事项的复查，不能只用一条消息交差，必须形成具体计划/执行/真实等待或明确结束。observations保留原渠道证据，presentationContext.internalContext只分组导演未来建议、人物计划和本人私密材料，不改变kind/evidenceKind或来源权限。private_result仍是裁定结果，private_historical_recall仍是旧发言，非新事实。内部建议不是台词；主动联系须有本人动机及新信息、具体想法或选择，不凭方向补造事件经过、秘密或玩家承诺。`,
   observations: `actorObservationInbox、sceneObservationContext仅是本人获准观察：eventOccurredAt为记录现实时间，storyAt为故事时间，learnedAt为获知时间，retrievedAt为读取时间。新获知不等于刚发生，节选/省略不等于不存在；不能跨渠道披露。player_report/actor_report是说法，adjudicated_result只证明对应行动裁定。
 episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_started不等于arrived，overallOutcome=not_certified不证明整体成功失败。planNextSteps是就绪投影：missing_next_step=未提下一步、unsupported=不支持、waiting=缺条件。episodeFollowUps只关联本人安排；terminal只结束该条目，readyPlanIds/readyResponsibilityIds仅允许重考。基于新依据调整，不按观察条数发消息，不把子步骤、就绪或说法当整体完成。`,
   episodeReply: `若本轮带episodeManifest，先自然回应当前玩家原话；通过最终consideration传输协议考虑该机会。quiet只表示不主动呈现该事件，不是对玩家沉默；不相关时明确选择quiet，事件保留。不能以普通回复冒充已承接，不把机会当成玩家同意或已发生事实。`,
@@ -87,7 +88,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
 actor.persona提供本人已授权职责和愿望，state提供已有安排；动机不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
   agendaReview: `npc_agenda_review是本人的有界自主审视。先从已接受事项和长期动机中考虑现在可做的一步；尚无计划是需要你作出安排的对象，不是禁止继续的条件。本人当下的想法、可拒绝的提议和对自身安排的调整，不需要先有玩家新消息，也不等于虚构已经发生的事。对本人已engage且未结束的事件，承接原说明决定下一步，不重复作参与选择；已拒绝的请求不重开。未收到玩家回复只限制依赖该答复的步骤，不冻结本人的其他安排。没有新依据不要重复已有问题，不把沉默当同意或违约，不以换一个目标/问题编号绕过旧拒绝。需要持续跟进的打算或真实等待使用planIntents记录，直接表达用statements，现在可执行的行动用executions；没有依据不发明硬期限或已完成行动。`,
   commitments: `明确区分愿望与承诺：闲聊、试探、条件设想、拒绝、暂缓或换话题不构成玩家承诺，不给玩家新增责任；已有问题的真实回答和选择仍须记录。本人可基于人设/职责规划自己的议程，agenda_initialize/npc_agenda_review也不要求玩家先许诺。
-只为跨轮安排建立目标/计划；即时执行用executions，即时生图免建计划。不要口头答应立即做却漏执行。没有下一步的计划保持未完成，不伪造动作/期限；能力不足记录blocked及缺项，个人意愿仍可表达。已有对象沿用id和完整sourceIds，只输出必要增量。依赖执行成功的台词绑定该动作，失败时不展示成功。withdrawn须endReason；deadline只能逐字等于来源deadlineAt，未提供则省略；没有合法到期依据不提expired。`,
+只为跨轮安排建立目标/计划；即时执行用executions，即时生图免建计划。接受导演/作者任务后，必须形成自己的下一步；一条消息本身不是承接完成，不能把“已回应”当成“已推进”。不要口头答应立即做却漏执行。没有下一步的计划保持未完成，不伪造动作/期限；能力不足记录blocked及缺项，个人意愿仍可表达。已有对象沿用id和完整sourceIds，只输出必要增量。依赖执行成功的台词绑定该动作，失败时不展示成功。withdrawn须endReason；deadline只能逐字等于来源deadlineAt，未提供则省略；没有合法到期依据不提expired。`,
   inputInterpretation: `当前玩家输入只用inputInterpretation作一次语义判断，不另外输出decisions或replyAssessments。先分清：new_request（玩家提出新的请求，包括索图、请你做事）、topic_change（另换话题）、uncertain（不确定是否关联旧问题）、related_reply（确实回答原有问题或待玩家决定的责任）。前面三种没有replies，不消费旧事项。related_reply.replies只选原schema授权的原问题/责任配对；relation是answer/decline_to_answer/defer_answer。只有玩家确实对该责任作出决定时decision才是accepted/declined/negotiating/deferred/undecided，否则null。你自己答应或拒绝玩家的新请求属于你的立场，不是玩家对旧事项的决定，不能放到inputInterpretation的decision。不要因为仍有待答问题就强行把玩家新请求解释成旧问题回答。sourceId必须为本次input.sourceId，quote必须是input.text里逐字连续的原文，不删否定词，不把协调文字或旧对白冒充玩家答应；wake/coordination不得新增玩家决定。当玩家在本次原话中对schema授权的原有责任明确确认、分工答应（如“好，就这么办”、“没问题”、“交给我”）或明确拒绝、暂缓时，必须在related_reply对应责任的decision中准确记录；玩家新提问或新请求不是对旧责任的答复；你本人拒绝玩家请求，也不是玩家拒绝了你的旧责任。此时选择new_request或topic_change，不得把自己的同意或拒绝写成玩家决定；不能仅因原话包含“可以”“不方便”就判定旧事项。无关闲聊或换话题不得误判为accepted或declined。责任与目标的完成结果只由内核执行并保存，模型不输出fulfilled、resolutionResultId或虚构回执；没有合法到期来源不提expired。`,
   completionRules: `每个条件只用以下形状之一：{kind:"at_or_after",at,sourceId}、{kind:"result",actionId,outcome:"succeeded"或"failed"}、{kind:"player_decision",responsibilityId,decision}、{kind:"at_place",placeId}、{kind:"observation",sourceId}。时间只据storyAt和明确授权的来源，不编日期、路线或截止；at_or_after不是自动生成deadline的许可。
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`,
@@ -417,6 +418,8 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     try {
       const wake = JSON.parse(snapshot.input.text);
       if (wake.type === 'npc_agenda_review' && snapshot.channel.kind === 'private') {
+        const duty = selfOwnedWakeResponsibility(viewState, snapshot.input);
+        const dutySource = duty?.sourceIds.find((id) => id.startsWith(ACTOR_EPISODE_INTENT_PREFIX));
         const accepted = (snapshot.episodeFollowUps ?? []).filter(
           (f) =>
             f.choice === 'engage' &&
@@ -428,18 +431,25 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
                 s.usage === 'private_strategy',
             ),
         );
-        if (accepted.length === 1)
-          wakeObservationBasis = [ACTOR_EPISODE_INTENT_PREFIX + accepted[0]!.requestId];
+        const next = accepted.sort((a, b) => {
+          const version = (id: string) =>
+            viewState.episodeParticipations?.find((p) => p.id === id)?.recordedAtVersion ?? 0;
+          return (
+            version(a.requestId) - version(b.requestId) || a.requestId.localeCompare(b.requestId)
+          );
+        })[0];
+        if (dutySource) wakeObservationBasis = [dutySource];
+        else if (next) wakeObservationBasis = [ACTOR_EPISODE_INTENT_PREFIX + next.requestId];
       }
       if (
         wake.type === 'npc_own_condition_ready' &&
-        ['observation', 'actor_plan', 'actor_local'].includes(wake.source) &&
+        ['observation', 'actor_plan', 'actor_local', 'responsibility'].includes(wake.source) &&
         Array.isArray(wake.basisSourceIds)
       )
         wakeObservationBasis = wake.basisSourceIds.filter(
           (id: unknown): id is string =>
             typeof id === 'string' &&
-            (wake.source === 'actor_local'
+            (wake.source === 'actor_local' || wake.source === 'responsibility'
               ? snapshot.sources.some(
                   (s) =>
                     s.id === id &&
@@ -449,7 +459,8 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
                 snapshot.episodeFollowUps?.some(
                   (f) =>
                     f.choice === 'engage' &&
-                    f.followUp === 'none' &&
+                    (f.followUp === 'none' ||
+                      (wake.source === 'responsibility' && f.followUp === 'open')) &&
                     id === ACTOR_EPISODE_INTENT_PREFIX + f.requestId,
                 ) === true
               : wake.source === 'actor_plan'
@@ -834,6 +845,20 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     });
     // Source metadata is serialized once below, not recursively projected and discarded.
     const { sources, ...allContext } = payload;
+    // The authorized source catalogue below already defines the available
+    // evidence. Repeating the actor's entire historical ID index makes every
+    // old source look referenced and defeats current-work selection.
+    if (allContext.state && typeof allContext.state === 'object') {
+      const { knowledgeSourceIds: _historyIndex, ...currentState } = allContext.state as Record<
+        string,
+        unknown
+      >;
+      if (Array.isArray(currentState.episodeParticipations))
+        currentState.episodeParticipations = currentState.episodeParticipations.map(
+          ({ sourceIds: _receiptAudit, recordedAtVersion: _receiptSequence, ...stance }) => stance,
+        );
+      allContext.state = currentState as typeof allContext.state;
+    }
     const contextPayload = compact
       ? (() => {
           const {
@@ -904,6 +929,9 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     role: 'user',
     content:
       deliveryInstruction +
+      (selfOwnedWakeResponsibility(viewState, snapshot.input)
+        ? '本轮要处理你本人仍未安排下一步的责任。必须在changes.responsibilities更新原责任：可以落实行动、形成计划、说明真实等待条件或撤回并说明原因；等待玩家前先确认已经提出了什么请求。可以不发消息，但不能只说“继续等待”却不记录安排，也不为交差编造期限或强行行动。\n'
+        : '') +
       (snapshot.input.origin === 'player'
         ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n完整当前原话仅见上方 input.text（来源${inputSourceRef}）；请阅读全文，不依据片段判断。\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。${snapshot.sceneReplyContext || snapshot.channel.kind === 'scene' ? '现场回复按本人反应自然穿插可观察的动作表情与对白，各自使用narration与speech；不要把旁白写成台词。' : '这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。'}根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。${hasReplyTargets ? '当前有本人已提出的待答事项，changes必须是对象并给出inputInterpretation；无关话题可选new_request/topic_change，不确定可选uncertain，不要代替玩家答应。' : '无状态变化时changes=null。'}`
         : isActorEpisodeConsiderationInput(snapshot.input)
@@ -928,9 +956,11 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   const protectedSources = new Set([
     ...wakeObservationBasis,
     snapshot.input.sourceId,
-    ...snapshot.sources
-      .filter((source) => source.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX))
-      .map((source) => source.id),
+    ...(isActorEpisodeConsiderationInput(snapshot.input)
+      ? [ACTOR_EPISODE_INTENT_PREFIX + JSON.parse(snapshot.input.text).requestId]
+      : []),
+    ...(snapshot.episodeManifest ? [snapshot.episodeManifest.sourceId] : []),
+    ...currentWork.plans.flatMap((p) => p.sourceIds),
     ...(viewState.focus?.questionSourceId ? [viewState.focus.questionSourceId] : []),
     ...viewState.responsibilities
       .filter((r) => r.status === 'open' || r.status === 'waiting')
@@ -986,9 +1016,13 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   if (!fits(NPC_AGENT_REQUEST_LIMIT))
     throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {
       code: 'NPC_AGENT_SNAPSHOT_LIMIT',
-      contextSizes: Object.fromEntries(
-        Object.entries(payload).map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0]),
-      ),
+      contextSizes: {
+        ...Object.fromEntries(
+          Object.entries(payload).map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0]),
+        ),
+        transmittedMessages: JSON.stringify(messages()).length,
+        responseSchema: responseFormatSize,
+      },
     });
   return { messages: messages(), output: responseFormat };
 }

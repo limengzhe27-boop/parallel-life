@@ -173,18 +173,22 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
         if (p.promptVersion?.startsWith('director-')) {
           calls.push({ kind: 'director', input: p, actor: '' });
           return JSON.stringify({
-            protocol: 'director-wire-v4',
-            mode: 'quiet',
+            protocol:
+              p.deliberationWindow?.version === 2 ? 'director-wire-v17' : 'director-wire-v14',
             candidates: p.wireCatalog.candidates.map((c: any) => ({
               ref: c.ref,
               decision: 'defer',
               reason: 'No new global arrangement needed.',
             })),
-            events: p.wireCatalog.events.map((e: any) => ({
-              eventRef: e.ref,
-              decision: 'defer',
-              reason: 'No new arrangement.',
-            })),
+            ...(p.deliberationWindow?.version === 2
+              ? {}
+              : {
+                  authoredChoices: p.wireCatalog.events.map((e: any) => ({
+                    eventRef: e.ref,
+                    decision: 'defer',
+                    reason: 'No new arrangement.',
+                  })),
+                }),
             opportunities: [],
             audit: { reason: 'Synthetic global quiet, not an event result.', sourceRefs: [] },
           });
@@ -461,8 +465,8 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
       assert.equal(r?.played, 2);
       assert.equal(
         h.calls.filter((c) => c.kind === 'director').length,
-        directorCallsBefore,
-        'a due idle Director review cannot veto or add approval calls to independent NPC work',
+        directorCallsBefore + 1,
+        'one due global review is not starved by optional agenda work and quiet still permits NPC work',
       );
       const reviews = h.calls.filter(
         (c) => c.kind === 'npc' && c.input.type === 'npc_agenda_review',

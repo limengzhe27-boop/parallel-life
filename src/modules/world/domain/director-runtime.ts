@@ -178,6 +178,19 @@ export function canConsiderAuthoredEvent(snapshot: DirectorSnapshot, nodeKey: st
   );
 }
 
+/** Read projection only. Eligibility admits consideration; it never certifies
+ * the manuscript's unstated conditions or its later dramatic outcome. */
+export function directorAuthoredEntryStage(snapshot: DirectorSnapshot, nodeKey: string) {
+  const eligibility = snapshot.authoredEligibility?.find((q) => q.nodeKey === nodeKey);
+  if (!eligibility) return 'unknown';
+  if (eligibility.reasons.includes('already_resolved')) return 'resolved';
+  if (eligibility.status === 'expired') return 'expired';
+  if (eligibility.status === 'already_presented') return 'entry_presented_not_resolved';
+  if (eligibility.status === 'blocked') return 'entry_blocked';
+  if (snapshot.occupiedAuthoredEventKeys?.includes(nodeKey)) return 'opportunity_open_not_resolved';
+  return 'entry_not_presented';
+}
+
 /** Stable scope from authenticated eligibility/wake, never actor revisions or elapsed polling. */
 export function selectDirectorDeliberationWindow(
   snapshot: DirectorSnapshot,
@@ -310,5 +323,20 @@ export function directorOpportunityHasIndependentBasis(
 ): boolean {
   if (snapshot.episodes.some((episode) => episode.id === opportunity.id)) return false;
   const proposalSources = new Set(snapshot.episodes.map((episode) => episode.origin.sourceId));
-  return opportunity.basisSourceIds.some((id) => !proposalSources.has(id));
+  const independent = opportunity.basisSourceIds.filter((id) => !proposalSources.has(id));
+  if (!independent.length) return false;
+  // Current coordinates establish where an interaction is possible. Once these
+  // participants already have an open matter, coordinates alone do not establish
+  // another matter. A real arrival/result/choice remains a distinct source and
+  // may support a new opportunity; existing work keeps its own execution route.
+  const hasOpenMatter = snapshot.episodes.some(
+    (episode) =>
+      (episode.status === 'proposed' || episode.status === 'active') &&
+      episode.participantActorIds.some((id) => opportunity.participantActorIds.includes(id)),
+  );
+  return (
+    !!opportunity.authoredEventKey ||
+    !hasOpenMatter ||
+    independent.some((id) => !id.startsWith('actual-position:'))
+  );
 }

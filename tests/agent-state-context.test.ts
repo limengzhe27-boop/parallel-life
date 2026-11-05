@@ -171,8 +171,9 @@ test('v8 adapter projects source handles without mutating canonical execution st
     },
   );
   const catalog = npcSourceReferences(input.sources);
-  assert.deepEqual(actual, mapNpcSourceFields(payload, catalog, 'encode'));
-  assert.deepEqual(mapNpcSourceFields(actual, catalog, 'decode'), payload);
+  const { knowledgeSourceIds: _historyIndex, ...currentPayload } = payload;
+  assert.deepEqual(actual, mapNpcSourceFields(currentPayload, catalog, 'encode'));
+  assert.deepEqual(mapNpcSourceFields(actual, catalog, 'decode'), currentPayload);
   assert.deepEqual(input, before);
   assert.deepEqual(
     (actual as { plans: unknown[] }).plans,

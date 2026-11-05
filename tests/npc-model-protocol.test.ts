@@ -62,6 +62,133 @@ function fixture(coordination = false) {
   return { c, wire };
 }
 
+test('accepting an authenticated task retains one durable next plan; quiet and refusal do not', () => {
+  const { c } = fixture(true);
+  c.sources.push({
+    id: 'episode-intent:request',
+    kind: 'director_intent',
+    usage: 'private_strategy',
+    recordId: 'request',
+    worldVersion: 0,
+    at: c.storyAt,
+  });
+  const response = (choice: string, asks = false) => ({
+    protocol: 'npc-wire-v19',
+    statements: asks
+      ? [{ text: '你愿意一起参加吗？', dependsOnActionIds: [], requestsPlayerReply: true }]
+      : [],
+    executions: [],
+    changes: {
+      consideration: {
+        choice,
+        reason: '我愿意考虑自己的下一步安排。',
+        basisSourceIds: [],
+      },
+    },
+  });
+  for (const choice of ['quiet', 'decline']) {
+    const p = parseAgentProposal(c, response(choice));
+    assert.deepEqual(p.responsibilities, []);
+    assert.deepEqual(p.plans, []);
+  }
+  const accepted = parseAgentProposal(c, response('engage'));
+  assert.deepEqual(accepted.responsibilities, []);
+  assert.equal(accepted.plans.length, 1);
+  assert.equal(accepted.plans[0]!.id, 'request:plan');
+  assert.equal(accepted.plans[0]!.status, 'active');
+  assert.equal(accepted.plans[0]!.goalId, null);
+  assert.ok(accepted.plans[0]!.sourceIds.includes('episode-intent:request'));
+  assert.deepEqual(accepted.actions, []);
+  assert.deepEqual(accepted.statements, []);
+  assert.deepEqual(
+    parseAgentProposal(c, response('engage')),
+    accepted,
+    'paid response replay is deterministic',
+  );
+  const invitation = parseAgentProposal(c, response('engage', true));
+  assert.equal(invitation.responsibilities[0]!.waitingOn, 'player');
+  assert.equal(invitation.responsibilities[0]!.status, 'waiting');
+  assert.equal(invitation.statements[0]!.questionForResponsibilityId, 'request:followup');
+  assert.equal(invitation.responsibilities[0]!.deadline, undefined);
+  assert.deepEqual(invitation.plans, [], 'a real question is the wait, not a plan');
+});
+
+test('self-owned work review requires an explicit update of the existing duty, while player silence does not', () => {
+  const { c } = fixture();
+  c.state.responsibilities = [
+    {
+      id: 'owned',
+      subject: { kind: 'request', id: 'task' },
+      summary: '本人仍要决定下一步',
+      status: 'open',
+      waitingOn: 'self',
+      sourceIds: ['input'],
+      nextCheck: [],
+    },
+  ];
+  c.input.origin = 'wake';
+  c.input.text = JSON.stringify({
+    type: 'npc_own_condition_ready',
+    source: 'responsibility',
+    basisSourceIds: ['input'],
+  });
+  const format = npcResponseFormat(c.state, 'forbidden', c);
+  if (format.format !== 'json_schema') throw Error('schema');
+  const changes = (format.schema.properties as any).changes;
+  assert.equal(changes.type, 'object');
+  assert.equal(changes.properties.responsibilities.minItems, 1);
+  assert.deepEqual(changes.properties.responsibilities.items.properties.id.enum, ['owned']);
+  assert.deepEqual(
+    changes.properties.responsibilities.items.properties.subject.properties.id.enum,
+    ['task'],
+  );
+  c.state.responsibilities[0]!.status = 'waiting';
+  c.state.responsibilities[0]!.waitingOn = 'player';
+  const waiting = npcResponseFormat(c.state, 'forbidden', c);
+  if (waiting.format !== 'json_schema') throw Error('schema');
+  assert.ok(
+    (waiting.schema.properties as any).changes.anyOf,
+    'waiting for a real player reply remains quiet-capable',
+  );
+});
+
+test('a certified legacy accepted-task wake restores ownership without accepting it a second time', () => {
+  const { c } = fixture();
+  c.input.origin = 'wake';
+  c.input.text = JSON.stringify({
+    type: 'npc_own_condition_ready',
+    source: 'actor_local',
+    basisSourceIds: ['episode-intent:old-task'],
+  });
+  c.sources.push({
+    id: 'episode-intent:old-task',
+    kind: 'director_intent',
+    usage: 'private_strategy',
+    recordId: 'old-task',
+    worldVersion: 0,
+    at: c.storyAt,
+  });
+  c.state.episodeParticipations = [
+    {
+      id: 'old-task',
+      choice: 'engage',
+      reason: '本人已经选择参与，尚未安排下一步。',
+      sourceIds: ['episode-intent:old-task'],
+      recordedAtVersion: 0,
+    },
+  ];
+  const raw = { protocol: 'npc-wire-v19', statements: [], executions: [], changes: null };
+  const p = parseAgentProposal(c, raw);
+  assert.equal(p.episodeDecision, undefined);
+  assert.deepEqual(p.responsibilities, []);
+  assert.equal(p.plans[0]!.id, 'old-task:plan');
+  assert.equal(p.plans[0]!.status, 'active');
+  c.state.episodeParticipations[0]!.choice = 'quiet';
+  const quiet = parseAgentProposal(c, raw);
+  assert.deepEqual(quiet.responsibilities, []);
+  assert.deepEqual(quiet.plans, []);
+});
+
 test('one JSON code fence changes only the transport envelope, not proposal validation', () => {
   const { c } = fixture();
   const wire = {
