@@ -456,6 +456,81 @@ test('player chat considers a server-bound pending episode without extra NPC cal
   }
 
   await t.test(
+    'accepted task with no next step retains a durable plan and one real scheduler review',
+    async () => {
+      const f = await fixture('invitation');
+      const c = await command(f, '你自己决定怎么参与，不需要替我作决定。');
+      let calls = 0;
+      const service = npcAgentServices(app, () => ({
+        async complete(messages) {
+          calls++;
+          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          assert.ok(p.episodeManifest);
+          return JSON.stringify({
+            protocol: 'npc-wire-v19',
+            statements: [{ text: '我愿意参与，先由我考虑具体怎么安排。', dependsOnActionIds: [] }],
+            executions: [],
+            changes: {
+              consideration: {
+                choice: 'engage',
+                reason: '本人愿意承担这项安排，具体下一步由本人决定。',
+                basisSourceIds: [p.episodeManifest.sourceId],
+              },
+            },
+          });
+        },
+      }));
+      assert.equal((await service.sendMessageIfEnabled(f.owner, c))?.status, 'committed');
+      const state = (await actors.read(f.owner, { worldId: f.id, actorId: c.actorId }))!;
+      const plan = state.plans.find((p) => p.id === f.requests[0]!.id + ':plan')!;
+      assert.ok(plan, 'accepted task retains a durable plan');
+      assert.equal(plan.status, 'active');
+      assert.equal(plan.goalId, null);
+      assert.equal(plan.nextActionId, null);
+      assert.ok(plan.sourceIds.includes(`episode-intent:${f.requests[0]!.id}`));
+      assert.equal(
+        state.responsibilities.find((r) => r.id === f.requests[0]!.id + ':followup'),
+        undefined,
+        'a self-owned next step is a plan, not a synthetic player wait',
+      );
+      const world = await worlds.get({ userId: f.owner }, f.id);
+      const snapshot = (
+        await readPrivateAgentSnapshot(app, f.owner, world, c.actorId, null, world.time, state)
+      ).snapshot;
+      assert.equal(snapshot.episodeFollowUps![0]!.followUp, 'open');
+      assert.ok(snapshot.episodeFollowUps![0]!.planIds.includes(plan.id));
+      const sources = createAgentScheduleSources({
+        worldId: f.id,
+        engineEpoch: 2,
+        worldVersion: world.version,
+        storyAt: world.time,
+        actors: [{ snapshot, trustedResults: [], appointments: [] }],
+        activeAttempts: [],
+        consumedCandidateIds: [],
+      });
+      const candidates = (
+        await Promise.all(sources.map((source) => source.source.collect(f.owner, f.id)))
+      ).flatMap((r) => r.candidates);
+      const review = candidates.find(
+        (candidate) =>
+          candidate.source === 'actor_plan' && candidate.planReview?.planId === plan.id,
+      );
+      assert.ok(review, 'the durable plan enters the existing review scheduler');
+      assert.match(review.wakeCue ?? '', /只发一条消息不算推进/);
+      assert.equal((await service.sendMessageIfEnabled(f.owner, c))?.status, 'committed');
+      assert.equal(
+        calls,
+        1,
+        'same HTTP request neither buys another reply nor duplicates the plan',
+      );
+      assert.equal(
+        (await actors.read(f.owner, { worldId: f.id, actorId: c.actorId }))!.plans.length,
+        state.plans.length,
+      );
+    },
+  );
+
+  await t.test(
     '27 episode actionless plan uses service scheduling and retains its original receipt',
     async () => {
       const f = await fixture('invitation');
@@ -990,7 +1065,7 @@ test('player chat considers a server-bound pending episode without extra NPC cal
     },
   );
   await t.test(
-    'unknown reply is not repurchased with same or new command and request remains pending',
+    'unknown receipt is not retried; a new player input proceeds without rebuying its episode',
     async () => {
       const f = await fixture('invitation'),
         c = await command(f, '先聊一下。');
@@ -998,7 +1073,14 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       const service = npcAgentServices(app, () => ({
         async complete(messages) {
           calls++;
-          verifyManifest(f, JSON.parse(messages.find((m) => m.role === 'user')!.content));
+          const payload = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          if (calls === 1) verifyManifest(f, payload);
+          else
+            assert.equal(
+              payload.episodeManifest,
+              undefined,
+              'new player chat cannot consume the uncertain episode',
+            );
           throw Error('explicit local post-send transport uncertainty');
         },
       }));
@@ -1009,7 +1091,7 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       await assert.rejects(
         service.sendMessageIfEnabled(f.owner, await command(f, '换一个请求也不能重买。')),
       );
-      assert.equal(calls, 1);
+      assert.equal(calls, 2);
       assert.equal((await requestState(f)).status, 'pending');
       const attempts = (
         await app.transaction(f.owner, (sql) =>

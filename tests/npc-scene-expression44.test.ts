@@ -75,3 +75,11 @@ test('ordinary private schema stays v19 without expression kind or routing', () 
   assert.deepEqual(s.schema.properties.protocol.enum, ['npc-wire-v20']);
   assert.ok(s.schema.properties.replyChannel);
 });
+
+test('scene speech keeps words and dependencies while omitting chat-only decoration', () => {
+  const s = { ...wire().statements[1], stickerId: 'selected_af' };
+  const scene: any = decodeNpcWire(context(), { ...wire(), statements: [s] });
+  assert.equal(scene.statements[0].text, s.text);
+  assert.equal(scene.statements[0].stickerId, undefined);
+  assert.deepEqual(scene.statements[0].dependsOnActionIds, []);
+});

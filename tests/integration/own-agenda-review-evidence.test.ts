@@ -1035,6 +1035,28 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     },
   );
   await t.test(
+    'autonomous speech without a state/result change does not reset no-progress backoff',
+    async () => {
+      const x = await fixture();
+      await commitOriginalQuiet(x);
+      await nativePrivateCommit(x, { say: true });
+      const first = await read(x);
+      assert.equal(first.quietStreak, 2);
+      assert.ok(
+        first.lastPresentedRealAt,
+        'a real delivered message still counts as a presentation',
+      );
+      await nativePrivateCommit(x, { say: true });
+      assert.equal((await read(x)).quietStreak, 3);
+      await nativePrivateCommit(x, { player: true, say: true });
+      assert.equal(
+        (await read(x)).quietStreak,
+        0,
+        'a new player turn is fresh interaction, not autonomous spinning',
+      );
+    },
+  );
+  await t.test(
     'a projected or claimed message without original committed native UoW is not an anchor or presentation',
     async () => {
       const x = await fixture(),

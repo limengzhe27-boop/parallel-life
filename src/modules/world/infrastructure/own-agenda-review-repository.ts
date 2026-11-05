@@ -504,10 +504,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       revisionAfter: rt.actorRevisionAfter,
       coreHash: rt.coreHash,
       quiet:
-        rt.statementCount === 0 &&
-        rt.resultCount === 0 &&
-        Number(rt.effectCount) === 0 &&
-        unchanged,
+        b.origin !== 'player' && rt.resultCount === 0 && Number(rt.effectCount) === 0 && unchanged,
       presentedRealAt: rt.statementCount > 0 ? new Date(e.realAt).toISOString() : null,
     });
   }

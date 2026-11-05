@@ -29,10 +29,86 @@ function assertRequestBudget(call: { messages: ModelMessage[]; output?: ModelOut
   const payload = JSON.parse(call.messages[1]!.content);
   assert.equal('sources' in payload, false, 'source metadata has one catalog only');
 }
-const wireExpected = (input: AgentSnapshot, value: unknown) =>
-  mapNpcSourceFields(value, npcSourceReferences(input.sources), 'encode');
+const wireExpected = (input: AgentSnapshot, value: unknown) => {
+  const projected = mapNpcSourceFields(value, npcSourceReferences(input.sources), 'encode');
+  if (value === input.state || value === input.viewState) {
+    const { knowledgeSourceIds: _index, ...current } = projected as Record<string, unknown>;
+    return current;
+  }
+  return projected;
+};
 const sourceRef = (input: AgentSnapshot, id: string) =>
   npcSourceRef(npcSourceReferences(input.sources), id);
+
+test('historical knowledge ID index is not retransmitted as current work or source demand', async () => {
+  const input = snapshot();
+  for (let i = 0; i < 500; i++) {
+    const id = 'old-fact-' + i;
+    input.viewState.knowledgeSourceIds.push(id);
+    input.sources.push({
+      id,
+      kind: 'world_event',
+      recordId: id,
+      worldVersion: 1,
+      at: input.storyAt,
+    });
+  }
+  const before = structuredClone(input.viewState.knowledgeSourceIds);
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal('knowledgeSourceIds' in payload.state, false);
+  assert.equal(
+    payload.wireCatalog.sources.some((s: any) => s.recordId === 'old-fact-499'),
+    false,
+  );
+  assert.deepEqual(input.viewState.knowledgeSourceIds, before);
+  assert.ok(payload.state.plans.some((p: any) => p.id === 'p1'));
+  assertRequestBudget(calls[0]!);
+});
+
+test('many accepted task briefs do not crowd the exact current task out of its request budget', async () => {
+  const input = snapshot();
+  input.input.origin = 'coordination';
+  input.input.text = JSON.stringify({
+    type: 'npc_episode_consideration',
+    requestId: 'task-14',
+    revision: 0,
+  });
+  const before = input.observations.length;
+  for (let i = 0; i < 15; i++) {
+    const sourceId = 'episode-intent:task-' + i;
+    input.sources.push({
+      id: sourceId,
+      kind: 'director_intent',
+      recordId: 'task-' + i,
+      worldVersion: 1,
+      at: input.storyAt,
+      usage: 'private_strategy',
+    });
+    input.observations.push({
+      sourceId,
+      kind: 'plan',
+      text:
+        (i === 14 ? 'CURRENT_TASK_DO_NOT_DROP' : 'OTHER_ACCEPTED_TASK') +
+        '这是一项本人可考虑、尚未实际发生的未来安排。'.repeat(180),
+    });
+  }
+  const original = structuredClone(input);
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(payload.currentOpportunity.sourceId, sourceRef(input, 'episode-intent:task-14'));
+  assert.ok(JSON.stringify(payload).includes('CURRENT_TASK_DO_NOT_DROP'));
+  assert.ok(payload.contextSelection.omittedObservationSourceIds.length > 0);
+  assert.equal(input.observations.length, before + 15);
+  assert.deepEqual(
+    input,
+    original,
+    'task selection never edits durable work or historical evidence',
+  );
+  assertRequestBudget(calls[0]!);
+});
 
 function snapshot(channel: AgentSnapshot['channel']['kind'] = 'private'): AgentSnapshot {
   const state = emptyActorAgentState(
@@ -982,7 +1058,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v97-task-continuation');
+  assert.equal(payload.promptVersion, 'npc-agent-v98-owned-task-workset');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /后续按玩家实际给出的暂缓范围与已有合法条件继续/);
   assert.match(system, /不把“晚点”扩大为永久停止/);

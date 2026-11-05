@@ -28,7 +28,10 @@ import {
   compileNpcExecutionProposal,
 } from './npc-execution-intent.ts';
 import { validPlayerEpisodeManifest } from '../domain/player-episode-manifest.ts';
-import { isActorEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
+import {
+  ACTOR_EPISODE_INTENT_PREFIX,
+  isActorEpisodeConsiderationInput,
+} from '../domain/actor-episode-intent.ts';
 import {
   NativeMediaIntentSchema,
   compileNpcMediaIntent,
@@ -509,6 +512,33 @@ export function pruneUnusedNpcSchemaDefinitions(
 }
 
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
+export function selfOwnedWakeResponsibility(
+  state: { responsibilities?: ActorAgentState['responsibilities'] },
+  input: AgentValidationContext['input'],
+) {
+  if (input.origin !== 'wake') return null;
+  try {
+    const wake = JSON.parse(input.text);
+    const owned = (state.responsibilities ?? []).filter(
+      (r) => r.status === 'open' && r.waitingOn === 'self',
+    );
+    if (wake.type === 'npc_agenda_review')
+      return owned.sort((a, b) => a.id.localeCompare(b.id))[0] ?? null;
+    if (
+      wake.type !== 'npc_own_condition_ready' ||
+      wake.source !== 'responsibility' ||
+      !Array.isArray(wake.basisSourceIds)
+    )
+      return null;
+    const selected = owned.filter(
+      (r) => r.sourceIds.length && r.sourceIds.every((id) => wake.basisSourceIds.includes(id)),
+    );
+    return selected.length === 1 ? selected[0]! : null;
+  } catch {
+    return null;
+  }
+}
+
 export function npcResponseFormat(
   state: Pick<AgentValidationContext['state'], 'goals' | 'questions'> &
     Partial<
@@ -1008,6 +1038,30 @@ export function npcResponseFormat(
       ],
     };
   }
+  const ownedDuty = current && selfOwnedWakeResponsibility(state, current.input);
+  if (ownedDuty) {
+    const duty = structuredClone(changes.responsibilities!);
+    const array = duty.type === 'array' ? duty : duty.anyOf?.find((node) => node.type === 'array');
+    if (!array?.items?.properties) throw Error('NPC_RESPONSE_SCHEMA');
+    array.minItems = 1;
+    array.maxItems = 1;
+    array.items.properties.id = { type: 'string', enum: [ownedDuty.id] };
+    array.items.properties.subject = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        kind: { type: 'string', enum: [ownedDuty.subject.kind] },
+        id: { type: 'string', enum: [ownedDuty.subject.id] },
+      },
+      required: ['kind', 'id'],
+    };
+    schema.properties.changes = {
+      type: 'object',
+      properties: { ...changes, responsibilities: array },
+      required: Object.keys(changes),
+      additionalProperties: false,
+    };
+  }
   const sceneExpression = current?.channel.kind === 'scene' || !!current?.sceneReplyContext;
   const statementNode = schema.properties.statements!.items!;
   if (sceneExpression) {
@@ -1130,6 +1184,19 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     const { replyChannel, ...rest } = v;
     const result = decodeCurrentNpcWire(context, {
       ...rest,
+      // A spoken line may carry a redundant chat decoration in a mixed-channel
+      // response. Preserve its words and dependencies; scene delivery has no
+      // sticker surface. Sticker-only output still fails the normal text checks.
+      ...(delivery === 'scene' && Array.isArray(v.statements)
+        ? {
+            statements: v.statements.map((statement) => {
+              const s = statement as Record<string, unknown>;
+              if (s.kind !== 'speech' || typeof s.text !== 'string' || !s.text.trim()) return s;
+              const { stickerId: _sticker, ...spoken } = s;
+              return spoken;
+            }),
+          }
+        : {}),
       protocol: CURRENT_NPC_WIRE_PROTOCOL,
     }) as AgentProposal;
     return { ...result, ...(replyChannel ? { replyChannel } : {}) };
@@ -1798,6 +1865,37 @@ function bindNpcConsideration(
     if (!consideration) throw Error('NPC_WIRE_CONSIDERATION_REQUIRED');
   }
   if (consideration && !requestId) throw Error('NPC_WIRE_CONSIDERATION_SCOPE');
+  let acceptedOwner =
+    consideration?.choice === 'engage' && requestId
+      ? { id: requestId, reason: consideration.reason }
+      : null;
+  if (!consideration && context.input.origin === 'wake') {
+    try {
+      const wake = JSON.parse(context.input.text);
+      if (
+        wake.type === 'npc_own_condition_ready' &&
+        wake.source === 'actor_local' &&
+        Array.isArray(wake.basisSourceIds)
+      ) {
+        const owners =
+          (context.viewState ?? context.state).episodeParticipations?.filter(
+            (p) =>
+              p.choice === 'engage' &&
+              wake.basisSourceIds.includes(ACTOR_EPISODE_INTENT_PREFIX + p.id) &&
+              context.sources.some(
+                (s) =>
+                  s.id === ACTOR_EPISODE_INTENT_PREFIX + p.id &&
+                  s.usage === 'private_strategy' &&
+                  ['director_intent', 'authored'].includes(s.kind),
+              ),
+          ) ?? [];
+        if (owners.length === 1) acceptedOwner = { id: owners[0]!.id, reason: owners[0]!.reason };
+      }
+    } catch {
+      /* An unrelated wake cannot accept a task on the NPC's behalf. */
+    }
+  }
+  const dutyRequestId = requestId ?? acceptedOwner?.id;
   if (
     consideration &&
     ['need_information', 'defer'].includes(consideration.choice) &&
@@ -1816,17 +1914,77 @@ function bindNpcConsideration(
         ]),
       ]
     : [];
-  const responsibility =
-    consideration?.followUp && requestId
+  const asksPlayer = proposal.statements.filter(
+    (s: AgentProposal['statements'][number]) =>
+      s.requestsPlayerReply === true && !s.questionForResponsibilityId,
+  );
+  const taskSource = dutyRequestId ? ACTOR_EPISODE_INTENT_PREFIX + dutyRequestId : undefined;
+  const belongsToTask = (item: { sourceIds?: string[]; subject?: { kind: string; id: string } }) =>
+    item.sourceIds?.includes(context.input.sourceId) ||
+    (taskSource !== undefined && item.sourceIds?.includes(taskSource)) ||
+    (item.subject?.kind === 'request' && item.subject.id === dutyRequestId);
+  const hasNextStep = [
+    ...proposal.plans,
+    ...proposal.actions,
+    ...proposal.responsibilities,
+    ...(context.viewState ?? context.state).plans.filter(
+      (p) => !['finished', 'withdrawn'].includes(p.status),
+    ),
+    ...(context.viewState ?? context.state).responsibilities.filter((r) =>
+      ['open', 'waiting', 'deferred'].includes(r.status),
+    ),
+  ].some(belongsToTask);
+  // Choosing engage already accepts ownership of this request. If the model
+  // supplied no plan/action/wait, retain one durable plan for the accepted task
+  // so the existing plan-review scheduler can wake the person at the next story
+  // window. A real question is a player wait instead. This invents no goal,
+  // deadline, player choice, action or message. Quiet/refusal acquire no work.
+  const acceptedTask =
+    acceptedOwner &&
+    dutyRequestId &&
+    !hasNextStep &&
+    context.sources.some(
+      (s) => s.id === taskSource && ['director_intent', 'authored'].includes(s.kind),
+    );
+  const acceptedPlan =
+    acceptedTask && !asksPlayer.length && !consideration?.followUp && taskSource
       ? {
-          id: requestId + ':followup',
-          subject: { kind: 'request', id: requestId },
-          summary: consideration.followUp.missing.join('；'),
-          status: 'waiting',
-          waitingOn: consideration.followUp.waitingOn,
+          id: dutyRequestId + ':plan',
+          goalId: null,
+          summary: acceptedOwner!.reason.slice(0, 2000),
+          status: 'active' as const,
+          sourceIds: [
+            ...new Set(
+              [context.input.sourceId, taskSource].filter((id) =>
+                context.sources.some((s) => s.id === id),
+              ),
+            ),
+          ],
+          actionIds: [],
+          nextActionId: null,
+          triggers: [],
+          missingConditions: [],
+        }
+      : null;
+  const followUp =
+    consideration?.followUp ??
+    (acceptedTask && asksPlayer.length
+      ? {
+          waitingOn: 'player' as const,
+          missing: asksPlayer.map((s: AgentProposal['statements'][number]) => s.text),
+        }
+      : null);
+  const responsibility =
+    followUp && dutyRequestId
+      ? {
+          id: dutyRequestId + ':followup',
+          subject: { kind: 'request', id: dutyRequestId },
+          summary: followUp.missing.join('；').slice(0, 2000),
+          status: 'waiting' as const,
+          waitingOn: followUp.waitingOn,
           sourceIds: [
             ...new Set([
-              ...(context.state.responsibilities.find((r) => r.id === requestId + ':followup')
+              ...(context.state.responsibilities.find((r) => r.id === dutyRequestId + ':followup')
                 ?.sourceIds ?? []),
               ...followUpSources,
             ]),
@@ -1843,6 +2001,7 @@ function bindNpcConsideration(
     throw Error('NPC_WIRE_FOLLOW_UP_DUPLICATE');
   return bindNpcFollowUpQuestion(context, {
     ...proposal,
+    plans: acceptedPlan ? [...proposal.plans, acceptedPlan] : proposal.plans,
     responsibilities: responsibility
       ? [...proposal.responsibilities, responsibility]
       : proposal.responsibilities,
