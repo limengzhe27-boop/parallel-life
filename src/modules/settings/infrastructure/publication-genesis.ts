@@ -110,8 +110,27 @@ function playerRelationship(
 }
 function persona(c: PublicationContent, key: string): string {
   const actor = c.actors.find((a) => a.key === key)!;
+  const card = actor.publicCard;
+  const background = actor.privatePersona.background ?? '';
+  const trimmedBackground = background.trim();
+  const introduction = typeof card.introduction === 'string' ? card.introduction.trim() : '';
+  // The NPC prompt reads five dimensions. Authored private personas are often
+  // empty placeholders while the public card carries the real identity, so the
+  // compiled persona falls back to the public introduction instead of handing
+  // the agent a blank person. Never duplicate the same text into the budget.
+  const lifeContext =
+    trimmedBackground && trimmedBackground !== '暂无详细背景' ? background : introduction;
+  const traits = Array.isArray(card.traits) ? card.traits.filter(Boolean).join('、') : '';
+  // background is folded into lifeContext so the legacy and five-dimension
+  // views never duplicate the same text inside the persona budget.
+  const { background: _background, ...privateRest } = actor.privatePersona;
   return JSON.stringify({
-    ...actor.privatePersona,
+    ...privateRest,
+    ...(typeof card.identity === 'string' && card.identity.trim()
+      ? { identity: card.identity.trim() }
+      : {}),
+    ...(lifeContext ? { lifeContext } : {}),
+    ...(traits ? { traits } : {}),
     publicSetting: c.world.publicSetting,
     protagonistPublicIdentity: c.protagonist.identity,
     relationships: sorted(c.relationships)

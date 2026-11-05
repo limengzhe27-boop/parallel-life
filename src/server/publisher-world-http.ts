@@ -1,3 +1,4 @@
+import { playerFacingProjection } from './player-facing-copy.ts';
 import { readTrialRuntimeAsset } from './trial-runtime-asset-http.ts';
 import { readTrialDirectorStatus } from '../modules/world/infrastructure/director-trial-recovery.ts';
 import { bootstrapPublicationAgentTrial } from '../modules/world/infrastructure/publication-agent-trial-bootstrap.ts';
@@ -42,10 +43,12 @@ export function publishedCatalogRoute(request: Request) {
     const cursor = url.searchParams.get('cursor');
     if (cursor && !Id.safeParse(cursor).success) throw new PublisherHttpError('INVALID_INPUT');
     return publisherJson(
-      await new PublicationWorldRepository(s.db, publicationWorldCompiler).catalog(s.ownerId, {
-        ...(cursor ? { cursor } : {}),
-        limit: 30,
-      }),
+      playerFacingProjection(
+        await new PublicationWorldRepository(s.db, publicationWorldCompiler).catalog(s.ownerId, {
+          ...(cursor ? { cursor } : {}),
+          limit: 30,
+        }),
+      ),
     );
   });
 }

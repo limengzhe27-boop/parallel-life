@@ -1,4 +1,5 @@
 import { createHttpRequestContext, type HttpRequestContext } from './http-failure-diagnostics.ts';
+import { playerFacingProjection } from './player-facing-copy.ts';
 import { isPreviewOnly } from '../contracts/preview.ts';
 import 'server-only';
 import { randomUUID } from 'node:crypto';
@@ -17,7 +18,10 @@ export class HttpError extends Error {
   }
 }
 export function json(data: unknown, status = 200) {
-  return NextResponse.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json(playerFacingProjection(data), {
+    status,
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }
 const messages: Record<string, string> = {
   UNAUTHORIZED: '会话已失效，请重新进入。',
