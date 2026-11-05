@@ -152,6 +152,34 @@ test('self-owned work review requires an explicit update of the existing duty, w
   );
 });
 
+test('a passive autonomous wake keeps state changes but does not surface another waiting message', () => {
+  const { c } = fixture();
+  c.input.origin = 'wake';
+  c.input.text = JSON.stringify({ type: 'npc_agenda_review' });
+  const waiting = parseAgentProposal(c, {
+    protocol: 'npc-wire-v19',
+    statements: [
+      { text: '我还是安静等你，不打扰你，继续过自己的慢节奏生活。', dependsOnActionIds: [] },
+    ],
+    executions: [],
+    changes: null,
+  });
+  assert.deepEqual(waiting.statements, []);
+
+  const working = parseAgentProposal(c, {
+    protocol: 'npc-wire-v19',
+    statements: [
+      {
+        text: '这周出差账目我会尽快核对，把住宿和发票明细补齐后提交财务。',
+        dependsOnActionIds: [],
+      },
+    ],
+    executions: [],
+    changes: null,
+  });
+  assert.equal(working.statements.length, 1);
+});
+
 test('a certified legacy accepted-task wake restores ownership without accepting it a second time', () => {
   const { c } = fixture();
   c.input.origin = 'wake';

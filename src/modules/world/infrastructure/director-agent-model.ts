@@ -623,74 +623,10 @@ export function fitWithinBudget(payload: Payload): Payload {
         });
     },
     () => {
-      // Older observations can be long private interviews or historical prose.
-      // The director needs a bounded excerpt to decide today's beat; the full
-      // protected text remains in the persisted snapshot for validation.
-      if (Array.isArray(next.observations))
-        next.observations = (next.observations as Payload[]).map((observation) =>
-          observation && typeof observation === 'object' && !Array.isArray(observation)
-            ? {
-                ...observation,
-                text:
-                  typeof observation.text === 'string'
-                    ? observation.text.slice(0, 600)
-                    : observation.text,
-              }
-            : observation,
-        );
-    },
-    () => {
-      // A stalled world can accumulate hundreds of historical episodes. Only
-      // still-open matters need the director's attention; closed ones remain in
-      // the protected snapshot for evidence and are not re-proposed here.
-      if (Array.isArray(next.episodes))
-        next.episodes = (next.episodes as Payload[])
-          .filter(
-            (episode) =>
-              episode &&
-              typeof episode === 'object' &&
-              ['proposed', 'active'].includes(String((episode as Payload).status)),
-          )
-          .slice(-24);
-    },
-    () => {
-      // Keep the current work graph but bound very long-lived actor histories.
-      // Stable ids and current arrays remain; dropped history is still protected.
-      if (Array.isArray(next.actorStates))
-        next.actorStates = (next.actorStates as Payload[]).map((state) => {
-          if (!state || typeof state !== 'object' || Array.isArray(state)) return state;
-          const view = { ...state };
-          for (const field of [
-            'goals',
-            'plans',
-            'actions',
-            'responsibilities',
-            'episodeParticipations',
-          ]) {
-            if (!Array.isArray(state[field])) continue;
-            view[field] = (state[field] as Payload[]).slice(-6).map((record) => {
-              if (!record || typeof record !== 'object' || Array.isArray(record)) return record;
-              const bounded = { ...record };
-              if (typeof bounded.summary === 'string')
-                bounded.summary = bounded.summary.slice(0, 500);
-              if (typeof bounded.reason === 'string') bounded.reason = bounded.reason.slice(0, 300);
-              if (Array.isArray(bounded.missingConditions))
-                bounded.missingConditions = bounded.missingConditions
-                  .slice(-4)
-                  .map((item) => (typeof item === 'string' ? item.slice(0, 300) : item));
-              return bounded;
-            });
-          }
-          if (Array.isArray(state.questions))
-            view.questions = (state.questions as Payload[]).slice(-8).map((question) => {
-              if (!question || typeof question !== 'object' || Array.isArray(question))
-                return question;
-              return typeof question.text === 'string'
-                ? { ...question, text: question.text.slice(0, 300) }
-                : question;
-            });
-          return view;
-        });
+      // Protected business state (questions, goals, plans, actions, decisions,
+      // episodes and exact evidence) is never truncated here. Spend the budget
+      // on the one optional observation the director can still use.
+      next.observations = trimObservations(1);
     },
     () => {
       if (typeof next.worldSetting === 'string')

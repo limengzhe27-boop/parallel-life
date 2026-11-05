@@ -971,9 +971,11 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       delete value.localDateTime;
     }
   const optional = payload as unknown as Record<string, unknown>;
-  // Derived conversation progress is presentation, not authority. It is the
-  // first optional block to yield when the full state and schema no longer fit.
+  // Derived presentation is not authority. These blocks yield before any
+  // business state or exact source text is touched.
   if (!fits()) delete optional.conversationProgress;
+  if (!fits()) delete optional.contextSelection;
+  if (!fits()) delete optional.planNextSteps;
   // Active event follow-ups are required task context, not expendable history.
   if (!fits()) optional.recentSelfMessages = [];
   // Keep all questions and assessed answers. Removing this ledger would turn a
@@ -981,6 +983,10 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   if (!fits())
     optional.stickerCatalog = Object.fromEntries(
       Object.entries(optional.stickerCatalog as Record<string, string>).slice(0, 12),
+    );
+  if (!fits() && Array.isArray(optional.episodeFollowUps))
+    optional.episodeFollowUps = (optional.episodeFollowUps as { followUp?: string }[]).filter(
+      (followUp) => followUp.followUp !== 'terminal',
     );
   if (!fits()) {
     // Old quiet considerations are private deliberation history, not player

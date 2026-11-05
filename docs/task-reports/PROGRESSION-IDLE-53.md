@@ -35,7 +35,15 @@
 
 ### 2.4 导演上下文对长档的边界
 
-`director-agent-model.ts` 的 `fitWithinBudget` 增加三个降级步骤：观察文本只保留 600 字、只保留 proposed/active 且最多 24 个 episode、每个 actor 的目标/计划/行动/责任/参与最多保留最近 6 条并把 summary/reason/missing 限长。导演仍能拿到当前工作图和稳定 id，完整文本留在受保护的持久快照中。没有这些步骤，原档 2fb 的导演请求达到 98788+5419 字符，直接 `DIRECTOR_CONTEXT_LIMIT`。
+`director-agent-model.ts` 的 `fitWithinBudget` **不截断受保护的业务状态**：问题、目标、计划、行动、决定、episode 和原始 evidence 全部保留；只在预算压力下把可选观察减到 1 条，并沿用既有的世界设定/人物材料/事件描述节选。此前尝试过截断观察文本、过滤 episode、截断 questions，均被 `director-context-budget`/`director-state-budget` 测试拒绝，已回退。没有这些步骤，原档 2fb 的导演请求达到 98788+5419 字符，直接 `DIRECTOR_CONTEXT_LIMIT`；保留业务状态并减观察后可进入硬上限。
+
+### 2.5 人物上下文超限的派生让步
+
+`npc-agent-model.ts` 在原有观察/时间/最近消息/表情裁剪之后，再依次让步派生展示块：`conversationProgress`、`contextSelection`、`planNextSteps`；仍超限时只删 `terminal` 的 episode follow-up，不删除 active 任务。`active event follow-ups cannot silently disappear` 测试保证 active 项不会被丢。原档一次失败快照从 80,532 字符降到硬上限内。
+
+### 2.6 空转消息的最后刹车
+
+`npc-model-protocol.ts` 对 `npc_agenda_review`/`npc_own_condition_ready` 的纯等待台词做最后过滤：没有执行、没有带下一步的计划、没有 open 的 self 责任、没有真实提问，且文本只含“等你/不打扰/安静/慢节奏/守着你”等，就保留状态变化但不把这条“我会等你”发出去。带工作/账目/发票/孩子/医院等具体事项的文本不在此列。测试覆盖“纯等待被抑制、具体工作保留”。
 
 ### 2.5 上下文超限的最后让步
 
@@ -43,7 +51,7 @@
 
 ## 3. 验证
 
-- `npm run check`：**4263/4263**，边界/类型/单测通过；`npm run build` 通过。导演提示版本升为 `director-runtime-v48-idle-beat`。
+- `npm run check`：**4264/4264**，边界/类型/单测通过；`npm run build` 通过。导演提示版本升为 `director-runtime-v48-idle-beat`。
 - 聚焦单测：`director-agent-model` 40/40（含 idle beat 解析与模型路径）、`agent-schedule-collectors` 51/51（含 2 小时冷却）、`npc-agent-model`/`npc-model-protocol` 等合计 198/198。
 - 真实 PostgreSQL 克隆档 `parallel_life_prog53_clean`（原档 2fb 的快照，不是原档写）：
   - 03:53Z 强制复盘生成 `bounded_opportunity`：青青接到校园活动视频剪辑项目，10 点前决定，自付 200 元订阅费，影响下月帮男主付房租；
@@ -55,6 +63,7 @@
 ## 4. 仍未完成 / 边界
 
 - 3218 已切 `.local/build-progression53-final`（health 200），worker 正在原档跑；本轮只证明“停滞→具体外部事项→主动回信”，尚未证明三天账目任务在后续计划/回执中实际完成。
+- 受保护状态版本的导演上下文与人物上下文均已在原档运行中不再报 `DIRECTOR_CONTEXT_LIMIT`/`NPC_AGENT_SNAPSHOT_LIMIT`；继续观察纯等待消息是否被抑制。
 - 刘胜男的该计划当前为 `waiting`、`missingConditions` 为“需要补全的发票和住宿明细”，下一步仍停在本人补材料；不把一条回信当成事件完成。
 - idle beat 仍是“日常事项”生成器，不是完整长线剧情引擎；人物可以拒绝，拒绝后仍需要导演下一拍，当前只保证“不再空转关心”。
 - 未部署 Vercel，未改生产库，未新增迁移/表列。
