@@ -984,6 +984,9 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     optional.stickerCatalog = Object.fromEntries(
       Object.entries(optional.stickerCatalog as Record<string, string>).slice(0, 12),
     );
+  // Stickers are presentation only; the text reply remains. Drop the catalogue
+  // before touching any task, question or source evidence.
+  if (!fits()) optional.stickerCatalog = {};
   if (!fits() && Array.isArray(optional.episodeFollowUps))
     optional.episodeFollowUps = (optional.episodeFollowUps as { followUp?: string }[]).filter(
       (followUp) => followUp.followUp !== 'terminal',

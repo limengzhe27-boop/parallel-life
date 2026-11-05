@@ -641,6 +641,18 @@ export function fitWithinBudget(payload: Payload): Payload {
       next.observations = trimObservations(1);
     },
     () => {
+      // Episode descriptions are presentation prose, not execution state. The
+      // stable episode id still resolves the full protected record.
+      if (Array.isArray(next.episodes))
+        next.episodes = (next.episodes as Payload[]).map((episode) => {
+          if (!episode || typeof episode !== 'object' || Array.isArray(episode)) return episode;
+          const description = (episode as Payload).description;
+          return typeof description === 'string'
+            ? { ...episode, description: description.slice(0, 60) }
+            : episode;
+        });
+    },
+    () => {
       if (typeof next.worldSetting === 'string')
         next.worldSetting = next.worldSetting.slice(0, 600);
       if (Array.isArray(next.episodes))
