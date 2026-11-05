@@ -2,3 +2,4 @@ import { publicationSocialRoute } from '../../../../../../server/publication-soc
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   return publicationSocialRoute(request, (await context.params).id);
 }
+export const POST = GET;

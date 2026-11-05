@@ -4,6 +4,7 @@ import { DomainError } from '../domain/errors.ts';
 /** Real player commands only. NPC/director decisions must use their own attempt/kernel boundary. */
 export const PLAYER_WORLD_COMMAND_KINDS = [
   'note_save',
+  'social_update',
   'invitation_respond',
   'space_travel',
   'scene_enter',

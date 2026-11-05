@@ -120,6 +120,10 @@ export async function resolveAgentCommitVersion(
     )
       continue;
     if (isQuietOtherActorStateCommit(e, attempt.actorId)) continue;
+    // Player social writes append content or a like. They never replace a message,
+    // change an actor's plan, or invalidate a previously authorized post.
+    if (e?.type === 'social.updated' && ['publish', 'like', 'like_message'].includes(d?.kind))
+      continue;
     if (
       e?.type !== 'turn.resolved' ||
       !d?.actorId ||

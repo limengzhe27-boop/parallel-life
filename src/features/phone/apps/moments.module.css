@@ -118,3 +118,42 @@
   color: #526782;
   font-weight: 600;
 }
+
+.composer {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  background: #fff;
+  border-bottom: 1px solid #e6e6e6;
+}
+.composer textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px;
+  font: inherit;
+  resize: vertical;
+}
+.composer fieldset {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.composer select,
+.likeButton {
+  margin-inline-start: 10px;
+}
+.likeButton,
+.composer button {
+  min-height: 36px;
+  color: #34536e;
+}
+.selfAvatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: #e8eef2;
+  color: #526782;
+}

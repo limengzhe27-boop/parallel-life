@@ -1,3 +1,7 @@
+import {
+  PlayerSocialCommandSchema,
+  PlayerSocialReceiptSchema,
+} from '../../contracts/authored-social.ts';
 import { AdvanceOperationReceiptSchema } from '../../contracts/advance-operation.ts';
 import { OpeningStatusSchema, OpeningAdvanceSchema } from '../../contracts/publication-opening.ts';
 import {
@@ -118,6 +122,18 @@ export class ApiFailure extends Error {
 export type Loadable<T> =
   { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error'; error: ApiFailure };
 export class LifeClient {
+  async updatePlayerSocial(worldId: string, command: z.infer<typeof PlayerSocialCommandSchema>) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/social`,
+      PlayerSocialReceiptSchema,
+      {
+        method: 'POST',
+        body: JSON.stringify(command),
+      },
+    );
+  }
+
   private csrf: string | undefined;
   private sessionPromise: Promise<void> | undefined;
   private transport: typeof fetch;

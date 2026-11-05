@@ -1,3 +1,4 @@
+import { actorCanSeeMoment } from '../domain/player-social.ts';
 import { readActorSceneDelivery } from './agent-scene-delivery.ts';
 import { assertSceneEntry } from '../domain/experience-rules.ts';
 import { readEpisodeQuestionLinksInTransaction } from './episode-question-links.ts';
@@ -1205,25 +1206,18 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             throw new AgentValidationError('MOMENT_INTERACTION_PARAMETERS');
           }
 
-          let momentFound = (executionWorld.moments ?? []).some(
-            (m: any) => m.key === momentKey.trim(),
-          );
-          if (!momentFound) {
-            try {
-              const pubRes = await sql.query(
-                'SELECT parallel_life.publication_social_opening($1) AS document',
-                [attempt.worldId],
-              );
-              const opening = pubRes.rows[0]?.document;
-              if (opening && Array.isArray(opening.moments)) {
-                momentFound = opening.moments.some((m: any) => m.key === momentKey.trim());
-              }
-            } catch {
-              // Not in a published world or query unavailable
-            }
-          }
-
-          if (!momentFound) {
+          const moment = executionWorld.moments?.find((item) => item.key === momentKey.trim());
+          if (
+            !moment ||
+            !actorCanSeeMoment(moment, attempt.actorId, snapshot.storyAt) ||
+            (moment.actorId === 'player' &&
+              (forgotten.has(moment.key) ||
+                !snapshot.sources.some(
+                  (source) =>
+                    source.id === `moment:${moment.key}` &&
+                    source.recordId === moment.sourceEventId,
+                )))
+          ) {
             throw new AgentValidationError('MOMENT_NOT_FOUND');
           }
 

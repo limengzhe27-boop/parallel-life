@@ -38,6 +38,7 @@ export type PhoneMessage = {
   sceneReplyId?: string;
   /** Initial server-verified history does not become a new notification. */
   initialRead?: boolean;
+  liked?: true;
   /** Authored preset contents never count as runtime delivery. */
   origin?: 'fictional_history' | 'publication_preset';
   links?: PhoneLink[];

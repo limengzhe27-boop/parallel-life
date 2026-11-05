@@ -39,13 +39,13 @@ registerHooks({
       let source = readFileSync(new URL(url), 'utf8');
       if (url.endsWith('/messages.tsx'))
         source = source.replace(
-          "import { useEffect, useLayoutEffect, useRef, useState } from 'react';",
-          'const useState=v=>globalThis.__wechat19Hooks.state(v); const useRef=v=>({current:v}); const useEffect=(fn,deps)=>globalThis.__wechat19Hooks.messageEffect(fn,deps); const useLayoutEffect=()=>{};',
+          "import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';",
+          'const useState=v=>globalThis.__wechat19Hooks.state(v); const useRef=v=>({current:v}); const useEffect=(fn,deps)=>globalThis.__wechat19Hooks.messageEffect(fn,deps); const useLayoutEffect=()=>{}; const useMemo=fn=>fn();',
         );
       if (url.endsWith('/moments.tsx'))
         source = source.replace(
-          "import { useEffect, useState } from 'react';",
-          'const useState=v=>globalThis.__wechat19Hooks.state(v); const useEffect=(fn,deps)=>globalThis.__wechat19Hooks.effect(fn,deps);',
+          "import { useEffect, useMemo, useRef, useState } from 'react';",
+          'const useState=v=>globalThis.__wechat19Hooks.state(v); const useEffect=(fn,deps)=>globalThis.__wechat19Hooks.effect(fn,deps); const useMemo=fn=>fn(); const useRef=v=>({current:v});',
         );
       return {
         format: 'module',

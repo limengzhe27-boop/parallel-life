@@ -105,7 +105,7 @@ const CAPABILITY_INSTRUCTIONS = {
   'activity.participate': `若channel.allowedCapabilities包含activity.participate，可提议activity.participate，参数activityId、title、可选placeId/participantActorIds/outcome/note；参与者须实际同场，成功只确认该共同活动，不能代替整段事件结果。`,
   'relationship.bond': `若channel.allowedCapabilities包含relationship.bond，可提议relationship.bond，参数targetActorId、relationship、可选mayShare/reason/note；只提出本人的有依据关系判断，不替对方决定私人态度。`,
   'moment.publish': `若channel.allowedCapabilities包含moment.publish，可提议moment.publish，参数text、可选key/placeId/image/images/note；最多9张已有合法配图，成功发布公开动态，不冒充私发图片或生成新媒体。`,
-  'moment.interact': `若channel.allowedCapabilities包含moment.interact，可提议moment.interact，参数momentKey、kind(like/comment)、可选comment/note；动态必须存在，评论须有正文，不重复点赞。`,
+  'moment.interact': `若channel.allowedCapabilities包含moment.interact，可提议moment.interact，参数momentKey、kind(like/comment)、可选comment/note；只对本人看到的动态使用实际 momentKey，评论须有正文，不重复点赞。动态是发帖人的说法。可按性格选择点赞、评论、在相关聊天中提起或保持安静，无须逐条回应。`,
   'position.establish': `若channel.allowedCapabilities包含position.establish，可提出即时executions:[{ref:"action_1",action:{capability:"position.establish",parameters:{placeId:"已有地点id"}}}]，无需goal/plan。仅worldContext.initialPlacement存在时可用：这是首次补全尚未设定的本人虚构位置，不是目击、自报或移动；按本人人设与当前安排从给定places选择，不替玩家选地点。如果本轮准备明确说自己正在某个地点，且位置尚未设定，应同次提出position.establish把当前设定交给内核确认；否则保留位置不确定，不只用一句“我就在这里”冒充已确认在场。可以不确定、拒绝或暂缓，不能为同场互动谎称自己已到达。不能声称已赴约/见到玩家，地点确立不等于到场；不改写过去。`,
   'travel.begin': `若channel.allowedCapabilities包含travel.begin，可提议travel.begin，参数仅已有routeId；来源须含selfPosition.sourceId与本人目标依据，只能本人沿已有路线合法出发，不替玩家移动、不新增地点。出发不等于到达，到达由内核续接。依赖动作成功的对白须dependsOnActionIds绑定，执行失败不能展示成功台词，action.failureCode归内核。`,
 };

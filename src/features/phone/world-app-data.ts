@@ -204,6 +204,7 @@ export function worldAppData(
             at: message.at,
             role: message.role ?? 'assistant',
             status: 'sent' as const,
+            ...(message.liked ? { liked: true as const } : {}),
             ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
             ...(message.origin ? { origin: message.origin } : {}),
             ...(message.mediaType ? { mediaType: message.mediaType } : {}),

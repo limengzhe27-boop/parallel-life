@@ -1141,3 +1141,16 @@
   background: rgba(0, 0, 0, 0.04);
   border-radius: 10px;
 }
+
+.messageLike {
+  float: right;
+  margin: 0 -4px 0 8px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #526782;
+  font: inherit;
+}
+.messageLike[aria-pressed='true'] {
+  color: #b7254a;
+}

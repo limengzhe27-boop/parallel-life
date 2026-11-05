@@ -61,7 +61,10 @@ export function mergeSocialMoments(
       .filter((i) => i.kind === 'like')
       .map((i) => ({
         actorId: i.actorId,
-        name: actors?.find((a) => a.id === i.actorId)?.name || i.actorId,
+        name:
+          i.actorId === 'player'
+            ? '我'
+            : actors?.find((a) => a.id === i.actorId)?.name || i.actorId,
       }));
     const comments = matchingInteractions
       .filter((i) => i.kind === 'comment')
@@ -69,7 +72,10 @@ export function mergeSocialMoments(
       .map((i) => ({
         id: i.id,
         actorId: i.actorId,
-        name: actors?.find((a) => a.id === i.actorId)?.name || i.actorId,
+        name:
+          i.actorId === 'player'
+            ? '我'
+            : actors?.find((a) => a.id === i.actorId)?.name || i.actorId,
         text: i.comment ?? '',
         at: i.at,
       }));

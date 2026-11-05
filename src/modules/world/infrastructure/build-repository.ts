@@ -320,6 +320,7 @@ export class BuildRepository {
       source: e.source,
     }));
     const recalledMessageIds = new Set(state.recalledMessageIds ?? []);
+    const likedMessageIds = new Set(state.likedMessageIds ?? []);
     return WorldPhoneSchema.parse({
       id: state.id,
       seedId: metadata.seed_id,
@@ -449,6 +450,9 @@ export class BuildRepository {
           actorId: m.actorId,
           role: m.role,
           text: recalledMessageIds.has(m.id) ? '' : m.text,
+          ...(likedMessageIds.has(m.id) && !recalledMessageIds.has(m.id)
+            ? { liked: true as const }
+            : {}),
           ...(m.stickerId ? { stickerId: m.stickerId } : {}),
           ...(recalledMessageIds.has(m.id) ? { recalled: true } : {}),
           at: m.at,

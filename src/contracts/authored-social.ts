@@ -53,3 +53,25 @@ export const AuthoredLifeModulesSchema = z.strictObject({
   behavior: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
   relationships: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
 });
+
+export const PlayerSocialCommandSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('like_message'),
+    commandId: z.uuid(),
+    messageId: z.string().min(1).max(200),
+  }),
+  z.strictObject({
+    kind: z.literal('publish'),
+    commandId: z.uuid(),
+    text: z.string().trim().min(1).max(1600),
+    audienceActorIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal('like'),
+    commandId: z.uuid(),
+    momentKey: z.string().min(1).max(32),
+  }),
+]);
+export const PlayerSocialReceiptSchema = z.strictObject({
+  version: z.number().int().nonnegative(),
+});

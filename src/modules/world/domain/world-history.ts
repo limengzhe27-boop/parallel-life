@@ -24,6 +24,7 @@ import {
   type SpacePlaceRevealedEvent,
 } from './space.ts';
 import type { WorldEvent, WorldState, OutboxJob } from './types.ts';
+import { applyPlayerSocialEvent, type PlayerSocialEvent } from './player-social.ts';
 import { applyEvent } from './reducer.ts';
 import { applyInvitationEvent, type InvitationEvent } from './invitations.ts';
 import { applyNoteEvent, type NoteEvent } from './notes.ts';
@@ -63,6 +64,7 @@ export type WorldHistoryEvent =
   | WorldEvent
   | InvitationEvent
   | NoteEvent
+  | PlayerSocialEvent
   | GroupEvent
   | SceneWorldEvent
   | TravelEvent
@@ -175,6 +177,12 @@ export function applyWorldHistoryEvent(
     if (Date.parse(event.storyTime) < Date.parse(current.time))
       throw new DomainError('INVALID_COMMAND');
     return { state: applyInvitationEvent({ ...current, time: event.storyTime }, event), jobs: [] };
+  }
+  if (event.type === 'social.updated') {
+    isoInstant(event.storyTime);
+    if (Date.parse(event.storyTime) < Date.parse(current.time))
+      throw new DomainError('INVALID_PROPOSAL');
+    return { state: applyPlayerSocialEvent(current, event), jobs: [] };
   }
   if (event.type === 'note.saved') return { state: applyNoteEvent(current, event), jobs: [] };
   if (

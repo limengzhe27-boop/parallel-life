@@ -136,6 +136,7 @@ export type WorldMoment = {
   id: Id;
   key: string;
   actorId: Id;
+  audienceActorIds?: Id[];
   name: string;
   text: string;
   at: string;
@@ -231,6 +232,7 @@ export type WorldState = {
   notes?: Note[];
   /** Messages this actor has formally retracted. Text is withheld from player reads. */
   recalledMessageIds?: Id[];
+  likedMessageIds?: Id[];
   /** Bounded active/recent decisions; absent for worlds created before this feature. */
   choices?: StoryChoice[];
   /** Cross-scene near-term matters and life pursuits. */

@@ -1,3 +1,4 @@
+import { agentDefinitionRef, readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -40,7 +41,7 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
     await admin.end();
   });
 
-  async function fixture() {
+  async function fixture(realDefinition = false) {
     const owner = randomUUID();
     const worldId = randomUUID();
     const actorLinId = randomUUID();
@@ -94,7 +95,7 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
       actorId: actorLinId,
       revision: 0,
       projectedWorldVersion: 1,
-      definitionRef: 'author:actor:lin',
+      definitionRef: realDefinition ? agentDefinitionRef(initialWorldState, actorLinId) : 'author:actor:lin',
       knowledgeSourceIds: ['source_init'],
       goals: [],
       plans: [],
@@ -110,7 +111,7 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
       actorId: actorQingqingId,
       revision: 0,
       projectedWorldVersion: 1,
-      definitionRef: 'author:actor:qingqing',
+      definitionRef: realDefinition ? agentDefinitionRef(initialWorldState, actorQingqingId) : 'author:actor:qingqing',
       knowledgeSourceIds: ['source_init'],
       goals: [
         {
@@ -217,6 +218,137 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
       createdTime,
     };
   }
+
+  await t.test(
+    'player publish is scoped to its audience and idempotent, and player likes persist',
+    async () => {
+      const f = await fixture(true);
+      const session = { userId: f.owner };
+      const commandId = randomUUID();
+      const change = {
+        kind: 'publish' as const,
+        text: '只有白语能看见的木工展照片说明',
+        audienceActorIds: [f.actorLinId],
+      };
+      const publish = await worlds.updatePlayerSocial(session, f.worldId, commandId, change);
+      assert.deepEqual(
+        await worlds.updatePlayerSocial(session, f.worldId, commandId, change),
+        publish,
+      );
+      await assert.rejects(
+        worlds.updatePlayerSocial(session, f.worldId, commandId, { ...change, text: '不同的请求' }),
+        /IDEMPOTENCY_CONFLICT/,
+      );
+      await assert.rejects(
+        worlds.updatePlayerSocial(session, f.worldId, randomUUID(), {
+          ...change,
+          audienceActorIds: [randomUUID()],
+        }),
+        /INVALID_COMMAND/,
+      );
+      await assert.rejects(
+        worlds.updatePlayerSocial({ userId: randomUUID() }, f.worldId, randomUUID(), change),
+        /NOT_FOUND/,
+      );
+      const like = { kind: 'like' as const, momentKey: f.existingMomentKey };
+      await worlds.updatePlayerSocial(session, f.worldId, randomUUID(), like);
+      await worlds.updatePlayerSocial(session, f.worldId, randomUUID(), like);
+      const world = await worlds.get(session, f.worldId);
+      const playerPost = world.moments?.find((m) => m.actorId === 'player');
+      assert.ok(playerPost);
+      assert.equal(world.moments?.filter((m) => m.actorId === 'player').length, 1);
+      assert.equal(world.momentInteractions?.filter((m) => m.actorId === 'player').length, 1);
+      const visible = await readPrivateAgentSnapshot(
+        app,
+        f.owner,
+        world,
+        f.actorLinId,
+        null,
+        world.time,
+        null,
+      );
+      const hidden = await readPrivateAgentSnapshot(
+        app,
+        f.owner,
+        world,
+        f.actorQingqingId,
+        null,
+        world.time,
+        null,
+      );
+      assert.ok(
+        visible.snapshot.observations.some(
+          (observation) =>
+            observation.sourceId === `moment:${playerPost.key}` &&
+            observation.text.includes(change.text),
+        ),
+      );
+      assert.equal(
+        hidden.snapshot.sources.some((source) => source.id === `moment:${playerPost.key}`),
+        false,
+      );
+      assert.equal(
+        hidden.snapshot.observations.some((observation) => observation.text.includes(change.text)),
+        false,
+      );
+      const kernel = new PostgresNpcAgentKernel(app, worlds);
+      for (const actorId of [f.actorQingqingId, f.actorLinId]) {
+        const receipt: AgentInputReceipt = {
+          id: randomUUID(),
+          worldId: world.id,
+          channel: 'private',
+          threadId: actorId,
+          recipientActorId: actorId,
+          commandId: randomUUID(),
+          origin: 'player',
+          storyAt: world.time,
+          expectedWorldVersion: world.version,
+          inputHash: createHash('sha256').update(actorId).digest('hex'),
+          text: '你最近看朋友圈了吗？',
+          receivedAt: new Date().toISOString(),
+        };
+        await store.accept(f.owner, receipt);
+        const state = await store.read(f.owner, { worldId: world.id, actorId });
+        assert.ok(state);
+        const { snapshot } = await readPrivateAgentSnapshot(
+          app, f.owner, world, actorId, receipt, world.time, state,
+        );
+        assert.ok(snapshot.channel.allowedCapabilities.includes('moment.interact'));
+        const run = runNpcAgent({
+          attempts: store,
+          kernel,
+          model: { async decide() {
+            const proposal: AgentProposal = {
+              goals: [{ id: 'comment_goal', summary: '回应朋友圈动态', status: 'active',
+                sourceIds: [snapshot.input.sourceId], resultIds: [] }],
+              plans: [], responsibilities: [], decisions: [],
+              actions: [{
+                id: 'comment_moment', goalId: 'comment_goal', capability: 'moment.interact', targetIds: [],
+                parameters: { momentKey: playerPost.key, kind: 'comment', comment: '这个展我也想看看。' },
+                sourceIds: [snapshot.input.sourceId], preconditions: [],
+                dependsOnActionIds: [], handlesResponsibilityIds: [], status: 'ready',
+              }],
+              statements: [{ text: '我在你动态下留了言。', dependsOnActionIds: ['comment_moment'] }],
+            };
+            return JSON.stringify(proposal);
+          } },
+        }, f.owner, {
+          id: randomUUID(), commandId: receipt.commandId!, inputReceiptId: receipt.id,
+          worldId: world.id, actorId, expectedWorldVersion: world.version,
+          expectedActorRevision: state.revision, inputHash: receipt.inputHash, engineEpoch: 2,
+          token: randomUUID(), leaseUntil: new Date(Date.now() + 120000).toISOString(),
+        }, snapshot);
+        if (actorId === f.actorQingqingId) await assert.rejects(run, /MOMENT_NOT_FOUND/);
+        else await run;
+      }
+      const updated = await worlds.get(session, f.worldId);
+      assert.deepEqual(
+        updated.momentInteractions?.filter((m) => m.momentKey === playerPost.key)
+          .map((m) => [m.actorId, m.kind, m.comment]),
+        [[f.actorLinId, 'comment', '这个展我也想看看。']],
+      );
+    },
+  );
 
   await t.test('1. Rejects invalid parameters and non-existent moment', async () => {
     const f = await fixture();
@@ -680,6 +812,8 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
     assert.equal(interaction.kind, 'like');
     assert.equal(interaction.note, '支持白语的好作品');
 
+
+
     // Verify actor state convergence
     const actorState1 = (await store.read(f.owner, { worldId: f.worldId, actorId: f.actorQingqingId }))!;
     assert.equal(actorState1.revision, 1);
@@ -794,6 +928,25 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
     }
     assert.ok(duplicateError);
     assert.match(duplicateError.message, /MOMENT_ALREADY_LIKED/);
+
+    const reply = world1.messages.find((m) => m.role === 'assistant');
+    assert.ok(reply);
+    const likeMessage = { kind: 'like_message' as const, messageId: reply.id };
+    const command = randomUUID();
+    const liked = await worlds.updatePlayerSocial({ userId: f.owner }, f.worldId, command, likeMessage);
+    assert.deepEqual(
+      await worlds.updatePlayerSocial({ userId: f.owner }, f.worldId, command, likeMessage),
+      liked,
+    );
+    const playerInput = world1.messages.find((m) => m.role === 'user');
+    assert.ok(playerInput);
+    await assert.rejects(
+      worlds.updatePlayerSocial({ userId: f.owner }, f.worldId, randomUUID(), {
+        kind: 'like_message', messageId: playerInput.id,
+      }),
+      /NOT_FOUND/,
+    );
+    assert.deepEqual((await worlds.get({ userId: f.owner }, f.worldId)).likedMessageIds, [reply.id]);
   });
 
   await t.test('3. Successfully comments on a moment, persists comment text, fulfills goal & responsibility', async () => {

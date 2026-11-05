@@ -1,3 +1,4 @@
+import type { WorldMoment } from '../domain/types.ts';
 import { readEpisodeQuestionLinksInTransaction } from './episode-question-links.ts';
 import { readActorSceneDelivery } from './agent-scene-delivery.ts';
 import { currentActorWorkState } from '../application/agent-state-context.ts';
@@ -626,6 +627,54 @@ export async function readPrivateAgentSnapshot(
       for (let i = observations.length - 1; i >= 0; i--)
         if (observations[i]!.sourceId === playerEpisode.view.source.id) observations.splice(i, 1);
       observations.push(playerEpisode.view.observation);
+    }
+    // The feed is pull-based. Reading a post does not create an inbox wake or a response obligation.
+    const momentRows = (
+      await sql.query(
+        `SELECT post.value AS moment, COALESCE(e.version, 0) AS version,
+              EXISTS (
+                SELECT 1 FROM jsonb_array_elements(COALESCE(w.state->'momentInteractions','[]')) i
+                WHERE i->>'momentKey'=post.value->>'key' AND i->>'actorId'=$3
+                  AND i->>'kind'='like'
+              ) AS liked
+       FROM parallel_life.worlds w
+       CROSS JOIN LATERAL jsonb_array_elements(COALESCE(w.state->'moments','[]')) post
+       LEFT JOIN parallel_life.world_events e
+         ON e.world_id=w.id AND e.owner_id=w.owner_id AND e.id=post.value->>'sourceEventId'
+       LEFT JOIN parallel_life.commands c
+         ON c.world_id=w.id AND c.owner_id=w.owner_id AND c.id=e.command_id AND c.result_event_id=e.id
+       WHERE w.id=$1 AND w.owner_id=$2 AND post.value->>'actorId'<>$3
+         AND (NOT (post.value ? 'audienceActorIds') OR (post.value->'audienceActorIds') ? $3)
+         AND (post.value->>'at')::timestamptz <= $4::timestamptz
+         AND NOT (post.value->>'sourceEventId'=ANY($6::text[]))
+         AND NOT (post.value->>'key'=ANY($6::text[]))
+         AND NOT (('moment:' || (post.value->>'key'))=ANY($6::text[]))
+         AND ((c.status='succeeded' AND e.version<=$5) OR (e.id IS NULL AND EXISTS (
+           SELECT 1 FROM parallel_life.world_initial_snapshots baseline
+           WHERE baseline.world_id=w.id AND baseline.owner_id=w.owner_id
+             AND (baseline.state->'moments') @> jsonb_build_array(post.value)
+         )))
+       ORDER BY (post.value->>'at')::timestamptz DESC, post.value->>'key'
+       LIMIT 5`,
+        [world.id, ownerId, actorId, storyAt, world.version, [...memories.blockedSources]],
+      )
+    ).rows;
+    for (const row of momentRows) {
+      const moment = row.moment as WorldMoment;
+      const id = `moment:${moment.key}`;
+      sources.set(id, {
+        id,
+        kind: 'world_event',
+        recordId: moment.sourceEventId,
+        at: moment.at,
+        worldVersion: Number(row.version),
+      });
+      const name = moment.actorId === 'player' ? '主角' : moment.name;
+      observations.push({
+        sourceId: id,
+        kind: 'speech',
+        text: `${name}在你可见的朋友圈发了动态（momentKey=${moment.key}${row.liked ? '，你已点赞' : ''}${moment.audienceActorIds ? '，限指定人物可见，不向其他人物转述' : ''}）：${moment.text.slice(0, 400)}`,
+      });
     }
     const selectedModules = selectActorPersona(modules, input?.text ?? '');
     const result: { seed: ActorAgentState | null; snapshot: AgentSnapshot } = {

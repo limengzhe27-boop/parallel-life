@@ -159,3 +159,13 @@ test('shared effects, own speech, unproven events and unsupported channels canno
   assert.equal(await resolveAgentCommitVersion(db(otherSpeech), 'o', attempt, 5), null);
   assert.equal(await resolveAgentCommitVersion(db(otherSpeech), 'o', attempt, 2), null);
 });
+
+test('a committed player social update does not invalidate an in-flight reply', async () => {
+  for (const kind of ['publish', 'like', 'like_message']) {
+    const event = { type: 'social.updated', data: { kind } };
+    assert.deepEqual(await resolveAgentCommitVersion(db(event), 'o', attempt, 4), {
+      appendBaseVersion: 4,
+      commitVersion: 5,
+    });
+  }
+});

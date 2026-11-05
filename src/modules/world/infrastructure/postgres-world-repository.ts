@@ -31,6 +31,11 @@ import type {
   CommitResult,
 } from '../domain/types.ts';
 import { DomainError } from '../domain/errors.ts';
+import {
+  applyPlayerSocialEvent,
+  type PlayerSocialChange,
+  type PlayerSocialEvent,
+} from '../domain/player-social.ts';
 import { applyEvent } from '../domain/reducer.ts';
 import { applyNoteEvent, type NoteCommand, type NoteEvent } from '../domain/notes.ts';
 import { retainFacts } from '../domain/retention.ts';
@@ -382,6 +387,119 @@ export class PostgresWorldRepository implements WorldRepository {
    * (not in the world snapshot) with the same receipt/event discipline as other
    * commands: replaying the same command id returns the original note.
    */
+  async updatePlayerSocial(
+    session: Session,
+    worldId: string,
+    commandId: string,
+    change: PlayerSocialChange,
+  ) {
+    return this.db.transaction(session.userId, async (sql) => {
+      const current = await this.owned(sql, worldId, true);
+      const hash = createHash('sha256')
+        .update(JSON.stringify(['social.updated', change]))
+        .digest('hex');
+      const previous = (
+        await sql.query(
+          'SELECT request_hash,result_state FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
+          [worldId, commandId],
+        )
+      ).rows[0];
+      if (previous) {
+        if (previous.request_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
+        if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
+        return { version: previous.result_state.version as number };
+      }
+      await authorizeWorldCommandInTransaction(sql, session.userId, {
+        worldId,
+        commandId,
+        expectedWorldVersion: current.version,
+        kind: 'social_update',
+      });
+      const occurredAt = new Date().toISOString();
+      const clock = (
+        await sql.query(
+          'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
+          [worldId, session.userId],
+        )
+      ).rows[0];
+      const projected = clock
+        ? projectStoryTime(storedActivityClock(clock), occurredAt)
+        : current.time;
+      const storyTime = new Date(
+        Math.max(Date.parse(current.time), Date.parse(projected)),
+      ).toISOString();
+      if (change.kind === 'publish') {
+        if (change.audienceActorIds?.some((id) => !current.actors.some((actor) => actor.id === id)))
+          throw new DomainError('INVALID_COMMAND');
+      } else if (change.kind === 'like_message') {
+        const message = (
+          await sql.query(
+            `SELECT 1 FROM parallel_life.world_messages
+           WHERE world_id=$1 AND owner_id=$2 AND id=$3 AND document->>'role'='assistant'
+             AND document->>'initialRead' IS DISTINCT FROM 'true'`,
+            [worldId, session.userId, change.messageId],
+          )
+        ).rows[0];
+        if (!message || current.recalledMessageIds?.includes(change.messageId))
+          throw new DomainError('NOT_FOUND');
+        if (current.likedMessageIds?.includes(change.messageId))
+          return { version: current.version };
+      } else {
+        const moment = current.moments?.find((item) => item.key === change.momentKey);
+        if (moment) {
+          if (moment.actorId === 'player' || Date.parse(moment.at) > Date.parse(storyTime))
+            throw new DomainError('NOT_FOUND');
+        } else {
+          const opening = (
+            await sql.query('SELECT parallel_life.publication_social_opening($1) AS document', [
+              worldId,
+            ])
+          ).rows[0]?.document;
+          if (!opening?.moments?.some((item: { key: string }) => item.key === change.momentKey))
+            throw new DomainError('NOT_FOUND');
+        }
+        if (
+          current.momentInteractions?.some(
+            (item) =>
+              item.momentKey === change.momentKey &&
+              item.actorId === 'player' &&
+              item.kind === 'like',
+          )
+        )
+          return { version: current.version };
+      }
+      const event: PlayerSocialEvent = {
+        schemaVersion: 1,
+        type: 'social.updated',
+        id: randomUUID(),
+        worldId,
+        commandId,
+        version: current.version + 1,
+        occurredAt,
+        storyTime,
+        data: change,
+      };
+      const state = compactWorldState(applyPlayerSocialEvent(current, event));
+      await sql.query(
+        "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
+        [commandId, worldId, session.userId, current.version, hash, change],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [event.id, worldId, session.userId, event.version, commandId, event, occurredAt],
+      );
+      await sql.query(
+        'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
+        [worldId, state.version, state],
+      );
+      await sql.query(
+        "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
+        [worldId, commandId, event.id, { version: state.version }],
+      );
+      await projectAgentWorldChange(sql, session.userId, worldId, event.id);
+      return { version: state.version };
+    });
+  }
   async saveNote(session: Session, input: NoteCommand) {
     return this.db.transaction(session.userId, async (sql) => {
       const current = await this.owned(sql, input.worldId, true);
@@ -1144,7 +1262,7 @@ export class PostgresWorldRepository implements WorldRepository {
         checkpoints.push({
           version: Number(row.version),
           occurredAt: new Date(row.occurred_at).toISOString(),
-          storyTime: payload.storyAt ?? payload.occurredAt ?? undefined,
+          storyTime: payload.storyAt ?? payload.storyTime ?? payload.occurredAt ?? undefined,
           summary: String(summary).slice(0, 100),
         });
       }
