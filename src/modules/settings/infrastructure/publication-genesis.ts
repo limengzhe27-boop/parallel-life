@@ -108,9 +108,19 @@ function playerRelationship(
     .map((r) => r.description)
     .join('\n');
 }
+function openingLineFor(c: PublicationContent, key: string): string | undefined {
+  const opening = c.candidates.find((candidate) => candidate.key === c.openingEventKey);
+  const name = c.actors.find((actor) => actor.key === key)?.name;
+  if (!opening?.script || !name) return undefined;
+  return opening.script
+    .split(/[。；;，,\n]+/)
+    .map((clause) => clause.trim())
+    .find((clause) => clause.includes(name));
+}
 function persona(c: PublicationContent, key: string): string {
   const actor = c.actors.find((a) => a.key === key)!;
   const card = actor.publicCard;
+  const openingLine = openingLineFor(c, key);
   const background = actor.privatePersona.background ?? '';
   const trimmedBackground = background.trim();
   const introduction = typeof card.introduction === 'string' ? card.introduction.trim() : '';
@@ -131,6 +141,7 @@ function persona(c: PublicationContent, key: string): string {
       : {}),
     ...(lifeContext ? { lifeContext } : {}),
     ...(traits ? { traits } : {}),
+    ...(openingLine ? { openingLine } : {}),
     publicSetting: c.world.publicSetting,
     protagonistPublicIdentity: c.protagonist.identity,
     relationships: sorted(c.relationships)

@@ -40,3 +40,22 @@ v8 世界 `f37e458f` 的开场仍然串线：刘胜男说「邀请你本周末�
 原因：epoch 2 的世界在 `advanceOpening` 里先走 `agentAdvance.advanceIfEnabled`，开场由 agent runtime 的 story-plan 节点驱动，**不会调用** `planPublicationOpening`；上面的 openingLine 修复只覆盖 legacy 开场路径。因此本任务不能标完成。
 
 下一步：在 agent runtime 的开场节点/机会投影里做同样的按角色归属（把 opening event 拆成每个 actor 的 brief，或把 actor 的 openingLine 注入 `presentationContext`），再用真实模型开局验证。
+
+## epoch 2 修复（同日）
+
+- `src/modules/settings/infrastructure/publication-genesis.ts`
+  - 编译人格时从 `openingEventKey` 对应的候选 `script` 里切出写了该人物名字的那一句，写入 `persona.openingLine`。
+- `src/modules/world/infrastructure/npc-agent-model.ts`
+  - 系统提示新增：`actor.persona.openingLine` 是原稿明确写给本人的开场句，只推进这一句，不得认领其他人的开场事件（出差/见父亲/母亲住院/孩子/怀孕）。
+
+## 复验（真实模型）
+
+- 新世界 `5a040da1-2661-4b4d-b05d-a06dd5fe77b0`（本地版本 v9）：
+  - 编译后每个人格的 `openingLine` 正确：青青医院、林白语见父亲、刘胜男出差、李之之照片、舒雅婷报酬、欣欣怀孕威胁。
+  - 开场实际消息：欣欣自拍、林白语坦诚沟通、青青医院、刘胜男出差、舒雅婷带娃报酬——没有再出现「刘胜男说见父亲」或「李之之说出差」。
+- 同一世界 4 分钟回访补演：李之之 `00:10:50`、刘胜男 `00:11:55`，各在自己的线上。
+
+## 结论
+
+- legacy 与 epoch 2 两条开场路径都已按角色归属；本任务完成。
+- 剩余的是同义重复（NPC-OPENING-DUPLICATE-64），不属于归属问题。
