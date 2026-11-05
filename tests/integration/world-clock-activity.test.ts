@@ -718,6 +718,15 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           assert.equal(stopped.storyNow, cutoff);
           assert.equal((await clock.read(owner, id, at(3610))).storyNow, cutoff);
 
+          // A heartbeat arriving before the resume must not erase this genuine absence.
+          const returningTab = randomUUID();
+          const heartbeatBeforeResume = await activity.update(
+            owner,
+            id,
+            { clientId: returningTab, sequence: 1, mode: 'browsing' },
+            at(3609),
+          );
+          assert.equal(heartbeatBeforeResume.paused, true);
           const returned = await activity.update(
             owner,
             id,
@@ -765,6 +774,14 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           );
           assert.equal(heartbeat.paused, true);
           assert.equal(heartbeat.pauseReason, 'manual');
+          const staleResume = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 6, mode: 'browsing', resume: true },
+            at(3626),
+          );
+          assert.equal(staleResume.paused, true);
+          assert.equal(staleResume.pauseReason, 'manual');
           const continued = await activity.update(
             owner,
             id,
@@ -781,18 +798,35 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
             at(3640),
           );
 
+          // Another tab opening after three minutes of continuous heartbeats is not a return.
+          for (let heartbeat = 1; heartbeat <= 6; heartbeat++)
+            await activity.update(
+              owner,
+              id,
+              { clientId: secondTab, sequence: heartbeat + 1, mode: 'browsing' },
+              at(3640 + 30 * heartbeat),
+            );
+          const thirdTab = await activity.update(
+            owner,
+            id,
+            { clientId: randomUUID(), sequence: 1, mode: 'browsing', resume: true },
+            at(3821),
+          );
+          assert.equal(thirdTab.paused, false);
+          assert.equal(thirdTab.returnBriefing, undefined);
+
           // Closing without an away request falls back to the final visible lease.
-          assert.equal((await clock.read(owner, id, at(4284))).paused, false);
+          assert.equal((await clock.read(owner, id, at(4465))).paused, false);
           const backgroundStop = await db.transaction(owner, (sql) =>
-            readClockInTransaction(sql, owner, id, at(4300), true),
+            readClockInTransaction(sql, owner, id, at(4500), true),
           );
           assert.equal(backgroundStop.pauseReason, 'idle');
-          assert.equal(backgroundStop.lastTickAt, at(4285));
+          assert.equal(backgroundStop.lastTickAt, at(4466));
           const returnedAfterClose = await activity.update(
             owner,
             id,
             { clientId, sequence: 8, mode: 'browsing', resume: true },
-            at(4400),
+            at(4600),
           );
           assert.equal(returnedAfterClose.paused, true);
           assert.equal(returnedAfterClose.storyNow, backgroundStop.storyNow);

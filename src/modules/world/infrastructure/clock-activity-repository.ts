@@ -18,6 +18,7 @@ import {
 } from '../domain/clock-activity.ts';
 import {
   planReturnBriefingWindow,
+  RETURN_BRIEFING_MIN_AWAY_MS,
   type ReturnBriefing,
   type ReturnBriefingSummary,
 } from '../domain/return-briefing.ts';
@@ -190,9 +191,30 @@ export async function updateClockActivity(
         missedBeats: 0,
         summary: null,
       };
+  const leases = (
+    await sql.query(
+      'SELECT * FROM parallel_life.world_clock_activity WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
+      [worldId, ownerId],
+    )
+  ).rows.map((r): ClockActivityLease => ({
+    clientId: String(r.client_id),
+    sequence: Number(r.sequence),
+    mode: r.mode,
+    expiresAt: new Date(r.expires_at).toISOString(),
+    focus: r.focus ?? null,
+  }));
+  const previous = leases.find((l) => l.clientId.toLowerCase() === input.clientId.toLowerCase());
+  const acceptsActivity =
+    (!previous || previous.sequence < input.sequence) && (input.mode !== 'away' || !!previous);
   // Re-entering a normal published life is the player's continue action. Staff
   // trials and ordinary heartbeats retain their explicit pause protection.
-  if (clock.paused && clock.pauseReason === 'manual' && input.resume && input.mode !== 'away') {
+  if (
+    acceptsActivity &&
+    clock.paused &&
+    clock.pauseReason === 'manual' &&
+    input.resume &&
+    input.mode !== 'away'
+  ) {
     const normal = (
       await sql.query('SELECT parallel_life.world_continuity_admissible($1) AS allowed', [worldId])
     ).rows[0]?.allowed;
@@ -201,6 +223,7 @@ export async function updateClockActivity(
   // Normal player entry adopts the new policy once, at the old legal anchor. Never retroactively
   // simulate earlier absence or enroll a staff-controlled trial.
   if (
+    acceptsActivity &&
     clock.continuityMode !== 'continuous' &&
     input.resume &&
     input.mode !== 'away' &&
@@ -234,21 +257,7 @@ export async function updateClockActivity(
   const boundary = appointmentDeadline(clock, appointments, skipThrough);
   if (clock.activeUntil && boundary)
     clock = { ...clock, activeUntil: boundedDeadline(clock.activeUntil, boundary) };
-  const leases = (
-    await sql.query(
-      'SELECT * FROM parallel_life.world_clock_activity WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
-      [worldId, ownerId],
-    )
-  ).rows.map((r): ClockActivityLease => ({
-    clientId: String(r.client_id),
-    sequence: Number(r.sequence),
-    mode: r.mode,
-    expiresAt: new Date(r.expires_at).toISOString(),
-    focus: r.focus ?? null,
-  }));
-  const previous = leases.find((l) => l.clientId.toLowerCase() === input.clientId.toLowerCase());
-  if (previous && previous.sequence >= input.sequence) return readableActivityClock(clock, realNow);
-  if (input.mode === 'away' && !previous) return readableActivityClock(clock, realNow);
+  if (!acceptsActivity) return readableActivityClock(clock, realNow);
   // Check the old leases before a returning tab can renew its presence.
   const lastPresenceAt = leases.reduce<string | null>(
     (latest, lease) => (!latest || lease.expiresAt > latest ? lease.expiresAt : latest),
@@ -260,6 +269,14 @@ export async function updateClockActivity(
   const leftAt = row?.last_present_at
     ? new Date(row.last_present_at as string).toISOString()
     : lastPresenceAt;
+  const liveBefore = activityMode(leases, realNow).activeUntil !== null;
+  // Advance the presence anchor during continuous foreground use. A heartbeat
+  // arriving after a briefing-sized gap must leave that gap intact for resume.
+  const renewPresence =
+    input.mode !== 'away' &&
+    liveBefore &&
+    !clock.paused &&
+    (!leftAt || Date.parse(realNow) - Date.parse(leftAt) < RETURN_BRIEFING_MIN_AWAY_MS);
   let briefing: ReturnBriefing | null = null;
   let briefingSummary: ReturnBriefingSummary | undefined;
   if (input.resume && input.mode !== 'away' && leftAt) {
@@ -280,10 +297,7 @@ export async function updateClockActivity(
     });
     if (window) {
       const untilMs = Math.max(Date.parse(window.storyUntil), floorMs);
-      const fromMs = Math.min(
-        Math.max(Date.parse(window.storyFrom), floorMs),
-        untilMs - 60_000,
-      );
+      const fromMs = Math.min(Math.max(Date.parse(window.storyFrom), floorMs), untilMs - 60_000);
       const storyFrom = new Date(fromMs).toISOString();
       const storyUntil = new Date(untilMs).toISOString();
       briefing = await createReturnBriefingInTransaction(sql, ownerId, {
@@ -378,8 +392,10 @@ export async function updateClockActivity(
       boundary,
     );
     await sql.query(
-      'UPDATE parallel_life.world_clock SET active_until=$3,updated_at=now() WHERE world_id=$1 AND owner_id=$2',
-      [worldId, ownerId, activeUntil],
+      `UPDATE parallel_life.world_clock SET active_until=$3,
+          last_present_at=COALESCE($4::timestamptz,last_present_at),updated_at=now()
+        WHERE world_id=$1 AND owner_id=$2`,
+      [worldId, ownerId, activeUntil, renewPresence ? realNow : null],
     );
     return { ...clock, activeUntil };
   }
@@ -391,7 +407,6 @@ export async function updateClockActivity(
   if (!previousLive && input.mode !== 'away' && liveCount >= 32)
     throw new DomainError('INVALID_COMMAND', '活动窗口过多，请继续使用已有窗口');
   // A retired tab cannot resurrect a managed, inactive world without an explicit choice.
-  const liveBefore = activityMode(leases, realNow).activeUntil !== null;
   const permitted =
     clock.pauseReason === 'manual'
       ? !clock.paused
@@ -459,7 +474,9 @@ export async function updateClockActivity(
         : null,
     speed: nextSpeed,
     storyNow: changed ? storyNow : clock.storyNow,
-    lastTickAt: changed ? realNow : clock.lastTickAt,
+    // A heartbeat while idle cannot shift the stop instant used to plan the replay window.
+    lastTickAt:
+      changed && !(clock.paused && clock.pauseReason === 'idle') ? realNow : clock.lastTickAt,
     pauseReason: nextPauseReason(clock, paused),
     ...(briefingSummary ? { returnBriefing: briefingSummary } : {}),
   };
@@ -478,16 +495,12 @@ export async function updateClockActivity(
     appointments.some((a) => a.status === 'confirmed' && Date.parse(a.at) === Date.parse(storyNow))
   )
     next.summary = '约定时间到了，请查看日程。';
-  // While a briefing is pending, the original leave anchor must survive refreshes
-  // and retries. Only a settled resume or an explicit hide advances presence.
-  // A plain presence heartbeat must not erase the leave anchor before the
-  // returning resume is evaluated. Only a settled resume or an explicit hide
-  // advances the last-present timestamp.
+  // A pending briefing or an unsettled return keeps the original leave anchor.
   const presentAt = briefingPending
     ? (leftAt ?? realNow)
-    : input.resume || input.mode === 'away'
+    : input.resume || input.mode === 'away' || renewPresence
       ? realNow
-      : (row?.last_present_at ?? realNow);
+      : (leftAt ?? realNow);
   await sql.query(
     `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until,continuity_mode,pause_reason,last_present_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9,$10,$11,$12) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,speed=EXCLUDED.speed,paused=EXCLUDED.paused,managed=true,active_until=EXCLUDED.active_until,summary=EXCLUDED.summary,continuity_mode=EXCLUDED.continuity_mode,pause_reason=EXCLUDED.pause_reason,last_present_at=EXCLUDED.last_present_at,updated_at=now()`,
