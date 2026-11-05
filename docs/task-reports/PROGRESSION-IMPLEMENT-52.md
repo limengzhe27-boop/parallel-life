@@ -71,11 +71,9 @@
 ## 5. 合并与本地运行
 
 - 实现提交：`f3498dc8`（`codex/progression52`）。
-- 合入 main：`35e11829`（`--no-ff`）。
-- 本地构建：`.local/build-progression52`，`BUILD_ID=hrlE4s7Wjgcezpjdkf0Dg`；关键源码与 main 逐文件 SHA 一致。
-- 3218：PID `24424`，`/api/health` 200，运行 `.local/build-progression52`；期间另一条 `build-stage51` 进程重新占用 3218，核实后已停止并切回本构建。
-- 队列 worker：PID `24223`，health ready，`tasksRun=0`。
-- 主动 worker：PID `24243`，health ready；已 tick 1 次、claimed/advanced 2、messages 3、failed 0（等待既有 lease 后完成）。
-- 队列与主动 worker 从 `.local/build-progression52/scripts/...` 启动，加载的是已提交 HEAD 的 `src`，不加载当前工作树里并发的未提交 WIP。
+- 合入 main：`35e11829`（`--no-ff`）；root 随后在 main 追加 `95baa4c5`（accepted task 沿认证 agenda review 继续）。
+- 本地构建：`.local/build-progression52`，`BUILD_ID=hrlE4s7Wjgcezpjdkf0Dg`；关键源码与当时 main 逐文件 SHA 一致。
+- 3218：本轮曾切到 `build-progression52` 并 health 200；随后 root 接管本地运行，当前 3218 是 `build-stage51`，不是本构建。队列/主动 worker 也已被 root 重启；本报告不宣称当前 3218 正在运行 52。
+- 52 的本地进程最后一次可见状态：queue `24223`/proactive `24243` ready；proactive 已 tick 1、claimed/advanced 2、messages 3、failed 0。该证据只说明运行链，不证明原档持续演绎。
 - 未启动 3219、未部署 Vercel；原用户存档、付费回执、迁移均未改。
 - 页面只验证了 `/` 与 `/api/health` 200；完整手机 UI/通知/键盘未做浏览器目视。health 200 不等于剧情验收。
