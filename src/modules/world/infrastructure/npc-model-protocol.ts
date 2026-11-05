@@ -1872,7 +1872,7 @@ export function bindNpcFollowUpQuestion<
 const PASSIVE_WAKE_TEXT =
   /等你|不打扰|安静|收一收|收回主动|不再主动|顺其自然|留给你|等你有|等你愿意|小手工|慢节奏|挂念|守着你|不催你|不主动联系|不主动打扰|等你消息|等你回应|等你开口|等你想|等你需要/;
 const CONCRETE_WAKE_TEXT =
-  /工作|账目|发票|合同|项目|公司|学校|孩子|医院|房租|客户|会议|出差|材料|报告|店|课|作业|面试|搬家|维修|账单|工资|奖金|证|手续|买|卖|签|交|送|接|处理|准备|检查|预约|报名|装修|存款|贷款|税/;
+  /账目|发票|合同|项目|公司|学校|医院|房租|客户|会议|出差|材料|报告|店|课|作业|面试|搬家|维修|账单|工资|奖金|证|手续|买|卖|签|交|送|接|处理|准备|检查|预约|报名|装修|存款|贷款|税/;
 
 /** A wake that only narrates waiting is not a story beat. Keep its state changes,
  * but do not surface the hundredth "I will not bother you" as a new message. */

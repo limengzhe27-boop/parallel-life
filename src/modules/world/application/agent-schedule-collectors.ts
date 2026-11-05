@@ -534,13 +534,7 @@ async function planReconsiderations(
     const lastAssistant = Date.parse(view.lastAssistantAtByActor?.[state.actorId] ?? '');
     const recentAutonomousMessage =
       Number.isFinite(lastAssistant) && Date.parse(view.storyAt) - lastAssistant < 2 * HOUR_MS;
-    if (
-      !plan.nextActionId &&
-      !plan.triggers.length &&
-      !plan.missingConditions.length &&
-      recentAutonomousMessage
-    )
-      continue;
+    if (!plan.nextActionId && !plan.triggers.length && recentAutonomousMessage) continue;
     if (
       !plan.nextActionId &&
       !plan.triggers.length &&
