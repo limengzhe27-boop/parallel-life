@@ -1,3 +1,8 @@
+import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
+import {
+  WorldDirectorAgentModel,
+  parseDirectorDecision,
+} from '../../src/modules/world/infrastructure/director-agent-model.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -277,6 +282,35 @@ test('director persistence: protected finite attempts, complete observation rang
     ).rows.map((r) => r.document);
     return s;
   }
+  await t.test(
+    'one idle-review attempt never repurchases a lost or invalid completion',
+    async () => {
+      for (const lost of [true, false]) {
+        const f = await fixture(),
+          claim = command(f.snapshot);
+        let calls = 0;
+        const model = new WorldDirectorAgentModel(
+          {
+            async complete() {
+              calls++;
+              if (lost) throw Error('SYNTHETIC_LOST_RESULT');
+              return '{';
+            },
+          },
+          { idleBeat: 'force' },
+        );
+        const deps = { attempts: repository, model, parse: parseDirectorDecision };
+        await assert.rejects(runDirectorAgent(deps, f.owner, claim, f.snapshot));
+        const attempt = await repository.lookup(f.owner, f.id, claim.commandId);
+        assert.equal(attempt?.status, lost ? 'unknown_after_send' : 'invalid_output');
+        const completion = await repository.readCompletion(f.owner, attempt!);
+        assert.equal(completion.found, !lost);
+        if (completion.found) assert.equal(completion.response, '{');
+        await assert.rejects(runDirectorAgent(deps, f.owner, claim, f.snapshot));
+        assert.equal(calls, 1, 'same paid command is fenced, with no fallback completion');
+      }
+    },
+  );
   await t.test(
     'canonical snapshot hash is independent of object key order but protects every actual input field',
     async () => {
@@ -696,6 +730,19 @@ test('director persistence: protected finite attempts, complete observation rang
       await assert.rejects(repository.readCompletion(other.owner, a), { code: 'NOT_FOUND' });
       const fresh = await fixture(),
         b = await received(fresh);
+      await assert.rejects(
+        db.transaction(fresh.owner, (sql) =>
+          switchAgentEngineEpochInTransaction(sql, fresh.owner, {
+            worldId: fresh.id,
+            expectedWorldVersion: 0,
+            expectedEpoch: 2,
+            nextEpoch: 3,
+          }),
+        ),
+        { code: 'ATTEMPT_PENDING' },
+        'protected paid work must be settled before changing the engine',
+      );
+      await repository.mark(fresh.owner, b, 'stale_discarded');
       await db.transaction(fresh.owner, (sql) =>
         switchAgentEngineEpochInTransaction(sql, fresh.owner, {
           worldId: fresh.id,
@@ -706,8 +753,11 @@ test('director persistence: protected finite attempts, complete observation rang
       );
       await assert.rejects(
         repository.commit(fresh.owner, b, fresh.snapshot, decision(fresh.snapshot, b)),
-        { code: 'ENGINE_EPOCH_CONFLICT' },
+        { code: 'DIRECTOR_ATTEMPT_STALE' },
       );
+      await assert.rejects(repository.claim(fresh.owner, command(fresh.snapshot), fresh.snapshot), {
+        code: 'ENGINE_EPOCH_CONFLICT',
+      });
     },
   );
   await t.test(

@@ -150,7 +150,7 @@ function rejected(f: ReturnType<typeof fixture>, raw: unknown) {
   assert.throws(() => f.parse(raw), { code: 'INVALID_DIRECTOR_PROPOSAL' });
 }
 
-test('idle beat creates one source-bound concrete life task instead of another care message', () => {
+test('a previously purchased idle response remains readable through common validation', () => {
   const f = fixture();
   const decision = f.parse({
     kind: 'idle_beat',
@@ -175,26 +175,67 @@ test('idle beat creates one source-bound concrete life task instead of another c
   assert.match(task.proposedInteraction, /合同|房东|找房/);
   assert.doesNotMatch(task.topic, /^(关心|陪伴|安慰|鼓励)/);
 });
-test('director model takes the idle-beat path without buying the full stalled-cast call', async () => {
+test('idle review uses the same schema and one raw Director completion', async () => {
   const f = fixture();
   let calls = 0;
-  const model: TextModel = {
-    complete: async () => {
-      calls++;
-      return JSON.stringify({
-        event: '房东临时通知明早涨租，要求今天内答复是否续住',
-        firstStep: '先翻出合同核对涨幅，再决定今天约房东谈还是开始找房',
-        stakes: '不确认就会在明早失去续住选择，临时找房成本更高',
-      });
+  const response = JSON.stringify(f.bounded);
+  const adapter = new WorldDirectorAgentModel(
+    {
+      async complete(messages, _signal, _tokens, output) {
+        calls++;
+        assert.equal(output?.format, 'json_schema');
+        assert.match(messages[0]!.content, /same Director wire schema/);
+        assert.ok(JSON.parse(messages[1]!.content).actorStates);
+        return response;
+      },
     },
-  };
-  try {
-    const raw = await new WorldDirectorAgentModel(model, { idleBeat: 'force' }).decide(f.snapshot);
+    { idleBeat: 'force' },
+  );
+  assert.equal(
+    await adapter.decide(f.snapshot),
+    response,
+    'preserve the exact response for the paid ledger',
+  );
+  assert.equal(calls, 1);
+  assert.equal(f.parse(response).mode, 'bounded_opportunity');
+});
+test('idle review never buys a fallback after unknown, rejection or invalid output', async () => {
+  for (const error of [
+    Object.assign(Error('lost result'), { code: 'UNKNOWN' }),
+    Object.assign(Error('rejected'), { responseOutcome: 'rejected', httpStatus: 429 }),
+  ]) {
+    const f = fixture();
+    let calls = 0;
+    const adapter = new WorldDirectorAgentModel(
+      {
+        async complete() {
+          calls++;
+          throw error;
+        },
+      },
+      { idleBeat: 'force' },
+    );
+    await assert.rejects(adapter.decide(f.snapshot), (actual) => actual === error);
     assert.equal(calls, 1);
-    assert.equal(f.parse(raw).mode, 'bounded_opportunity');
-  } finally {
-    // No process environment is read by the infrastructure model.
   }
+  const f = fixture();
+  let calls = 0;
+  const adapter = new WorldDirectorAgentModel(
+    {
+      async complete() {
+        calls++;
+        return '{';
+      },
+    },
+    { idleBeat: 'force' },
+  );
+  const raw = await adapter.decide(f.snapshot);
+  assert.equal(raw, '{');
+  assert.throws(() => f.parse(raw), { code: 'INVALID_DIRECTOR_PROPOSAL' });
+  assert.equal(calls, 1);
+  const signal = AbortSignal.abort(Error('cancelled'));
+  await assert.rejects(adapter.decide(f.snapshot, signal));
+  assert.equal(calls, 1, 'pre-cancelled work does not call the provider');
 });
 test('quiet is a valid immutable typed director decision and cannot add NPC execution or a world event', () => {
   const f = fixture(),

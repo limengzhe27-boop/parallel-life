@@ -1869,45 +1869,6 @@ export function bindNpcFollowUpQuestion<
   };
 }
 
-const PASSIVE_WAKE_TEXT =
-  /等你|不打扰|安静|收一收|收回主动|不再主动|顺其自然|留给你|等你有|等你愿意|小手工|慢节奏|挂念|守着你|不催你|不主动联系|不主动打扰|等你消息|等你回应|等你开口|等你想|等你需要/;
-const CONCRETE_WAKE_TEXT =
-  /账目|发票|合同|项目|公司|学校|医院|房租|客户|会议|出差|材料|报告|店|课|作业|面试|搬家|维修|账单|工资|奖金|证|手续|买|卖|签|交|送|接|处理|准备|检查|预约|报名|装修|存款|贷款|税/;
-
-/** A wake that only narrates waiting is not a story beat. Keep its state changes,
- * but do not surface the hundredth "I will not bother you" as a new message. */
-function suppressPassiveWakeStatements(context: AgentValidationContext, proposal: any) {
-  if (context.input.origin !== 'wake') return proposal;
-  let type: unknown;
-  try {
-    type = JSON.parse(context.input.text)?.type;
-  } catch {
-    return proposal;
-  }
-  if (type !== 'npc_agenda_review' && type !== 'npc_own_condition_ready') return proposal;
-  if (proposal.actions.length) return proposal;
-  if (proposal.plans.some((plan: any) => plan.nextActionId || plan.triggers.length))
-    return proposal;
-  if (
-    proposal.responsibilities.some(
-      (responsibility: any) =>
-        responsibility.status === 'open' && responsibility.waitingOn === 'self',
-    )
-  )
-    return proposal;
-  if (
-    proposal.statements.some(
-      (statement: any) => statement.requestsPlayerReply || statement.questionForResponsibilityId,
-    )
-  )
-    return proposal;
-  const text = proposal.statements
-    .map((statement: any) => (typeof statement.text === 'string' ? statement.text : ''))
-    .join(' ');
-  if (!text || CONCRETE_WAKE_TEXT.test(text) || !PASSIVE_WAKE_TEXT.test(text)) return proposal;
-  return { ...proposal, statements: [] };
-}
-
 function bindNpcConsideration(
   context: AgentValidationContext,
   consideration: z.infer<typeof Wire.shape.consideration>,
@@ -2070,34 +2031,31 @@ function bindNpcConsideration(
     )
   )
     throw Error('NPC_WIRE_FOLLOW_UP_DUPLICATE');
-  return suppressPassiveWakeStatements(
-    context,
-    bindNpcFollowUpQuestion(context, {
-      ...proposal,
-      plans: acceptedPlan ? [...proposal.plans, acceptedPlan] : proposal.plans,
-      responsibilities: responsibility
-        ? [...proposal.responsibilities, responsibility]
-        : proposal.responsibilities,
-      ...(consideration
-        ? {
-            episodeDecision: {
-              requestId,
-              choice: consideration.choice,
-              reason: consideration.reason,
-              sourceIds: [
-                ...new Set([
-                  context.input.sourceId,
-                  ...(context.input.origin === 'player' && context.episodeManifest
-                    ? [context.episodeManifest.sourceId]
-                    : []),
-                  ...consideration.basisSourceIds,
-                ]),
-              ],
-            },
-          }
-        : {}),
-    }),
-  );
+  return bindNpcFollowUpQuestion(context, {
+    ...proposal,
+    plans: acceptedPlan ? [...proposal.plans, acceptedPlan] : proposal.plans,
+    responsibilities: responsibility
+      ? [...proposal.responsibilities, responsibility]
+      : proposal.responsibilities,
+    ...(consideration
+      ? {
+          episodeDecision: {
+            requestId,
+            choice: consideration.choice,
+            reason: consideration.reason,
+            sourceIds: [
+              ...new Set([
+                context.input.sourceId,
+                ...(context.input.origin === 'player' && context.episodeManifest
+                  ? [context.episodeManifest.sourceId]
+                  : []),
+                ...consideration.basisSourceIds,
+              ]),
+            ],
+          },
+        }
+      : {}),
+  });
 }
 
 /** One source binding and one canonical compilation for new requests. No historical protocol recursion. */

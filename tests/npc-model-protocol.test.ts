@@ -152,7 +152,7 @@ test('self-owned work review requires an explicit update of the existing duty, w
   );
 });
 
-test('a passive autonomous wake keeps state changes but does not surface another waiting message', () => {
+test('wake delivery preserves valid messages independently of topic keywords', () => {
   const { c } = fixture();
   c.input.origin = 'wake';
   c.input.text = JSON.stringify({ type: 'npc_agenda_review' });
@@ -164,7 +164,7 @@ test('a passive autonomous wake keeps state changes but does not surface another
     executions: [],
     changes: null,
   });
-  assert.deepEqual(waiting.statements, []);
+  assert.equal(waiting.statements.length, 1);
 
   const working = parseAgentProposal(c, {
     protocol: 'npc-wire-v19',
@@ -178,6 +178,18 @@ test('a passive autonomous wake keeps state changes but does not surface another
     changes: null,
   });
   assert.equal(working.statements.length, 1);
+  const refusal = parseAgentProposal(c, {
+    protocol: 'npc-wire-v19',
+    statements: [
+      {
+        text: '\u6211\u51b3\u5b9a\u4e0d\u53c2\u52a0\u4e86\uff0c\u60f3\u5b89\u9759\u4e00\u4e0b\u3002',
+        dependsOnActionIds: [],
+      },
+    ],
+    executions: [],
+    changes: null,
+  });
+  assert.equal(refusal.statements.length, 1, 'a refusal cannot be dropped by vocabulary');
 });
 
 test('a certified legacy accepted-task wake restores ownership without accepting it a second time', () => {

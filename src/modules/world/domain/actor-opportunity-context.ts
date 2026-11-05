@@ -50,7 +50,7 @@ export function actorInteractionOpportunity(task: string) {
         proposedInteraction: value.proposedInteraction as string,
       },
       interpretation:
-        'The current opportunity. Decide your own stance: you may refuse, defer or adapt the approach, but you cannot treat it as if nothing happened. If you engage, record a concrete next step (plan, action, or a real wait for an answer); one message alone is not completion. It does not establish events, player consent, others knowledge or a deadline; existing conditions still apply.',
+        'The current opportunity. Decide your own stance: you may refuse, defer or adapt the approach, but you cannot treat it as if nothing happened. If you engage, record a concrete next step (plan, action, or a real wait for an answer); one message alone is not completion. It does not establish events, player consent, others knowledge or a deadline; existing conditions still apply. Suggested external notices, expenses, deadlines and outcomes are unconfirmed without a separate authorized factual source. Do not describe a future proposal as an observation.',
     };
   } catch {
     return null;

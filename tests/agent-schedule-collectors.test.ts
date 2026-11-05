@@ -1231,20 +1231,45 @@ test('actionless plan gets one bounded proactive review per story hour', async (
   assert.notEqual(second.id, first.id);
 });
 
-test('a recent autonomous message suppresses repeat actionless plan reviews for two story hours', async () => {
+test('unrelated chat does not postpone an actionless plan; persisted cadence is per plan', async () => {
   const a = actor();
   a.snapshot.state.actions = [];
-  a.snapshot.state.plans[0]!.actionIds = [];
-  a.snapshot.state.plans[0]!.nextActionId = null;
-  a.snapshot.state.plans[0]!.triggers = [];
+  const plan = a.snapshot.state.plans[0]!;
+  plan.actionIds = [];
+  plan.nextActionId = null;
+  plan.triggers = [];
   sync(a);
   const recent = view([a]);
-  recent.lastAssistantAtByActor = { a: '2026-10-15T09:00:00.000Z' };
-  assert.equal((await collect(recent, 'actor_plan')).candidates.length, 0);
-
-  const elapsed = structuredClone(recent);
-  elapsed.lastAssistantAtByActor = { a: '2026-10-15T07:59:00.000Z' };
-  assert.equal((await collect(elapsed, 'actor_plan')).candidates.length, 1);
+  recent.lastAssistantAtByActor = { a: at };
+  assert.equal(
+    (await collect(recent, 'actor_plan')).candidates.length,
+    1,
+    'a first review survives unrelated chat',
+  );
+  recent.planReviews = new Map([
+    [
+      'plan',
+      {
+        planId: 'plan',
+        lastReviewedAt: before,
+        nextReviewAt: '2026-10-15T10:30:00.000Z',
+        reviewCount: 1,
+      },
+    ],
+  ]);
+  assert.equal(
+    (await collect(recent, 'actor_plan')).candidates.length,
+    0,
+    'this plan keeps its own review schedule',
+  );
+  a.snapshot.state.plans.push({ ...structuredClone(plan), id: 'independent-plan' });
+  sync(a);
+  const candidates = (await collect(recent, 'actor_plan')).candidates;
+  assert.deepEqual(
+    candidates.map((c) => c.planReview?.planId),
+    ['independent-plan'],
+    'another plan is not cooled by the first plan or a chat',
+  );
 });
 
 test('actionless plan with a missing condition or an open question does not re-ask every story hour', async () => {

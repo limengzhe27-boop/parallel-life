@@ -527,14 +527,7 @@ async function planReconsiderations(
             ))),
     );
     const savedReview = view.planReviews?.get(plan.id);
-    // A person who just spoke has already had this turn. Re-buying the same
-    // actionless review every scheduler tick produces serial "I am waiting"
-    // messages without new state or a concrete step. The plan remains durable and
-    // becomes eligible again after a real story-time gap.
-    const lastAssistant = Date.parse(view.lastAssistantAtByActor?.[state.actorId] ?? '');
-    const recentAutonomousMessage =
-      Number.isFinite(lastAssistant) && Date.parse(view.storyAt) - lastAssistant < 2 * HOUR_MS;
-    if (!plan.nextActionId && !plan.triggers.length && recentAutonomousMessage) continue;
+    // The persisted review belongs to this plan, independently of unrelated chat.
     if (
       !plan.nextActionId &&
       !plan.triggers.length &&

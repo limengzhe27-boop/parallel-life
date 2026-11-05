@@ -3681,3 +3681,5 @@ EVENT-STAGE-CONTINUITY-51接续：52已合入计划驱动实现及51先期修改
 EVENT-STAGE-CONTINUITY-51收口记录：95baa4c5接续认证旧任务，b645ba88恢复崩溃后过期request_sent。原档bc84已由正常入口归unknown并由新合法claim退休，李之之原任务计划实际保存/复查为blocked，未重买旧请求。最终模型展示再去掉readyPlanIds/readyResponsibilityIds重复调度索引，原档离线62288+13675字符，限额不变。check4260、PG38、最终build通过；更新3218 build-stage51-final及固定产物worker，不动3219/生产。仍未通过持续主动剧情验收，51保持进行中，不能以消息/计划数量结清。
 
 PROGRESSION-IDLE-53接续：原档克隆 `parallel_life_prog53_clean` 上强制复盘生成具体外部生活事项（校园剪辑项目，10点前决定，自付200元订阅费，影响下月房租），青青实际回信“想接，先联系课程组长确认”；不是关心/等待。另修导演快照 `planReview.goalId:null` 被拒、空转计划2故事小时冷却、NPC上下文的派生conversationProgress最后让步。尚未切3218原档，不把克隆证据当原档通过。
+
+|PROGRESSION-INTEGRITY-54|[ ] 待验收（check/PG/build通过，待3218原档验收）|root-progression54唯一集成|main 09227d2b；director-agent-model.ts、npc-model-protocol.ts、agent-schedule-collectors.ts、actor-opportunity-context.ts、对应单测及director-runtime真实PG测试/专属报告；不动他人记忆/素材/3219/生产|收口53重复付费回落、机会与事实混淆、关键词删消息、跨事项冷却；保留可选具体即兴机会及原NPC自主决定，复用既有协议/计划复查记录，无新增DB字段；必要PG/真实模型验收后独立构建串行更新3218。|
