@@ -16,6 +16,10 @@ import {
   capClockAtNextAppointment,
 } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
 import { switchAgentEngineEpochInTransaction } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
+import {
+  claimReturnBriefingInTransaction,
+  finishReturnBriefingInTransaction,
+} from '../../src/modules/world/infrastructure/return-briefing-repository.ts';
 import { advanceWorld } from '../../src/modules/world/application/advance-world.ts';
 import { projectStoryTime } from '../../src/modules/world/domain/clock.ts';
 
@@ -94,7 +98,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           at(10),
         );
         assert.equal(first.storyNow, at(10));
-        assert.equal(first.speed, 12);
+        assert.equal(first.speed, 3);
         assert.equal(first.lastTickAt, at(10));
         const next = await activity.update(
           owner,
@@ -104,7 +108,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         );
         assert.equal(next.lastTickAt, first.lastTickAt);
         assert.equal(next.storyNow, first.storyNow);
-        assert.equal(projectStoryTime(next, at(25)), at(190));
+        assert.equal(projectStoryTime(next, at(25)), at(55));
         await assert.rejects(
           activity.update(other, worldId, { clientId: a, sequence: 2, mode: 'browsing' }, at(25)),
           { code: 'NOT_FOUND' },
@@ -118,8 +122,9 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         { clientId: b, sequence: 0, mode: 'conversation' },
         at(30),
       );
-      assert.equal(slow.speed, 1);
-      assert.equal(slow.storyNow, at(250));
+      assert.equal(slow.speed, 3);
+      assert.equal(slow.storyNow, at(10));
+      assert.equal(projectStoryTime(slow, at(30)), at(70));
       const left = await activity.update(
         owner,
         worldId,
@@ -127,7 +132,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         at(35),
       );
       assert.equal(left.paused, false);
-      assert.equal(left.speed, 1);
+      assert.equal(left.speed, 3);
       const stale = await activity.update(
         owner,
         worldId,
@@ -138,7 +143,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
       assert.equal(stale.activeUntil, at(75));
       const offline = await clock.read(owner, worldId, at(100));
       assert.equal(offline.paused, true);
-      assert.equal(offline.storyNow, at(295));
+      assert.equal(offline.storyNow, at(205));
       const ignored = await activity.update(
         owner,
         worldId,
@@ -146,7 +151,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         at(100),
       );
       assert.equal(ignored.paused, true);
-      assert.equal(ignored.storyNow, at(295));
+      assert.equal(ignored.storyNow, at(205));
       const resumed = await activity.update(
         owner,
         worldId,
@@ -154,8 +159,8 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         at(200),
       );
       assert.equal(resumed.paused, false);
-      assert.equal(resumed.speed, 12);
-      assert.equal(resumed.storyNow, at(295));
+      assert.equal(resumed.speed, 3);
+      assert.equal(resumed.storyNow, at(205));
     });
     await t.test(
       'a same-mode lease can renew during model advisory lock without rewriting speed or anchor',
@@ -258,7 +263,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         );
         assert.equal(frozen.paused, true);
         assert.equal(frozen.activeUntil, null);
-        assert.equal(frozen.storyNow, at(535));
+        assert.equal(frozen.storyNow, at(265));
         const notResumed = await activity.update(
           owner,
           worldId,
@@ -273,8 +278,8 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           { clientId: b, sequence: 5, mode: 'conversation', resume: true },
           at(300),
         );
-        assert.equal(resume.speed, 1);
-        assert.equal(resume.storyNow, at(535));
+        assert.equal(resume.speed, 3);
+        assert.equal(resume.storyNow, at(265));
         const state = await worlds.get({ userId: owner }, worldId);
         assert.equal(state.version, 0);
         const denied = await db.transaction(other, (sql) =>
@@ -302,13 +307,13 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           /ROLLBACK_FIXTURE/,
         );
         const before = await clock.read(owner, worldId, at(310));
-        assert.equal(before.speed, 1);
+        assert.equal(before.speed, 3);
         assert.equal(before.activeUntil, at(345));
         await clock.ensureAnchor(owner, worldId, {
           storyNow: at(0),
           lastTickAt: at(0),
           paused: false,
-          speed: 12,
+          speed: 3,
           missedBeats: 0,
           summary: null,
         });
@@ -316,7 +321,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           storyNow: before.storyNow,
           lastTickAt: before.lastTickAt,
           paused: false,
-          speed: 1,
+          speed: 3,
           missedBeats: 0,
           summary: null,
         });
@@ -372,19 +377,14 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           )
         ).rows[0];
         assert.equal(new Date(stored.last_tick_at).toISOString(), resume.lastTickAt);
-        await activity.update(
-          owner,
-          worldId,
-          { clientId: b, sequence: 7, mode: 'browsing' },
-          at(430),
-        );
-        await activity.update(
-          owner,
-          worldId,
-          { clientId: b, sequence: 8, mode: 'browsing' },
-          at(460),
-        );
-        realNow = at(475);
+        for (let heartbeat = 1; heartbeat <= 9; heartbeat++)
+          await activity.update(
+            owner,
+            worldId,
+            { clientId: b, sequence: 6 + heartbeat, mode: 'browsing' },
+            at(400 + 30 * heartbeat),
+          );
+        realNow = at(700);
         assert.equal((await run()).played, 0);
         assert.equal(calls, 0);
         stored = (
@@ -393,7 +393,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
             [worldId],
           )
         ).rows[0];
-        assert.equal(new Date(stored.last_tick_at).toISOString(), at(475));
+        assert.equal(new Date(stored.last_tick_at).toISOString(), at(700));
         assert.equal(
           (await clock.read(owner, worldId, realNow)).storyNow,
           new Date(Date.parse(resume.storyNow) + 15 * 60000).toISOString(),
@@ -413,7 +413,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           owner,
           worldId,
           { clientId: fresh, sequence: 0, mode: 'browsing' },
-          at(480),
+          at(705),
         );
         assert.equal(admitted.paused, false);
         const old = (
@@ -427,7 +427,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           owner,
           worldId,
           { clientId: a, sequence: 1, mode: 'conversation', resume: true },
-          at(481),
+          at(706),
         );
         const saved = (
           await admin.query(
@@ -440,7 +440,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         await admin.query(
           `INSERT INTO parallel_life.world_clock_activity(world_id,owner_id,client_id,sequence,mode,expires_at)
         SELECT $1,$2,md5('clock-live-fixture-'||g::text)::uuid,1,'browsing',$3 FROM generate_series(1,30) g`,
-          [worldId, owner, at(520)],
+          [worldId, owner, at(745)],
         );
         await assert.rejects(
           activity.update(
@@ -469,7 +469,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         const appointment = {
           id: appointmentId,
           title: '合成约定',
-          at: at(300),
+          at: at(75),
           status: 'confirmed',
           participantIds: [actor],
           sourceEventId: randomUUID(),
@@ -511,7 +511,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           assert.equal(renewal.activeUntil, at(25));
           const due = await clock.read(owner, testWorld, at(26));
           assert.equal(due.paused, true);
-          assert.equal(due.storyNow, at(300));
+          assert.equal(due.storyNow, at(75));
           const still = await activity.update(
             owner,
             testWorld,
@@ -519,7 +519,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
             at(30),
           );
           assert.equal(still.paused, true);
-          assert.equal(still.storyNow, at(300));
+          assert.equal(still.storyNow, at(75));
           const resumed = await activity.update(
             owner,
             testWorld,
@@ -527,7 +527,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
             at(40),
           );
           assert.equal(resumed.paused, false);
-          assert.equal(projectStoryTime(resumed, at(45)), at(360));
+          assert.equal(projectStoryTime(resumed, at(45)), at(90));
           const initial = (
             await admin.query(
               'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
@@ -539,7 +539,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           await clock.write(owner, testWorld, {
             storyNow: at(0),
             lastTickAt: at(0),
-            speed: 12,
+            speed: 3,
             paused: false,
             missedBeats: 0,
             summary: null,
@@ -557,7 +557,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
             at(30),
           );
           assert.equal(directContinue.paused, false);
-          assert.equal(directContinue.storyNow, at(300));
+          assert.equal(directContinue.storyNow, at(75));
           assert.equal(directContinue.lastTickAt, at(30));
           assert.equal(directContinue.activeUntil, at(75));
           await clock.write(owner, testWorld, {
@@ -570,12 +570,12 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           });
           await clock.setClock(owner, testWorld, { speed: 12 }, at(10));
           const spedUp = await clock.read(owner, testWorld, at(10));
-          assert.equal(spedUp.activeUntil, at(34.167));
-          const stopped = await clock.read(owner, testWorld, at(35));
+          assert.equal(spedUp.activeUntil, at(15.417));
+          const stopped = await clock.read(owner, testWorld, at(16));
           assert.equal(stopped.paused, true);
           assert.ok(
-            Date.parse(stopped.storyNow) >= Date.parse(at(300)) &&
-              Date.parse(stopped.storyNow) - Date.parse(at(300)) < 12,
+            Date.parse(stopped.storyNow) >= Date.parse(at(75)) &&
+              Date.parse(stopped.storyNow) - Date.parse(at(75)) < 12,
           );
           await clock.setClock(owner, testWorld, { paused: false }, at(100));
           assert.equal((await clock.read(owner, testWorld, at(200))).storyNow, stopped.storyNow);
@@ -657,7 +657,7 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
       },
     );
     await t.test(
-      'continuous normal entry resumes a manual stop at its preserved anchor',
+      'continuous absence pauses at the idle cutoff and completes a single return briefing',
       async () => {
         const id = randomUUID();
         await worlds.initialize(
@@ -692,91 +692,127 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           missedBeats: 0,
           summary: null,
         });
-        const clientId = randomUUID();
-        const entered = await activity.update(
-          owner,
-          id,
-          { clientId, sequence: 1, mode: 'browsing', resume: true },
-          at(0),
-        );
-        assert.equal(entered.continuityMode, 'continuous');
-        const away = await activity.update(
-          owner,
-          id,
-          { clientId, sequence: 2, mode: 'away' },
-          at(10),
-        );
-        assert.equal(away.paused, false);
-        assert.equal(away.speed, 1);
-        assert.equal(away.activeUntil, null);
-        assert.equal((await clock.read(owner, id, at(609))).paused, false);
-        const stopped = await clock.read(owner, id, at(610));
-        assert.equal(stopped.pauseReason, 'idle');
-        const cutoff = projectStoryTime(away, at(610));
-        assert.equal(stopped.storyNow, cutoff);
-        assert.equal((await clock.read(owner, id, at(3610))).storyNow, cutoff);
-        const returned = await activity.update(
-          owner,
-          id,
-          { clientId, sequence: 3, mode: 'browsing', resume: true },
-          at(3610),
-        );
-        assert.equal(returned.paused, false);
-        assert.equal(returned.storyNow, cutoff);
-        assert.match(returned.summary ?? '', /世界已恢复/);
-        // Closing without an away request falls back to the final visible lease.
-        const expired = await clock.read(owner, id, at(4255));
-        assert.equal(expired.pauseReason, 'idle');
-        assert.equal(expired.storyNow, projectStoryTime(returned, at(4255)));
-        const immediateReentry = await activity.update(
-          owner,
-          id,
-          { clientId: randomUUID(), sequence: 1, mode: 'browsing', resume: true },
-          at(3611),
-        );
-        assert.equal(immediateReentry.summary, null);
-        await clock.setClock(owner, id, { paused: true }, at(3620));
-        assert.equal(
-          (
-            await activity.update(
-              owner,
-              id,
-              { clientId, sequence: 4, mode: 'browsing', resume: true },
-              at(4000),
-            )
-          ).paused,
-          false,
-        );
-        const secondTab = randomUUID();
-        await activity.update(
-          owner,
-          id,
-          { clientId: secondTab, sequence: 1, mode: 'browsing', resume: true },
-          at(4600),
-        );
-        assert.equal((await clock.read(owner, id, at(4645 - 1))).paused, false);
-        const backgroundStop = await db.transaction(owner, (sql) =>
-          readClockInTransaction(sql, owner, id, at(5300), true),
-        );
-        assert.equal(backgroundStop.pauseReason, 'idle');
-        assert.equal(backgroundStop.lastTickAt, at(5245));
-        const resumed = await activity.update(
-          owner,
-          id,
-          { clientId, sequence: 5, mode: 'browsing', resume: true },
-          at(5400),
-        );
-        assert.equal(resumed.paused, false);
-        assert.equal(resumed.storyNow, backgroundStop.storyNow);
-        assert.equal((await worlds.get({ userId: owner }, id)).version, 0);
-        // Owned fixture cleanup; no production or other task data involved.
-        await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [id]);
-        await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=$1', [id]);
-        await admin.query('DELETE FROM parallel_life.agent_runtime_worlds WHERE world_id=$1', [id]);
-        await admin.query('DELETE FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
-          id,
-        ]);
-        await admin.query('DELETE FROM parallel_life.worlds WHERE id=$1', [id]);
+        try {
+          const clientId = randomUUID();
+          const entered = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 1, mode: 'browsing', resume: true },
+            at(0),
+          );
+          assert.equal(entered.continuityMode, 'continuous');
+          assert.equal(entered.speed, 3);
+          const away = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 2, mode: 'away' },
+            at(10),
+          );
+          assert.equal(away.paused, false);
+          assert.equal(away.speed, 1);
+          assert.equal(away.activeUntil, null);
+          assert.equal((await clock.read(owner, id, at(609))).paused, false);
+          const stopped = await clock.read(owner, id, at(610));
+          assert.equal(stopped.pauseReason, 'idle');
+          const cutoff = projectStoryTime(away, at(610));
+          assert.equal(stopped.storyNow, cutoff);
+          assert.equal((await clock.read(owner, id, at(3610))).storyNow, cutoff);
+
+          const returned = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 3, mode: 'browsing', resume: true },
+            at(3610),
+          );
+          assert.equal(returned.paused, true);
+          assert.equal(returned.storyNow, cutoff);
+          assert.equal(returned.returnBriefing?.status, 'pending');
+          const briefingId = returned.returnBriefing!.id;
+          const replayed = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 4, mode: 'browsing', resume: true },
+            at(3610),
+          );
+          assert.equal(replayed.returnBriefing?.id, briefingId);
+
+          // This fixture has no actors; complete the empty briefing via its normal persistence API.
+          const completed = await db.transaction(owner, async (sql) => {
+            const claim = await claimReturnBriefingInTransaction(sql, owner, id, briefingId);
+            assert.equal(claim.claimed, true);
+            return finishReturnBriefingInTransaction(sql, owner, id, briefingId);
+          });
+          assert.equal(completed.storyFrom, cutoff);
+          assert.equal(completed.storyUntil, at(3630));
+          const resumed = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 5, mode: 'browsing', resume: true },
+            at(3611),
+          );
+          assert.equal(resumed.paused, false);
+          assert.equal(resumed.storyNow, completed.storyUntil);
+          assert.equal(resumed.returnBriefing?.id, briefingId);
+          assert.equal(resumed.returnBriefing?.status, 'completed');
+
+          // A normal-life re-entry is explicit continue, while a heartbeat keeps the manual pause.
+          await clock.setClock(owner, id, { paused: true }, at(3620));
+          const heartbeat = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 6, mode: 'browsing' },
+            at(3625),
+          );
+          assert.equal(heartbeat.paused, true);
+          assert.equal(heartbeat.pauseReason, 'manual');
+          const continued = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 7, mode: 'browsing', resume: true },
+            at(3630),
+          );
+          assert.equal(continued.paused, false);
+          assert.equal(continued.storyNow, heartbeat.storyNow);
+          const secondTab = randomUUID();
+          await activity.update(
+            owner,
+            id,
+            { clientId: secondTab, sequence: 1, mode: 'browsing', resume: true },
+            at(3640),
+          );
+
+          // Closing without an away request falls back to the final visible lease.
+          assert.equal((await clock.read(owner, id, at(4284))).paused, false);
+          const backgroundStop = await db.transaction(owner, (sql) =>
+            readClockInTransaction(sql, owner, id, at(4300), true),
+          );
+          assert.equal(backgroundStop.pauseReason, 'idle');
+          assert.equal(backgroundStop.lastTickAt, at(4285));
+          const returnedAfterClose = await activity.update(
+            owner,
+            id,
+            { clientId, sequence: 8, mode: 'browsing', resume: true },
+            at(4400),
+          );
+          assert.equal(returnedAfterClose.paused, true);
+          assert.equal(returnedAfterClose.storyNow, backgroundStop.storyNow);
+          assert.equal(returnedAfterClose.returnBriefing?.status, 'pending');
+          assert.notEqual(returnedAfterClose.returnBriefing?.id, briefingId);
+          assert.equal((await worlds.get({ userId: owner }, id)).version, 0);
+        } finally {
+          // Owned fixture cleanup; no production or other task data involved.
+          await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [
+            id,
+          ]);
+          await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=$1', [id]);
+          await admin.query('DELETE FROM parallel_life.agent_runtime_worlds WHERE world_id=$1', [
+            id,
+          ]);
+          await admin.query('DELETE FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
+            id,
+          ]);
+          await admin.query('DELETE FROM parallel_life.worlds WHERE id=$1', [id]);
+        }
       },
     );
   } finally {
