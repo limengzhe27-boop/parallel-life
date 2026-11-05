@@ -1,8 +1,9 @@
 import type { WorldMoment, WorldState } from './types.ts';
 
 export type PlayerSocialChange =
-  | { kind: 'publish'; text: string; audienceActorIds?: string[] }
-  | { kind: 'like'; momentKey: string }
+  | { kind: 'publish'; text: string; images?: string[]; audienceActorIds?: string[] }
+  | { kind: 'like' | 'unlike'; momentKey: string }
+  | { kind: 'comment'; momentKey: string; comment: string }
   | { kind: 'like_message'; messageId: string };
 
 export type PlayerSocialEvent = {
@@ -38,6 +39,7 @@ export function applyPlayerSocialEvent(current: WorldState, event: PlayerSocialE
         actorId: 'player',
         name: '我',
         text: change.text,
+        ...(change.images?.length ? { images: change.images } : {}),
         at: event.storyTime,
         ...(change.audienceActorIds === undefined
           ? {}
@@ -47,6 +49,11 @@ export function applyPlayerSocialEvent(current: WorldState, event: PlayerSocialE
     ];
   } else if (change.kind === 'like_message') {
     next.likedMessageIds = [...(current.likedMessageIds ?? []), change.messageId];
+  } else if (change.kind === 'unlike') {
+    next.momentInteractions = (current.momentInteractions ?? []).filter(
+      (item) =>
+        !(item.actorId === 'player' && item.kind === 'like' && item.momentKey === change.momentKey),
+    );
   } else {
     next.momentInteractions = [
       ...(current.momentInteractions ?? []),
@@ -54,7 +61,8 @@ export function applyPlayerSocialEvent(current: WorldState, event: PlayerSocialE
         id: event.id,
         momentKey: change.momentKey,
         actorId: 'player',
-        kind: 'like',
+        kind: change.kind,
+        ...(change.kind === 'comment' ? { comment: change.comment } : {}),
         at: event.storyTime,
         sourceEventId: event.id,
       },

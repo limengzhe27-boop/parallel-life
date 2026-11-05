@@ -16,14 +16,83 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
   const client = useMemo(() => new LifeClient(transport), [transport]);
   const [draft, setDraft] = useState('');
   const [composing, setComposing] = useState(false);
+  const [panel, setPanel] = useState<'camera' | 'photos' | 'audience' | null>(null);
+  const [images, setImages] = useState<string[]>([]);
+  const [uploaded, setUploaded] = useState<{ id: string; url: string; title: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [menu, setMenu] = useState<string | null>(null);
+  const [commentKey, setCommentKey] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
+  const commentRequest = useRef<{ payload: string; id: string } | undefined>(undefined);
+  const uploadRequests = useRef(new WeakMap<File, string>());
+  const photoOptions = [
+    ...uploaded,
+    ...data.photos
+      .filter((photo) => photo.status === 'ready' && photo.url && photo.mediaType !== 'video')
+      .map((photo) => ({ id: photo.id, url: photo.url!, title: photo.title })),
+  ].filter((photo, index, all) => all.findIndex((item) => item.id === photo.id) === index);
+  async function upload(files: FileList | null) {
+    if (!files?.length || uploading || saving) return;
+    if (files.length + images.length > 9) {
+      setWriteError('最多选择9张照片。');
+      return;
+    }
+    setUploading(true);
+    setWriteError(null);
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) throw Error('请选择图片文件。');
+        const commandId = uploadRequests.current.get(file) ?? crypto.randomUUID();
+        uploadRequests.current.set(file, commandId);
+        const photo = await client.uploadPhoto(worldId, file, commandId);
+        const url = `/api/v1/assets/${encodeURIComponent(photo.id)}?worldId=${encodeURIComponent(worldId)}&revision=${photo.revision}`;
+        setUploaded((old) =>
+          old.some((item) => item.id === photo.id)
+            ? old
+            : [...old, { id: photo.id, url, title: photo.title }],
+        );
+        setImages((old) => (old.includes(url) ? old : [...old, url]));
+      }
+    } catch {
+      setWriteError('有照片未能上传。已上传的照片已保留，请重新选择失败的照片。');
+    } finally {
+      setUploading(false);
+    }
+  }
+  async function sendComment() {
+    if (!commentKey || !comment.trim() || saving) return;
+    const payload = JSON.stringify([worldId, commentKey, comment.trim()]);
+    const commandId =
+      commentRequest.current?.payload === payload ? commentRequest.current.id : crypto.randomUUID();
+    commentRequest.current = { payload, id: commandId };
+    setSaving(commentKey);
+    setWriteError(null);
+    try {
+      await client.updatePlayerSocial(worldId, {
+        kind: 'comment',
+        commandId,
+        momentKey: commentKey,
+        comment: comment.trim(),
+      });
+      setComment('');
+      setCommentKey(null);
+      commentRequest.current = undefined;
+      setReload((value) => value + 1);
+    } catch {
+      setWriteError('评论暂未确认发送，内容已保留，请重试。');
+    } finally {
+      setSaving(null);
+    }
+  }
   const [audience, setAudience] = useState<string[] | undefined>();
+  const [choosingPeople, setChoosingPeople] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const lastPublish = useRef<{ payload: string; commandId: string } | undefined>(undefined);
   async function publish() {
     const text = draft.trim();
-    if (!text || saving) return;
-    const payload = JSON.stringify([worldId, text, audience]);
+    if ((!text && !images.length) || saving || uploading) return;
+    const payload = JSON.stringify([worldId, text, audience, images]);
     const commandId =
       lastPublish.current?.payload === payload
         ? lastPublish.current.commandId
@@ -36,11 +105,14 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
         commandId,
         kind: 'publish',
         text,
+        images,
         audienceActorIds: audience,
       });
       lastPublish.current = undefined;
       setDraft('');
+      setImages([]);
       setAudience(undefined);
+      setChoosingPeople(false);
       setComposing(false);
       setReload((r) => r + 1);
     } catch {
@@ -49,14 +121,14 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
       setSaving(null);
     }
   }
-  async function like(momentKey: string) {
+  async function like(momentKey: string, liked = false) {
     if (saving) return;
     setSaving(momentKey);
     setWriteError(null);
     try {
       await client.updatePlayerSocial(worldId, {
         commandId: crypto.randomUUID(),
-        kind: 'like',
+        kind: liked ? 'unlike' : 'like',
         momentKey,
       });
       setReload((r) => r + 1);
@@ -112,55 +184,121 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
   const moments = result?.moments.filter((m) => !target || m.actorId === target) ?? [];
   const person = target ? data.contacts.find((contact) => contact.id === target) : undefined;
   const name = person?.name ?? moments[0]?.name;
-  return (
-    <div className={s.app}>
-      <header className={`${s.sectionHeading} ${feed.heading}`}>
-        <button
-          type="button"
-          onClick={() => open('messages', target)}
-          aria-label={target ? `返回${name ?? '这个联系人'}的聊天` : '返回消息'}
-        >
-          ‹
-        </button>
-        <h2>{target ? `${name ?? 'TA'}的朋友圈` : '朋友圈'}</h2>
-        {!target && canWrite && (
-          <button type="button" onClick={() => setComposing((value) => !value)}>
-            {composing ? '收起' : '发动态'}
+  const audienceLabel = audience === undefined ? '公开' : audience.length ? '部分可见' : '私密';
+  if (composing && canWrite)
+    return (
+      <div className={`${s.app} ${feed.editor}`}>
+        <header className={feed.editorHeader}>
+          <button
+            type="button"
+            disabled={saving !== null || uploading}
+            onClick={() => {
+              setComposing(false);
+              setPanel(null);
+            }}
+          >
+            取消
           </button>
-        )}
-      </header>
-      {!target && composing && canWrite && (
-        <form
-          className={feed.composer}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void publish();
-          }}
-        >
-          <label htmlFor="moment-draft">分享这一刻</label>
+          <strong>发表朋友圈</strong>
+          <button
+            type="button"
+            className={feed.publish}
+            disabled={saving !== null || uploading || (!draft.trim() && !images.length)}
+            onClick={() => void publish()}
+          >
+            {saving === 'publish' ? '发表中…' : '发表'}
+          </button>
+        </header>
+        <div className={feed.editorBody}>
           <textarea
-            id="moment-draft"
-            value={draft}
+            aria-label="这一刻的想法"
+            placeholder="这一刻的想法…"
             maxLength={1600}
             disabled={saving !== null}
+            value={draft}
             onChange={(event) => setDraft(event.target.value)}
           />
-          <label>
-            谁可以看
-            <select
-              value={audience === undefined ? 'all' : 'selected'}
-              disabled={saving !== null}
-              onChange={(event) => setAudience(event.target.value === 'all' ? undefined : [])}
+          <div style={{ maxWidth: Math.min(3, images.length) * 100 }}>
+            <MomentGallery images={images} label="待发表的照片" />
+          </div>
+          {images.length > 0 && (
+            <div className={feed.removePhotos}>
+              {images.map((url, index) => (
+                <button
+                  key={url}
+                  type="button"
+                  disabled={saving !== null || uploading}
+                  onClick={() => setImages((old) => old.filter((item) => item !== url))}
+                >
+                  移除第{index + 1}张
+                </button>
+              ))}
+            </div>
+          )}
+          {images.length < 9 && (
+            <button
+              type="button"
+              className={feed.addPhoto}
+              aria-label="添加照片"
+              disabled={uploading || saving !== null}
+              onClick={() => setPanel('photos')}
             >
-              <option value="all">所有人物</option>
-              <option value="selected">指定人物</option>
-            </select>
-          </label>
-          {audience !== undefined && (
-            <fieldset disabled={saving !== null}>
-              <legend>可见人物（留空为仅自己可见）</legend>
-              {data.contacts.map((contact) => (
-                <label key={contact.id}>
+              ＋
+            </button>
+          )}
+          <button
+            type="button"
+            className={feed.settingRow}
+            disabled={saving !== null}
+            onClick={() => setPanel('audience')}
+          >
+            <span>谁可以看</span>
+            <span>{audienceLabel} ›</span>
+          </button>
+          {writeError && (
+            <p role="alert" className={feed.feedback}>
+              {writeError}
+            </p>
+          )}
+          {uploading && <p role="status">照片上传中…</p>}
+        </div>
+        {panel === 'audience' && (
+          <section className={feed.subpage} aria-label="谁可以看">
+            <header className={feed.editorHeader}>
+              <button onClick={() => setPanel(null)}>返回</button>
+              <strong>谁可以看</strong>
+              <button onClick={() => setPanel(null)}>完成</button>
+            </header>
+            {(['公开', '私密', '部分可见'] as const).map((label) => (
+              <label className={feed.settingRow} key={label}>
+                <span>
+                  {label}
+                  <small>
+                    {label === '公开'
+                      ? '所有人物可见'
+                      : label === '私密'
+                        ? '仅自己可见'
+                        : '选中的人物可见'}
+                  </small>
+                </span>
+                <input
+                  type="radio"
+                  name="moment-visibility"
+                  checked={label === (choosingPeople ? '部分可见' : audienceLabel)}
+                  onChange={() => {
+                    setChoosingPeople(label === '部分可见');
+                    setAudience(
+                      label === '公开' ? undefined : label === '私密' ? [] : (audience ?? []),
+                    );
+                  }}
+                />
+              </label>
+            ))}
+            {choosingPeople &&
+              audience !== undefined &&
+              data.contacts.map((contact) => (
+                <label key={contact.id} className={feed.settingRow}>
+                  <span>{contact.name}</span>
                   <input
                     type="checkbox"
                     checked={audience.includes(contact.id)}
@@ -172,15 +310,121 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
                       )
                     }
                   />
-                  {contact.name}
                 </label>
               ))}
-            </fieldset>
-          )}
-          <button type="submit" disabled={!draft.trim() || saving !== null}>
-            {saving === 'publish' ? '发布中…' : '发布'}
+          </section>
+        )}
+        {panel === 'photos' && (
+          <section className={feed.subpage} aria-label="选择照片">
+            <header className={feed.editorHeader}>
+              <button disabled={uploading} onClick={() => setPanel(null)}>
+                返回
+              </button>
+              <strong>照片（{images.length}/9）</strong>
+              <button disabled={uploading} onClick={() => setPanel(null)}>
+                完成
+              </button>
+            </header>
+            <label className={feed.uploadButton}>
+              从设备上传
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={uploading || images.length >= 9}
+                onChange={(event) => void upload(event.target.files)}
+              />
+            </label>
+            {writeError && <p role="alert">{writeError}</p>}
+            {uploading && <p role="status">照片上传中…</p>}
+            <div className={feed.photoPicker}>
+              {photoOptions.map((photo) => (
+                <button
+                  type="button"
+                  key={photo.id}
+                  aria-label={`选择${photo.title}`}
+                  aria-pressed={images.includes(photo.url)}
+                  disabled={uploading || (!images.includes(photo.url) && images.length >= 9)}
+                  onClick={() =>
+                    setImages((old) =>
+                      old.includes(photo.url)
+                        ? old.filter((url) => url !== photo.url)
+                        : [...old, photo.url],
+                    )
+                  }
+                >
+                  <img src={photo.url} alt={photo.title} />
+                  <span>{images.includes(photo.url) ? images.indexOf(photo.url) + 1 : '○'}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  return (
+    <div className={`${s.app} ${feed.feed}`}>
+      <header className={`${s.sectionHeading} ${feed.heading}`}>
+        <button
+          type="button"
+          onClick={() => open('messages', target)}
+          aria-label={target ? `返回${name ?? '这个联系人'}的聊天` : '返回消息'}
+        >
+          ‹
+        </button>
+        <h2>{target ? `${name ?? 'TA'}的朋友圈` : '朋友圈'}</h2>
+        {!target && canWrite && (
+          <button type="button" aria-label="发表朋友圈" onClick={() => setPanel('camera')}>
+            <svg
+              width="25"
+              height="25"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden="true"
+            >
+              <path d="M3 7h4l2-3h6l2 3h4v14H3z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
           </button>
-        </form>
+        )}
+      </header>
+      {!target && (
+        <section className={feed.cover} aria-label="我的朋友圈">
+          <div className={feed.coverIdentity}>
+            <strong>我</strong>
+            <span className={feed.selfAvatar}>我</span>
+          </div>
+        </section>
+      )}
+      {panel === 'camera' && (
+        <div className={feed.sheetBackdrop} onClick={() => setPanel(null)}>
+          <section
+            className={feed.sheet}
+            role="dialog"
+            aria-label="发表朋友圈"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setComposing(true);
+                setPanel('photos');
+              }}
+            >
+              从相册选择照片
+            </button>
+            <button
+              onClick={() => {
+                setComposing(true);
+                setPanel(null);
+              }}
+            >
+              发表文字
+            </button>
+            <button onClick={() => setPanel(null)}>取消</button>
+          </section>
+        </div>
       )}
       {writeError && (
         <p role="alert" className={feed.feedback}>
@@ -241,17 +485,70 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
                       hour12: false,
                     })}
                   </time>
-                  {canWrite && m.actorId !== 'player' && (
-                    <button
-                      type="button"
-                      className={feed.likeButton}
-                      disabled={
-                        saving !== null || m.likes?.some((entry) => entry.actorId === 'player')
-                      }
-                      onClick={() => void like(m.key)}
+                  {canWrite && (
+                    <span className={feed.postActions}>
+                      <button
+                        type="button"
+                        aria-label={`${m.name}的动态操作`}
+                        onClick={() => setMenu(menu === m.key ? null : m.key)}
+                      >
+                        ···
+                      </button>
+                      {menu === m.key && (
+                        <span className={feed.actionMenu}>
+                          <button
+                            disabled={saving !== null}
+                            onClick={() => {
+                              void like(
+                                m.key,
+                                m.likes?.some((entry) => entry.actorId === 'player'),
+                              );
+                              setMenu(null);
+                            }}
+                          >
+                            {m.likes?.some((entry) => entry.actorId === 'player')
+                              ? '取消赞'
+                              : '♡ 赞'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCommentKey(m.key);
+                              setComment('');
+                              setMenu(null);
+                            }}
+                          >
+                            评论
+                          </button>
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {commentKey === m.key && (
+                    <form
+                      className={feed.commentComposer}
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void sendComment();
+                      }}
                     >
-                      {m.likes?.some((entry) => entry.actorId === 'player') ? '♥ 已赞' : '♡ 点赞'}
-                    </button>
+                      <input
+                        autoFocus
+                        aria-label="评论内容"
+                        placeholder={`评论${m.name}`}
+                        maxLength={500}
+                        value={comment}
+                        disabled={saving !== null}
+                        onChange={(event) => setComment(event.target.value)}
+                      />
+                      <button disabled={!comment.trim() || saving !== null}>发送</button>
+                      <button
+                        type="button"
+                        disabled={saving !== null}
+                        onClick={() => setCommentKey(null)}
+                      >
+                        取消
+                      </button>
+                    </form>
                   )}
                   {((m.likes && m.likes.length > 0) || (m.comments && m.comments.length > 0)) && (
                     <div className={feed.interactions}>

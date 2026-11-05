@@ -16,7 +16,7 @@ export const AuthoredSocialSchema = z.strictObject({
         key: z.string().max(32),
         actorId: z.string().min(1).max(200),
         name: z.string().min(1).max(80),
-        text: z.string().min(1).max(1600),
+        text: z.string().max(1600),
         at: z.iso.datetime(),
         image: z.string().optional(),
         images: z.array(z.string()).max(9).optional(),
@@ -54,24 +54,37 @@ export const AuthoredLifeModulesSchema = z.strictObject({
   relationships: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
 });
 
-export const PlayerSocialCommandSchema = z.discriminatedUnion('kind', [
-  z.strictObject({
-    kind: z.literal('like_message'),
-    commandId: z.uuid(),
-    messageId: z.string().min(1).max(200),
-  }),
-  z.strictObject({
-    kind: z.literal('publish'),
-    commandId: z.uuid(),
-    text: z.string().trim().min(1).max(1600),
-    audienceActorIds: z.array(z.string().min(1).max(200)).max(100).optional(),
-  }),
-  z.strictObject({
-    kind: z.literal('like'),
-    commandId: z.uuid(),
-    momentKey: z.string().min(1).max(32),
-  }),
-]);
+export const PlayerSocialCommandSchema = z
+  .discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('comment'),
+      commandId: z.uuid(),
+      momentKey: z.string().min(1).max(32),
+      comment: z.string().trim().min(1).max(500),
+    }),
+    z.strictObject({
+      kind: z.literal('like_message'),
+      commandId: z.uuid(),
+      messageId: z.string().min(1).max(200),
+    }),
+    z.strictObject({
+      kind: z.literal('publish'),
+      commandId: z.uuid(),
+      text: z.string().trim().max(1600),
+      images: z.array(z.string().max(500)).max(9).optional(),
+      audienceActorIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+    }),
+    z.strictObject({
+      kind: z.enum(['like', 'unlike']),
+      commandId: z.uuid(),
+      momentKey: z.string().min(1).max(32),
+    }),
+  ])
+  .refine(
+    (command) =>
+      command.kind !== 'publish' || command.text.length > 0 || (command.images?.length ?? 0) > 0,
+    { message: '请填写文字或选择照片' },
+  );
 export const PlayerSocialReceiptSchema = z.strictObject({
   version: z.number().int().nonnegative(),
 });

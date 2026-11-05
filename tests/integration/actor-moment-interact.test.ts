@@ -219,6 +219,36 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
     };
   }
 
+  await t.test('photo-only posts, comments and unlike persist through the same social event path', async () => {
+    const f = await fixture(true);
+    const session = { userId: f.owner };
+    const assetId = randomUUID();
+    await admin.query("INSERT INTO parallel_life.assets(id,owner_id,world_id,storage_key,mime_type,byte_length,width,height,origin,status) VALUES($1,$2,$3,$4,'image/jpeg',10,10,10,'upload','ready')", [assetId, f.owner, f.worldId, 'social-test/' + assetId]);
+    await admin.query("INSERT INTO parallel_life.world_album(world_id,owner_id,asset_id,title,story_at,command_id,request_hash) VALUES($1,$2,$3,'照片',$4,$3,'test')", [f.worldId, f.owner, assetId, f.storyNow]);
+    const image = `/api/v1/assets/${assetId}?worldId=${f.worldId}&revision=1`;
+    await worlds.updatePlayerSocial(session, f.worldId, randomUUID(), { kind: 'publish', text: '', images: [image], audienceActorIds: [] });
+    const published = await worlds.get(session, f.worldId);
+    const post = published.moments!.find(m => m.actorId === 'player')!;
+    assert.deepEqual(post.images, [image]);
+    assert.deepEqual(post.audienceActorIds, []);
+    assert.equal(post.text, '');
+    for (const images of [['https://example.com/forged.jpg'], [image.replace(f.worldId, randomUUID())], Array(10).fill(image)]) {
+      await assert.rejects(worlds.updatePlayerSocial(session, f.worldId, randomUUID(), { kind: 'publish', text: '', images }), /INVALID_COMMAND/);
+    }
+    await worlds.updatePlayerSocial(session, f.worldId, randomUUID(), { kind: 'like', momentKey: post.key });
+    const commandId = randomUUID();
+    const comment = { kind: 'comment' as const, momentKey: post.key, comment: '给照片补充说明' };
+    await worlds.updatePlayerSocial(session, f.worldId, commandId, comment);
+    await worlds.updatePlayerSocial(session, f.worldId, commandId, comment);
+    await worlds.updatePlayerSocial(session, f.worldId, randomUUID(), { kind: 'unlike', momentKey: post.key });
+    const final = await worlds.get(session, f.worldId);
+    assert.equal(final.momentInteractions!.filter(m => m.momentKey === post.key && m.kind === 'like').length, 0);
+    assert.equal(final.momentInteractions!.filter(m => m.momentKey === post.key && m.kind === 'comment').length, 1);
+    assert.equal(final.momentInteractions!.find(m => m.momentKey === post.key)?.comment, comment.comment);
+    const feed = mergeSocialMoments({ moments: [] }, final.moments, final.momentInteractions);
+    assert.ok(feed.moments.some(m => m.key === post.key && m.images?.[0] === image));
+  });
+
   await t.test(
     'player publish is scoped to its audience and idempotent, and player likes persist',
     async () => {

@@ -1,3 +1,4 @@
+import { albumPhotos } from '../../media/infrastructure/album-projection.ts';
 import { streamUnitCommandId, streamUnitEventId } from '../domain/npc-stream-segment.ts';
 import { migrateLegacyWorldInTransaction } from './legacy-world-migration.ts';
 import {
@@ -429,6 +430,24 @@ export class PostgresWorldRepository implements WorldRepository {
         Math.max(Date.parse(current.time), Date.parse(projected)),
       ).toISOString();
       if (change.kind === 'publish') {
+        if (!change.text.trim() && !change.images?.length) throw new DomainError('INVALID_COMMAND');
+        if (change.images?.length) {
+          const photos = await albumPhotos(sql, worldId);
+          const allowed = new Set(
+            photos
+              .filter((photo) => !photo.mimeType || photo.mimeType.startsWith('image/'))
+              .map(
+                (photo) =>
+                  `/api/v1/assets/${encodeURIComponent(photo.id)}?worldId=${encodeURIComponent(worldId)}&revision=${photo.revision}`,
+              ),
+          );
+          if (
+            change.images.length > 9 ||
+            new Set(change.images).size !== change.images.length ||
+            change.images.some((url) => !allowed.has(url))
+          )
+            throw new DomainError('INVALID_COMMAND');
+        }
         if (change.audienceActorIds?.some((id) => !current.actors.some((actor) => actor.id === id)))
           throw new DomainError('INVALID_COMMAND');
       } else if (change.kind === 'like_message') {
@@ -447,8 +466,7 @@ export class PostgresWorldRepository implements WorldRepository {
       } else {
         const moment = current.moments?.find((item) => item.key === change.momentKey);
         if (moment) {
-          if (moment.actorId === 'player' || Date.parse(moment.at) > Date.parse(storyTime))
-            throw new DomainError('NOT_FOUND');
+          if (Date.parse(moment.at) > Date.parse(storyTime)) throw new DomainError('NOT_FOUND');
         } else {
           const opening = (
             await sql.query('SELECT parallel_life.publication_social_opening($1) AS document', [
@@ -459,6 +477,7 @@ export class PostgresWorldRepository implements WorldRepository {
             throw new DomainError('NOT_FOUND');
         }
         if (
+          change.kind === 'like' &&
           current.momentInteractions?.some(
             (item) =>
               item.momentKey === change.momentKey &&

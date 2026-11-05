@@ -415,3 +415,22 @@ test('an aborted old-world response cannot overwrite the loaded new-world feed',
     h.close();
   }
 });
+
+test('player camera opens an independent composer and audience selection keeps empty selection editable', () => {
+  const h = harness(MomentsApp);
+  Object.assign(h.context.actions, { sendMessage() {} });
+  try {
+    h.render().find(n => n.props['aria-label'] === '发表朋友圈')!.props.onClick();
+    h.render().find(n => n.type === 'button' && n.props.children === '发表文字')!.props.onClick();
+    const editor = h.render();
+    assert.ok(editor.some(n => n.type === 'textarea' && n.props.placeholder === '这一刻的想法…'));
+    assert.ok(!editor.some(n => n.props['aria-label'] === '朋友的动态'));
+    editor.find(n => n.type === 'button' && n.props.className === 'settingRow')!.props.onClick();
+    h.render().filter(n => n.type === 'input' && n.props.type === 'radio')[2]!.props.onChange();
+    assert.equal(h.render().filter(n => n.type === 'input' && n.props.type === 'checkbox').length, 2);
+    const person = h.render().find(n => n.type === 'input' && n.props.type === 'checkbox')!;
+    person.props.onChange({ target: { checked: true } });
+    h.render().find(n => n.type === 'input' && n.props.type === 'checkbox')!.props.onChange({ target: { checked: false } });
+    assert.equal(h.render().filter(n => n.type === 'input' && n.props.type === 'checkbox').length, 2);
+  } finally { h.close(); }
+});
