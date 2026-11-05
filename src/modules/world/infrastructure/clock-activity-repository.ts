@@ -263,14 +263,18 @@ export async function updateClockActivity(
   let briefing: ReturnBriefing | null = null;
   let briefingSummary: ReturnBriefingSummary | undefined;
   if (input.resume && input.mode !== 'away' && leftAt) {
-    // A committed event may sit after the clock row. The replay window must start
-    // from the later of the two and always keep a forward interval.
-    const floorMs = Math.max(Date.parse(clock.storyNow), Date.parse(world.state.time));
+    // The return instant is the projected (not stored) clock, floored by the last
+    // committed event. The replay starts after that event, never before it.
+    const returnMs = Math.max(
+      Date.parse(projectStoryTime(clock, realNow)),
+      Date.parse(world.state.time),
+    );
+    const floorMs = Date.parse(world.state.time);
     const window = planReturnBriefingWindow({
       leftAt,
       returnedAt: realNow,
       pausedAt: clock.paused ? clock.lastTickAt : null,
-      storyNow: new Date(floorMs).toISOString(),
+      storyNow: new Date(returnMs).toISOString(),
       speed: clock.speed,
       paused: clock.paused,
     });
