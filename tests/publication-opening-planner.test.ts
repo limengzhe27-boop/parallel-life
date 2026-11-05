@@ -67,3 +67,46 @@ test('opening director rejects malformed or unbounded output without fixing mode
       planPublicationOpening({ complete: async () => output }, source, world),
     );
 });
+
+test('opening director gives each actor only the clause the author attributed to them', async () => {
+  let userContent = '';
+  const attributed: OpeningSource = {
+    ...source,
+    script: '阿青让他去医院看母亲，老刘要求他今晚出差。',
+    actors: [
+      { id: 'one', key: 'one', name: '阿青' },
+      { id: 'two', key: 'two', name: '老刘' },
+    ],
+  };
+  const attributedWorld = {
+    ...world,
+    actors: [
+      { id: 'one', name: '阿青', persona: 'Direct', relationship: 'Friend' },
+      { id: 'two', name: '老刘', persona: 'Reserved', relationship: 'Boss' },
+    ],
+  } as WorldState;
+  const result = await planPublicationOpening(
+    {
+      complete: async (messages) => {
+        userContent = String(messages.at(-1)?.content ?? '');
+        return JSON.stringify({
+          briefs: [
+            { actorId: 'one', brief: '医院的事。' },
+            { actorId: 'two', brief: '出差的事。' },
+          ],
+        });
+      },
+    },
+    attributed,
+    attributedWorld,
+  );
+  const cast = JSON.parse(userContent).allowedActors as Array<{
+    id: string;
+    openingLine?: string;
+  }>;
+  assert.equal(cast.find((actor) => actor.id === 'one')?.openingLine, '阿青让他去医院看母亲');
+  assert.equal(cast.find((actor) => actor.id === 'two')?.openingLine, '老刘要求他今晚出差');
+  const briefs = result as Array<{ actorId: string; brief: string }>;
+  assert.match(briefs.find((x) => x.actorId === 'one')!.brief, /阿青让他去医院看母亲/);
+  assert.doesNotMatch(briefs.find((x) => x.actorId === 'one')!.brief, /老刘要求他今晚出差/);
+});
