@@ -4,7 +4,7 @@ import type { ClockStore } from '../application/ports.ts';
 import type { WorldClock } from '../domain/clock.ts';
 import { clampSpeed, DEFAULT_SPEED, projectStoryTime } from '../domain/clock.ts';
 import { DomainError } from '../domain/errors.ts';
-import { readableActivityClock } from '../domain/clock-activity.ts';
+import { pauseClockAfterAbsence, readableActivityClock } from '../domain/clock-activity.ts';
 import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -14,14 +14,36 @@ export async function readClockInTransaction(
   ownerId: string,
   worldId: string,
   realNow = new Date().toISOString(),
+  persistIdle = false,
 ): Promise<WorldClock> {
   const row = (
-    await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
-      worldId,
-      ownerId,
-    ])
+    await sql.query(
+      `SELECT c.*, c.updated_at::text AS clock_revision, CASE WHEN c.managed AND NOT c.paused AND c.continuity_mode='continuous'
+         AND (c.active_until IS NULL OR c.active_until <= $3::timestamptz)
+       THEN (SELECT max(a.expires_at) FROM parallel_life.world_clock_activity a
+         WHERE a.world_id=c.world_id AND a.owner_id=c.owner_id) END AS last_presence_at
+       FROM parallel_life.world_clock c WHERE c.world_id=$1 AND c.owner_id=$2`,
+      [worldId, ownerId, realNow],
+    )
   ).rows[0];
-  if (row) return readableActivityClock(storedActivityClock(row), realNow);
+  if (row) {
+    const lastPresenceAt = row.last_presence_at
+      ? new Date(row.last_presence_at).toISOString()
+      : null;
+    const clock = pauseClockAfterAbsence(storedActivityClock(row), lastPresenceAt, realNow);
+    if (persistIdle && !row.paused && clock.pauseReason === 'idle') {
+      // A concurrent foreground heartbeat or return owns its newer clock anchor.
+      const saved = await sql.query(
+        `UPDATE parallel_life.world_clock
+         SET paused=true, pause_reason='idle', active_until=NULL, story_now=$3,
+             last_tick_at=$4, summary=$5, updated_at=now()
+         WHERE world_id=$1 AND owner_id=$2 AND updated_at::text=$6`,
+        [worldId, ownerId, clock.storyNow, clock.lastTickAt, clock.summary, row.clock_revision],
+      );
+      if (!saved.rowCount) return readClockInTransaction(sql, ownerId, worldId, realNow);
+    }
+    return readableActivityClock(clock, realNow);
+  }
   /* A world created before the clock existed starts from its own story time. */
   const world = (
     await sql.query('SELECT state->>$$time$$ AS time FROM parallel_life.worlds WHERE id=$1', [

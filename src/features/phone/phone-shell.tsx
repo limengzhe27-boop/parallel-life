@@ -84,6 +84,7 @@ export type PhoneShellProps = {
   notice?: ReactNode;
   /** Presentation lock only; does not replace account authentication. */
   initiallyLocked?: boolean;
+  idleReturnLockKey?: string | null;
   /** Visible screen state feeds the caller business attention, never inferred from a hidden route. */
   onLockChange?: (locked: boolean) => void;
 };
@@ -107,6 +108,7 @@ function LifePhone({
   renderHome,
   notice,
   initiallyLocked = true,
+  idleReturnLockKey,
   onLockChange,
 }: PhoneShellProps) {
   const [route, setRoute] = useState<PhoneRoute>(homeRoute);
@@ -115,6 +117,11 @@ function LifePhone({
   // A banner is for a message that arrives while this screen is open. Existing
   // unread items belong in the notification list, never in a stale replayed popup.
   const [bannerId, setBannerId] = useState<string | undefined>();
+  useEffect(() => {
+    if (!idleReturnLockKey) return;
+    setLocked(true);
+    setBannerId(undefined);
+  }, [idleReturnLockKey]);
   const [openedIds, setOpenedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set());
   const [showAllGroups, setShowAllGroups] = useState(false);

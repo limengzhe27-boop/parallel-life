@@ -7,6 +7,12 @@ import { Id, Timestamp } from './api.ts';
  * Deliberately separate from the phone contracts: the phone UI and any future client
  * read the same shapes, and adding a field here can never break the app projections.
  */
+const ReturnBriefingSummarySchema = z.strictObject({
+  id: Id,
+  awayMinutes: z.number().int().nonnegative(),
+  status: z.enum(['pending', 'running', 'completed', 'failed']),
+  messageIds: z.array(Id).max(8).optional(),
+});
 const ClockValuesSchema = z.strictObject({
   storyNow: Timestamp,
   speed: z.number().min(0).max(60),
@@ -18,6 +24,8 @@ const ClockValuesSchema = z.strictObject({
   continuityMode: z.enum(['presence', 'continuous']).optional(),
   pauseReason: z.enum(['legacy', 'manual', 'idle']).nullable().optional(),
   activeUntil: Timestamp.nullable().optional(),
+  /** Resume-only: the bounded catch-up the phone must run before it can continue. */
+  returnBriefing: ReturnBriefingSummarySchema.optional(),
 });
 /** Reads contain clock values; successful controls also carry a committed receipt. */
 export const WorldClockSchema = z.union([
@@ -40,6 +48,15 @@ export const ClockActivityRequestSchema = z.strictObject({
   resume: z.boolean().optional(),
 });
 export type ClockActivityRequest = z.infer<typeof ClockActivityRequestSchema>;
+
+export const ReturnBriefingRequestSchema = z.strictObject({ briefingId: Id });
+export type ReturnBriefingRequest = z.infer<typeof ReturnBriefingRequestSchema>;
+export const ReturnBriefingReceiptSchema = z.strictObject({
+  status: z.enum(['pending', 'running', 'completed', 'failed']),
+  messageIds: z.array(Id).max(8),
+  storyNow: Timestamp,
+});
+export type ReturnBriefingReceipt = z.infer<typeof ReturnBriefingReceiptSchema>;
 
 export const WorldClockControlSchema = z
   .strictObject({
@@ -94,6 +111,11 @@ export const WORLD_TIME_PROTOCOL_HEADER = 'X-World-Time-Protocol';
 export const WORLD_TIME_PROTOCOL = 'continuous-v1';
 export function clockResponse(clock: WorldClock, extended: boolean) {
   if (extended) return clock;
-  const { continuityMode: _mode, pauseReason: _pause, ...legacy } = clock;
+  const {
+    continuityMode: _mode,
+    pauseReason: _pause,
+    returnBriefing: _briefing,
+    ...legacy
+  } = clock;
   return legacy;
 }

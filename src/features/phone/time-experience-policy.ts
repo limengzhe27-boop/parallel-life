@@ -17,8 +17,7 @@ export const PHONE_RUNTIME_POLICY: Readonly<PhoneRuntimePolicy> = Object.freeze(
 });
 export const PHONE_IDLE_CHECK_MS =
   PHONE_RUNTIME_POLICY.deliveryTargetMs - PHONE_RUNTIME_POLICY.preparationReserveMs;
-/** A hidden tab stops the continuous life after this long absence. */
-export const PHONE_IDLE_PAUSE_MS = 10 * 60_000;
+export { CLOCK_IDLE_PAUSE_MS as PHONE_IDLE_PAUSE_MS } from '../../modules/world/domain/clock-activity.ts';
 export type PhoneCheckHistory = {
   lastActivityAt: number;
   lastCheckAt: number;

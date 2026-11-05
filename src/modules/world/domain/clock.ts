@@ -37,6 +37,8 @@ export type WorldClock = {
   /** Presence controls attention/speed; continuous worlds continue offline at real-time speed. */
   continuityMode?: 'presence' | 'continuous';
   pauseReason?: 'legacy' | 'manual' | 'idle' | null;
+  /** Present only on a resume response; never persisted on the clock row. */
+  returnBriefing?: import('./return-briefing.ts').ReturnBriefingSummary;
 };
 export type ClockAdvance = {
   clock: WorldClock;

@@ -6,7 +6,9 @@ import { DomainError } from '../domain/errors.ts';
 import { DEFAULT_SPEED, projectStoryTime, type WorldClock } from '../domain/clock.ts';
 import {
   CLOCK_ACTIVITY_LEASE_MS,
+  CLOCK_IDLE_RETURN_SUMMARY,
   activityMode,
+  pauseClockAfterAbsence,
   appointmentDeadline,
   readableActivityClock,
   nextClockConversationFocus,
@@ -14,6 +16,15 @@ import {
   type ClockActivityInput,
   type ClockActivityLease,
 } from '../domain/clock-activity.ts';
+import {
+  planReturnBriefingWindow,
+  type ReturnBriefing,
+  type ReturnBriefingSummary,
+} from '../domain/return-briefing.ts';
+import {
+  createReturnBriefingInTransaction,
+  latestReturnBriefingInTransaction,
+} from './return-briefing-repository.ts';
 
 /** Shared decoder for all clock paths; the deadline must survive DB hydration. */
 export function storedActivityClock(row: Record<string, unknown>): WorldClock {
@@ -23,7 +34,9 @@ export function storedActivityClock(row: Record<string, unknown>): WorldClock {
     speed: Number(row.speed),
     paused: Boolean(row.paused),
     ...(row.continuity_mode === 'continuous' ? { continuityMode: 'continuous' as const } : {}),
-    ...(row.pause_reason === 'manual' || row.pause_reason === 'legacy'
+    ...(row.pause_reason === 'manual' ||
+    row.pause_reason === 'legacy' ||
+    row.pause_reason === 'idle'
       ? { pauseReason: row.pause_reason }
       : {}),
     missedBeats: Number(row.missed_beats),
@@ -109,11 +122,7 @@ function boundedDeadline(until: string, boundary: string | null) {
 }
 function nextPauseReason(clock: WorldClock, paused: boolean): WorldClock['pauseReason'] {
   if (!paused) return null;
-  return clock.pauseReason === 'manual'
-    ? 'manual'
-    : clock.pauseReason === 'legacy'
-      ? 'legacy'
-      : null;
+  return clock.pauseReason ?? null;
 }
 export class PostgresClockActivityRepository {
   private readonly db: PostgresDatabase;
@@ -181,11 +190,6 @@ export async function updateClockActivity(
         missedBeats: 0,
         summary: null,
       };
-  // A long hidden tab pauses the continuous world; returning is an automatic
-  // resume only for an idle pause, never for an explicit manual pause.
-  if (clock.paused && clock.pauseReason === 'idle' && input.resume && input.mode !== 'away') {
-    clock = { ...clock, paused: false, pauseReason: null, lastTickAt: realNow };
-  }
   // Re-entering a normal published life is the player's continue action. Staff
   // trials and ordinary heartbeats retain their explicit pause protection.
   if (clock.paused && clock.pauseReason === 'manual' && input.resume && input.mode !== 'away') {
@@ -244,17 +248,76 @@ export async function updateClockActivity(
   }));
   const previous = leases.find((l) => l.clientId.toLowerCase() === input.clientId.toLowerCase());
   if (previous && previous.sequence >= input.sequence) return readableActivityClock(clock, realNow);
-  // Only the last live tab may decide that the life should stop after a long
-  // hidden absence. A second visible tab remains authoritative.
-  const idlePause =
-    input.mode === 'away' &&
-    input.idle === true &&
-    !leases.some(
-      (lease) =>
-        lease.clientId.toLowerCase() !== input.clientId.toLowerCase() &&
-        lease.mode !== 'away' &&
-        Date.parse(lease.expiresAt) > Date.parse(realNow),
-    );
+  if (input.mode === 'away' && !previous) return readableActivityClock(clock, realNow);
+  // Check the old leases before a returning tab can renew its presence.
+  const lastPresenceAt = leases.reduce<string | null>(
+    (latest, lease) => (!latest || lease.expiresAt > latest ? lease.expiresAt : latest),
+    null,
+  );
+  clock = pauseClockAfterAbsence(clock, lastPresenceAt, realNow);
+  // The player's last real presence is the only anchor for an offline gap. The
+  // foreground heartbeat renews it; hiding the page writes it one last time.
+  const leftAt = row?.last_present_at
+    ? new Date(row.last_present_at as string).toISOString()
+    : lastPresenceAt;
+  let briefing: ReturnBriefing | null = null;
+  let briefingSummary: ReturnBriefingSummary | undefined;
+  if (input.resume && input.mode !== 'away' && leftAt) {
+    const window = planReturnBriefingWindow({
+      leftAt,
+      returnedAt: realNow,
+      pausedAt: clock.paused ? clock.lastTickAt : null,
+      storyNow: clock.storyNow,
+      speed: clock.speed,
+      paused: clock.paused,
+    });
+    if (window) {
+      briefing = await createReturnBriefingInTransaction(sql, ownerId, {
+        worldId,
+        leftAt: window.leftAt,
+        returnedAt: window.returnedAt,
+        gapSeconds: window.gapSeconds,
+        storyFrom: window.storyFrom,
+        storyUntil: window.storyUntil,
+      });
+      briefingSummary = {
+        id: briefing.id,
+        awayMinutes: Math.max(1, Math.round(briefing.gapSeconds / 60)),
+        status: briefing.status,
+        ...(briefing.status === 'completed' && briefing.messageIds.length
+          ? { messageIds: briefing.messageIds }
+          : {}),
+      };
+      // A pending briefing keeps the world frozen at the return anchor. Only the
+      // briefing itself may move story time; a resume heartbeat never simulates.
+      if (briefing.status !== 'completed')
+        clock = {
+          ...clock,
+          paused: true,
+          pauseReason: 'idle',
+          activeUntil: null,
+          storyNow: window.storyFrom,
+          lastTickAt: realNow,
+          summary: null,
+        };
+      else if (Date.parse(briefing.storyUntil) > Date.parse(clock.storyNow))
+        clock = {
+          ...clock,
+          paused: false,
+          pauseReason: null,
+          storyNow: briefing.storyUntil,
+          lastTickAt: realNow,
+        };
+    }
+  }
+  const briefingPending = !!briefing && briefing.status !== 'completed';
+  const resumedIdle =
+    !briefingPending &&
+    clock.paused &&
+    clock.pauseReason === 'idle' &&
+    input.resume &&
+    input.mode !== 'away';
+  if (resumedIdle) clock = { ...clock, paused: false, pauseReason: null, lastTickAt: realNow };
   const focus = nextClockConversationFocus(input, previous);
   if (
     focus &&
@@ -334,7 +397,9 @@ export async function updateClockActivity(
     expiresAt:
       permitted && input.mode !== 'away'
         ? new Date(Date.parse(realNow) + CLOCK_ACTIVITY_LEASE_MS).toISOString()
-        : realNow,
+        : previous && previous.expiresAt < realNow
+          ? previous.expiresAt
+          : realNow,
   };
   await sql.query(
     `INSERT INTO parallel_life.world_clock_activity(world_id,owner_id,client_id,sequence,mode,expires_at,focus)
@@ -351,7 +416,7 @@ export async function updateClockActivity(
   );
   const mode = activityMode([...leases.filter((l) => l !== previous), lease], realNow);
   const paused =
-    idlePause || !permitted || (clock.continuityMode !== 'continuous' && !mode.activeUntil);
+    briefingPending || !permitted || (clock.continuityMode !== 'continuous' && !mode.activeUntil);
   const nextSpeed = mode.activeUntil
     ? mode.speed
     : clock.continuityMode === 'continuous'
@@ -372,15 +437,16 @@ export async function updateClockActivity(
     managed: true,
     activeUntil: paused ? null : mode.activeUntil,
     paused,
-    summary: idlePause
-      ? '你离开了一段时间，回来看看期间的新消息。'
-      : input.resume
+    summary: briefingPending
+      ? null
+      : resumedIdle || paused || (input.resume && clock.summary !== CLOCK_IDLE_RETURN_SUMMARY)
         ? clock.summary
         : null,
     speed: nextSpeed,
     storyNow: changed ? storyNow : clock.storyNow,
     lastTickAt: changed ? realNow : clock.lastTickAt,
-    pauseReason: idlePause ? 'idle' : nextPauseReason(clock, paused),
+    pauseReason: nextPauseReason(clock, paused),
+    ...(briefingSummary ? { returnBriefing: briefingSummary } : {}),
   };
   if (next.activeUntil)
     next.activeUntil = boundedDeadline(next.activeUntil, appointmentDeadline(next, appointments));
@@ -389,9 +455,12 @@ export async function updateClockActivity(
     appointments.some((a) => a.status === 'confirmed' && Date.parse(a.at) === Date.parse(storyNow))
   )
     next.summary = '约定时间到了，请查看日程。';
+  // While a briefing is pending, the original leave anchor must survive refreshes
+  // and retries. Only a settled resume or an explicit hide advances presence.
+  const presentAt = briefingPending ? (leftAt ?? realNow) : realNow;
   await sql.query(
-    `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until,continuity_mode,pause_reason)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9,$10,$11) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,speed=EXCLUDED.speed,paused=EXCLUDED.paused,managed=true,active_until=EXCLUDED.active_until,summary=EXCLUDED.summary,continuity_mode=EXCLUDED.continuity_mode,pause_reason=EXCLUDED.pause_reason,updated_at=now()`,
+    `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until,continuity_mode,pause_reason,last_present_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9,$10,$11,$12) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,speed=EXCLUDED.speed,paused=EXCLUDED.paused,managed=true,active_until=EXCLUDED.active_until,summary=EXCLUDED.summary,continuity_mode=EXCLUDED.continuity_mode,pause_reason=EXCLUDED.pause_reason,last_present_at=EXCLUDED.last_present_at,updated_at=now()`,
     [
       worldId,
       ownerId,
@@ -404,6 +473,7 @@ export async function updateClockActivity(
       next.activeUntil,
       next.continuityMode ?? 'presence',
       next.pauseReason ?? null,
+      presentAt,
     ],
   );
   return readableActivityClock(next, realNow);

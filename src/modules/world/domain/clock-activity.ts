@@ -2,6 +2,32 @@ import { DomainError } from './errors.ts';
 import { projectStoryTime, type WorldClock } from './clock.ts';
 
 export const CLOCK_ACTIVITY_LEASE_MS = 45_000;
+export const CLOCK_IDLE_PAUSE_MS = 10 * 60_000;
+export const CLOCK_IDLE_RETURN_SUMMARY = '你离开了一段时间，世界已恢复。';
+
+/** The latest lease boundary is the last possible foreground activity. */
+export function pauseClockAfterAbsence(
+  clock: WorldClock,
+  lastPresenceAt: string | null,
+  realNow: string,
+): WorldClock {
+  if (clock.paused || !clock.managed || clock.continuityMode !== 'continuous' || !lastPresenceAt)
+    return clock;
+  const deadline = Date.parse(lastPresenceAt) + CLOCK_IDLE_PAUSE_MS;
+  if (!Number.isFinite(deadline) || deadline > Date.parse(realNow)) return clock;
+  // Previously committed time remains authoritative, including during rollout.
+  const stoppedAt = new Date(Math.max(deadline, Date.parse(clock.lastTickAt))).toISOString();
+  return {
+    ...clock,
+    storyNow: projectStoryTime(clock, stoppedAt),
+    lastTickAt: stoppedAt,
+    activeUntil: null,
+    paused: true,
+    pauseReason: 'idle',
+    summary: CLOCK_IDLE_RETURN_SUMMARY,
+  };
+}
+
 /**
  * Story time is driven only by whether the phone page is visible. Chat, the map and
  * scenes are not separate time modes: an open conversation still receives the same

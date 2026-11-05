@@ -626,6 +626,35 @@ export function WorldPhoneApp({
   const advanceRecovery = useAdvanceRecovery(client, worldId, load);
   const advanceRecoveryRef = useRef(advanceRecovery);
   advanceRecoveryRef.current = advanceRecovery;
+  const briefingRun = useRef<string | null>(null);
+  useEffect(() => {
+    const briefing = liveTime.returnBriefing;
+    if (!briefing || (briefing.status !== 'pending' && briefing.status !== 'failed')) return;
+    if (briefingRun.current === briefing.id) return;
+    briefingRun.current = briefing.id;
+    const run = async (attempt: number): Promise<void> => {
+      const receipt = await client.runReturnBriefing(worldId, briefing.id);
+      if (briefingRun.current !== briefing.id) return;
+      if (receipt.status === 'completed') {
+        await load();
+        if (briefingRun.current !== briefing.id) return;
+        liveTimeRef.current.finishBriefing(receipt.messageIds, receipt.storyNow);
+        return;
+      }
+      // Another tab owns the lease, or the bounded run is still settling. Poll a
+      // few times rather than starting a second paid simulation.
+      if (attempt >= 8) throw Error('回访补演仍在进行，请稍后重新打开');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (briefingRun.current === briefing.id) return run(attempt + 1);
+    };
+    void run(0).catch((error) => {
+      if (briefingRun.current !== briefing.id) return;
+      briefingRun.current = null;
+      setError(error instanceof ApiFailure ? error.message : '这段时间的补演没有完成，可以再试一次。');
+    });
+    // No cleanup cancels this run: a repeat clock heartbeat must not discard the
+    // only completion signal after the paid turns already committed.
+  }, [client, worldId, load, liveTime.returnBriefing?.id, liveTime.returnBriefing?.status]);
   useEffect(() => {
     if (recoveryWorld !== worldId) return;
     let active = true;
@@ -995,11 +1024,30 @@ export function WorldPhoneApp({
   useEffect(() => {
     if (data?.id === worldId && !refreshing) directorCheck.current();
   }, [data?.id, refreshing, worldId, liveTime.entryKey]);
-  const clockSummary = liveTime.clock?.summary ?? '';
+  const clockSummary = liveTime.idleReturnNotice || liveTime.clock?.summary || '';
+  const briefingWorking =
+    !!liveTime.returnBriefing &&
+    liveTime.returnBriefing.status !== 'completed' &&
+    liveTime.returnBriefing.status !== 'failed';
   return (
     <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />
-      {clockSummary && clockSummary !== dismissedSummary && (
+      {briefingWorking && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            flexShrink: 0,
+            padding: '6px 14px',
+            fontSize: 12,
+            background: 'var(--surface, #f5f3ed)',
+            color: 'var(--ink, #2f332f)',
+          }}
+        >
+          你离开的这段时间，世界正在补演…
+        </div>
+      )}
+      {clockSummary && (liveTime.idleReturnNotice || clockSummary !== dismissedSummary) && (
         <div
           role="status"
           aria-live="polite"
@@ -1020,7 +1068,10 @@ export function WorldPhoneApp({
             type="button"
             aria-label="关闭提示"
             style={{ border: 0, background: 'none', color: 'inherit', font: 'inherit' }}
-            onClick={() => setDismissedSummary(clockSummary)}
+            onClick={() => {
+              if (liveTime.idleReturnNotice) liveTime.dismissIdleReturnNotice();
+              setDismissedSummary(clockSummary);
+            }}
           >
             知道了
           </button>
@@ -1125,6 +1176,7 @@ export function WorldPhoneApp({
         ) : (
           <WorldPhoneSurface
             onLockChange={onPhoneLockChange}
+            idleReturnLockKey={liveTime.idleReturnLockKey}
             key={data.id}
             wechatActorKey={wechatActorKey}
             transport={transport}
@@ -1265,6 +1317,7 @@ export function WorldPhoneSurface({
   data,
   onExperienceBusy,
   onLockChange,
+  idleReturnLockKey,
   preview = false,
   transport,
   onReload,
@@ -1287,6 +1340,7 @@ export function WorldPhoneSurface({
   data: WorldPhone;
   onExperienceBusy?: (busy: boolean) => void;
   onLockChange?: (locked: boolean) => void;
+  idleReturnLockKey?: string | null;
   preview?: boolean;
   transport?: typeof fetch;
   onReload?: () => Promise<void>;
@@ -1868,6 +1922,7 @@ export function WorldPhoneSurface({
     >
       <PhoneShell
         onLockChange={onLockChange}
+        idleReturnLockKey={idleReturnLockKey}
         wechatActorKey={wechatActorKey}
         wechatActorId={
           wechatActorKey ? wechatCharacterTarget(data.actors, wechatActorKey) : undefined

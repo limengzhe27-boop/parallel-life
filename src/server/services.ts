@@ -72,6 +72,7 @@ import {
   readNpcAgentOpeningStatusIfEnabled,
 } from './npc-agent-advance-services.ts';
 import { PostgresDirectorSnapshotRepository } from '../modules/world/infrastructure/director-snapshot-repository.ts';
+import { createReturnBriefingRunner } from './return-briefing-services.ts';
 import {
   inspectLegacyWorldReadiness,
   migrateLegacyWorldInTransaction,
@@ -108,6 +109,7 @@ function createServices() {
     ),
     agendaConfig,
   );
+  const returnBriefing = createReturnBriefingRunner(db, createTextModel);
   return {
     db,
     directorStatus: (ownerId: string, worldId: string) =>
@@ -301,6 +303,8 @@ function createServices() {
       new PostgresClockStore(db).read(ownerId, worldId),
     updateClockActivity: (ownerId: string, worldId: string, input: ClockActivityRequest) =>
       new PostgresClockActivityRepository(db).update(ownerId, worldId, input),
+    runReturnBriefing: (ownerId: string, worldId: string, briefingId: string) =>
+      returnBriefing.run(ownerId, worldId, briefingId),
     waitStoryTime: (ownerId: string, worldId: string, input: StoryWaitRequest) =>
       new PostgresStoryWaitRepository(db).wait(ownerId, worldId, input),
     waitToAppointment: (ownerId: string, worldId: string, input: AppointmentWaitRequest) =>

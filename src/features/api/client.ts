@@ -49,6 +49,8 @@ import {
   WORLD_TIME_PROTOCOL,
   WorldDirectionReceiptSchema,
   WorldDirectionSchema,
+  ReturnBriefingReceiptSchema,
+  ReturnBriefingRequestSchema,
   type WorldDirection,
 } from '../../contracts/world-clock.ts';
 import {
@@ -386,6 +388,20 @@ export class LifeClient {
       body: JSON.stringify(ClockActivityRequestSchema.parse(input)),
       keepalive: input.mode === 'away',
     });
+  }
+  async runReturnBriefing(worldId: string, briefingId: string) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/return-briefing`,
+      ReturnBriefingReceiptSchema,
+      {
+        method: 'POST',
+        body: JSON.stringify(ReturnBriefingRequestSchema.parse({ briefingId })),
+        // Up to three grounded NPC turns run sequentially; a 15s transport
+        // timeout would abort after the paid turns already committed.
+        signal: AbortSignal.timeout(120000),
+      },
+    );
   }
   async waitStoryTime(worldId: string, input: StoryWaitRequest) {
     await this.connect();

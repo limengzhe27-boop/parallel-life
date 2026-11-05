@@ -1,4 +1,5 @@
 'use client';
+import { CLOCK_IDLE_RETURN_SUMMARY } from '../../modules/world/domain/clock-activity.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LifeClient } from '../api/client.ts';
 import type { WorldClock, ClockActivityRequest } from '../../contracts/world-clock.ts';
@@ -9,7 +10,6 @@ import { readRoute } from './navigation.ts';
 import { notePollFailure, notePollSuccess, pollingAllowed } from './poll-guard.ts';
 import {
   idleCheckDue,
-  PHONE_IDLE_PAUSE_MS,
   phoneTimeMode,
   phoneConversationFocus,
   phoneCheckHistory,
@@ -41,8 +41,14 @@ export function useWorldTime(
   const [now, setNow] = useState(Date.now());
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState('');
+  const [idleReturnNotice, setIdleReturnNotice] = useState(false);
+  const [idleReturnLockKey, setIdleReturnLockKey] = useState<string | null>(null);
   const [entryKey, setEntryKey] = useState<string | null>(null);
   const [pendingWait, setPendingWait] = useState<StoryWaitRequest | null>(null);
+  const [briefing, setBriefing] = useState<
+    import('../../modules/world/domain/return-briefing.ts').ReturnBriefingSummary | null
+  >(null);
+  const briefingRef = useRef<string | null>(null);
   const pendingWaitRef = useRef(pendingWait);
   pendingWaitRef.current = pendingWait;
   const session = useRef<Session | null>(null);
@@ -70,7 +76,7 @@ export function useWorldTime(
     } catch {}
   };
   const sync = useCallback(
-    (mode: Mode, resume = false, idle = false): Promise<WorldClock | null> => {
+    (mode: Mode, resume = false): Promise<WorldClock | null> => {
       const s = session.current;
       if (!s?.active) return Promise.resolve(null);
       s.mode = mode;
@@ -78,7 +84,6 @@ export function useWorldTime(
         clientId: s.clientId,
         sequence: ++s.sequence,
         mode,
-        ...(idle ? { idle: true } : {}),
         focus:
           mode === 'conversation'
             ? phoneConversationFocus(readRoute(location.hash, worldId), lockedRef.current)
@@ -93,7 +98,30 @@ export function useWorldTime(
           if (mode !== 'away' && (!s.active || document.visibilityState !== 'visible')) return null;
           const clock = await client.updateClockActivity(worldId, input);
           if (session.current === s && s.active && mode !== 'away' && !s.returning) {
+            const returnBriefing = clock.returnBriefing;
+            if (returnBriefing) {
+              if (returnBriefing.status === 'completed') {
+                briefingRef.current = null;
+                setBriefing(null);
+                if (returnBriefing.messageIds?.length)
+                  setIdleReturnLockKey(crypto.randomUUID());
+              } else {
+                briefingRef.current = returnBriefing.id;
+                // A heartbeat may repeat the same pending row; keep object identity
+                // stable so the runner's effect is not restarted mid-flight.
+                setBriefing((current) =>
+                  current?.id === returnBriefing.id && current.status === returnBriefing.status
+                    ? current
+                    : returnBriefing,
+                );
+              }
+            }
+            if (clock.pauseReason === 'idle') s.resumeRequired = true;
             if (!clock.paused) {
+              if (resume && clock.summary === CLOCK_IDLE_RETURN_SUMMARY) {
+                setIdleReturnNotice(true);
+                setIdleReturnLockKey(crypto.randomUUID());
+              }
               if (resume) s.resumeRequired = false;
               if (resume || s.acknowledgedMode === undefined) {
                 // A fresh mount/confirmed return inspects existing due work now;
@@ -127,8 +155,12 @@ export function useWorldTime(
     session.current = s;
     setView(null);
     setNotice('');
+    setIdleReturnNotice(false);
+    setIdleReturnLockKey(null);
     setEntryKey(null);
     setWorking(false);
+    setBriefing(null);
+    briefingRef.current = null;
     immediateCheck.current = false;
     try {
       const raw = localStorage.getItem(checkStorageKey);
@@ -154,7 +186,8 @@ export function useWorldTime(
         document.visibilityState !== 'visible' ||
         s.returning ||
         waiting.current ||
-        pendingWaitRef.current
+        pendingWaitRef.current ||
+        briefingRef.current
       )
         return;
       void sync(mode(), s.resumeRequired)
@@ -164,16 +197,10 @@ export function useWorldTime(
           if (s.active) setNotice('时间暂时未同步，稍后重试。');
         });
     };
-    let idleTimer: number | undefined;
     const leave = () => {
       if (s.returning) return;
       s.returning = true;
       s.resumeRequired = true;
-      window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(() => {
-        if (document.visibilityState === 'visible' || !s.active || !s.returning) return;
-        void sync('away', false, true).catch(() => {});
-      }, PHONE_IDLE_PAUSE_MS);
       setView((current) =>
         current?.worldId === worldId
           ? {
@@ -197,7 +224,6 @@ export function useWorldTime(
         leave();
         return;
       }
-      window.clearTimeout(idleTimer);
       if (!s.returning) return;
       // Resume the existing clock policy, then inspect real pending work immediately.
       // Returning is not a new conversation, message, or paid source identity.
@@ -218,7 +244,6 @@ export function useWorldTime(
     window.addEventListener('pageshow', onPageShow);
     return () => {
       leave();
-      window.clearTimeout(idleTimer);
       s.active = false;
       if (session.current === s) session.current = null;
       clearInterval(heartbeat);
@@ -230,7 +255,12 @@ export function useWorldTime(
     };
   }, [client, worldId, enabled, sync]);
   useEffect(() => {
-    if (enabled && !session.current?.returning && !pendingWaitRef.current)
+    if (
+      enabled &&
+      !session.current?.returning &&
+      !pendingWaitRef.current &&
+      !briefingRef.current
+    )
       void sync(
         phoneTimeMode(busy, readRoute(location.hash, worldId), lockedRef.current),
         session.current?.resumeRequired,
@@ -358,13 +388,45 @@ export function useWorldTime(
     entryKey,
     working,
     notice,
+    idleReturnLockKey,
+    idleReturnNotice: idleReturnNotice ? CLOCK_IDLE_RETURN_SUMMARY : '',
+    dismissIdleReturnNotice: () => setIdleReturnNotice(false),
     pendingWait,
     wait,
     startConversation,
     continueAtBoundary,
+    returnBriefing: briefing,
+    finishBriefing: (messageIds: readonly string[], storyNow?: string) => {
+      briefingRef.current = null;
+      setBriefing(null);
+      immediateCheck.current = true;
+      setEntryKey(crypto.randomUUID());
+      if (storyNow)
+        setView((current) =>
+          current?.worldId === worldId
+            ? {
+                ...current,
+                clock: {
+                  ...current.clock,
+                  storyNow,
+                  lastTickAt: new Date().toISOString(),
+                  paused: false,
+                  pauseReason: null,
+                  activeUntil: null,
+                },
+              }
+            : current,
+        );
+      if (messageIds.length) setIdleReturnLockKey(crypto.randomUUID());
+    },
     blocked:
       enabled &&
-      (!clock || clock.paused || !!session.current?.returning || working || !!pendingWait),
+      (!clock ||
+        clock.paused ||
+        !!session.current?.returning ||
+        working ||
+        !!pendingWait ||
+        (!!briefing && briefing.status !== 'completed')),
     displayTime: clock ? projectStoryTime(clock, new Date(now).toISOString()) : null,
     /** Entry/return is a transport opportunity, not a new model authorization. */
     requestCheck: () => {
