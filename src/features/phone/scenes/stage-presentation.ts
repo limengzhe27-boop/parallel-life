@@ -61,7 +61,10 @@ export function sceneArtwork(read: SceneRead, photos: readonly PhonePhoto[] = []
     image?.kind === 'media_reference'
       ? scenePhotoUrl(read, image.media.assetId, photos)
       : undefined;
-  const imageUrl = eventImageUrl ?? (read.scene ? read.sceneImageUrl : undefined);
+  const imageUrl =
+    eventImageUrl ??
+    (read.scene ? read.sceneImageUrl : undefined) ??
+    (read.scene?.placeId === 'home' ? '/art/scenes/home-interior.webp' : undefined);
   return {
     url: imageUrl ?? fallbackUrl,
     fallbackUrl,

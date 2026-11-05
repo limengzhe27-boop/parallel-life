@@ -82,6 +82,8 @@ export const SceneTaskInputSchema = z.strictObject({
   type: z.literal('scene'),
   sceneId: z.string().uuid(),
   actionId: z.string().uuid().nullable(),
+  // Internal follow-up of a committed entry; not player speech or a new state column.
+  greeting: z.literal(true).optional(),
   expectedVersion: z.number().int().nonnegative(),
 });
 export type SceneTaskInput = z.infer<typeof SceneTaskInputSchema>;

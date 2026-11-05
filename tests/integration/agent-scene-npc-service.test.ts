@@ -61,7 +61,7 @@ test('actual deterministic environment → saved scene input → leased native N
     }
   });
 
-  async function fixture() {
+  async function fixture(multiplePresent = false, entryOnly = false) {
     const owner = randomUUID(),
       worldId = randomUUID(),
       actor = randomUUID(),
@@ -122,7 +122,7 @@ test('actual deterministic environment → saved scene input → leased native N
         {
           location: '虚构客厅',
           narration: '合成的已保存历史场景。',
-          presentActorIds: [actor],
+          presentActorIds: multiplePresent ? [actor, contact] : [actor],
           outcome: null,
           observation: null,
           matterTitle: null,
@@ -180,14 +180,22 @@ test('actual deterministic environment → saved scene input → leased native N
       true,
     );
     const opened = await scenes.read(owner, worldId, entered.sceneId);
-    assert.equal(opened.task!.status, 'succeeded');
+    assert.equal((await tasks.get(owner, entered.task!.id)).status, 'succeeded');
+    assert.equal(opened.task!.status, 'queued');
+    assert.notEqual(opened.task!.id, entered.task!.id);
     assert.deepEqual(
       opened.entries.map((e) => e.kind),
       ['time_place'],
     );
     assert.deepEqual(
-      opened.scene!.presence.map((p) => p.participant),
-      [{ kind: 'player' }, { kind: 'actor', actorId: actor }],
+      opened.scene!.presence.map((p) => JSON.stringify(p.participant)).sort(),
+      [
+        { kind: 'player' },
+        { kind: 'actor', actorId: actor },
+        ...(multiplePresent ? [{ kind: 'actor', actorId: contact }] : []),
+      ]
+        .map((p) => JSON.stringify(p))
+        .sort(),
     );
     assert.equal(
       (await admin.query('SELECT 1 FROM parallel_life.agent_attempts WHERE world_id=$1', [worldId]))
@@ -201,14 +209,52 @@ test('actual deterministic environment → saved scene input → leased native N
         [worldId],
       )
     ).rows[0];
+    if (entryOnly) {
+      const row = (
+        await admin.query(
+          "SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND document->>'origin'='wake'",
+          [worldId],
+        )
+      ).rows[0].document;
+      return {
+        owner,
+        worldId,
+        actor,
+        contact,
+        entered,
+        envEvent,
+        opened,
+        command: {
+          commandId: row.commandId,
+          expectedVersion: opened.worldVersion,
+          text: row.text,
+          relatedMatterIds: [] as string[],
+        },
+        accepted: { task: opened.task!, version: opened.worldVersion },
+        responder: row.recipientActorId as string,
+      };
+    }
+    // These cases specifically exercise player input, independent of the opening turn.
+    await tasks.cancel(owner, opened.task!.id);
     const command = {
       commandId: randomUUID(),
       expectedVersion: opened.worldVersion,
-      text: '@甲 我想问问你的近况。',
+      text: multiplePresent ? '谁在？' : '@甲 我想问问你的近况。',
       relatedMatterIds: [],
     };
     const accepted = await scenes.input(owner, worldId, entered.sceneId, command);
-    return { owner, worldId, actor, contact, entered, envEvent, opened, command, accepted };
+    return {
+      owner,
+      worldId,
+      actor,
+      contact,
+      entered,
+      envEvent,
+      opened,
+      command,
+      accepted,
+      responder: multiplePresent ? [actor, contact].sort()[0]! : actor,
+    };
   }
 
   async function phone(owner: string, worldId: string, sceneId: string) {
@@ -233,8 +279,10 @@ test('actual deterministic environment → saved scene input → leased native N
         modelCalls++;
         assert.equal(db.pool.totalCount, db.pool.idleCount, 'model call holds no SQL connection');
         const payload = JSON.parse(messages[1]!.content);
-        assert.equal(payload.state.actorId, f.actor);
+        assert.equal(payload.replyAs.actorId, f.responder);
         assert.equal(payload.input.text, f.command.text);
+        assert.match(JSON.stringify(payload), /现场记录：/);
+        assert.match(JSON.stringify(payload), /玩家进入时，在场的人：/);
         return JSON.stringify({
           statements: [
             {
@@ -339,6 +387,78 @@ test('actual deterministic environment → saved scene input → leased native N
       assert.equal(repeated.attempted, false);
       assert.equal(repeated.modelCalls, 0);
       await assert.rejects(phone(randomUUID(), f.worldId, f.entered.sceneId));
+    },
+  );
+
+  await t.test(
+    'unaddressed greeting in an occupied home bypasses director and persists one real scene response',
+    async () => {
+      const f = await fixture(true);
+      const result = await run(f);
+      if (result.failure) t.diagnostic(result.failure.stack ?? result.failure.message);
+      assert.equal(result.failure, undefined);
+      assert.equal(result.modelCalls, 1, 'one NPC generation, no director/model routing');
+      const task = await tasks.get(f.owner, f.accepted.task!.id);
+      assert.equal(task.status, 'succeeded');
+      const read = await phone(f.owner, f.worldId, f.entered.sceneId);
+      const dialogues = read.entries.filter((entry) => entry.kind === 'dialogue');
+      assert.equal(dialogues.length, 1);
+      assert.deepEqual(dialogues[0]!.speaker, { kind: 'actor', actorId: f.responder });
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT 1 FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rowCount,
+        0,
+      );
+      assert.equal(
+        (await run(f)).modelCalls,
+        0,
+        'replayed task does not generate duplicate dialogue',
+      );
+    },
+  );
+
+  await t.test(
+    'entry without player speech queues and saves one in-person greeting; refresh cannot repeat it',
+    async () => {
+      const f = await fixture(true, true);
+      assert.equal(f.opened.actions.length, 0, 'entry never invents a player message');
+      const result = await run(f);
+      if (result.failure) t.diagnostic(result.failure.stack ?? result.failure.message);
+      assert.equal(result.failure, undefined);
+      assert.equal(result.modelCalls, 1);
+      const read = await phone(f.owner, f.worldId, f.entered.sceneId);
+      assert.equal(read.task!.status, 'succeeded');
+      assert.equal(read.entries.filter((e) => e.kind === 'dialogue').length, 1);
+      assert.equal(read.actions.length, 0);
+      assert.equal((await run(f)).modelCalls, 0);
+      assert.equal(
+        (
+          await admin.query('SELECT 1 FROM parallel_life.world_messages WHERE world_id=$1', [
+            f.worldId,
+          ])
+        ).rowCount,
+        0,
+      );
+    },
+  );
+
+  await t.test(
+    'leaving the room cancels the queued entry greeting without a model call',
+    async () => {
+      const f = await fixture(true, true);
+      await scenes.navigate(
+        f.owner,
+        f.worldId,
+        f.entered.sceneId,
+        { commandId: randomUUID(), expectedVersion: f.opened.worldVersion },
+        true,
+      );
+      assert.equal((await tasks.get(f.owner, f.accepted.task!.id)).status, 'cancelled');
+      assert.equal((await run(f)).modelCalls, 0);
     },
   );
 

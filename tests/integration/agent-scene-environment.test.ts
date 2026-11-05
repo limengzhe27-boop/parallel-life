@@ -516,7 +516,7 @@ test('deterministic scene environment: real owner SQL, actual entry/lease, atomi
       assert.equal(opened.worldVersion, advanced.version + 1);
       assert.equal(opened.scene!.id, f.entered.sceneId);
       assert.equal(opened.entries.length, 1);
-      assert.equal(opened.task!.status, 'succeeded');
+      assert.equal(opened.task!.status, 'queued');
       assert.equal(opened.scene!.presence.length, 2);
       const events = (
         await admin.query(

@@ -83,6 +83,28 @@ async function inputProof(
       [world.id, ownerId],
     )
   ).rows[0];
+  if (receipt.origin === 'wake') {
+    const entry = scene.entries.find(
+      (e) =>
+        e.kind === 'time_place' &&
+        e.sourceEventId === row.id &&
+        e.sourceVersion === receipt.expectedWorldVersion &&
+        e.observableTo.some((p) => p.kind === 'actor' && p.actorId === actorId),
+    );
+    if (
+      row.payload.type !== 'scene.opened' ||
+      row.payload.data?.sceneId !== receipt.threadId ||
+      row.payload.data?.environment?.producer !== 'deterministic' ||
+      !entry ||
+      scene.scene.status !== 'active' ||
+      experience?.current_scene_id !== scene.scene.id ||
+      !present.some((p) => p.kind === 'actor' && p.actorId === actorId) ||
+      !present.some((p) => p.kind === 'player') ||
+      !originPresent.some((p) => p.kind === 'actor' && p.actorId === actorId)
+    )
+      forbidden();
+    return { eventId: String(row.id), recordId: entry.id };
+  }
   const action = scene.actions.find((a) => a.sourceEventId === row.id && a.text === receipt.text);
   const entry = scene.entries.find(
     (e) =>
@@ -299,6 +321,7 @@ export async function readNativeAgentSnapshot(
         worldId: world.id,
         actorId,
         sceneId: input.threadId,
+        includeTimePlace: true,
         worldVersion: world.version,
         storyAt,
       });
@@ -423,6 +446,13 @@ export async function readNativeAgentSnapshot(
         speaker: message.role === 'user' ? { kind: 'player' } : { kind: 'actor', actorId },
       });
     }
+    const currentScene =
+      input.channel === 'scene' ? (await loadScene(sql, world.id, input.threadId)).scene : null;
+    const sceneAudience = currentScene
+      ? scenePresent(currentScene, world.version).flatMap((p) =>
+          p.kind === 'actor' ? [p.actorId] : [],
+        )
+      : [];
     return {
       state: originalState,
       ...authorizedAgentState(state, new Set(sources.keys())),
@@ -439,7 +469,11 @@ export async function readNativeAgentSnapshot(
           relationship: actor.relationship,
           modules: selectActorPersona(modules, input.text),
         }),
-        boundaries: '只代表本人，不公开未授权私人材料；语言和邀约不是执行结果。',
+        boundaries:
+          '只代表本人，不公开未授权私人材料；语言和邀约不是执行结果。' +
+          (currentScene
+            ? `本轮现场同在：玩家、${sceneAudience.map((id) => world.actors.find((a) => a.id === id)!.name).join('、')}；地点：${currentScene.title}。这是本轮已确认的在场范围，历史台词不改变它。不要自行编造其他人已经离开或不在，也不要代他们说话。`
+            : ''),
         definitionRef: state.definitionRef,
       },
       channel: {
@@ -452,10 +486,7 @@ export async function readNativeAgentSnapshot(
               ).group.memberships
                 .filter((m) => m.leftVersion === undefined && m.participant.kind === 'actor')
                 .flatMap((m) => (m.participant.kind === 'actor' ? [m.participant.actorId] : []))
-            : scenePresent(
-                (await loadScene(sql, world.id, input.threadId)).scene,
-                world.version,
-              ).flatMap((p) => (p.kind === 'actor' ? [p.actorId] : [])),
+            : sceneAudience,
         allowedCapabilities: ['plan.record', 'appointment.propose'],
       },
       input: { sourceId: input.id, text: input.text, origin: input.origin },

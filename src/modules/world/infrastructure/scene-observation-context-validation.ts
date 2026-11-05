@@ -23,6 +23,7 @@ export async function validateSceneObservationContext(
       worldId: snapshot.state.worldId,
       actorId: snapshot.state.actorId,
       sceneId: context.sceneId,
+      includeTimePlace: true,
       worldVersion: snapshot.worldVersion,
       storyAt: snapshot.storyAt,
     });

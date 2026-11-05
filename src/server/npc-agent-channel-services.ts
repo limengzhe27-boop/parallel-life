@@ -26,10 +26,9 @@ import {
   SceneTaskInputSchema,
 } from '../modules/world/infrastructure/scene-repository.ts';
 import { forgottenAgentSourceIds } from '../modules/world/infrastructure/agent-source-authorization.ts';
-import {
-  selectQuestionResponder,
-  type ProvenPendingQuestion,
-} from '../modules/world/domain/agent-questions.ts';
+import { type ProvenPendingQuestion } from '../modules/world/domain/agent-questions.ts';
+import { nativeResponder } from '../modules/world/domain/native-responder.ts';
+export { nativeResponder } from '../modules/world/domain/native-responder.ts';
 import { groupHistory } from '../modules/world/domain/group-runtime.ts';
 import { currentGroupMember } from '../modules/world/domain/group-runtime.ts';
 import { scenePresent } from '../modules/world/domain/scene-runtime.ts';
@@ -37,62 +36,6 @@ import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { runNpcAgent } from '../modules/world/application/run-agent.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
-
-/** No persona keywords or array-order fallback. Ambiguity goes to global coordination. */
-export function nativeResponder(input: {
-  actorIds: string[];
-  names: ReadonlyMap<string, string>;
-  text: string;
-  states: ActorAgentState[];
-  channel: 'group' | 'scene';
-  threadId: string;
-  questions: ProvenPendingQuestion[];
-  relatedMatterIds: string[];
-}) {
-  const unique = (ids: string[]) => [...new Set(ids)].filter((id) => input.actorIds.includes(id));
-  const mentions = unique(
-    input.actorIds.filter((id) => {
-      const name = input.names.get(id);
-      if (!name) return false;
-      return (
-        input.text.includes('@' + name) &&
-        new RegExp(
-          '@' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:[\\s，,。！？!?：:]|$)',
-        ).test(input.text)
-      );
-    }),
-  );
-  if (mentions.length === 1) return mentions[0]!;
-  if (mentions.length > 1)
-    throw new DomainError('INVALID_COMMAND', 'DIRECTOR_COORDINATION_REQUIRED');
-  const question = selectQuestionResponder({
-    channel: input.channel,
-    threadId: input.threadId,
-    questions: input.questions,
-  });
-  if (question.kind === 'ambiguous')
-    throw new DomainError('INVALID_COMMAND', 'DIRECTOR_COORDINATION_REQUIRED');
-  if (question.kind === 'selected') {
-    if (!input.actorIds.includes(question.actorId)) throw new DomainError('INVALID_COMMAND');
-    return question.actorId;
-  }
-  const responsible = unique(
-    input.states
-      .filter((state) =>
-        state.responsibilities.some(
-          (r) =>
-            !['fulfilled', 'withdrawn', 'expired'].includes(r.status) &&
-            r.subject.kind === 'matter' &&
-            input.relatedMatterIds.includes(r.subject.id),
-        ),
-      )
-      .map((state) => state.actorId),
-  );
-  if (responsible.length === 1) return responsible[0]!;
-  const actors = unique(input.actorIds);
-  if (actors.length === 1) return actors[0]!;
-  throw new DomainError('INVALID_COMMAND', 'DIRECTOR_COORDINATION_REQUIRED');
-}
 
 /** Completes the actual queue task with its native NPC result, inside the same kernel transaction. */
 export async function finishNativeAgentTask(
@@ -118,7 +61,7 @@ export async function finishNativeAgentTask(
  AND a.id=$5 AND a.token=$6 AND a.world_id=$3 AND a.owner_id=$2 AND a.status='committed' AND e.id=$7
  AND a.command_id=$8 AND e.payload->'data'->'agentRuntime'->>'inputReceiptId'=r.id
  AND ((e.payload->>'type'='group.turn_resolved' AND t.input->>'channel'='group' AND e.payload->'data'->>'groupId'=t.input->>'groupId' AND original.id=t.input->>'inputEventId')
- OR(e.payload->>'type'='scene.reaction_recorded' AND t.input->>'type'='scene' AND e.payload->'data'->>'sceneId'=t.input->>'sceneId' AND EXISTS(SELECT 1 FROM parallel_life.scene_items i WHERE i.world_id=$3 AND i.owner_id=$2 AND i.id=t.input->>'actionId' AND i.source_event_id=original.id)))`,
+ OR(e.payload->>'type'='scene.reaction_recorded' AND t.input->>'type'='scene' AND e.payload->'data'->>'sceneId'=t.input->>'sceneId' AND (EXISTS(SELECT 1 FROM parallel_life.scene_items i WHERE i.world_id=$3 AND i.owner_id=$2 AND i.id=t.input->>'actionId' AND i.source_event_id=original.id) OR(t.input->>'greeting'='true' AND t.input->'actionId'='null'::jsonb AND original.payload->>'type'='scene.opened' AND original.payload->'data'->>'sceneId'=t.input->>'sceneId' AND r.document->>'origin'='wake'))))`,
     [
       lease.id,
       ownerId,
@@ -233,20 +176,23 @@ export function nativeNpcTaskHandler(
         channel = 'scene';
         threadId = parsed.sceneId;
         version = parsed.expectedVersion;
-        if (!parsed.actionId)
+        if (!parsed.actionId && !parsed.greeting)
           throw new DomainError('INVALID_COMMAND', 'SCENE_ENVIRONMENT_MUST_BE_ESTABLISHED');
         const scene = await loadScene(sql, world.id, threadId);
         const action = scene.actions.find((a) => a.id === parsed.actionId);
-        if (!action || action.sourceVersion !== version) throw new DomainError('INVALID_COMMAND');
-        sourceId = action.sourceEventId;
-        relatedMatterIds = action.relatedMatterIds;
-        const original = scene.entries.find(
-          (e) =>
-            e.kind === 'user_action' &&
-            e.actionId === action.id &&
-            e.sourceEventId === sourceId &&
-            e.sourceVersion === version,
-        );
+        if (!parsed.greeting && (!action || action.sourceVersion !== version))
+          throw new DomainError('INVALID_COMMAND');
+        const original = parsed.greeting
+          ? scene.entries.find((e) => e.kind === 'time_place' && e.sourceVersion === version)
+          : scene.entries.find(
+              (e) =>
+                e.kind === 'user_action' &&
+                e.actionId === action!.id &&
+                e.sourceEventId === action!.sourceEventId &&
+                e.sourceVersion === version,
+            );
+        sourceId = original?.sourceEventId ?? '';
+        relatedMatterIds = action?.relatedMatterIds ?? [];
         if (!original) throw new DomainError('INVALID_COMMAND', 'NATIVE_INPUT_NOT_ACCEPTED');
         const present = scenePresent(scene.scene, version);
         actorIds = scenePresent(scene.scene, world.version).flatMap((p) =>
@@ -371,15 +317,25 @@ export function nativeNpcTaskHandler(
         if (prior.length || routing) throw new DomainError('INVALID_COMMAND');
         return { receipt, actorId: null, actorIds, states };
       }
-      const originalAudience = await readLocationReportAudience(
-        sql,
-        lease.ownerId,
-        world,
-        receipt,
-        actorIds[0]!,
-      );
-      actorIds = actorIds.filter((id) => originalAudience?.actorIds.includes(id));
-      let actorId: string | null = prior[0]?.actor_id ?? null;
+      if (receipt.origin === 'player') {
+        const originalAudience = await readLocationReportAudience(
+          sql,
+          lease.ownerId,
+          world,
+          receipt,
+          actorIds[0]!,
+        );
+        actorIds = actorIds.filter((id) => originalAudience?.actorIds.includes(id));
+      } else if (
+        input.greeting !== true ||
+        receipt.origin !== 'wake' ||
+        source?.type !== 'scene.opened' ||
+        source?.data?.environment?.producer !== 'deterministic'
+      ) {
+        throw new DomainError('INVALID_COMMAND', 'NATIVE_INPUT_NOT_ACCEPTED');
+      }
+      let actorId: string | null =
+        prior[0]?.actor_id ?? (input.greeting === true ? receipt.recipientActorId : null);
       if (!actorId && !routing)
         try {
           actorId = nativeResponder({
@@ -391,6 +347,10 @@ export function nativeNpcTaskHandler(
             threadId,
             questions,
             relatedMatterIds,
+            recentSpeakerIds: [...nativeSources.values()]
+              .reverse()
+              .sort((a, b) => b.version - a.version)
+              .map((source) => source.actorId),
           });
         } catch (error) {
           if (!(error instanceof DomainError) || error.message !== 'DIRECTOR_COORDINATION_REQUIRED')

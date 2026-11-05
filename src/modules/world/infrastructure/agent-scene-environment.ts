@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
-import { requestHash } from '../../tasks/infrastructure/task-repository.ts';
+import { enqueue, requestHash } from '../../tasks/infrastructure/task-repository.ts';
 import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
 import {
@@ -18,6 +18,7 @@ import { ParticipantSchema } from '../../../contracts/world-experiences.ts';
 import { SceneTaskInputSchema, loadScene, sceneWorld } from './scene-repository.ts';
 import { withLeasedAgentDatabase } from './leased-agent-database.ts';
 import { compactWorldState } from './postgres-world-repository.ts';
+import { acceptAgentInputInTransaction } from './agent-runtime-repository.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import {
   publicationActorReference,
@@ -308,7 +309,7 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
     const raw = lease.input as Record<string, unknown> | null;
     if (!raw || typeof raw !== 'object' || raw.type !== 'scene') return false;
     const input = SceneTaskInputSchema.parse(raw);
-    if (input.actionId !== null) return false;
+    if (input.actionId !== null || input.greeting) return false;
     if (signal.aborted) throw signal.reason ?? Error('CANCELLED');
     // Captures genuine JSON/lease identity before any SQL; it never grants an NPC marker.
     const scoped = withLeasedAgentDatabase(db, lease);
@@ -598,6 +599,45 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
         ],
       );
       if (finished.rowCount !== 1) reject('SCENE_ENVIRONMENT_TASK_FINISH_LOST');
+      // Persist the next NPC turn with the environment, so refresh/crash cannot
+      // lose the entry reaction. Reuse scene task cancellation and phone polling.
+      const greeter = renderPeople[0];
+      if (greeter) {
+        const greeting = {
+          type: 'scene' as const,
+          sceneId: input.sceneId,
+          actionId: null,
+          expectedVersion: event.version,
+          greeting: true as const,
+        };
+        const text = JSON.stringify({
+          type: 'scene_entry',
+          wakeCue: `玩家刚进入${place.name}，你与玩家确实同在现场。请按你的人格、双方关系和刚才的经历，自然做出当面反应并开口，或接续尚未说完的话；这是当面相遇，不是等待玩家在手机上布置任务。不要虚构玩家说过的话、不要重复上一轮问候、不替其他人表态。`,
+        });
+        await acceptAgentInputInTransaction(sql, lease.ownerId, {
+          id: stableId('scene-entry-input', event.id),
+          worldId: world.id,
+          commandId: event.commandId,
+          inputHash: requestHash([event.id, greeter.actorId, text]),
+          channel: 'scene',
+          threadId: input.sceneId,
+          recipientActorId: greeter.actorId,
+          expectedWorldVersion: event.version,
+          receivedAt: event.occurredAt,
+          storyAt: event.storyAt,
+          origin: 'wake',
+          text,
+        });
+        await enqueue(
+          sql,
+          lease.ownerId,
+          'world',
+          world.id,
+          stableId('scene-entry-greeting', event.id),
+          greeting,
+          requestHash(greeting),
+        );
+      }
       return true;
     });
   };

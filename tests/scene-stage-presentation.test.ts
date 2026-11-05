@@ -281,3 +281,19 @@ test('authored place image is a scene reference and does not invent an event pho
   });
   assert.equal(invalid.success, false);
 });
+
+test('home gets an original interior image while saved scene artwork remains higher priority', () => {
+  const r = read();
+  r.scene!.placeId = 'home';
+  assert.equal(sceneArtwork(r).url, '/art/scenes/home-interior.webp');
+  assert.equal(sceneArtwork(r).authored, true);
+  assert.equal(sceneArtwork(r).fallbackUrl, '/art/scenes/interior.svg');
+  r.sceneImageUrl = '/api/v1/worlds/' + worldId + '/media/' + randomUUID();
+  assert.equal(sceneArtwork(r).url, r.sceneImageUrl);
+  const generated = media();
+  r.entries.push(generated);
+  assert.equal(
+    sceneArtwork(r, [photo(generated.media.assetId)]).url,
+    photo(generated.media.assetId).url,
+  );
+});

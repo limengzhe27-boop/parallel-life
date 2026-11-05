@@ -18,6 +18,8 @@ export type ActorSceneObservationFrame = {
   /** Full packets count towards the budget; text is never truncated. */
   maxBytes?: number;
   maxEntries?: number;
+  /** Native scene dialogue includes witnessed arrival/place, without waking private inboxes. */
+  includeTimePlace?: boolean;
   /** Optional exact previously supplied handles; filtering does not grant visibility. */
   sourceIds?: readonly string[];
   /** Private inbox only: filter exact acknowledged content after authentication, before capacity. */
@@ -114,7 +116,7 @@ export async function readActorSceneObservationSourcesInTransaction(
       entry.worldId === frame.worldId &&
       entry.sceneId === frame.sceneId &&
       entry.sourceVersion <= frame.worldVersion &&
-      'text' in entry &&
+      ('text' in entry || (frame.includeTimePlace && entry.kind === 'time_place')) &&
       entry.observableTo.some((p) => p.kind === 'actor' && p.actorId === frame.actorId) &&
       scenePresent(read.scene, entry.sourceVersion).some(
         (p) => p.kind === 'actor' && p.actorId === frame.actorId,
@@ -143,7 +145,7 @@ export async function readActorSceneObservationSourcesInTransaction(
   );
   const authorized: { source: AgentSource; observation: ActorSceneObservation }[] = [];
   for (const entry of visible) {
-    if (!('text' in entry)) continue;
+    if (!('text' in entry) && entry.kind !== 'time_place') continue;
     const row = events.get(entry.sourceEventId);
     const event = row?.payload;
     if (
@@ -216,7 +218,14 @@ export async function readActorSceneObservationSourcesInTransaction(
     let matches = false;
     let kind: ActorSceneObservation['kind'] = 'speech';
     let evidenceKind: ActorSceneObservation['evidenceKind'] = 'actor_report';
-    if (entry.kind === 'user_action') {
+    if (entry.kind === 'time_place') {
+      matches =
+        event.type === 'scene.opened' &&
+        original.environment?.producer === 'deterministic' &&
+        original.environment.entries?.some((e: SceneEntry) => isDeepStrictEqual(e, entry));
+      kind = 'fact';
+      evidenceKind = 'scene_record';
+    } else if (entry.kind === 'user_action') {
       const action = read.actions.find((a) => a.id === entry.actionId);
       matches =
         event.type === 'scene.input_recorded' &&
@@ -274,6 +283,20 @@ export async function readActorSceneObservationSourcesInTransaction(
       evidenceKind = 'adjudicated_result';
     }
     if (!matches) continue;
+    const text =
+      entry.kind === 'time_place'
+        ? `现场记录：${entry.location}。玩家进入时，在场的人：${scenePresent(
+            read.scene,
+            entry.sourceVersion,
+          )
+            .map((p) =>
+              p.kind === 'player'
+                ? '玩家'
+                : (world.state.actors.find((a: { id: string; name: string }) => a.id === p.actorId)
+                    ?.name ?? '在场人物'),
+            )
+            .join('、')}。这是已观察到的现场情况，不是任何人的台词。`
+        : entry.text;
     const id = 'scene:' + entry.id;
     authorized.push({
       source: {
@@ -290,7 +313,7 @@ export async function readActorSceneObservationSourcesInTransaction(
       },
       observation: {
         sourceId: id,
-        text: entry.text,
+        text,
         kind,
         evidenceKind,
         eventOccurredAt: event.occurredAt,
