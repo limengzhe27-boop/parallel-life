@@ -175,6 +175,20 @@ occupied =
 - 0130 已应用到 `parallel_life_clone_20261026`、`parallel_life_test`、`parallel_life_dev`；本地 3218 已切到主目录构建，health 200。
 - 未推送/未部署生产；未把本地迁移当线上完成。
 
+### 3.6 本地干净副本与朋友圈验收（用户要求的“复制一版本”）
+
+不再要求 Vercel 部署后，直接从已发布作品复制干净世界：
+
+- 已发布作品：`50faae30-fb8a-4ade-b757-cd588ae46a4d`（渣男体验 v1）
+- 新 guest 通过 `/api/v1/publications/{id}/start` 创建干净世界：`28bae644-e8ad-4935-b7fe-81718190f9b8`
+- 新世界 plan：18 nodes / 6 stages，opening=`event_28910809fd5d1f8b`，无旧 episode/旧历史。
+- 首次 opening review 后：`openingPresented=true`，窗口为 `node_1/node_2`，只有 1 个 opening episode。
+- 浏览器 `/published` 进入新世界后，锁屏出现 6 条未读；微信“发现 → 朋友圈”可见欣欣真实动态，发表入口存在。
+- 截图：`.local/story55/moments-fresh-world.png`
+- 新世界随后 v8/v9 各产生 1 条真实消息；opening episode 最后一次检查为 5/6 receipt，随后一次模型调用返回 `UPSTREAM_FAILED`，未继续强推，不把 5/6 写成完整六人开场。
+
+这说明“复制原渣男体验一版”是可行的，而且比继续修复 2fb 旧历史更干净；朋友圈功能也已在同一 3218 主构建中可用。
+
 ## 4. 还没有完成
 
 1. **新故事包/新层**：已实现 authored 耗尽后的 `emergent_review` 运行时层：
