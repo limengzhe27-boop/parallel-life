@@ -1231,6 +1231,22 @@ test('actionless plan gets one bounded proactive review per story hour', async (
   assert.notEqual(second.id, first.id);
 });
 
+test('a recent autonomous message suppresses repeat actionless plan reviews for two story hours', async () => {
+  const a = actor();
+  a.snapshot.state.actions = [];
+  a.snapshot.state.plans[0]!.actionIds = [];
+  a.snapshot.state.plans[0]!.nextActionId = null;
+  a.snapshot.state.plans[0]!.triggers = [];
+  sync(a);
+  const recent = view([a]);
+  recent.lastAssistantAtByActor = { a: '2026-10-15T09:00:00.000Z' };
+  assert.equal((await collect(recent, 'actor_plan')).candidates.length, 0);
+
+  const elapsed = structuredClone(recent);
+  elapsed.lastAssistantAtByActor = { a: '2026-10-15T07:59:00.000Z' };
+  assert.equal((await collect(elapsed, 'actor_plan')).candidates.length, 1);
+});
+
 test('actionless plan with a missing condition or an open question does not re-ask every story hour', async () => {
   const a = actor();
   a.snapshot.state.actions = [];

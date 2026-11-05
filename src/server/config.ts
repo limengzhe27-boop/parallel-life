@@ -10,3 +10,10 @@ export function gatewayConfig(): GatewayConfig {
     timeoutMs: 85000,
   };
 }
+
+/** Local progression switch. Infrastructure receives the mode, never the environment. */
+export type DirectorIdleBeatMode = 'auto' | 'force' | 'off';
+export function directorIdleBeatMode(): DirectorIdleBeatMode {
+  const value = process.env.PROGRESSION_IDLE_BEAT;
+  return value === 'force' || value === 'off' ? value : 'auto';
+}

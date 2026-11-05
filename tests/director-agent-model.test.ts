@@ -150,6 +150,52 @@ function rejected(f: ReturnType<typeof fixture>, raw: unknown) {
   assert.throws(() => f.parse(raw), { code: 'INVALID_DIRECTOR_PROPOSAL' });
 }
 
+test('idle beat creates one source-bound concrete life task instead of another care message', () => {
+  const f = fixture();
+  const decision = f.parse({
+    kind: 'idle_beat',
+    actorId: 'a',
+    event: '房东临时通知明早涨租，要求今天内答复是否续住',
+    firstStep: '先翻出合同核对涨幅，再决定今天约房东谈还是开始找房',
+    stakes: '不确认就会在明早失去续住选择，临时找房成本更高',
+    basisSourceId: 'definition:fictional-definition',
+  });
+  assert.equal(decision.mode, 'bounded_opportunity');
+  assert.deepEqual(decision.selectedCandidateIds, []);
+  assert.deepEqual(decision.deferred.map((entry) => entry.candidateId).sort(), [
+    'candidate-a',
+    'candidate-b',
+  ]);
+  const opportunity = decision.opportunities[0]!;
+  assert.deepEqual(opportunity.participantActorIds, ['a']);
+  assert.deepEqual(opportunity.basisSourceIds, ['definition:fictional-definition']);
+  const task = JSON.parse(opportunity.stagingIntents![0]!.task);
+  assert.equal(task.protocol, 'actor-interaction-opportunity-v1');
+  assert.match(task.topic, /房东|涨租/);
+  assert.match(task.proposedInteraction, /合同|房东|找房/);
+  assert.doesNotMatch(task.topic, /^(关心|陪伴|安慰|鼓励)/);
+});
+test('director model takes the idle-beat path without buying the full stalled-cast call', async () => {
+  const f = fixture();
+  let calls = 0;
+  const model: TextModel = {
+    complete: async () => {
+      calls++;
+      return JSON.stringify({
+        event: '房东临时通知明早涨租，要求今天内答复是否续住',
+        firstStep: '先翻出合同核对涨幅，再决定今天约房东谈还是开始找房',
+        stakes: '不确认就会在明早失去续住选择，临时找房成本更高',
+      });
+    },
+  };
+  try {
+    const raw = await new WorldDirectorAgentModel(model, { idleBeat: 'force' }).decide(f.snapshot);
+    assert.equal(calls, 1);
+    assert.equal(f.parse(raw).mode, 'bounded_opportunity');
+  } finally {
+    // No process environment is read by the infrastructure model.
+  }
+});
 test('quiet is a valid immutable typed director decision and cannot add NPC execution or a world event', () => {
   const f = fixture(),
     before = structuredClone(f.snapshot),

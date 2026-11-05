@@ -966,6 +966,9 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       delete value.localDateTime;
     }
   const optional = payload as unknown as Record<string, unknown>;
+  // Derived conversation progress is presentation, not authority. It is the
+  // first optional block to yield when the full state and schema no longer fit.
+  if (!fits()) delete optional.conversationProgress;
   // Active event follow-ups are required task context, not expendable history.
   if (!fits()) optional.recentSelfMessages = [];
   // Keep all questions and assessed answers. Removing this ledger would turn a

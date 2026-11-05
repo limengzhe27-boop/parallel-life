@@ -3674,4 +3674,9 @@ DIRECTOR-DELIBERATION-50同轮400收口：任务姓名标注的$ref兄弟title�
 
 |PROGRESSION-IMPLEMENT-52|[ ] 待验收（本地实现/构建/运行已切换，真实演绎待验）|astra-progression-implement52-20261105；接续51集成|main f3498dc8→merge 35e11829；npc-model-protocol、agent-schedule-collectors、npc-agent-model、director-agent-model、actor-opportunity-context及聚焦/真实PG测试、报告|接受导演任务无下一步时生成durable plan并进入计划复查；复查wake cue明确“只发一条消息不算推进”；导演提示要求当前情况/第一步/拒绝后下一拍，泛化关心不填预算。check4260/4260、build、player-episode-manifest PG12/12通过；曾切3218 build-progression52，随后root接管为build-stage51（95baa4c5），当前运行以51为准，52不宣称当前本地构建。无DB表列/用户档写，真实模型是否按新提示产出具体步骤、拒绝后下一拍仍待原档验收；不将机制测试当演绎通过。|
 
+|PROGRESSION-IDLE-53|[ ] 待验收（实现/克隆真实演绎通过，原档与3218待切）|astra-progression-idle53-20261105；接续51/52集成|main f8f70223；director-runtime-repository、director-agent-model、npc-agent-model、agent-schedule-collectors、server/config与两个server组装点、聚焦/真实PG测试、报告|修导演快照拒绝goalId:null、空转计划每tick重复“等你”消息、全员等待时无具体事件、NPC上下文超限；周期复盘停滞时生成有来源的具体外部生活事项，人物自主承接/拒绝，不建表列、不替玩家决定。克隆档真实生成“校园剪辑项目/订阅费/下月房租”并收到人物主动回信；check/build/原档3218待完成。|
+
 EVENT-STAGE-CONTINUITY-51接续：52已合入计划驱动实现及51先期修改，root补统一unplannedAcceptedTask供组包/保存共用，合法agenda review沿旧认证engage保留同一计划，不重买已消费actor_local。无DB表列，保留玩家未答应。check4260、PGmanifest/evidence29、own-agenda-runtime8、隔离build通过。原档正常调度出现林白语/刘胜男blocked计划，但仍等待，不能称持续事件演绎已通过。详见[51报告](task-reports/EVENT-STAGE-CONTINUITY-51.md)。运行切换须由集成人串行，先查request_sent/response_received，禁止并发重启杀掉正在返回的付费调用。
+
+
+PROGRESSION-IDLE-53接续：原档克隆 `parallel_life_prog53_clean` 上强制复盘生成具体外部生活事项（校园剪辑项目，10点前决定，自付200元订阅费，影响下月房租），青青实际回信“想接，先联系课程组长确认”；不是关心/等待。另修导演快照 `planReview.goalId:null` 被拒、空转计划2故事小时冷却、NPC上下文的派生conversationProgress最后让步。尚未切3218原档，不把克隆证据当原档通过。
