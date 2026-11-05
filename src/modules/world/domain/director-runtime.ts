@@ -6,6 +6,7 @@ import type {
 } from './agent-runtime.ts';
 import type { WorldBoundary, DirectorPendingReason } from './world-awareness.ts';
 import type { AuthoredAgentMaterialCatalog } from './authored-agent-material.ts';
+import type { AuthoredStoryGate } from './authored-story-gate.ts';
 /** Bound author direction for ONE NPC, not the player or a fact/knowledge grant.
  * Every module is a stable server-side excerpt (at most 4000 characters), not a
  * claim that the complete author manuscript was loaded into the model input.
@@ -42,6 +43,8 @@ export type DirectorSnapshot = {
     qualificationKey: string;
   }[];
   occupiedAuthoredEventKeys?: string[];
+  /** Runtime plan gate. Unshown acts and an unshown opening stay outside this set. */
+  authoredStory?: AuthoredStoryGate;
   /** Exact paid deliberation scope; absent only on protected legacy snapshots. */
   deliberationWindow?: { version: 1 | 2; nodeKeys: string[] };
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
@@ -174,7 +177,9 @@ export function canConsiderAuthoredEvent(snapshot: DirectorSnapshot, nodeKey: st
     matches.length === 1 &&
     matches[0]!.nodeHash === materials[0]!.ref.nodeHash &&
     matches[0]!.status === 'eligible' &&
-    !snapshot.occupiedAuthoredEventKeys?.includes(nodeKey)
+    !snapshot.occupiedAuthoredEventKeys?.includes(nodeKey) &&
+    (snapshot.authoredStory === undefined ||
+      snapshot.authoredStory.eligibleNodeKeys.includes(nodeKey))
   );
 }
 

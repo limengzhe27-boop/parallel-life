@@ -59,6 +59,7 @@ import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repo
 import {
   readAuthoredEligibilityInTransaction,
   authoredEligibilitySummary,
+  readAuthoredStoryGate,
 } from './authored-event-eligibility-repository.ts';
 import { createEpisodeRequestsInTransaction } from './agent-narrative-repository.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
@@ -376,6 +377,18 @@ const Snapshot = z
       )
       .optional(),
     occupiedAuthoredEventKeys: keys.optional(),
+    authoredStory: z
+      .strictObject({
+        planVersion: z.literal(1),
+        openingEventKey: Key.nullable(),
+        openingPresented: z.boolean(),
+        currentStageKeys: keys,
+        eligibleNodeKeys: keys,
+        activeNodeKeys: keys,
+        presentedNodeKeys: keys,
+        terminalNodeKeys: keys,
+      })
+      .optional(),
     conversationWithoutTarget: z.boolean().optional(),
     returnContext: z
       .object({
@@ -766,9 +779,14 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       }));
       if (
         !equal(authoredEligibilitySummary(qualification), s.authoredEligibility) ||
-        !equal(qualification.occupiedEventKeys, s.occupiedAuthoredEventKeys)
+        (s.authoredStory !== undefined &&
+          !equal(qualification.occupiedEventKeys, s.occupiedAuthoredEventKeys))
       )
         fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
+      if (s.authoredStory !== undefined) {
+        const story = await readAuthoredStoryGate(sql, owner, world.id);
+        if (!equal(story ?? null, s.authoredStory)) fail('DIRECTOR_AUTHORED_STORY_CONFLICT');
+      }
     } else if (s.authoredEligibility !== undefined || s.occupiedAuthoredEventKeys !== undefined)
       fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
     if (!s.nativeTurn) {
@@ -899,7 +917,22 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       fail('DIRECTOR_CAST_CONFLICT');
     const episodes = (
       await sql.query(
-        'SELECT document FROM parallel_life.shared_episodes WHERE world_id=$1 AND owner_id=$2 ORDER BY id',
+        `SELECT ep.document FROM parallel_life.shared_episodes ep
+         WHERE ep.world_id=$1 AND ep.owner_id=$2
+           AND (
+             ep.created_at >= COALESCE((
+               SELECT runtime_cutover_at FROM parallel_life.publication_story_plans
+               WHERE world_id=$1 AND owner_id=$2
+             ),'-infinity'::timestamptz)
+             OR NOT EXISTS(
+               SELECT 1 FROM parallel_life.director_decisions d
+               CROSS JOIN LATERAL jsonb_array_elements(d.document->'opportunities') o
+               WHERE d.world_id=ep.world_id AND d.owner_id=ep.owner_id
+                 AND d.id=ep.origin_decision_id AND o->>'id'=ep.id
+                 AND o ? 'authoredEventKey'
+             )
+           )
+         ORDER BY ep.id`,
         [world.id, owner],
       )
     ).rows.map((r) => r.document as SharedEpisode);

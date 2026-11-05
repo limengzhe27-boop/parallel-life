@@ -19,6 +19,7 @@ import { readWorldAttentionInTransaction } from './world-attention-repository.ts
 import {
   readAuthoredEligibilityInTransaction,
   authoredEligibilitySummary,
+  readAuthoredStoryGate,
 } from './authored-event-eligibility-repository.ts';
 import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
 import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
@@ -936,7 +937,22 @@ export class PostgresDirectorSnapshotRepository {
       );
       const episodes = (
         await sql.query(
-          'SELECT id,document FROM parallel_life.shared_episodes WHERE world_id=$1 AND owner_id=$2 ORDER BY id',
+          `SELECT id,document FROM parallel_life.shared_episodes ep
+           WHERE ep.world_id=$1 AND ep.owner_id=$2
+             AND (
+               ep.created_at >= COALESCE((
+                 SELECT runtime_cutover_at FROM parallel_life.publication_story_plans
+                 WHERE world_id=$1 AND owner_id=$2
+               ),'-infinity'::timestamptz)
+               OR NOT EXISTS(
+                 SELECT 1 FROM parallel_life.director_decisions d
+                 CROSS JOIN LATERAL jsonb_array_elements(d.document->'opportunities') o
+                 WHERE d.world_id=ep.world_id AND d.owner_id=ep.owner_id
+                   AND d.id=ep.origin_decision_id AND o->>'id'=ep.id
+                   AND o ? 'authoredEventKey'
+               )
+             )
+           ORDER BY id`,
           [h.world.id, owner],
         )
       ).rows
@@ -1169,6 +1185,15 @@ export class PostgresDirectorSnapshotRepository {
             h.storyAt,
           )),
         );
+      let authoredStory: DirectorSnapshot['authoredStory'];
+      try {
+        authoredStory =
+          authored?.catalog.source && !input.nativeTurn
+            ? await readAuthoredStoryGate(sql, owner, h.world.id)
+            : undefined;
+      } catch {
+        fail('INVALID_AUTHORED_STORY_PLAN');
+      }
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         ...(openingContextAuthority ? { openingContextAuthority } : {}),
@@ -1185,7 +1210,12 @@ export class PostgresDirectorSnapshotRepository {
           ? {
               authoredMaterials: authored.catalog,
               authoredEligibility: authoredEligibilitySummary(authored),
-              occupiedAuthoredEventKeys: authored.occupiedEventKeys,
+              ...(authoredStory
+                ? {
+                    authoredStory,
+                    occupiedAuthoredEventKeys: authored.occupiedEventKeys,
+                  }
+                : { occupiedAuthoredEventKeys: authored.occupiedEventKeys }),
             }
           : {}),
         cast: normalizedCast(h.world),

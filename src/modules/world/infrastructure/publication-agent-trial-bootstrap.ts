@@ -65,6 +65,7 @@ export async function bootstrapPublicationAgentWorldInTransaction(
     );
     if (!prior.rowCount) throw new DomainError('INVALID_COMMAND');
     await admitNewAgentNarrativeInTransaction(sql, ownerId, { worldId, engineEpoch: 2 });
+    await sql.query('SELECT parallel_life.ensure_agent_story_plan($1,$2)', [worldId, ownerId]);
     return { worldId, engineEpoch: 2 };
   }
 
@@ -89,6 +90,7 @@ export async function bootstrapPublicationAgentWorldInTransaction(
   });
 
   await admitNewAgentNarrativeInTransaction(sql, ownerId, { worldId, engineEpoch: 2 });
+  await sql.query('SELECT parallel_life.ensure_agent_story_plan($1,$2)', [worldId, ownerId]);
 
   return { worldId, engineEpoch: 2 };
 }
@@ -138,6 +140,7 @@ export async function bootstrapPublicationAgentTrial(
       );
       if (!prior.rowCount) throw new DomainError('INVALID_COMMAND');
       await admitNewAgentNarrativeInTransaction(sql, ownerId, { worldId, engineEpoch: 2 });
+      await sql.query('SELECT parallel_life.ensure_agent_story_plan($1,$2)', [worldId, ownerId]);
       return { worldId, engineEpoch: 2, resumed: true };
     }
     const clock = (
@@ -167,6 +170,7 @@ export async function bootstrapPublicationAgentTrial(
       expectedWorldVersion: 0,
     });
     await admitNewAgentNarrativeInTransaction(sql, ownerId, { worldId, engineEpoch: 2 });
+    await sql.query('SELECT parallel_life.ensure_agent_story_plan($1,$2)', [worldId, ownerId]);
     return { worldId, engineEpoch: 2, resumed: false };
   });
 }

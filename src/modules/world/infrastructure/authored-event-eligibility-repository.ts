@@ -19,6 +19,12 @@ import {
   type AuthoredEventEligibility,
 } from '../domain/authored-event-eligibility.ts';
 import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
+import {
+  deriveAuthoredStoryGate,
+  type AuthoredStoryEventState,
+  type AuthoredStoryGate,
+  type AuthoredStoryPlan,
+} from '../domain/authored-story-gate.ts';
 
 export type AuthoredEligibilityView = {
   catalog: AuthoredAgentMaterialCatalog;
@@ -35,6 +41,78 @@ export function authoredEligibilitySummary(view: AuthoredEligibilityView) {
     basisSourceIds: [...item.basisSourceIds],
     qualificationKey: item.qualificationKey,
   }));
+}
+/** Read-only plan gate. Pre-cutover authored episodes stay in history and are not experience. */
+export async function readAuthoredStoryGate(
+  sql: SqlClient,
+  owner: string,
+  worldId: string,
+): Promise<AuthoredStoryGate | undefined> {
+  const planRow = (
+    await sql.query(
+      'SELECT document,runtime_cutover_at FROM parallel_life.publication_story_plans WHERE world_id=$1 AND owner_id=$2',
+      [worldId, owner],
+    )
+  ).rows[0];
+  if (!planRow?.document) return undefined;
+  const plan = planRow.document as AuthoredStoryPlan;
+  if (!Array.isArray(plan.nodes) || !plan.nodes.length) return undefined;
+  if (
+    plan.nodes.some((node) => node.intent?.kind !== 'editorial_only') &&
+    !plan.timeline?.stages?.length
+  )
+    throw new Error('INVALID_AUTHORED_STORY_PLAN');
+  const cutover = new Date(planRow.runtime_cutover_at).toISOString();
+  const episodeRows = (
+    await sql.query(
+      `SELECT o->>'authoredEventKey' node_key,ep.document->>'status' status,
+        jsonb_array_length(COALESCE(ep.document->'sourceEventIds','[]')) source_count,
+        EXISTS(SELECT 1 FROM parallel_life.agent_episode_outcomes x
+          WHERE x.world_id=ep.world_id AND x.owner_id=ep.owner_id AND x.episode_id=ep.id) resolved
+       FROM parallel_life.shared_episodes ep
+       JOIN parallel_life.director_decisions d ON d.world_id=ep.world_id AND d.owner_id=ep.owner_id
+        AND d.id=ep.origin_decision_id
+       CROSS JOIN LATERAL jsonb_array_elements(d.document->'opportunities') o
+       WHERE ep.world_id=$1 AND ep.owner_id=$2 AND o->>'id'=ep.id
+        AND o ? 'authoredEventKey' AND ep.created_at >= $3::timestamptz`,
+      [worldId, owner, cutover],
+    )
+  ).rows;
+  const nodeRows = (
+    await sql.query(
+      `SELECT node_key,status,
+        (source_event_id IS NOT NULL AND source_message_id IS NOT NULL) presented
+       FROM parallel_life.publication_story_nodes
+       WHERE world_id=$1 AND owner_id=$2 AND story_at >= $3::timestamptz`,
+      [worldId, owner, cutover],
+    )
+  ).rows;
+  const states: AuthoredStoryEventState[] = [
+    ...episodeRows.map((row) => ({
+      nodeKey: String(row.node_key),
+      status: ['resolved', 'withdrawn'].includes(row.status)
+        ? (row.status as 'resolved' | 'withdrawn')
+        : row.status === 'active'
+          ? ('active' as const)
+          : ('proposed' as const),
+      presented: Number(row.source_count) > 0 || row.resolved === true,
+      resolved: row.resolved === true,
+    })),
+    ...nodeRows.map((row) => ({
+      nodeKey: String(row.node_key),
+      status:
+        row.status === 'committed'
+          ? ('resolved' as const)
+          : ['declined', 'skipped', 'expired'].includes(row.status)
+            ? ('withdrawn' as const)
+            : ['claimed', 'unknown', 'presented', 'offered'].includes(row.status)
+              ? ('active' as const)
+              : ('proposed' as const),
+      presented: row.presented === true,
+      resolved: row.status === 'committed',
+    })),
+  ];
+  return deriveAuthoredStoryGate(plan, states);
 }
 /** Read-only director evidence. Never initializes a legacy plan or promotes dialogue into a fact. */
 export async function readAuthoredEligibilityInTransaction(
@@ -133,23 +211,55 @@ export async function readAuthoredEligibilityInTransaction(
     playerPlaceId = initial.space.currentPlaceId;
     playerPositionProof = proof(`setting:${world.id}`, 0, initial.time);
   }
-  const occupied = (
+  const planRow = (
     await sql.query(
-      `SELECT o->>'authoredEventKey' key FROM parallel_life.shared_episodes ep
-       JOIN parallel_life.director_decisions d ON d.world_id=ep.world_id AND d.owner_id=ep.owner_id
-        AND d.id=ep.origin_decision_id, LATERAL jsonb_array_elements(d.document->'opportunities') o
-       WHERE ep.world_id=$1 AND ep.owner_id=$2 AND o->>'id'=ep.id
-        AND ep.document->>'status' IN ('proposed','active','withdrawn') AND o ? 'authoredEventKey' ORDER BY key`,
+      'SELECT document,runtime_cutover_at FROM parallel_life.publication_story_plans WHERE world_id=$1 AND owner_id=$2',
       [world.id, ownerId],
     )
-  ).rows;
-  const priorNodes = (
-    await sql.query(
-      `SELECT n.node_key key FROM parallel_life.publication_story_nodes n JOIN parallel_life.publication_story_receipts r ON r.id=n.latest_receipt_id AND r.world_id=n.world_id AND r.owner_id=n.owner_id JOIN parallel_life.legacy_engine_checkpoints m ON m.world_id=n.world_id AND m.owner_id=n.owner_id WHERE n.world_id=$1 AND n.owner_id=$2 AND n.status IN ('presented','offered','committed','declined','skipped','expired')`,
-      [world.id, ownerId],
-    )
-  ).rows;
-  occupied.push(...priorNodes);
+  ).rows[0];
+  let occupied: Record<string, any>[] = [];
+  if (planRow?.document) {
+    const cutover = new Date(planRow.runtime_cutover_at).toISOString();
+    occupied = (
+      await sql.query(
+        `SELECT o->>'authoredEventKey' key FROM parallel_life.shared_episodes ep
+         JOIN parallel_life.director_decisions d ON d.world_id=ep.world_id AND d.owner_id=ep.owner_id
+          AND d.id=ep.origin_decision_id
+         CROSS JOIN LATERAL jsonb_array_elements(d.document->'opportunities') o
+         WHERE ep.world_id=$1 AND ep.owner_id=$2 AND o->>'id'=ep.id
+          AND o ? 'authoredEventKey' AND ep.created_at >= $3::timestamptz
+          AND (ep.document->>'status' IN ('resolved','withdrawn')
+            OR jsonb_array_length(COALESCE(ep.document->'sourceEventIds','[]'))>0)
+         UNION
+         SELECT n.node_key key FROM parallel_life.publication_story_nodes n
+         WHERE n.world_id=$1 AND n.owner_id=$2 AND n.story_at >= $3::timestamptz
+          AND (n.status IN ('committed','declined','skipped','expired')
+            OR (n.source_event_id IS NOT NULL AND n.source_message_id IS NOT NULL))
+         ORDER BY key`,
+        [world.id, ownerId, cutover],
+      )
+    ).rows;
+  } else {
+    // Legacy worlds without a runtime plan retain their old immutable-source proof.
+    occupied = (
+      await sql.query(
+        `SELECT o->>'authoredEventKey' key FROM parallel_life.shared_episodes ep
+         JOIN parallel_life.director_decisions d ON d.world_id=ep.world_id AND d.owner_id=ep.owner_id
+          AND d.id=ep.origin_decision_id, LATERAL jsonb_array_elements(d.document->'opportunities') o
+         WHERE ep.world_id=$1 AND ep.owner_id=$2 AND o->>'id'=ep.id
+          AND ep.document->>'status' IN ('proposed','active','withdrawn') AND o ? 'authoredEventKey' ORDER BY key`,
+        [world.id, ownerId],
+      )
+    ).rows;
+    occupied.push(
+      ...(
+        await sql.query(
+          `SELECT n.node_key key FROM parallel_life.publication_story_nodes n JOIN parallel_life.publication_story_receipts r ON r.id=n.latest_receipt_id AND r.world_id=n.world_id AND r.owner_id=n.owner_id JOIN parallel_life.legacy_engine_checkpoints m ON m.world_id=n.world_id AND m.owner_id=n.owner_id WHERE n.world_id=$1 AND n.owner_id=$2 AND n.status IN ('presented','offered','committed','declined','skipped','expired')`,
+          [world.id, ownerId],
+        )
+      ).rows,
+    );
+  }
   const nodeProgress = await readEpisodeOutcomeProgress(sql, ownerId, catalog);
   return {
     catalog,
