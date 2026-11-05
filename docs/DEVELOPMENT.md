@@ -3682,4 +3682,6 @@ EVENT-STAGE-CONTINUITY-51收口记录：95baa4c5接续认证旧任务，b645ba88
 
 PROGRESSION-IDLE-53接续：原档克隆 `parallel_life_prog53_clean` 上强制复盘生成具体外部生活事项（校园剪辑项目，10点前决定，自付200元订阅费，影响下月房租），青青实际回信“想接，先联系课程组长确认”；不是关心/等待。另修导演快照 `planReview.goalId:null` 被拒、空转计划2故事小时冷却、NPC上下文的派生conversationProgress最后让步。尚未切3218原档，不把克隆证据当原档通过。
 
-|PROGRESSION-INTEGRITY-54|[ ] 待验收（check/PG/build通过，待3218原档验收）|root-progression54唯一集成|main 09227d2b；director-agent-model.ts、npc-model-protocol.ts、agent-schedule-collectors.ts、actor-opportunity-context.ts、对应单测及director-runtime真实PG测试/专属报告；不动他人记忆/素材/3219/生产|收口53重复付费回落、机会与事实混淆、关键词删消息、跨事项冷却；保留可选具体即兴机会及原NPC自主决定，复用既有协议/计划复查记录，无新增DB字段；必要PG/真实模型验收后独立构建串行更新3218。|
+|PROGRESSION-INTEGRITY-54|[ ] 待验收（四处已修、3218已更新；新导演自然样本待验）|root-progression54唯一集成|main 09227d2b；director-agent-model.ts、npc-model-protocol.ts、agent-schedule-collectors.ts、actor-opportunity-context.ts、对应单测及director-runtime真实PG测试/专属报告；不动他人记忆/素材/3219/生产|收口53重复付费回落、机会与事实混淆、关键词删消息、跨事项冷却；保留可选具体即兴机会及原NPC自主决定，复用既有协议/计划复查记录，无新增DB字段；必要PG/真实模型验收后独立构建串行更新3218。|
+
+PROGRESSION-INTEGRITY-54：业务24989116，check4265、真实PG22、build通过，3218 build-progression54/队列/主动worker已更新。原档一次正常真实NPC调用v1337→1338 committed，无重买、无强制导演。原53样本实际普通director-wire-v15、结果证据0；新导演样本和持续实际结果未验证。详见[54报告](task-reports/PROGRESSION-INTEGRITY-54.md)。

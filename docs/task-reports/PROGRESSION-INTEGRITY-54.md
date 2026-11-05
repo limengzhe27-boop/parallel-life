@@ -12,3 +12,7 @@
 原档读取：04:02刘胜男事项实际 rawProtocol=director-wire-v15、rawKind=null、cause=null；这条具体机会由普通导演协议产出，不能作为新 idle-beat 旁路的成功样本。共享事项仍active，result_count=0、evidence_count=0。新统一输入对原档v1337离线组包通过，未提高限额。
 
 本地切换、原档一次正常有界验收及其证据待补记。未做真实模型重复试探、手工补消息、补事实或清空旧状态。
+
+本地验收补记：业务提交 `24989116`，3218 已切换 `.local/build-progression54`（BUILD_ID `s99ZlrX_v2hd4cWoqxaeo`）。web 50122 / queue 50123 / proactive 50228，使用原克隆库，关键源码 SHA 对齐。切换前已核对 NPC 和导演无活跃 request_sent / response_received；没有中断或重买付费调用。仅回收已确认死亡且属于此前自有队列进程的本地锁。三个进程独立保留。
+
+原档一次正常有界 advance：`2fb97a4a…`，v1337→v1338；真实文字模型只选中一位NPC（李之之），一次调用，原内核保存 `turn.resolved`，attempt `0a2363bf…` committed。该轮没有导演调用，未强制生成新机会或补发来信。真实导演语义输出仍待自然触发验证；现有刘胜男事项没有完成回执，不将来信当实际完成。无3219、无Vercel、无数据库迁移。
