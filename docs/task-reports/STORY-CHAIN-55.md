@@ -181,7 +181,7 @@ occupied =
 2. **真实开场/第 1–2 幕**：opening、第 1 幕 node_1/node_2、第 2 幕 node_4 均已真实呈现；第 2 幕剩余 `event_277.../node_5` 已进入窗口，玩家回复与事件结果尚未验收。
 3. **事件终结**：本批仍以“呈现”推进当前幕；非邀请类 `director_event` 的 `resolved` 语义、NPC 拒绝/quiet 后如何不阻塞剧情，仍需按玩家决定/实际结果补齐。
 4. **本地运行**：3218 与 worker 均已切主目录构建并 health 200；旧 `.local/build-story55` 不再作为当前入口。
-5. **生产**：0127–0130 尚未应用到生产 Supabase；未推送/未部署 Vercel。不能把本地迁移当线上完成。
+5. **生产**：0127–0130 尚未应用。生产目标（`.local/158-acceptance-production.env`）是 Neon `neondb`，当前 schema 只到 `0104_agent_plan_reviews.sql`，`parallel_life.worlds` 为 0 行，尚不是可验收的线上故事环境。Vercel CLI `whoami` 返回 `Not authorized`，没有可用的 `VERCEL_TOKEN`；同时 `main` 比 `origin/main`  ahead 334 个提交，直接 push 会把其他人的社交/实验提交一起部署，不能作为本任务单独发布。生产发布需要先确认目标环境和统一发布范围。
 
 ## 5. 最终提交
 
