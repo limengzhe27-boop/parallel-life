@@ -32,3 +32,11 @@
 
 - 同一开场里舒雅婷、青青各发了两次近乎相同的消息；李之之有一条「自拍已经准备好……等你有空再发照片」的准汇报。已登记 `NPC-OPENING-DUPLICATE-64`，下一步做提交前去重。
 - 未做 Vercel/生产。
+
+## 复验发现（同日）
+
+v8 世界 `f37e458f` 的开场仍然串线：刘胜男说「邀请你本周末和我一起见我父亲」，林白语只说「家里的事」。
+
+原因：epoch 2 的世界在 `advanceOpening` 里先走 `agentAdvance.advanceIfEnabled`，开场由 agent runtime 的 story-plan 节点驱动，**不会调用** `planPublicationOpening`；上面的 openingLine 修复只覆盖 legacy 开场路径。因此本任务不能标完成。
+
+下一步：在 agent runtime 的开场节点/机会投影里做同样的按角色归属（把 opening event 拆成每个 actor 的 brief，或把 actor 的 openingLine 注入 `presentationContext`），再用真实模型开局验证。
