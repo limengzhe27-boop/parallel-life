@@ -1181,8 +1181,37 @@ function transport(value: unknown, convertParameters = true): unknown {
 }
 
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
+function isInitialPositionWork(context: AgentValidationContext): boolean {
+  if (context.input.origin !== 'wake') return false;
+  try {
+    const wake = JSON.parse(context.input.text) as { type?: unknown; candidateId?: unknown };
+    return (
+      wake.type === 'npc_own_condition_ready' &&
+      typeof wake.candidateId === 'string' &&
+      wake.candidateId.startsWith('actor_local:initial_position:')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
+  // Initial placement is an internal spatial completion, not a chat turn. Keep the
+  // confirmed position but never project a spontaneous location report to the player.
+  if (isInitialPositionWork(context)) {
+    const wire = raw as { statements?: unknown; executions?: unknown };
+    const establishesPosition =
+      Array.isArray(wire.executions) &&
+      wire.executions.some(
+        (execution) =>
+          !!execution &&
+          typeof execution === 'object' &&
+          (execution as { action?: { capability?: unknown } }).action?.capability ===
+            'position.establish',
+      );
+    if (establishesPosition && Array.isArray(wire.statements)) wire.statements = [];
+  }
   if ('protocol' in raw && raw.protocol === SCENE_NPC_WIRE_PROTOCOL) {
     const v = raw as Record<string, unknown>;
     const co = (context as AgentValidationContext & { sceneReplyContext?: { sceneId: string } })

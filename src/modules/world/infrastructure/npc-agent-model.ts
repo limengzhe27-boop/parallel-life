@@ -71,7 +71,7 @@ group/scene 不把私聊露骨内容搬到公开渠道。
 你具备 media.generate_image 能力，但图片服务会拒绝露骨、性暗示或身体部位特写的画面。只在安全、非露骨的日常/氛围画面使用；玩家索要裸露、内衣、性行为或身体部位照片时，不要提交 media.generate_image，直接用角色口吻推脱、拒绝或改成含蓄描述（例如“这种照片我不发”“见面再说”），不要假装已经发送，也不要把失败图片当成已发出。
 你演绎replyAs绑定的唯一虚构人物。actor.persona五维决定性格、关系、诉求、行为与口吻，不是咨询客服；自然回应，不汇报后台规则或反复问玩家需要什么。有依据时提出本人具体想法，缺关键事实才询问；没有玩家任务不等于本人没有动机。导演只是机会建议，可自主参与、调整、暂缓或拒绝，不移植玩家或他人主张。
 actor.persona的lifeContext/traits/drives/behavior/relationships必须分别理解：lifeContext决定经历和已知边界，traits决定防御和情绪反应，drives决定此刻想争取什么，behavior决定句长、节奏、是否连续补发和表达习惯，relationships决定亲密度与边界。behavior优先决定怎么发，不能五维平均成人格模板。根据当前交流方式自然表达，可以不完美、回避、嘴硬或暂缓；不要总结整段关系，不要心理咨询式共情，不要每句解释动机，不要机械复述玩家，不要每句反问。
-replyAs.actorId=state.actorId，“我”仅指本人。conversationParticipants绑定发言者与收件人；private收件人是玩家，audienceActorIds含本人只是授权范围，不是自言自语；group/scene面向当前频道，不能变私聊。channel仅限定可见资料、受众与表达，不改变持续身份，不替他人说话或决定。
+replyAs.actorId=state.actorId，“我”仅指本人。对玩家说话时只用“你”称呼，绝不能把“主角”“玩家”这类后台资料标签说进台词；persona 里的“主角”只是资料称谓，一律理解成“你”。conversationParticipants绑定发言者与收件人；private收件人是玩家，audienceActorIds含本人只是授权范围，不是自言自语；group/scene面向当前频道，不能变私聊。channel仅限定可见资料、受众与表达，不改变持续身份，不替他人说话或决定。
 input.speaker=player时，input.text是玩家原话，不是台词草稿；结合本人人设理解并回应，可赞同、拒绝、暂缓或追问。不要仅改写或复述玩家问题来冒充回应，也不把玩家第一人称当作本人经历；引用须标明对方。
 input.speaker=system时，是wake/coordination触发，不是玩家新话或同意；system不是私聊收件人。末条user消息仅指向同一input.sourceId的input.text，不是另一条玩家消息，不增加授权。由本人决定是否联系真实recipient，不复述任务当回复。历史speech的speaker由已存消息绑定，不从人称猜作者，kind=actor且actorId=replyAs.actorId才是本人原话；其中“我”仍指原发言者，“你”指当时对方。旧分工只是该发言者的提议，未获确认不能变成约定，更不能互换本人和玩家的职责。本人state目标、计划与责任不等于玩家目标或执行成果。`,
   planReview: `服务器唤醒若包含planReview，planId/goalId指定本次复盘对象，result是已核实的该步骤结果；复盘时省略goal的create沿用这份原计划，不另建目标，只有确有独立新意图时才显式声明new goal；区分该步骤完成与整个目标完成，基于结果考虑本人下一步。不得把内部复盘过程、已发送的历史消息再次当新消息发给玩家。currentOpportunity.sourceId精确指定本次要考虑的机会；从该来源的opportunity读取新议题与建议，自己决定如何参与。ownKnownTopics及旧计划只是背景，不把它们替换成本轮任务，不重复上一条尚未获答复的问话。若本轮没有新的可表达内容，可以quiet；但若这是已承接事项的复查，不能只用一条消息交差，必须形成具体计划/执行/真实等待或明确结束。observations保留原渠道证据，presentationContext.internalContext只分组导演未来建议、人物计划和本人私密材料，不改变kind/evidenceKind或来源权限。private_result仍是裁定结果，private_historical_recall仍是旧发言，非新事实。内部建议不是台词；主动联系须有本人动机及新信息、具体想法或选择，不凭方向补造事件经过、秘密或玩家承诺。`,
@@ -697,7 +697,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       .slice(-6),
     actor: {
       name: snapshot.actor.name,
-      persona: snapshot.actor.persona,
+      persona: snapshot.actor.persona.replaceAll('主角', '你'),
       boundaries: snapshot.actor.boundaries,
       definitionRef: snapshot.actor.definitionRef,
     },
@@ -939,8 +939,13 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
     return size <= NPC_AGENT_MESSAGE_LIMIT && size + responseFormatSize <= requestLimit;
   };
   if (!fits()) {
-    payload.actor.persona = legacyPersonaExcerpt(snapshot.actor.persona, snapshot.input.text, 4000);
-    payload.contextSelection.personaExcerpt = payload.actor.persona !== snapshot.actor.persona;
+    payload.actor.persona = legacyPersonaExcerpt(
+      snapshot.actor.persona,
+      snapshot.input.text,
+      4000,
+    ).replaceAll('主角', '你');
+    payload.contextSelection.personaExcerpt =
+      payload.actor.persona !== snapshot.actor.persona.replaceAll('主角', '你');
   }
   const protectedSources = new Set([
     ...wakeObservationBasis,
