@@ -1181,6 +1181,19 @@ function transport(value: unknown, convertParameters = true): unknown {
 }
 
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
+/** A wake has no player turn. Its speech must be sendable to the player, not a private plan. */
+function isPlayerFacingWakeStatement(text: string): boolean {
+  const value = text.trim();
+  if (!value) return false;
+  if (
+    /目前我只能|该做的已经|再作打算|也是个信号|先专心|不会再去催|等他的反应|我只能等|先推进我能管控|等不到你确切/.test(
+      value,
+    )
+  )
+    return false;
+  return value.includes('你') || value.length <= 40;
+}
+
 function isInitialPositionWork(context: AgentValidationContext): boolean {
   if (context.input.origin !== 'wake') return false;
   try {
@@ -1199,18 +1212,29 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   if (!raw || typeof raw !== 'object') return raw;
   // Initial placement is an internal spatial completion, not a chat turn. Keep the
   // confirmed position but never project a spontaneous location report to the player.
-  if (isInitialPositionWork(context)) {
+  if (context.input.origin === 'wake') {
     const wire = raw as { statements?: unknown; executions?: unknown };
-    const establishesPosition =
-      Array.isArray(wire.executions) &&
-      wire.executions.some(
-        (execution) =>
-          !!execution &&
-          typeof execution === 'object' &&
-          (execution as { action?: { capability?: unknown } }).action?.capability ===
-            'position.establish',
-      );
-    if (establishesPosition && Array.isArray(wire.statements)) wire.statements = [];
+    if (isInitialPositionWork(context)) {
+      const establishesPosition =
+        Array.isArray(wire.executions) &&
+        wire.executions.some(
+          (execution) =>
+            !!execution &&
+            typeof execution === 'object' &&
+            (execution as { action?: { capability?: unknown } }).action?.capability ===
+              'position.establish',
+        );
+      if (establishesPosition && Array.isArray(wire.statements)) wire.statements = [];
+    }
+    // A wake is not a player turn. Drop self-directed planning/reporting that the
+    // model sometimes writes as if it were a chat bubble. Sticker-only rows stay.
+    if (Array.isArray(wire.statements))
+      wire.statements = wire.statements.filter((statement) => {
+        if (!statement || typeof statement !== 'object') return true;
+        const item = statement as { text?: unknown; stickerId?: unknown };
+        if (typeof item.text !== 'string' || !item.text.trim()) return true;
+        return isPlayerFacingWakeStatement(item.text);
+      });
   }
   if ('protocol' in raw && raw.protocol === SCENE_NPC_WIRE_PROTOCOL) {
     const v = raw as Record<string, unknown>;

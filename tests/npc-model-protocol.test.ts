@@ -1592,3 +1592,46 @@ test('current omitted fixed-null changes preserve decoding and do not authorize 
     );
   }
 });
+
+test('wake statements are player-facing bubbles, never private planning monologue', () => {
+  const { c, wire } = fixture();
+  c.input = {
+    sourceId: 'input',
+    origin: 'wake',
+    text: JSON.stringify({
+      type: 'npc_own_condition_ready',
+      candidateId: 'observation:test',
+      source: 'observation',
+      basisSourceIds: ['input'],
+      nudges: [],
+    }),
+  };
+  const statement = (text: string) => ({
+    text,
+    stickerId: null,
+    dependsOnActionIds: [],
+    requestsPlayerReply: null,
+    questionForResponsibilityId: null,
+  });
+  const decoded = (text: string) =>
+    decodeNpcWire(c, {
+      protocol: 'npc-wire-v19',
+      statements: [statement(text)],
+      executions: [],
+      changes: null,
+    }) as { statements: Array<{ text: string }> };
+  assert.deepEqual(
+    decoded(
+      '我的自拍照片邀约已经顺利发出，目前我只能等他的反应。接下来，没有他主动回应，我不会再去催进展，该做的已经做到——他会不会主动来找我，也是个信号。现在就专心忙工作，有动静我再作打算。',
+    ).statements,
+    [],
+  );
+  assert.deepEqual(
+    decoded('今晚办公室还没散场，你要不要顺路过来一趟？').statements.map((s) => s.text),
+    ['今晚办公室还没散场，你要不要顺路过来一趟？'],
+  );
+  assert.deepEqual(
+    decoded('我到了。').statements.map((s) => s.text),
+    ['我到了。'],
+  );
+});
