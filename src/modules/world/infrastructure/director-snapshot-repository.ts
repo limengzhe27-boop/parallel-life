@@ -1189,7 +1189,7 @@ export class PostgresDirectorSnapshotRepository {
       try {
         authoredStory =
           authored?.catalog.source && !input.nativeTurn
-            ? await readAuthoredStoryGate(sql, owner, h.world.id)
+            ? await readAuthoredStoryGate(sql, owner, h.world.id, authored.catalog)
             : undefined;
       } catch {
         fail('INVALID_AUTHORED_STORY_PLAN');

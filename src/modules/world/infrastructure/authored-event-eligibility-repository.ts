@@ -47,6 +47,7 @@ export async function readAuthoredStoryGate(
   sql: SqlClient,
   owner: string,
   worldId: string,
+  catalog: Pick<AuthoredAgentMaterialCatalog, 'openingEventKey' | 'timeline'>,
 ): Promise<AuthoredStoryGate | undefined> {
   const planRow = (
     await sql.query(
@@ -116,7 +117,10 @@ export async function readAuthoredStoryGate(
       resolved: row.status === 'committed',
     })),
   ];
-  return deriveAuthoredStoryGate(plan, states);
+  // Older runtime plans inferred an opening from the first director event. An
+  // authored timeline already defines its own entry, even with no opening.
+  const openingEventKey = catalog.timeline ? catalog.openingEventKey : plan.openingEventKey;
+  return deriveAuthoredStoryGate({ ...plan, openingEventKey }, states);
 }
 /** Read-only director evidence. Never initializes a legacy plan or promotes dialogue into a fact. */
 export async function readAuthoredEligibilityInTransaction(

@@ -790,7 +790,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       )
         fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
       if (s.authoredStory !== undefined) {
-        const story = await readAuthoredStoryGate(sql, owner, world.id);
+        const story = await readAuthoredStoryGate(sql, owner, world.id, qualification.catalog);
         if (!equal(story ?? null, s.authoredStory)) fail('DIRECTOR_AUTHORED_STORY_CONFLICT');
       }
     } else if (s.authoredEligibility !== undefined || s.occupiedAuthoredEventKeys !== undefined)

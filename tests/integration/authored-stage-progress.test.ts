@@ -30,6 +30,10 @@ import {
   WorldDirectorAgentModel,
   parseDirectorDecision,
 } from '../../src/modules/world/infrastructure/director-agent-model.ts';
+import {
+  DIRECTOR_WIRE_PROTOCOL,
+  directorWireCatalog,
+} from '../../src/modules/world/infrastructure/director-model-protocol.ts';
 import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
 import { runNpcAgent } from '../../src/modules/world/application/run-agent.ts';
 import { PostgresNpcAgentKernel } from '../../src/modules/world/infrastructure/npc-agent-kernel.ts';
@@ -136,9 +140,13 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
     excludeIfResolved: [],
     alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
   });
-  async function fixture(
-    options: { completion?: boolean; response?: 'accepted' | 'declined'; stageRule?: boolean } = {},
-  ) {
+  type FixtureOptions = {
+    completion?: boolean;
+    response?: 'accepted' | 'declined';
+    stageRule?: boolean;
+    opening?: 'authored' | 'legacy-inferred';
+  };
+  async function prepareFixture(options: FixtureOptions = {}) {
     const content = structuredClone(base);
     content.history = [];
     content.initialKnowledge = [];
@@ -215,6 +223,15 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
     ];
     if (options.completion === false) delete content.timeline.stages[0].completion;
     delete content.openingEventKey;
+    if (options.opening === 'authored') {
+      content.openingEventKey = 'follow';
+      content.candidates[1].timeline = timeline('first');
+      content.timeline.stages.pop();
+    }
+    if (options.opening === 'legacy-inferred') {
+      delete content.timeline;
+      for (const candidate of content.candidates) delete candidate.timeline;
+    }
     const parsed = PublishedWorldContentSchema.parse(content);
     const work = await works.create(staff, {
       commandId: randomUUID(),
@@ -257,37 +274,56 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
       candidates: [],
       blockers: [],
     });
+    return { owner, id, world, snapshot, work, parsed, at };
+  }
+  async function fixture(options: FixtureOptions = {}) {
+    const prepared = await prepareFixture(options);
+    const { owner, id, world, snapshot } = prepared;
+    assert.equal(snapshot.authoredStory?.openingEventKey, null);
+    assert.deepEqual(snapshot.deliberationWindow?.nodeKeys, ['offer']);
     let calls = 0;
     await runDirectorAgent(
       {
         attempts: directors,
         parse: parseDirectorDecision,
         model: new WorldDirectorAgentModel({
-          async complete(messages) {
+          async complete() {
             calls++;
-            const p = JSON.parse(messages[1]!.content);
-            const material = p.authoredMaterials.materials.find(
-              (m: { ref: { nodeKey: string } }) => m.ref.nodeKey === 'offer',
+            const catalog = directorWireCatalog(snapshot);
+            const [event] = catalog.events;
+            assert.ok(event);
+            const actorTasks = Object.fromEntries(
+              catalog.actors.map((actor) => [
+                actor.ref,
+                actor.actorId === world.actors[0]!.id
+                  ? {
+                      topic: '商量一次安排',
+                      personalObjective: '了解对方是否愿意参加',
+                      proposedInteraction: '询问是否愿意，尊重对方决定。',
+                    }
+                  : null,
+              ]),
             );
             return JSON.stringify({
-              mode: 'bounded_opportunity',
-              selectedCandidateIds: [],
-              deferred: [],
-              nudges: [],
-              opportunities: [
-                {
-                  id: randomUUID(),
-                  title: '询问安排机会',
-                  description: '人物可自行决定怎样邀请。',
-                  playerImpact: '可以拒绝。',
-                  participantActorIds: [world.actors[0]!.id],
-                  placeIds: [],
-                  activity: 'conversation',
-                  basisSourceIds: [material.sourceId],
-                  authoredEventKey: 'offer',
+              protocol: DIRECTOR_WIRE_PROTOCOL,
+              openingContext: null,
+              candidates: [],
+              authoredChoices: {
+                [event.ref]: {
+                  kind: 'consider',
+                  opportunity: {
+                    title: '询问安排机会',
+                    description: '人物可自行决定怎样邀请。',
+                    playerImpact: '可以拒绝。',
+                    places: [],
+                    activity: 'conversation',
+                    actorTasks,
+                    actorTopics: null,
+                  },
                 },
-              ],
-              audit: { reason: '合成数据库协议验收', basisSourceIds: [] },
+              },
+              opportunities: [],
+              audit: { reason: '合成数据库协议验收', sourceRefs: [] },
             });
           },
         }),
@@ -310,7 +346,7 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
       readPendingEpisodeRequestsInTransaction(sql, owner, { worldId: id, engineEpoch: 2 }),
     );
     assert.equal(requests.length, 1);
-    return { owner, id, world, request: requests[0]!, work, parsed, at };
+    return { ...prepared, request: requests[0]! };
   }
   type F = Awaited<ReturnType<typeof fixture>>;
   async function view(f: F, owner = f.owner) {
@@ -431,6 +467,14 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
     const appointment = world.appointments.find((a) => a.title === 'PG_STAGE_INVITATION');
     assert.ok(appointment);
     return { world, appointment };
+  }
+
+  for (const opening of ['authored', 'legacy-inferred'] as const) {
+    await t.test(`keeps the ${opening} opening eligible`, async () => {
+      const { snapshot } = await prepareFixture({ opening });
+      assert.equal(snapshot.authoredStory?.openingEventKey, 'follow');
+      assert.deepEqual(snapshot.deliberationWindow?.nodeKeys, ['follow']);
+    });
   }
 
   await t.test(
