@@ -172,3 +172,29 @@ test('5xx or errors inside an accepted stream are not promoted to known HTTP rej
     },
   );
 });
+
+test('DeepSeek JSON schema stays in the same system message as the task rules', async () => {
+  const schema = { type: 'object', properties: { ok: { type: 'boolean' } } };
+  const model = new YibuTextModel(
+    { ...config, baseUrl: 'https://api.deepseek.com', deepSeekJson: true, timeoutMs: 1000 },
+    async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      assert.deepEqual(body.response_format, { type: 'json_object' });
+      assert.deepEqual(body.messages, [
+        {
+          role: 'system',
+          content: 'Task rules\n输出完整 JSON，遵守这个结构：' + JSON.stringify(schema),
+        },
+        ...messages,
+      ]);
+      return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] });
+    },
+  );
+  const result = await model.complete(
+    [{ role: 'system', content: 'Task rules' }, ...messages],
+    undefined,
+    undefined,
+    { format: 'json_schema', name: 'fixture', schema, strict: true },
+  );
+  assert.equal(result, '{"ok":true}');
+});

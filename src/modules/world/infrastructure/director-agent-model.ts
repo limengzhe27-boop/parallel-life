@@ -48,7 +48,7 @@ import { authoredSourceExcerpt } from '../domain/authored-source-excerpt.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
-export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v49-unified-opportunities';
+export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v50-authored-entry';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
 const Output = z.strictObject({
@@ -365,7 +365,7 @@ Evidence and knowledge: persona, lifeContext and director instructions authorize
 节奏与持续推进：同时统筹现有选择、责任、计划、结果和未演的合格事件；等待只约束对应事项，不串行锁住整个事件库。尚未呈现的作者开场有可演内容，不必等玩家先发话或新结果；多入口可给多个相关人物各自不同的任务，不必等一人谈完，也不强制全员发消息。历史对话不能重发当新变化。历史未答的闲聊不等于正式等待责任，不能阻止新机会；等待仅作用于已向玩家提出的那项请求；用questions及其实际来源确认请求已发出，用decisions/resolution确认玩家选择。无关闲聊未答、其他人物的请求及旧continuation不能成为新事件的全局前提。同一请求无新依据时不能换NPC或新建同主题机会重复确认；有真实新信息、安排变化或本人合理调整才考虑后续。拒绝、暂缓、沉默不同，不能把沉默当同意、失约或自动扣好感。
 quiet是正常决定，保持安静是合法判断：说明本轮具体依据，不复制示例。此前quiet只暂缓当时判断，不等于事件完成或人物永久拒绝；最新quiet是本人反馈，应理解具体理由并调整或转向其它机会，不原样重复派同一任务。一人的quiet不冻结其他人的合法工作。轻量检查窗口不证明玩家无聊，不要求造重大事故、惩罚、无依据危机或紧迫期限；When everyone waits, consider an independent concrete proposal; quiet remains legal when no suitable opportunity exists. 等待只约束对应事项，不冻结人物其他生活。focus是服务端确认的当前交谈渠道和对象，阅读/思考仍可属于交谈；conversationWithoutTarget不能用最近消息猜对象。优先承接深入互动，其余人物仍可处理自身事项；注意力不等于位置或承诺。
 
-作者材料：periodic_review是既有周期内对当前可演机会的再判断，不是新事实或原调用重试；过去defer不表示事件已发生或永久结束。authoredMaterials只含本轮deliberationWindow，窗口外事件不评估、不defer、不消耗资格。editorialIntent/script/sceneText/参考台词/预期结局是创作意图；prerequisites/conditions/timeline是待核对前提。participantRefs只映射人物，不赋予知情或实际参与。authoredEligibility.status=eligible仅表示已声明的结构化检查通过，不证明正文中未结构化的前提已发生；currentStage是从真实呈现/参与/结果投影的当前阶段，entry_not_presented时只能考虑入场步骤，不能安排接受、到场或剧情高潮后的反应。正文前提仍需从实际结果/明确玩家决定核对；无证据则未确认，不能把eligible当证据。仅eligible且不在occupiedAuthoredEventKeys的事件可提出机会；不得用emergent绕过blocked/expired前提。作者来源只用于导演审计/作者机会，不进入nudge或作为NPC已知原稿秘密的证明。episodes是协调事项，title/description仍是待演意图，不是已经发生的事实。episodes.status=active只说明已有NPC承接；sourceEventIds可能只证明考虑或发言提交，不能据此认定出差、见面、亲密等原稿步骤发生。实际步骤须看行动结果、玩家决定与明确证据。authoredEligibility=eligible且不在occupiedAuthoredEventKeys的节点尚无实际呈现凭据；原稿写“某人邀请/委托”不证明已经发出请求。若认为当前正在等待这次邀请，要从本人questions/责任及实际来源找到已提出的请求，不能从原稿倒推出已问过。对于已合格的原稿，先区分此刻能发起的互动与接受后才能发生的后续：邀请尚未提出时，可以把邀请机会交给本人考虑；不能要求玩家先接受一个尚未发出的邀请。原稿明确要求已接受、已到达或已完成的后续阶段仍须等对应证据，不得提前演。某个事件挂起只限制其依赖步骤，不要求所有事件依次完成；按各人物实际请求、决定和计划协调其他合格事件。
+作者材料：periodic_review是既有周期内对当前可演机会的再判断，不是新事实或原调用重试；过去defer不表示事件已发生或永久结束。authoredMaterials只含本轮deliberationWindow，窗口外事件不评估、不defer、不消耗资格。editorialIntent/script/sceneText/参考台词/预期结局是创作意图；prerequisites/conditions/timeline是待核对前提。participantRefs只映射人物，不赋予知情或实际参与。authoredEligibility.status=eligible仅表示已声明的结构化检查通过，不证明正文中未结构化的前提已发生；currentStage是从真实呈现/参与/结果投影的当前阶段，entry_not_presented时只能考虑入场步骤，不能安排接受、到场或剧情高潮后的反应。正文前提仍需从实际结果/明确玩家决定核对；无证据则未确认，不能把eligible当证据。wireCatalog.events 是本轮可选作者入口的授权目录；其中 eligible 且未占用的 entry_not_presented 节点可以从入场动作发起。bootstrap 的 openingEventKey=null 仅表示作者未指定独立开场，不阻塞已进入目录的第一幕。电话、微信和日程提议不要求人物先有现场位置。仅eligible且不在occupiedAuthoredEventKeys的事件可提出机会；不得用emergent绕过blocked/expired前提。作者来源只用于导演审计/作者机会，不进入nudge或作为NPC已知原稿秘密的证明。episodes是协调事项，title/description仍是待演意图，不是已经发生的事实。episodes.status=active只说明已有NPC承接；sourceEventIds可能只证明考虑或发言提交，不能据此认定出差、见面、亲密等原稿步骤发生。实际步骤须看行动结果、玩家决定与明确证据。authoredEligibility=eligible且不在occupiedAuthoredEventKeys的节点尚无实际呈现凭据；原稿写“某人邀请/委托”不证明已经发出请求。若认为当前正在等待这次邀请，要从本人questions/责任及实际来源找到已提出的请求，不能从原稿倒推出已问过。对于已合格的原稿，先区分此刻能发起的互动与接受后才能发生的后续：邀请尚未提出时，可以把邀请机会交给本人考虑；不能要求玩家先接受一个尚未发出的邀请。原稿明确要求已接受、已到达或已完成的后续阶段仍须等对应证据，不得提前演。某个事件挂起只限制其依赖步骤，不要求所有事件依次完成；按各人物实际请求、决定和计划协调其他合格事件。
 evaluationCause=bootstrap仅允许一次初始协调，不重置开场或覆盖已有回应；有合格作者opening时本轮只考虑开场，不能顶层emergent另开开场。authored_eligibility表示首次合格或有内核认证的相关新信息、决定、计划、结果而可重评；结合当前实际状态判断，仍可quiet，不强迫人物或玩家。
 
 开场信息归属与安排互动是独立判断。有openingInformationCatalog时，先逐片段确认作者明确赋予谁的初始虚构信息/请求。第三人称写“某人邀请/让主角来”可确定发起者本人的请求认知，无需先有运行消息或Persona重复；但不证明消息已实际发出、主角同意、任何人到达或内容外部真实。先核对原片段和服务器人物身份映射，不自选新身份。无论当下是否互动、是否等待玩家，都不能代替归属判断。
@@ -397,8 +397,19 @@ const GLOBAL_OUTPUT = `
 - 不输出authoredChoices、events、mode或对未选节点逐项defer。未选择保持未演，不表示前提失败、人物拒绝或事件结束。
 - candidates逐项只处理已有candidate ref，select可带原nudge枚举，defer说明具体理由；没有candidate时用[]，不因此停用作者事件库。
 - audit={reason:本轮实际协调判断,sourceRefs:[已有来源引用]}。解释此刻为什么选择这些入口、人物的最新反馈怎样影响安排，或为何所有入口都不合适。保持安静必须依据实际状态，不从原稿推定某个请求已经发出。`;
-const systemFor = (snapshot: DirectorSnapshot) =>
-  SYSTEM + (snapshot.deliberationWindow?.version === 2 ? GLOBAL_OUTPUT : DIRECTED_OUTPUT);
+function systemFor(snapshot: DirectorSnapshot) {
+  const global = snapshot.deliberationWindow?.version === 2;
+  const formatExample = global
+    ? `{"protocol":"${DIRECTOR_SELECTION_WIRE_PROTOCOL}","candidates":[],"opportunities":[],"audit":{"reason":"没有需要协调的事项","sourceRefs":[]}}`
+    : `{"protocol":"${DIRECTOR_WIRE_PROTOCOL}","authoredChoices":{},"candidates":[],"opportunities":[],"audit":{"reason":"没有需要协调的事项","sourceRefs":[]}}`;
+  return (
+    SYSTEM +
+    (global ? GLOBAL_OUTPUT : DIRECTED_OUTPUT) +
+    '\n空目录且确实无事可协调时的完整 JSON 示例（只演示结构，不是本轮决定）：' +
+    formatExample +
+    '。有实际目录或开场审核时必须按本轮 schema 填写对应字段。所有顶层字段填写完毕后再关闭根对象。'
+  );
+}
 function evaluationCauseView(snapshot: DirectorSnapshot) {
   const c = snapshot.evaluationCause;
   if (!c) return undefined;

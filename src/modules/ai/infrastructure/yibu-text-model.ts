@@ -90,10 +90,15 @@ export class YibuTextModel implements TextModel {
         ...(this.config.reasoningEffort ? { reasoning_effort: this.config.reasoningEffort } : {}),
       };
     const schema = output?.format === 'json_schema' ? JSON.stringify(output.schema) : null;
+    const [first, ...rest] = messages;
+    const schemaInstruction = schema && '输出完整 JSON，遵守这个结构：' + schema;
+    const providerMessages = schemaInstruction
+      ? first?.role === 'system' && typeof first.content === 'string'
+        ? [{ ...first, content: first.content + '\n' + schemaInstruction }, ...rest]
+        : [{ role: 'system', content: schemaInstruction }, ...messages]
+      : messages;
     return {
-      messages: schema
-        ? [{ role: 'system', content: '输出 JSON，遵守这个结构：' + schema }, ...messages]
-        : messages,
+      messages: providerMessages,
       thinking: { type: 'disabled' },
       ...(format ? { response_format: { type: 'json_object' } } : {}),
     };

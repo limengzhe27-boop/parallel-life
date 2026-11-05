@@ -43,7 +43,8 @@ export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
 export const NPC_AGENT_REQUEST_LIMIT = 80_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
-const CHARACTER_EXPRESSION = '每轮先抓住对方刚说的一个具体点，用这位角色和对方之间才会有的口气接住。只说此刻这个人会说出口的话，话说完可以直接停。确实想知道答案时再问，不用靠追问维持聊天。关系、情绪和意图通过用词、称呼、停顿和取舍表现，不把它们解释给对方听。微信按人物习惯发送一条或补发几条；现场台词按口语写，旁白只留玩家看得见且有意义的动作。';
+const CHARACTER_EXPRESSION =
+  '每轮先抓住对方刚说的一个具体点，用这位角色和对方之间才会有的口气接住。只说此刻这个人会说出口的话，话说完可以直接停。确实想知道答案时再问，不用靠追问维持聊天。关系、情绪和意图通过用词、称呼、停顿和取舍表现，不把它们解释给对方听。微信按人物习惯发送一条或补发几条；现场台词按口语写，旁白只留玩家看得见且有意义的动作。';
 
 const SYSTEM = {
   conversation: `
@@ -131,7 +132,7 @@ appointment.reschedule专用parameters:{appointmentId,at,placeId:已有id或null
 goals仅更新本人可见非终态已有目标的summary/status/sourceIds/endReason，不手写新goalId/resultIds；确有独立长期目标时从create.goal表达。goals未变[]或null，planIntents未变[]。不要在不同通道同时改同一目标/计划，不以update/close抹去执行中动作，不改finished/withdrawn旧计划。`,
   inputInterpretation: `当前输入只用inputInterpretation表达一次：{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。reply只选playerReplyTargets的targetRef（如reply:1），给relation和decision，代码绑定问题来源、责任和修订，不抄机械字段。仅处理本渠道/会话确实相关的问题；无关/不确定保持未决，拒绝回答不等于拒绝邀请。收到所需答复后转本人工作或真实剩余等待，不复制旧等待。`,
   consideration: `consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时必须在同次changes.consideration给出选择，不相关用quiet而非null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。`,
-  replyAndFocus: `appointment.propose用{name,value}参数title、at、已有placeId；按世界当地时间和明确依据给带时区时间，responseContract.timeInput不是约定；缺时间才问，不凭空加“两小时后”，发邀约不等于答应或到场。
+  replyAndFocus: `appointment.propose用{name,value}参数title、at、已有placeId；按世界当地时间和明确依据给带时区时间，responseContract.timeInput不是约定；缺时间才问，不凭空加“两小时后”，发邀约不等于答应或到场。日程本身会跟踪答复，勿为同一邀约另建重复责任、问题或等待计划，勿猜新日程ID。邀约时间不是答复截止时间；没有来源字段deadlineAt时，责任的deadline填null。
 确实要求回答才requestsPlayerReply:true，普通陈述/承诺不建问题；questionForResponsibilityId仅指本人已知责任且须requestsPlayerReply:true。questionWithdrawals:[{questionId,sourceIds,reason}]只撤回本人问题。locationReports:[{subject:{kind:"player"}或{kind:"actor",actorId},placeId:已有id或null,sourceId:当前输入,quote:本轮逐字片段,assertion:"reported|hypothetical|uncertain"}]只记玩家实际告知，假设/引用/不确定不当确定位置；player_report不是实际到达。
 focus只用focusChange:{kind:"keep"}|{kind:"clear"}|{kind:"set",value:{channel,threadId,subjectId,questionSourceId,replyToActorId}}；无变化keep，不输出focus或用null表示保留。quiet也不清空focus，切换不结清旧事项。提问来源由服务器绑定实际本人物消息，不编未来消息ID。身份、来源、权限、版本、实际执行和回执仍由内核校验。`,
 };
@@ -146,8 +147,10 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
   const allowed = new Set(snapshot.channel.allowedCapabilities);
   return [
     ...(snapshot.channel.kind === 'scene'
-      ? [`【眼前现场】${snapshot.actor.boundaries}
-你同时输出两种文字。speech是${snapshot.actor.name}的台词，台词里的“我”指${snapshot.actor.name}。narration是玩家视角的镜头文字，用“${snapshot.actor.name}”指认动作主体。涉及眼前有谁、某人是否已经离开，先根据上面的名单确认，再按本人口吻说话。即使历史里本人曾经说错，也按本轮名单回答，可以自然纠正旧说法。`]
+      ? [
+          `【眼前现场】${snapshot.actor.boundaries}
+你同时输出两种文字。speech是${snapshot.actor.name}的台词，台词里的“我”指${snapshot.actor.name}。narration是玩家视角的镜头文字，用“${snapshot.actor.name}”指认动作主体。涉及眼前有谁、某人是否已经离开，先根据上面的名单确认，再按本人口吻说话。即使历史里本人曾经说错，也按本轮名单回答，可以自然纠正旧说法。`,
+        ]
       : []),
     SYSTEM.conversation,
     ...(wake && snapshot.channel.kind !== 'scene' ? [SYSTEM.planReview] : []),
