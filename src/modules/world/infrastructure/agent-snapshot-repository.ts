@@ -636,7 +636,14 @@ export async function readPrivateAgentSnapshot(
                 SELECT 1 FROM jsonb_array_elements(COALESCE(w.state->'momentInteractions','[]')) i
                 WHERE i->>'momentKey'=post.value->>'key' AND i->>'actorId'=$3
                   AND i->>'kind'='like'
-              ) AS liked
+              ) AS liked,
+              ARRAY(
+                SELECT i->>'comment'
+                FROM jsonb_array_elements(COALESCE(w.state->'momentInteractions','[]')) i
+                WHERE i->>'momentKey'=post.value->>'key' AND i->>'actorId'=$3
+                  AND i->>'kind'='comment'
+                ORDER BY i->>'at' DESC, i->>'id' DESC LIMIT 3
+              ) AS own_comments
        FROM parallel_life.worlds w
        CROSS JOIN LATERAL jsonb_array_elements(COALESCE(w.state->'moments','[]')) post
        LEFT JOIN parallel_life.world_events e
@@ -673,7 +680,7 @@ export async function readPrivateAgentSnapshot(
       observations.push({
         sourceId: id,
         kind: 'speech',
-        text: `${name}在你可见的朋友圈发了动态（momentKey=${moment.key}${row.liked ? '，你已点赞' : ''}${moment.audienceActorIds ? '，限指定人物可见，不向其他人物转述' : ''}）：${moment.text.slice(0, 400)}`,
+        text: `${name}在你可见的朋友圈发了动态（momentKey=${moment.key}${row.liked ? '，你已点赞' : ''}${moment.audienceActorIds ? '，限指定人物可见，不向其他人物转述' : ''}）：${moment.text.slice(0, 400)}${moment.images?.length || moment.image ? `（附${moment.images?.length || 1}张图片；当前未提供画面内容，不据此猜测画面）` : ''}${row.own_comments?.length ? `\n你已在这条动态下评论过：${row.own_comments.join('；')}。没有新内容时不重复评论。` : ''}`,
       });
     }
     const selectedModules = selectActorPersona(modules, input?.text ?? '');

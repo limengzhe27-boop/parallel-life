@@ -16,7 +16,7 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
   const client = useMemo(() => new LifeClient(transport), [transport]);
   const [draft, setDraft] = useState('');
   const [composing, setComposing] = useState(false);
-  const [panel, setPanel] = useState<'camera' | 'photos' | 'audience' | null>(null);
+  const [panel, setPanel] = useState<'photos' | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [uploaded, setUploaded] = useState<{ id: string; url: string; title: string }[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -31,7 +31,7 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
       .filter((photo) => photo.status === 'ready' && photo.url && photo.mediaType !== 'video')
       .map((photo) => ({ id: photo.id, url: photo.url!, title: photo.title })),
   ].filter((photo, index, all) => all.findIndex((item) => item.id === photo.id) === index);
-  async function upload(files: FileList | null) {
+  async function upload(files: File[]) {
     if (!files?.length || uploading || saving) return;
     if (files.length + images.length > 9) {
       setWriteError('最多选择9张照片。');
@@ -84,15 +84,13 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
       setSaving(null);
     }
   }
-  const [audience, setAudience] = useState<string[] | undefined>();
-  const [choosingPeople, setChoosingPeople] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const lastPublish = useRef<{ payload: string; commandId: string } | undefined>(undefined);
   async function publish() {
     const text = draft.trim();
     if ((!text && !images.length) || saving || uploading) return;
-    const payload = JSON.stringify([worldId, text, audience, images]);
+    const payload = JSON.stringify([worldId, text, images]);
     const commandId =
       lastPublish.current?.payload === payload
         ? lastPublish.current.commandId
@@ -106,13 +104,10 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
         kind: 'publish',
         text,
         images,
-        audienceActorIds: audience,
       });
       lastPublish.current = undefined;
       setDraft('');
       setImages([]);
-      setAudience(undefined);
-      setChoosingPeople(false);
       setComposing(false);
       setReload((r) => r + 1);
     } catch {
@@ -184,7 +179,6 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
   const moments = result?.moments.filter((m) => !target || m.actorId === target) ?? [];
   const person = target ? data.contacts.find((contact) => contact.id === target) : undefined;
   const name = person?.name ?? moments[0]?.name;
-  const audienceLabel = audience === undefined ? '公开' : audience.length ? '部分可见' : '私密';
   if (composing && canWrite)
     return (
       <div className={`${s.app} ${feed.editor}`}>
@@ -199,7 +193,7 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
           >
             取消
           </button>
-          <strong>发表朋友圈</strong>
+          <span aria-hidden="true" />
           <button
             type="button"
             className={feed.publish}
@@ -218,43 +212,32 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
           />
-          <div style={{ maxWidth: Math.min(3, images.length) * 100 }}>
-            <MomentGallery images={images} label="待发表的照片" />
-          </div>
-          {images.length > 0 && (
-            <div className={feed.removePhotos}>
-              {images.map((url, index) => (
+          <div className={feed.draftPhotos} aria-label="待发表的照片">
+            {images.map((url, index) => (
+              <div key={url} className={feed.draftPhoto}>
+                <img src={url} alt={`待发表的第${index + 1}张照片`} />
                 <button
-                  key={url}
                   type="button"
+                  aria-label={`移除第${index + 1}张照片`}
                   disabled={saving !== null || uploading}
                   onClick={() => setImages((old) => old.filter((item) => item !== url))}
                 >
-                  移除第{index + 1}张
+                  ×
                 </button>
-              ))}
-            </div>
-          )}
-          {images.length < 9 && (
-            <button
-              type="button"
-              className={feed.addPhoto}
-              aria-label="添加照片"
-              disabled={uploading || saving !== null}
-              onClick={() => setPanel('photos')}
-            >
-              ＋
-            </button>
-          )}
-          <button
-            type="button"
-            className={feed.settingRow}
-            disabled={saving !== null}
-            onClick={() => setPanel('audience')}
-          >
-            <span>谁可以看</span>
-            <span>{audienceLabel} ›</span>
-          </button>
+              </div>
+            ))}
+            {images.length < 9 && (
+              <button
+                type="button"
+                className={feed.addPhoto}
+                aria-label="添加照片"
+                disabled={uploading || saving !== null}
+                onClick={() => setPanel('photos')}
+              >
+                ＋
+              </button>
+            )}
+          </div>
           {writeError && (
             <p role="alert" className={feed.feedback}>
               {writeError}
@@ -262,58 +245,6 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
           )}
           {uploading && <p role="status">照片上传中…</p>}
         </div>
-        {panel === 'audience' && (
-          <section className={feed.subpage} aria-label="谁可以看">
-            <header className={feed.editorHeader}>
-              <button onClick={() => setPanel(null)}>返回</button>
-              <strong>谁可以看</strong>
-              <button onClick={() => setPanel(null)}>完成</button>
-            </header>
-            {(['公开', '私密', '部分可见'] as const).map((label) => (
-              <label className={feed.settingRow} key={label}>
-                <span>
-                  {label}
-                  <small>
-                    {label === '公开'
-                      ? '所有人物可见'
-                      : label === '私密'
-                        ? '仅自己可见'
-                        : '选中的人物可见'}
-                  </small>
-                </span>
-                <input
-                  type="radio"
-                  name="moment-visibility"
-                  checked={label === (choosingPeople ? '部分可见' : audienceLabel)}
-                  onChange={() => {
-                    setChoosingPeople(label === '部分可见');
-                    setAudience(
-                      label === '公开' ? undefined : label === '私密' ? [] : (audience ?? []),
-                    );
-                  }}
-                />
-              </label>
-            ))}
-            {choosingPeople &&
-              audience !== undefined &&
-              data.contacts.map((contact) => (
-                <label key={contact.id} className={feed.settingRow}>
-                  <span>{contact.name}</span>
-                  <input
-                    type="checkbox"
-                    checked={audience.includes(contact.id)}
-                    onChange={(event) =>
-                      setAudience(
-                        event.target.checked
-                          ? [...audience, contact.id]
-                          : audience.filter((id) => id !== contact.id),
-                      )
-                    }
-                  />
-                </label>
-              ))}
-          </section>
-        )}
         {panel === 'photos' && (
           <section className={feed.subpage} aria-label="选择照片">
             <header className={feed.editorHeader}>
@@ -326,17 +257,26 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
               </button>
             </header>
             <label className={feed.uploadButton}>
-              从设备上传
+              从本地上传图片
               <input
+                aria-label="从本地上传图片"
                 type="file"
                 accept="image/*"
                 multiple
                 disabled={uploading || images.length >= 9}
-                onChange={(event) => void upload(event.target.files)}
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  event.target.value = '';
+                  void upload(files);
+                }}
               />
             </label>
             {writeError && <p role="alert">{writeError}</p>}
             {uploading && <p role="status">照片上传中…</p>}
+            <h3 className={feed.pickerTitle}>手机相册</h3>
+            {!photoOptions.length && (
+              <p className={feed.feedback}>手机相册还没有照片，可以从本地上传。</p>
+            )}
             <div className={feed.photoPicker}>
               {photoOptions.map((photo) => (
                 <button
@@ -374,7 +314,15 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
         </button>
         <h2>{target ? `${name ?? 'TA'}的朋友圈` : '朋友圈'}</h2>
         {!target && canWrite && (
-          <button type="button" aria-label="发表朋友圈" onClick={() => setPanel('camera')}>
+          <button
+            type="button"
+            aria-label="发表朋友圈"
+            onClick={() => {
+              setComposing(true);
+              setPanel(null);
+              setWriteError(null);
+            }}
+          >
             <svg
               width="25"
               height="25"
@@ -390,42 +338,6 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
           </button>
         )}
       </header>
-      {!target && (
-        <section className={feed.cover} aria-label="我的朋友圈">
-          <div className={feed.coverIdentity}>
-            <strong>我</strong>
-            <span className={feed.selfAvatar}>我</span>
-          </div>
-        </section>
-      )}
-      {panel === 'camera' && (
-        <div className={feed.sheetBackdrop} onClick={() => setPanel(null)}>
-          <section
-            className={feed.sheet}
-            role="dialog"
-            aria-label="发表朋友圈"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              onClick={() => {
-                setComposing(true);
-                setPanel('photos');
-              }}
-            >
-              从相册选择照片
-            </button>
-            <button
-              onClick={() => {
-                setComposing(true);
-                setPanel(null);
-              }}
-            >
-              发表文字
-            </button>
-            <button onClick={() => setPanel(null)}>取消</button>
-          </section>
-        </div>
-      )}
       {writeError && (
         <p role="alert" className={feed.feedback}>
           {writeError}

@@ -1189,7 +1189,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             completedGoalIds = [action.goalId];
           }
         } else if (action.capability === 'moment.interact') {
-          const momentKey = action.parameters.momentKey;
+          // Generic actions may identify the post in targetIds. Historical callers
+          // put its author there and supply momentKey; never guess a post from an author.
+          const momentKey =
+            action.parameters.momentKey ??
+            (action.targetIds.length === 1 ? action.targetIds[0] : undefined);
           const kind = action.parameters.kind;
           const comment = action.parameters.comment;
           const note =
@@ -1220,6 +1224,9 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           ) {
             throw new AgentValidationError('MOMENT_NOT_FOUND');
           }
+
+          if (action.targetIds.some((id) => id !== moment.key && id !== moment.actorId))
+            throw new AgentValidationError('MOMENT_INTERACTION_PARAMETERS');
 
           if (kind === 'like') {
             const alreadyLiked = (executionWorld.momentInteractions ?? []).some(

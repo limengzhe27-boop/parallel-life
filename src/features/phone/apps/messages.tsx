@@ -122,23 +122,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   }, [appointmentNotice]);
 
   const socialClient = useMemo(() => new LifeClient(transport), [transport]);
-  const [messageLikes, setMessageLikes] = useState<Record<string, 'saving' | 'liked' | 'failed'>>(
-    {},
-  );
-  async function likeMessage(messageId: string) {
-    const key = `${worldId}:${messageId}`;
-    setMessageLikes((old) => ({ ...old, [key]: 'saving' }));
-    try {
-      await socialClient.updatePlayerSocial(worldId, {
-        kind: 'like_message',
-        messageId,
-        commandId: crypto.randomUUID(),
-      });
-      setMessageLikes((old) => ({ ...old, [key]: 'liked' }));
-    } catch {
-      setMessageLikes((old) => ({ ...old, [key]: 'failed' }));
-    }
-  }
   const messageScroll = useRef<HTMLDivElement>(null);
   const readingPosition = useRef(emptyChatReadingPosition(`${worldId}:${target ?? ''}`));
   const readAttempt = useRef<string | undefined>(undefined);
@@ -1713,30 +1696,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     position: 'relative',
                   }}
                 >
-                  {m.role === 'assistant' &&
-                    !m.initialRead &&
-                    !m.origin &&
-                    !m.recalled &&
-                    m.status === 'sent' &&
-                    actions.sendMessage && (
-                      <button
-                        className={s.messageLike}
-                        type="button"
-                        aria-label="点赞这条消息"
-                        aria-pressed={m.liked || messageLikes[`${worldId}:${m.id}`] === 'liked'}
-                        disabled={
-                          m.liked ||
-                          ['saving', 'liked'].includes(messageLikes[`${worldId}:${m.id}`] ?? '')
-                        }
-                        onClick={() => void likeMessage(m.id)}
-                      >
-                        {m.liked || messageLikes[`${worldId}:${m.id}`] === 'liked'
-                          ? '♥'
-                          : messageLikes[`${worldId}:${m.id}`] === 'failed'
-                            ? '重试点赞'
-                            : '♡'}
-                      </button>
-                    )}
                   {m.role === 'assistant' && m.initialRead === true && (
                     <small className={s.genesisOrigin}>虚构起点来信</small>
                   )}

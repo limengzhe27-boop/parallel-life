@@ -377,6 +377,20 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
           .map((m) => [m.actorId, m.kind, m.comment]),
         [[f.actorLinId, 'comment', '这个展我也想看看。']],
       );
+      const after = await readPrivateAgentSnapshot(
+        app, f.owner, updated, f.actorLinId, null, updated.time, null,
+      );
+      assert.ok(after.snapshot.observations.some((o) =>
+        o.sourceId === `moment:${playerPost.key}` &&
+        o.text.includes('你已在这条动态下评论过：这个展我也想看看。'),
+      ));
+      const hiddenAfter = await readPrivateAgentSnapshot(
+        app, f.owner, updated, f.actorQingqingId, null, updated.time, null,
+      );
+      assert.ok(!hiddenAfter.snapshot.observations.some((o) =>
+        o.text.includes('这个展我也想看看。'),
+      ));
+
     },
   );
 
@@ -742,9 +756,8 @@ test('actor capability chain: moment.interact end-to-end execution, parameter gu
           id: actionId,
           goalId: f.likeGoalId,
           capability: 'moment.interact',
-          targetIds: [f.actorLinId],
+          targetIds: [f.existingMomentKey],
           parameters: {
-            momentKey: f.existingMomentKey,
             kind: 'like',
             note: '支持白语的好作品',
           },
