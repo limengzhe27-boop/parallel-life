@@ -1,4 +1,4 @@
-import { getServices } from '../../../../server/services.ts';
+import { getServices } from '../../../server/services.ts';
 
 export const runtime = 'nodejs';
 
