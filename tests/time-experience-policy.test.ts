@@ -62,7 +62,7 @@ test('open private/group dialogue and scenes stay slow while reading, and leavin
   assert.equal(idleCheckDue(35000, 0, 0), true);
   assert.equal(idleCheckDue(35000, 10000, 0), true);
   assert.equal(idleCheckDue(150000, 0, 140000), false);
-  assert.equal(PHONE_IDLE_PAUSE_MS, 30 * 60_000);
+  assert.equal(PHONE_IDLE_PAUSE_MS, 10 * 60_000);
 });
 test('activity and wait requests reject caller-controlled timestamps and owners', () => {
   const activity = { clientId: id, sequence: 4, mode: 'conversation' };

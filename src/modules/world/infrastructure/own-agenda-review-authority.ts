@@ -34,10 +34,10 @@ export type OwnAgendaRuntimeConfig = {
 export const DEFAULT_OWN_AGENDA_RUNTIME_CONFIG: OwnAgendaRuntimeConfig = {
   policy: {
     version: 'own-agenda-v2',
-    storyGapMs: 5 * 60_000,
-    realGapMs: 10 * 60_000,
+    storyGapMs: 60_000,
+    realGapMs: 3 * 60_000,
     quietBackoffMultiplier: 2,
-    maxRealGapMs: 60 * 60_000,
+    maxRealGapMs: 15 * 60_000,
   },
   budgets: {
     owner: { limit: 48, windowSeconds: 3600 },
