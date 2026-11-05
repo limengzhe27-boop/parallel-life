@@ -181,14 +181,14 @@ occupied =
 2. **真实开场/第 1–2 幕**：opening、第 1 幕 node_1/node_2、第 2 幕 node_4 均已真实呈现；第 2 幕剩余 `event_277.../node_5` 已进入窗口，玩家回复与事件结果尚未验收。
 3. **事件终结**：本批仍以“呈现”推进当前幕；非邀请类 `director_event` 的 `resolved` 语义、NPC 拒绝/quiet 后如何不阻塞剧情，仍需按玩家决定/实际结果补齐。
 4. **本地运行**：3218 与 worker 均已切主目录构建并 health 200；旧 `.local/build-story55` 不再作为当前入口。
-5. **生产**：0127–0130 尚未应用。生产目标（`.local/158-acceptance-production.env`）是 Neon `neondb`，当前 schema 只到 `0104_agent_plan_reviews.sql`，`parallel_life.worlds` 为 0 行，尚不是可验收的线上故事环境。Vercel CLI `whoami` 返回 `Not authorized`，没有可用的 `VERCEL_TOKEN`；同时 `main` 比 `origin/main`  ahead 334 个提交，直接 push 会把其他人的社交/实验提交一起部署，不能作为本任务单独发布。生产发布需要先确认目标环境和统一发布范围。
+5. **生产**：0127–0130 已应用到生产目标 Neon `neondb`（迁移记录已到 `0130_agent_unprojected_commit_quarantine.sql`），但该库当前 `parallel_life.worlds` 为 0 行，尚不是可验收的线上故事环境。Vercel 应用尚未部署：`vercel whoami` 返回 `Not authorized`，没有可用的 `VERCEL_TOKEN`；同时 `main` 比 `origin/main` ahead 334 个提交，直接 push 会把其他人的社交/实验提交一起部署，不能作为本任务单独发布。生产发布需要先确认目标环境和统一发布范围。
 
 ## 5. 最终提交
 
 - 业务/迁移/报告提交：`048bec3c`（开场/隔离/导演）与 `92a13097`（receipt 呈现/第 1–2 幕）。
 - 本地地址：`http://localhost:3218`（主目录构建）
 - 集成检查：4274/4274，build 通过
-- 迁移：0127–0130 本地 clone/test/dev 已应用；生产未应用
+- 迁移：0127–0130 本地 clone/test/dev 及生产 Neon 空库已应用；生产应用未部署
 
 ## 5. 接续点
 
