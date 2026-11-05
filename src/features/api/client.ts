@@ -142,6 +142,13 @@ export class LifeClient {
   constructor(transport: typeof fetch = globalThis.fetch.bind(globalThis)) {
     this.transport = transport;
   }
+  private invalidateRejectedSession(response: Response, headers: Headers) {
+    if (response.status === 401 && headers.get('X-CSRF-Token') === (this.csrf ?? null)) {
+      this.csrf = undefined;
+      this.sessionPromise = undefined;
+    }
+  }
+
   private async request<T>(
     path: string,
     schema: z.ZodType<T>,
@@ -163,6 +170,7 @@ export class LifeClient {
     } catch {
       throw new ApiFailure('UNAVAILABLE', '连接暂时中断，内容仍保留在这里。请再试一次。');
     }
+    this.invalidateRejectedSession(response, headers);
     let body: unknown;
     try {
       body = response.status === 204 ? undefined : await response.json();
@@ -281,6 +289,7 @@ export class LifeClient {
       throw new ApiFailure('UNAVAILABLE', '连接暂时中断，内容仍保留在这里。请再试一次。');
     }
 
+    this.invalidateRejectedSession(response, headers);
     if (!response.ok) {
       let body: unknown;
       try {
@@ -586,6 +595,7 @@ export class LifeClient {
     } catch {
       throw new ApiFailure('UNAVAILABLE', '连接暂时中断，内容仍保留在这里。请再试一次。');
     }
+    this.invalidateRejectedSession(response, headers);
     if (!response.ok) {
       let body: unknown;
       try {

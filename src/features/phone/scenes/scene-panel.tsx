@@ -232,6 +232,15 @@ export function ScenePanel({
   }, [data?.scene?.id]);
   const overview = data ? sceneOverview(data) : undefined;
   const entries = data ? sceneTimelineEntries(visibleSceneEntries(data), data.actions) : [];
+  const narrationActors = new Map<string, string>();
+  const ambiguousNarration = new Set<string>();
+  for (const entry of data ? visibleSceneEntries(data) : []) {
+    if (entry.kind !== 'dialogue' || entry.speaker.kind !== 'actor') continue;
+    const previous = narrationActors.get(entry.sourceEventId);
+    if (previous && previous !== entry.speaker.actorId) ambiguousNarration.add(entry.sourceEventId);
+    narrationActors.set(entry.sourceEventId, entry.speaker.actorId);
+  }
+  for (const id of ambiguousNarration) narrationActors.delete(id);
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
   async function run(action: () => Promise<void>, at: 'global' | 'input' | 'task' = 'global') {
     if (running.current) return;
@@ -649,6 +658,11 @@ export function ScenePanel({
                                     ? '眼前'
                                     : '现场'}
                           </small>
+                          {e.kind === 'narration' && narrationActors.has(e.sourceEventId) && (
+                            <span className={s.narrationActor}>
+                              {name(narrationActors.get(e.sourceEventId)!)} · 现场动作
+                            </span>
+                          )}
                           <p>{renderStoryContent(e.text)}</p>
                           {(e.kind === 'user_action' || e.kind === 'private_input') &&
                           e.actionId === taskActionId

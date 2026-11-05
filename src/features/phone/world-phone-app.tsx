@@ -627,35 +627,61 @@ export function WorldPhoneApp({
   const advanceRecoveryRef = useRef(advanceRecovery);
   advanceRecoveryRef.current = advanceRecovery;
   const briefingRun = useRef<string | null>(null);
+  const [briefingError, setBriefingError] = useState('');
+  const [briefingRetry, setBriefingRetry] = useState(0);
   useEffect(() => {
     const briefing = liveTime.returnBriefing;
-    if (!briefing || briefing.status === 'completed') return;
+    if (!briefing) return;
     if (briefingRun.current === briefing.id) return;
     briefingRun.current = briefing.id;
+    setBriefingError('');
+    const epoch = openingEpoch.current.token;
+    const isCurrent = () =>
+      briefingRun.current === briefing.id && openingEpoch.current.token === epoch;
     const run = async (attempt: number): Promise<void> => {
-      const receipt = await client.runReturnBriefing(worldId, briefing.id);
-      if (briefingRun.current !== briefing.id) return;
+      const receipt =
+        briefing.status === 'completed'
+          ? briefing
+          : await client.runReturnBriefing(worldId, briefing.id);
+      if (!isCurrent()) return;
       if (receipt.status === 'completed') {
-        await load();
-        if (briefingRun.current !== briefing.id) return;
-        liveTimeRef.current.finishBriefing(receipt.messageIds, receipt.storyNow);
+        const next = await client.world(worldId);
+        if (!isCurrent()) return;
+        const delivered = receipt.messageIds ?? [];
+        if (delivered.some((id) => !next.messages.some((message) => message.id === id)))
+          throw Error('补演消息尚未读取完整');
+        request.current++;
+        setRefreshing(false);
+        setData((current) =>
+          current?.id === worldId && (current.version ?? 0) > (next.version ?? 0) ? current : next,
+        );
+        liveTimeRef.current.finishBriefing(
+          delivered,
+          'storyNow' in receipt ? receipt.storyNow : undefined,
+        );
         return;
       }
+      if (receipt.status === 'failed') throw Error('回访补演未完成');
       // Another tab owns the lease, or the bounded run is still settling. Poll a
       // few times rather than starting a second paid simulation.
       if (attempt >= 8) throw Error('回访补演仍在进行，请稍后重新打开');
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      if (briefingRun.current === briefing.id) return run(attempt + 1);
+      if (isCurrent()) return run(attempt + 1);
     };
     void run(0).catch((error) => {
-      if (briefingRun.current !== briefing.id) return;
+      if (!isCurrent()) return;
       briefingRun.current = null;
-      liveTimeRef.current.finishBriefing([]);
-      setError(error instanceof ApiFailure ? error.message : '这段时间的补演没有完成，可以再试一次。');
+      setBriefingError(error instanceof ApiFailure ? error.message : '未能读取完整的回访消息。');
     });
     // No cleanup cancels this run: a repeat clock heartbeat must not discard the
     // only completion signal after the paid turns already committed.
-  }, [client, worldId, load, liveTime.returnBriefing?.id, liveTime.returnBriefing?.status]);
+  }, [
+    client,
+    worldId,
+    briefingRetry,
+    liveTime.returnBriefing?.id,
+    liveTime.returnBriefing?.status,
+  ]);
   useEffect(() => {
     if (recoveryWorld !== worldId) return;
     let active = true;
@@ -1026,28 +1052,32 @@ export function WorldPhoneApp({
     if (data?.id === worldId && !refreshing) directorCheck.current();
   }, [data?.id, refreshing, worldId, liveTime.entryKey]);
   const clockSummary = liveTime.idleReturnNotice || liveTime.clock?.summary || '';
-  const briefingWorking =
-    !!liveTime.returnBriefing &&
-    (liveTime.returnBriefing.status === 'pending' ||
-      liveTime.returnBriefing.status === 'running');
+  const preparingPhone =
+    automatic && data?.id === worldId && (!liveTime.clock || !!liveTime.returnBriefing);
+  if (preparingPhone) {
+    return (
+      <div className="world-viewport">
+        <AppViewport />
+        <div className="world-loading">
+          <a href="/possibilities">← 返回分支</a>
+          {briefingError && liveTime.returnBriefing ? (
+            <>
+              <Notice>{briefingError}</Notice>
+              <Button onClick={() => setBriefingRetry((value) => value + 1)}>继续打开</Button>
+            </>
+          ) : (
+            <ProgressState
+              label="正在打开你的手机…"
+              detail={liveTime.notice || '正在准备这段时间的新消息。'}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />
-      {briefingWorking && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            flexShrink: 0,
-            padding: '6px 14px',
-            fontSize: 12,
-            background: 'var(--surface, #f5f3ed)',
-            color: 'var(--ink, #2f332f)',
-          }}
-        >
-          你离开的这段时间，世界正在补演…
-        </div>
-      )}
       {clockSummary && (liveTime.idleReturnNotice || clockSummary !== dismissedSummary) && (
         <div
           role="status"

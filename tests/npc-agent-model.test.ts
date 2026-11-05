@@ -2098,8 +2098,19 @@ test('ordinary chat uses the compact changes schema while keeping promises avail
   compactInput.state.questions = [];
   compactInput.state.continuation = undefined;
   compactInput.viewState = structuredClone(compactInput.state);
+  compactInput.channel.allowedCapabilities = [
+    'moment.publish',
+    'moment.interact',
+    'media.generate_image',
+  ];
   const compact = capture();
   await compact.adapter.decide(compactInput);
+  const briefSystem = compact.calls[0]!.messages[0]!.content;
+  assert.ok(briefSystem.length < 2400, 'ordinary chat does not ship the full action handbook');
+  assert.match(briefSystem, /见面记录可自然接续/);
+  assert.match(briefSystem, /moment.publish/);
+  assert.match(briefSystem, /moment.interact/);
+  assert.match(briefSystem, /media.generate_image/);
   const compactSchema = (compact.calls[0]!.output as any).schema;
   assert.deepEqual(Object.keys(compactSchema.properties.changes.anyOf[0].properties).sort(), [
     'focusChange',
@@ -2132,6 +2143,8 @@ test('ordinary chat uses the compact changes schema while keeping promises avail
   const fullInput = snapshot();
   const full = capture();
   await full.adapter.decide(fullInput);
+  const fullOutput = full.calls[0]!.output;
+  assert.equal(fullOutput?.format === 'json_schema' && fullOutput.quickPrivate, true);
   const fullSchema = (full.calls[0]!.output as any).schema;
   assert.equal('continuation' in fullSchema.properties.changes.anyOf[0].properties, false);
 });
@@ -2169,7 +2182,7 @@ test('active event follow-ups cannot silently disappear to satisfy request budge
   assert.equal(calls.length, 0);
 });
 
-test('sticker choices are independent of task state, channel and sticker-only input', async () => {
+test('sticker choices follow channel capabilities independently of tasks and sticker-only input', async () => {
   const { SELECTABLE_STICKERS } = await import('../src/modules/world/domain/stickers.ts');
   const expected = Object.fromEntries(
     SELECTABLE_STICKERS.map(({ id, label, description }) => [id, `${label}；${description}`]),
@@ -2191,7 +2204,7 @@ test('sticker choices are independent of task state, channel and sticker-only in
         const { calls, adapter } = capture();
         await adapter.decide(input);
         const payload = JSON.parse(calls[0]!.messages[1]!.content);
-        assert.deepEqual(payload.stickerCatalog, expected);
+        assert.deepEqual(payload.stickerCatalog, channel === 'scene' ? {} : expected);
         assert.deepEqual(input, before, 'catalog selection never changes tasks or memory');
         if (withTasks) assert.deepEqual(payload.state, wireExpected(input, input.viewState));
         else assert.deepEqual(payload.state, {});

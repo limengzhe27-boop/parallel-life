@@ -251,3 +251,19 @@ test('latest schema binds one exclusive choice per authored ref, without redunda
   assert.equal(p.authoredChoices.additionalProperties, false);
   assert.deepEqual(p.protocol.enum, ['director-wire-v15']);
 });
+
+test('v15 may omit authored choices only when the authoritative catalog is empty', () => {
+  const { s, a } = fixture();
+  const wire = {
+    protocol: 'director-wire-v15',
+    candidates: [],
+    opportunities: [],
+    audit: { reason: 'No change to act on.', sourceRefs: [] },
+  };
+  assert.throws(() => parseDirectorDecision(s, wire, a));
+  delete s.authoredMaterials;
+  delete s.authoredEligibility;
+  assert.equal(directorWireCatalog(s).events.length, 0);
+  assert.equal(parseDirectorDecision(s, wire, a).mode, 'quiet');
+  assert.throws(() => parseDirectorDecision(s, { ...wire, authoredChoices: null }, a));
+});

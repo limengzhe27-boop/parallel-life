@@ -1,6 +1,16 @@
 import 'server-only';
 import type { GatewayConfig } from '../modules/ai/infrastructure/yibu-text-model.ts';
 export function gatewayConfig(): GatewayConfig {
+  const deepSeekKey = process.env.DEEPSEEK_TEXT_API_KEY?.trim();
+  if (deepSeekKey) {
+    return {
+      apiKey: deepSeekKey,
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-flash',
+      timeoutMs: 85000,
+      deepSeekJson: true,
+    };
+  }
   const apiKey = process.env.YIBU_API_KEY?.trim();
   if (!apiKey) throw new Error('AI_NOT_CONFIGURED');
   return {

@@ -29,6 +29,7 @@ export type ActorSceneObservation = {
   sourceId: string;
   text: string;
   kind: 'speech' | 'result' | 'fact';
+  speaker?: Extract<SceneEntry, { kind: 'dialogue' }>['speaker'];
   evidenceKind: 'player_report' | 'actor_report' | 'scene_record' | 'adjudicated_result';
   /** Original committed event's wall time, not a claimed physical occurrence in the prose. */
   eventOccurredAt: string;
@@ -316,6 +317,10 @@ export async function readActorSceneObservationSourcesInTransaction(
         text,
         kind,
         evidenceKind,
+        ...(frame.includeTimePlace && entry.kind === 'dialogue' ? { speaker: entry.speaker } : {}),
+        ...(frame.includeTimePlace && entry.kind === 'user_action'
+          ? { speaker: { kind: 'player' as const } }
+          : {}),
         eventOccurredAt: event.occurredAt,
         storyAt: event.storyAt,
         learnedAt: event.storyAt,

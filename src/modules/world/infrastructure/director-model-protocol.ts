@@ -717,12 +717,19 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
           delete choice.opportunity.actorTopics;
       }
   }
-  if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL)
+  if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
+    // An empty authored catalog has no decisions to supply.
+    if (
+      !Object.hasOwn(normalized, 'authoredChoices') &&
+      !directorWireCatalog(snapshot).events.length
+    )
+      normalized.authoredChoices = {};
     return decodeCurrentDirectorWire(
       snapshot,
       normalized,
       directorEmergentOpportunityBudget(snapshot, DIRECTOR_WIRE_PROTOCOL),
     );
+  }
   if (normalized.protocol === PREVIOUS_OWNER_PROTOCOL) {
     const wire = PreviousOwnerWire.parse(normalized),
       { openingContext, ...rest } = wire,

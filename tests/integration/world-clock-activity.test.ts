@@ -6,7 +6,10 @@ import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
 import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
-import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
+import {
+  PostgresClockStore,
+  readClockInTransaction,
+} from '../../src/modules/world/infrastructure/clock-repository.ts';
 import {
   PostgresClockActivityRepository,
   updateClockActivity,
@@ -706,29 +709,32 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         assert.equal(away.paused, false);
         assert.equal(away.speed, 1);
         assert.equal(away.activeUntil, null);
-        assert.equal(projectStoryTime(away, at(3610)), at(3720));
-        const row = await db.transaction(
-          owner,
-          async (sql) =>
-            (
-              await sql.query(
-                'SELECT now() at, parallel_life.publication_story_clock($1) projected',
-                [id],
-              )
-            ).rows[0],
-        );
-        assert.equal(
-          new Date(row.projected).getTime(),
-          Date.parse(projectStoryTime(away, new Date(row.at).toISOString())),
-        );
+        assert.equal((await clock.read(owner, id, at(609))).paused, false);
+        const stopped = await clock.read(owner, id, at(610));
+        assert.equal(stopped.pauseReason, 'idle');
+        const cutoff = projectStoryTime(away, at(610));
+        assert.equal(stopped.storyNow, cutoff);
+        assert.equal((await clock.read(owner, id, at(3610))).storyNow, cutoff);
         const returned = await activity.update(
           owner,
           id,
           { clientId, sequence: 3, mode: 'browsing', resume: true },
           at(3610),
         );
-        assert.equal(returned.storyNow, at(3720));
-        assert.equal(returned.speed, 12);
+        assert.equal(returned.paused, false);
+        assert.equal(returned.storyNow, cutoff);
+        assert.match(returned.summary ?? '', /世界已恢复/);
+        // Closing without an away request falls back to the final visible lease.
+        const expired = await clock.read(owner, id, at(4255));
+        assert.equal(expired.pauseReason, 'idle');
+        assert.equal(expired.storyNow, projectStoryTime(returned, at(4255)));
+        const immediateReentry = await activity.update(
+          owner,
+          id,
+          { clientId: randomUUID(), sequence: 1, mode: 'browsing', resume: true },
+          at(3611),
+        );
+        assert.equal(immediateReentry.summary, null);
         await clock.setClock(owner, id, { paused: true }, at(3620));
         assert.equal(
           (
@@ -741,6 +747,27 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           ).paused,
           false,
         );
+        const secondTab = randomUUID();
+        await activity.update(
+          owner,
+          id,
+          { clientId: secondTab, sequence: 1, mode: 'browsing', resume: true },
+          at(4600),
+        );
+        assert.equal((await clock.read(owner, id, at(4645 - 1))).paused, false);
+        const backgroundStop = await db.transaction(owner, (sql) =>
+          readClockInTransaction(sql, owner, id, at(5300), true),
+        );
+        assert.equal(backgroundStop.pauseReason, 'idle');
+        assert.equal(backgroundStop.lastTickAt, at(5245));
+        const resumed = await activity.update(
+          owner,
+          id,
+          { clientId, sequence: 5, mode: 'browsing', resume: true },
+          at(5400),
+        );
+        assert.equal(resumed.paused, false);
+        assert.equal(resumed.storyNow, backgroundStop.storyNow);
         assert.equal((await worlds.get({ userId: owner }, id)).version, 0);
         // Owned fixture cleanup; no production or other task data involved.
         await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [id]);

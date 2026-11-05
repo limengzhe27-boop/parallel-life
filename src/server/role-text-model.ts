@@ -64,12 +64,19 @@ function npcOutput(output?: ModelOutputOptions): boolean {
 /** One configured model per call. Background NPC decisions reuse planning
  * capacity with their own private context; they never become Director decisions.
  * No fallback, retry, second judge or additional agent state. */
-export function roleTextModel(base: TextModel, npc: TextModel, director?: TextModel): TextModel {
+export function roleTextModel(
+  base: TextModel,
+  npc: TextModel,
+  director?: TextModel,
+  quickPrivate?: TextModel,
+): TextModel {
   const selected = (output?: ModelOutputOptions) =>
     npcOutput(output)
       ? output?.format === 'json_schema' && output.name === 'npc_agent_planning_response'
         ? (director ?? npc)
-        : npc
+        : output?.format === 'json_schema' && output.quickPrivate
+          ? (quickPrivate ?? npc)
+          : npc
       : director && output?.format === 'json_schema' && /^director_response_v\d+$/.test(output.name)
         ? director
         : base;

@@ -165,3 +165,37 @@ test('client handles account register, login, session status, and clearSession',
   // 4. Clear session
   await client.clearSession();
 });
+
+test('a rejected chat session is renewed on the next explicit send without replaying the first', async () => {
+  let sessions = 0;
+  const sends: string[] = [];
+  const client = new LifeClient(async (url, options) => {
+    if (String(url).endsWith('/session')) {
+      sessions++;
+      return Response.json({ kind: 'guest', csrfToken: String(sessions).repeat(43) });
+    }
+    sends.push(new Headers(options?.headers).get('X-CSRF-Token')!);
+    return Response.json(
+      {
+        error: {
+          code: sessions === 1 ? 'UNAUTHORIZED' : 'VERSION_CONFLICT',
+          message: '拒绝',
+          retryable: false,
+          requestId: randomUUID(),
+        },
+      },
+      { status: sessions === 1 ? 401 : 409 },
+    );
+  });
+  const input = { commandId: randomUUID(), expectedVersion: 0, text: '你好' };
+  await assert.rejects(
+    client.sendStream(input, () => {}),
+    { code: 'UNAUTHORIZED' },
+  );
+  assert.equal(sends.length, 1);
+  await assert.rejects(
+    client.sendStream(input, () => {}),
+    { code: 'VERSION_CONFLICT' },
+  );
+  assert.deepEqual(sends, ['1'.repeat(43), '2'.repeat(43)]);
+});

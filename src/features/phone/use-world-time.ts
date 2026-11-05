@@ -49,6 +49,7 @@ export function useWorldTime(
     import('../../modules/world/domain/return-briefing.ts').ReturnBriefingSummary | null
   >(null);
   const briefingRef = useRef<string | null>(null);
+  const settledBriefing = useRef<string | null>(null);
   const pendingWaitRef = useRef(pendingWait);
   pendingWaitRef.current = pendingWait;
   const session = useRef<Session | null>(null);
@@ -99,22 +100,13 @@ export function useWorldTime(
           const clock = await client.updateClockActivity(worldId, input);
           if (session.current === s && s.active && mode !== 'away' && !s.returning) {
             const returnBriefing = clock.returnBriefing;
-            if (returnBriefing) {
-              if (returnBriefing.status === 'completed') {
-                briefingRef.current = null;
-                setBriefing(null);
-                if (returnBriefing.messageIds?.length)
-                  setIdleReturnLockKey(crypto.randomUUID());
-              } else {
-                briefingRef.current = returnBriefing.id;
-                // A heartbeat may repeat the same pending row; keep object identity
-                // stable so the runner's effect is not restarted mid-flight.
-                setBriefing((current) =>
-                  current?.id === returnBriefing.id && current.status === returnBriefing.status
-                    ? current
-                    : returnBriefing,
-                );
-              }
+            if (returnBriefing && returnBriefing.id !== settledBriefing.current) {
+              briefingRef.current = returnBriefing.id;
+              setBriefing((current) =>
+                current?.id === returnBriefing.id && current.status === returnBriefing.status
+                  ? current
+                  : returnBriefing,
+              );
             }
             if (clock.pauseReason === 'idle') s.resumeRequired = true;
             if (!clock.paused) {
@@ -161,6 +153,7 @@ export function useWorldTime(
     setWorking(false);
     setBriefing(null);
     briefingRef.current = null;
+    settledBriefing.current = null;
     immediateCheck.current = false;
     try {
       const raw = localStorage.getItem(checkStorageKey);
@@ -228,6 +221,7 @@ export function useWorldTime(
       // Resume the existing clock policy, then inspect real pending work immediately.
       // Returning is not a new conversation, message, or paid source identity.
       s.returning = false;
+      setView(null);
       s.resumeRequired = true;
       immediateCheck.current = true;
       update();
@@ -255,12 +249,7 @@ export function useWorldTime(
     };
   }, [client, worldId, enabled, sync]);
   useEffect(() => {
-    if (
-      enabled &&
-      !session.current?.returning &&
-      !pendingWaitRef.current &&
-      !briefingRef.current
-    )
+    if (enabled && !session.current?.returning && !pendingWaitRef.current && !briefingRef.current)
       void sync(
         phoneTimeMode(busy, readRoute(location.hash, worldId), lockedRef.current),
         session.current?.resumeRequired,
@@ -397,6 +386,7 @@ export function useWorldTime(
     continueAtBoundary,
     returnBriefing: briefing,
     finishBriefing: (messageIds: readonly string[], storyNow?: string) => {
+      settledBriefing.current = briefingRef.current;
       briefingRef.current = null;
       setBriefing(null);
       immediateCheck.current = true;
@@ -426,7 +416,8 @@ export function useWorldTime(
         !!session.current?.returning ||
         working ||
         !!pendingWait ||
-        (briefing?.status === 'pending' || briefing?.status === 'running')),
+        briefing?.status === 'pending' ||
+        briefing?.status === 'running'),
     displayTime: clock ? projectStoryTime(clock, new Date(now).toISOString()) : null,
     /** Entry/return is a transport opportunity, not a new model authorization. */
     requestCheck: () => {

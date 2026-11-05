@@ -305,6 +305,11 @@
 .result small {
   display: none;
 }
+.narrationActor {
+  display: block;
+  font-size: 12px;
+  opacity: 0.85;
+}
 .shortNarration {
   text-align: center;
   font-size: 14px;

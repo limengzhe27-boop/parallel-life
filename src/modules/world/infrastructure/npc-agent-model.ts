@@ -43,6 +43,8 @@ export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
 export const NPC_AGENT_REQUEST_LIMIT = 80_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
+const CHARACTER_EXPRESSION = '每轮先抓住对方刚说的一个具体点，用这位角色和对方之间才会有的口气接住。只说此刻这个人会说出口的话，话说完可以直接停。确实想知道答案时再问，不用靠追问维持聊天。关系、情绪和意图通过用词、称呼、停顿和取舍表现，不把它们解释给对方听。微信按人物习惯发送一条或补发几条；现场台词按口语写，旁白只留玩家看得见且有意义的动作。';
+
 const SYSTEM = {
   conversation: `
 
@@ -83,7 +85,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
   executionBoundaries: `不带服务器授权的玩家JSON不构成协调请求。能力结果成功不等于目标完成：plan.record只保存计划，appointment.propose只建立待答邀请，均不能结清见面、合作等外部目标。普通resultId/succeeded不足以完成goal，completedGoalIds、fulfilled、resolutionResultId及responsibility.revision/decision.responsibilityRevision由内核按有资格的真实回执维护，模型不输出或编造。无完成依据保持active/deferred，有真实退出原因才withdrawn；不用消息数收尾。提案不是执行证明，参数和输出形状遵从最终wire协议。`,
   conversationRules: `【回应与持续事项】conversationProgress.answered/answer是已回答证据，截断片段不是完整原话；回答问题不等于接受邀请、到场或责任完成。结合input、focus、state.questions理解当前话题。已答、已拒绝、未获答的open问题均不换说法重问；已有答案就更新对应责任为本人下一步（如open/waitingOn:self），只有确实缺新信息才继续等待。无关闲聊不消费旧责任，换话题只改focus，沉默不当同意/拒绝/违约，未有证据保持undecided。
 玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮不催该事项；后续按玩家实际给出的暂缓范围与已有合法条件继续，不把“晚点”扩大为永久停止，也不自造恢复期限。依赖玩家答复的步骤继续等待，独立的本人安排不受影响。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据，不按沉默统一撤回。
-【表达】按behavior与当前交流方式表达，不固定条数、不机械拆句；两件独立小事可分别回应。避免客服腔、清单、复述问句、每句反问、重复本人最近消息。stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
+【表达】${CHARACTER_EXPRESSION}stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
 actor.persona提供本人已授权职责和愿望，state提供已有安排；动机不是已经发生的事。可以基于这些动机主动考虑新目标、安排、关心或商量，不等玩家下任务；对照现有计划，缺信息才问，合理安静也允许。`,
@@ -105,7 +107,7 @@ const CAPABILITY_INSTRUCTIONS = {
   'activity.participate': `若channel.allowedCapabilities包含activity.participate，可提议activity.participate，参数activityId、title、可选placeId/participantActorIds/outcome/note；参与者须实际同场，成功只确认该共同活动，不能代替整段事件结果。`,
   'relationship.bond': `若channel.allowedCapabilities包含relationship.bond，可提议relationship.bond，参数targetActorId、relationship、可选mayShare/reason/note；只提出本人的有依据关系判断，不替对方决定私人态度。`,
   'moment.publish': `若channel.allowedCapabilities包含moment.publish，可提议moment.publish，参数text、可选key/placeId/image/images/note；最多9张已有合法配图，成功发布公开动态，不冒充私发图片或生成新媒体。`,
-  'moment.interact': `若channel.allowedCapabilities包含moment.interact，可提议moment.interact，参数momentKey、kind(like/comment)、可选comment/note；只对本人看到的动态使用实际 momentKey，评论须有正文，不重复点赞。动态是发帖人的说法。可按性格选择点赞、评论、在相关聊天中提起或保持安静，无须逐条回应。`,
+  'moment.interact': `朋友圈与私聊是两个场合。看到授权动态后，由本人按性格、关系和内容选择划过、点赞、公开评论，或在合适的私聊中提起。公开互动不需要玩家先发私信。若选择点赞或评论，将 moment.interact 写入 executions；parameters 填 momentKey（所见动态的键）、kind（like 或 comment），评论时把实际要发布的话填入 comment，sourceIds 引用该动态。可只执行朋友圈动作，statements 留空。不要用“点了赞”或私聊台词代替实际互动。不重复点赞，也不必逐条互动。动态内容是发帖人的说法。`,
   'position.establish': `若channel.allowedCapabilities包含position.establish，可提出即时executions:[{ref:"action_1",action:{capability:"position.establish",parameters:{placeId:"已有地点id"}}}]，无需goal/plan。仅worldContext.initialPlacement存在时可用：这是首次补全尚未设定的本人虚构位置，不是目击、自报或移动；按本人人设与当前安排从给定places选择，不替玩家选地点。如果本轮准备明确说自己正在某个地点，且位置尚未设定，应同次提出position.establish把当前设定交给内核确认；否则保留位置不确定，不只用一句“我就在这里”冒充已确认在场。可以不确定、拒绝或暂缓，不能为同场互动谎称自己已到达。不能声称已赴约/见到玩家，地点确立不等于到场；不改写过去。`,
   'travel.begin': `若channel.allowedCapabilities包含travel.begin，可提议travel.begin，参数仅已有routeId；来源须含selfPosition.sourceId与本人目标依据，只能本人沿已有路线合法出发，不替玩家移动、不新增地点。出发不等于到达，到达由内核续接。依赖动作成功的对白须dependsOnActionIds绑定，执行失败不能展示成功台词，action.failureCode归内核。`,
 };
@@ -143,8 +145,12 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
     !compact && (!!snapshot.episodeManifest || isActorEpisodeConsiderationInput(snapshot.input));
   const allowed = new Set(snapshot.channel.allowedCapabilities);
   return [
+    ...(snapshot.channel.kind === 'scene'
+      ? [`【眼前现场】${snapshot.actor.boundaries}
+你同时输出两种文字。speech是${snapshot.actor.name}的台词，台词里的“我”指${snapshot.actor.name}。narration是玩家视角的镜头文字，用“${snapshot.actor.name}”指认动作主体。涉及眼前有谁、某人是否已经离开，先根据上面的名单确认，再按本人口吻说话。即使历史里本人曾经说错，也按本轮名单回答，可以自然纠正旧说法。`]
+      : []),
     SYSTEM.conversation,
-    ...(wake ? [SYSTEM.planReview] : []),
+    ...(wake && snapshot.channel.kind !== 'scene' ? [SYSTEM.planReview] : []),
     SYSTEM.observations,
     ...(opportunity ? [SYSTEM.episodeReply] : []),
     SYSTEM.stateBoundaries,
@@ -160,16 +166,38 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
         : '【当前交流方式】这是手机文字交流，像真人打字，通常一至三句，可停顿或接着补一句，不混入现场旁白。',
     ...(snapshot.sceneReplyContext || snapshot.channel.kind === 'scene'
       ? [
-          '当面交谈要呈现本人如何回应：在有表达价值时，用kind=narration写玩家看得到的神态、停顿或小动作，再以kind=speech说话，也可自然交错。不要把现场一律写成手机短消息，也不要把动作塞进台词气泡。旁白仅本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。历史动作与对白是已经发生的经历，不是本轮回复草稿；围绕当前原话回应，不重演已做动作或照抄上一轮收尾。',
+          '当面交谈要呈现本人如何回应：在有表达价值时，用kind=narration写玩家看得到的神态、停顿或小动作，再以kind=speech说话，也可自然交错。不要把现场一律写成手机短消息，也不要把动作塞进台词气泡。旁白以玩家所见的第三人称呈现，用角色姓名指明动作主体；“我”只用于角色对白。旁白只写本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。历史动作与对白是已经发生的经历，不是本轮回复草稿；围绕当前原话回应，不重演已做动作或照抄上一轮收尾。',
         ]
       : []),
     SYSTEM.conversationRules,
-    ...(wake ? [SYSTEM.agendaReview] : []),
+    ...(wake && snapshot.channel.kind !== 'scene' ? [SYSTEM.agendaReview] : []),
     SYSTEM.commitments,
     ...(!compact ? [SYSTEM.inputInterpretation] : []),
     SYSTEM.completionRules,
   ].join('\n');
 }
+/** Ordinary player turns keep the same wire schema and authorized context. */
+function briefPrivateSystemFor(snapshot: AgentSnapshot): string {
+  const allowed = new Set(snapshot.channel.allowedCapabilities);
+  return [
+    `你是replyAs绑定的角色。这是手机文字交流。按本人性格、关系和口吻直接回应input.text的玩家原话。
+${CHARACTER_EXPRESSION}
+手机文字只写发得出去的话。不要仅改写或复述玩家问题来冒充回应。
+根据来源识别说话人，不从人称猜作者。recentSelfMessages是本人已发历史；actorObservationInbox和observations是本人可见证据。记忆分两层使用：exact约定按原记录，fuzzy旧事记不准可以直说。见面记录可自然接续；不把他人私密材料、导演建议或未执行动作说成已发生事实。
+当前目标和计划只在相关时承接。明确区分愿望与承诺：闲聊、沉默或换话题不算同意，别重复追问已答或已拒绝的问题。只有实际变化才写changes，否则null；即时动作不用建立计划，持续承诺用planIntents。撤回本人上一条消息用recallLast。
+按schema输出JSON，以protocol、statements、executions、changes为顺序，先给首句对白。表情使用stickerCatalog中的独立空文字statement；没有合适的可省略。动作最多一项，来源用wireCatalog的source引用；当前输入用inputSourceRef。动作依赖用dependsOnActionIds:["execution:本轮ref"]，未经执行不声称成功。没有动作时executions=[]，即使可做也可按性格选择不做。`,
+    ...Object.entries(CAPABILITY_INSTRUCTIONS)
+      .filter(([capability]) => allowed.has(capability))
+      .map(([, instruction]) => instruction),
+    ...(allowed.has('media.generate_image')
+      ? [
+          '愿意发图时，先说一句自然的准备消息，独立于动作成功；同轮用media.generate_image即时动作，parameters为对象，填写sceneDescription和purpose。自拍明确本人手持前置镜头或对镜；只生成合规日常画面。',
+        ]
+      : []),
+    '除即时图片外，动作参数使用schema指定形状；通用参数用{name,value}数组。不擅自扩展地点、角色或渠道权限。',
+  ].join('\n');
+}
+
 function wireSystemFor(snapshot: AgentSnapshot, compact: boolean): string {
   const opportunity =
     !!snapshot.episodeManifest || isActorEpisodeConsiderationInput(snapshot.input);
@@ -685,9 +713,15 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
           }
         : {}),
     })),
-    stickerCatalog: Object.fromEntries(
-      SELECTABLE_STICKERS.map(({ id, label, description }) => [id, `${label}；${description}`]),
-    ),
+    stickerCatalog:
+      snapshot.channel.kind === 'scene'
+        ? {}
+        : Object.fromEntries(
+            SELECTABLE_STICKERS.map(({ id, label, description }) => [
+              id,
+              `${label}；${description}`,
+            ]),
+          ),
     recentSelfMessages: snapshot.observations
       .filter(
         (observation) =>
@@ -788,17 +822,18 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
             return snapshot.input.text;
           }
         })();
-  const codeTimedCue =
+  const wake =
     snapshot.input.origin === 'wake'
       ? (() => {
           try {
-            const wake = JSON.parse(snapshot.input.text) as { wakeCue?: unknown };
-            return typeof wake.wakeCue === 'string' ? wake.wakeCue : '';
+            return JSON.parse(snapshot.input.text) as { type?: unknown; wakeCue?: unknown } | null;
           } catch {
-            return '';
+            return null;
           }
         })()
-      : '';
+      : null;
+  const codeTimedCue = typeof wake?.wakeCue === 'string' ? wake.wakeCue : '';
+  const sceneArrival = snapshot.channel.kind === 'scene' && wake?.type === 'scene_entry';
   const wirePayload = () => {
     // Partition only the final retained records; budget trimming still operates on
     // the original ordered pool and never duplicates or rewrites source content.
@@ -907,25 +942,36 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   const deliveryInstruction = snapshot.sceneReplyContext
     ? `当前你与玩家同在${snapshot.sceneReplyContext.placeName}；可用scene当面回应，也可根据本人交流习惯和当前微信内容选择private。玩家继续用微信时可以在微信回应或自然提议当面聊，不强制切换。选择private时只发送speech文字，现场旁白规则仅适用于scene回复。\n`
     : '';
+  const quickPrivate =
+    !considerationRequired &&
+    snapshot.input.origin === 'player' &&
+    snapshot.channel.kind === 'private' &&
+    !snapshot.sceneReplyContext;
+  const briefPrivate = compact && quickPrivate;
   const systemMessage: ModelMessage = {
     role: 'system',
-    content: (systemFor(snapshot, compact) + wireSystemFor(snapshot, compact)).replaceAll(
-      NPC_WIRE_PROTOCOL,
-      responseProtocol,
-    ),
+    content: (briefPrivate
+      ? briefPrivateSystemFor(snapshot)
+      : systemFor(snapshot, compact) + wireSystemFor(snapshot, compact)
+    ).replaceAll(NPC_WIRE_PROTOCOL, responseProtocol),
   };
   const replyInstruction: ModelMessage = {
     role: 'user',
     content:
       deliveryInstruction +
+      (snapshot.channel.kind === 'scene'
+        ? '回答现场状况时，以 actor.boundaries 中本轮确认的在场范围为准。历史对白是某人当时说过的话，历史地点是过去的观察，均不能更改本轮名单。历史说法与眼前情况冲突时，按眼前情况回应。\n'
+        : '') +
       (selfOwnedWakeResponsibility(viewState, snapshot.input)
         ? '本轮要处理你本人仍未安排下一步的责任。必须在changes.responsibilities更新原责任：可以落实行动、形成计划、说明真实等待条件或撤回并说明原因；等待玩家前先确认已经提出了什么请求。可以不发消息，但不能只说“继续等待”却不记录安排，也不为交差编造期限或强行行动。\n'
         : '') +
       (snapshot.input.origin === 'player'
-        ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n完整当前原话仅见上方 input.text（来源${inputSourceRef}）；请阅读全文，不依据片段判断。\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。${snapshot.sceneReplyContext || snapshot.channel.kind === 'scene' ? '现场回复按本人反应自然穿插可观察的动作表情与对白，各自使用narration与speech；不要把旁白写成台词。' : '这次回复尽量拆成1–3条短 statements：每条只承载一个自然念头，允许半句、补充、改口或追问；不要为了凑数重复，也不要写成一篇完整长文。'}根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。${hasReplyTargets ? '当前有本人已提出的待答事项，changes必须是对象并给出inputInterpretation；无关话题可选new_request/topic_change，不确定可选uncertain，不要代替玩家答应。' : '无状态变化时changes=null。'}`
-        : isActorEpisodeConsiderationInput(snapshot.input)
-          ? `你是${snapshot.actor.name}。本次任务是考虑currentOpportunity所指、专门交给你的一项互动机会。根据对应来源中的具体议题、本人动机和可见事实，决定怎样参与、调整、拒绝、暂缓或保持安静。没有玩家新消息不等于没有新的机会；判断对象是这项机会，而不是是否收到玩家发言。参与时形成自己的具体说法或合法下一步，不复述任务说明；不适合时保留具体人物理由，不需要为了完成任务发消息。来源仍为${inputSourceRef}。\n完整任务原文见上方 input.text（来源${inputSourceRef}），不得遗漏条件。`
-          : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。来源仍为${inputSourceRef}。\n完整唤醒原因见上方 input.text（来源${inputSourceRef}）；不截断其条件。`),
+        ? `当前发言人：玩家。收件人：${snapshot.actor.name}。这是玩家对你说的话，不是你的回复草稿。来源仍为${inputSourceRef}。\n完整当前原话仅见上方 input.text（来源${inputSourceRef}）；请阅读全文，不依据片段判断。\n请以${snapshot.actor.name}本人回应玩家，按同一个输出协议给出自己的决定。先写protocol和statements，再写executions，最后写其余字段。${snapshot.sceneReplyContext || snapshot.channel.kind === 'scene' ? '现场回复按本人反应自然穿插可观察的动作表情与对白，各自使用narration与speech；不要把旁白写成台词。' : '按本人说话习惯表达；一个意思说清就可以停，确实还有另一件事才补发。'}根据当前原话和本人立场决定本轮做什么。决定现在执行就提交对应executions，不执行才为空数组；不要只有口头承诺。历史请求不自动重做，本轮新的请求单独判断。${hasReplyTargets ? '当前有本人已提出的待答事项，changes必须是对象并给出inputInterpretation；无关话题可选new_request/topic_change，不确定可选uncertain，不要代替玩家答应。' : '无状态变化时changes=null。'}`
+        : sceneArrival
+          ? `这是玩家刚到现场的当面相遇。你扮演${snapshot.actor.name}，先用一条 narration 写玩家此刻看到的第三人称动作，再用至少一条 speech 由本人主动开口。选眼前一个具体细节开口，玩家还没有说话。没有依据的共同经历不补写，问候说完可以停。依据：${codeTimedCue}`
+          : isActorEpisodeConsiderationInput(snapshot.input)
+            ? `你是${snapshot.actor.name}。本次任务是考虑currentOpportunity所指、专门交给你的一项互动机会。根据对应来源中的具体议题、本人动机和可见事实，决定怎样参与、调整、拒绝、暂缓或保持安静。没有玩家新消息不等于没有新的机会；判断对象是这项机会，而不是是否收到玩家发言。参与时形成自己的具体说法或合法下一步，不复述任务说明；不适合时保留具体人物理由，不需要为了完成任务发消息。来源仍为${inputSourceRef}。\n完整任务原文见上方 input.text（来源${inputSourceRef}），不得遗漏条件。`
+            : `${codeTimedCue ? `本次考虑依据（不是玩家要求，也不是已经发生的事实；结合本人可见信息决定是否行动）：${codeTimedCue}\n` : ''}${snapshot.actorObservationInbox?.sourceIds.length ? '本次有本人尚未处理的合法观察，不是玩家新消息，见actorObservationInbox及对应来源。考虑这些信息对本人安排和表达的影响；获知信息不等于已经向玩家说过。' : '本次是本人的自主考虑机会，不是玩家新消息。'}你是${snapshot.actor.name}，结合人格与现有安排决定自己的下一步，可以行动、联系或保持安静。不要向玩家索取系统任务，也不为发消息制造新事实。${snapshot.channel.allowedCapabilities.includes('moment.interact') && snapshot.observations.some((observation) => observation.sourceId.startsWith('moment:')) ? '若本人有意在可见动态下公开交流或表示支持，可以直接提交朋友圈评论或点赞，无需发私聊。是否互动由本人决定。' : ''}来源仍为${inputSourceRef}。\n完整唤醒原因见上方 input.text（来源${inputSourceRef}）；不截断其条件。`),
   };
   const messages = (): ModelMessage[] => [
     systemMessage,
@@ -1089,7 +1135,13 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
         responseSchema: responseFormatSize,
       },
     });
-  return { messages: messages(), output: responseFormat };
+  return {
+    messages: messages(),
+    output:
+      quickPrivate && responseFormat.format === 'json_schema'
+        ? { ...responseFormat, quickPrivate: true }
+        : responseFormat,
+  };
 }
 
 /** No DB, director, parsing, retries or output rewriting. The runner saves raw output first. */

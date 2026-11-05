@@ -4,6 +4,7 @@ import type { GatewayConfig } from '../modules/ai/infrastructure/yibu-text-model
 /** Scene delivery may use its own model; all credentials and transport policy remain shared. */
 export function sceneGatewayConfig(): GatewayConfig {
   const base = gatewayConfig();
+  if (base.deepSeekJson) return base;
   const model = process.env.YIBU_SCENE_MODEL?.trim() || base.model;
   if (!/^[\w.-]+$/.test(model)) throw new Error('SCENE_MODEL_NOT_CONFIGURED');
   return { ...base, model };

@@ -52,6 +52,12 @@ export async function validateSceneObservationContext(
     if (!actual || !isDeepStrictEqual(source, { ...actual, usage: 'channel_context' })) fail();
     const observations = snapshot.observations.filter((o) => o.sourceId === source.id);
     const actualObservation = packet.observations.find((o) => o.sourceId === source.id);
-    if (observations.length !== 1 || !isDeepStrictEqual(observations[0], actualObservation)) fail();
+    if (!actualObservation || observations.length !== 1) return fail();
+    // Previously accepted attempts did not carry speaker attribution.
+    const { speaker, ...legacyObservation } = actualObservation;
+    const expected = observations[0]!.speaker
+      ? { ...legacyObservation, speaker }
+      : legacyObservation;
+    if (!isDeepStrictEqual(observations[0], expected)) fail();
   }
 }

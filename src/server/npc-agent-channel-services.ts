@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { respondToEmptyScene } from './empty-scene-environment.ts';
 import { canReadGroupMessage } from '../modules/world/domain/experience-rules.ts';
 import { coordinateNativeResponder } from './npc-agent-native-coordination.ts';
@@ -82,7 +83,11 @@ export function nativeNpcTaskHandler(
   modelFactory: () => TextModel,
   environmentModelFactory: () => TextModel = modelFactory,
 ) {
-  return async (lease: TaskLease, signal: AbortSignal): Promise<boolean> => {
+  async function handle(
+    lease: TaskLease,
+    signal: AbortSignal,
+    waitUntil: number,
+  ): Promise<boolean> {
     const started = performance.now();
     // A platform timeout cannot run a catch/finally block. Record bounded phase
     // markers so preparation stalls are not mistaken for unknown model results.
@@ -433,7 +438,20 @@ export function nativeNpcTaskHandler(
       const status = await store
         .lookup(lease.ownerId, world.id, commandId)
         .then((a) => a?.status)
-        .catch(() => null);
+        .catch(() => 'lookup_failed');
+      if (
+        native.receipt.channel === 'scene' &&
+        !previous &&
+        !status &&
+        (error as { code?: string })?.code === 'ATTEMPT_PENDING'
+      ) {
+        if (Date.now() >= waitUntil)
+          throw Object.assign(Error('人物正在处理上一轮，请稍后继续。'), { code: 'BUSY' });
+        // Claim rejected before any model call. Keep the original task/receipt
+        // and rebuild its snapshot once the competing turn can settle.
+        await delay(500, undefined, { signal });
+        return handle(lease, signal, waitUntil);
+      }
       const code =
         status === 'unknown_after_send' || status === 'request_sent'
           ? 'UPSTREAM_FAILED'
@@ -446,5 +464,6 @@ export function nativeNpcTaskHandler(
       throw error;
     }
     return true;
-  };
+  }
+  return (lease: TaskLease, signal: AbortSignal) => handle(lease, signal, Date.now() + 5_000);
 }

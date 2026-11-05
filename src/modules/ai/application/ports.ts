@@ -11,7 +11,13 @@ export type ModelMessage = {
 };
 export type ModelOutputOptions =
   | { format: 'json_object' }
-  | { format: 'json_schema'; name: string; schema: Record<string, unknown>; strict: boolean };
+  | {
+      format: 'json_schema';
+      name: string;
+      schema: Record<string, unknown>;
+      strict: boolean;
+      quickPrivate?: true;
+    };
 export interface TextModel {
   /** `maxTokens` overrides the default output cap; long structured calls need far more than a chat reply. */
   complete(

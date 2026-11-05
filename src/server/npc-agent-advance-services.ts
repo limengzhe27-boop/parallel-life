@@ -253,7 +253,8 @@ export function npcAgentAdvanceServices(
           worldTime: String(row.world_time),
           modelCooldown: row.model_cooldown === true,
           // Legacy worlds return before using a clock; do not add a read for them.
-          clock: engineEpoch < 2 ? null : await readClockInTransaction(sql, ownerId, worldId, now),
+          clock:
+            engineEpoch < 2 ? null : await readClockInTransaction(sql, ownerId, worldId, now, true),
         };
       });
       const engineEpoch = control.engineEpoch;

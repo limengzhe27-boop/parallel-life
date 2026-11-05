@@ -15,6 +15,7 @@ export type GatewayConfig = {
   baseUrl: string;
   timeoutMs: number;
   /** Transport setting only; never stored in a world's business state. */
+  deepSeekJson?: boolean;
   reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
 };
 /** Chat-shaped calls keep the conservative default; structured builders ask for their own cap. */
@@ -63,7 +64,8 @@ export class YibuTextModel implements TextModel {
   private readonly request: typeof fetch;
   constructor(config: GatewayConfig, request: typeof fetch = fetch) {
     if (
-      config.baseUrl !== 'https://yibuapi.com' ||
+      config.baseUrl !==
+        (config.deepSeekJson ? 'https://api.deepseek.com' : 'https://yibuapi.com') ||
       !config.apiKey.trim() ||
       !/^[\w.-]+$/.test(config.model) ||
       !Number.isFinite(config.timeoutMs) ||
@@ -76,6 +78,34 @@ export class YibuTextModel implements TextModel {
     this.config = { ...config };
     this.request = request;
   }
+  private providerBody(
+    messages: ReturnType<typeof validateModelRequest>['messages'],
+    format: ReturnType<typeof validateModelRequest>['format'],
+    output?: ModelOutputOptions,
+  ) {
+    if (!this.config.deepSeekJson)
+      return {
+        messages,
+        ...(format ? { response_format: format } : {}),
+        ...(this.config.reasoningEffort ? { reasoning_effort: this.config.reasoningEffort } : {}),
+      };
+    const schema = output?.format === 'json_schema' ? JSON.stringify(output.schema) : null;
+    return {
+      messages: schema
+        ? [{ role: 'system', content: '输出 JSON，遵守这个结构：' + schema }, ...messages]
+        : messages,
+      thinking: { type: 'disabled' },
+      ...(format ? { response_format: { type: 'json_object' } } : {}),
+    };
+  }
+
+  private get endpoint() {
+    return (
+      this.config.baseUrl +
+      (this.config.deepSeekJson ? '/chat/completions' : '/v1/chat/completions')
+    );
+  }
+
   async complete(
     messages: ModelMessage[],
     signal?: AbortSignal,
@@ -84,6 +114,7 @@ export class YibuTextModel implements TextModel {
   ): Promise<string> {
     const prepared = validateModelRequest(messages, maxTokens, output);
     const { format, messages: preparedMessages, maxTokens: outputCap } = prepared;
+    const requestBody = this.providerBody(preparedMessages, format, output);
     if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
     const started = performance.now();
     let stage: NonNullable<GatewayError['stage']> = 'request';
@@ -93,7 +124,7 @@ export class YibuTextModel implements TextModel {
     try {
       combined.throwIfAborted();
       response = await abortable(
-        this.request(`${this.config.baseUrl}/v1/chat/completions`, {
+        this.request(this.endpoint, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${this.config.apiKey}`,
@@ -101,13 +132,9 @@ export class YibuTextModel implements TextModel {
           },
           body: JSON.stringify({
             model: this.config.model,
-            ...(this.config.reasoningEffort
-              ? { reasoning_effort: this.config.reasoningEffort }
-              : {}),
-            messages: preparedMessages,
+            ...requestBody,
             stream: false,
             max_tokens: outputCap,
-            ...(format ? { response_format: format } : {}),
           }),
           signal: combined,
           redirect: 'error',
@@ -214,6 +241,7 @@ export class YibuTextModel implements TextModel {
       messages: preparedMessages,
       maxTokens,
     } = validateModelRequest(messages, DEFAULT_MAX_TOKENS, output);
+    const requestBody = this.providerBody(preparedMessages, format, output);
     if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
     const started = performance.now();
     const lifetime = callLifetime(this.config.timeoutMs, signal);
@@ -222,7 +250,7 @@ export class YibuTextModel implements TextModel {
     try {
       combined.throwIfAborted();
       response = await abortable(
-        this.request(`${this.config.baseUrl}/v1/chat/completions`, {
+        this.request(this.endpoint, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${this.config.apiKey}`,
@@ -231,13 +259,9 @@ export class YibuTextModel implements TextModel {
           },
           body: JSON.stringify({
             model: this.config.model,
-            ...(this.config.reasoningEffort
-              ? { reasoning_effort: this.config.reasoningEffort }
-              : {}),
-            messages: preparedMessages,
+            ...requestBody,
             stream: true,
             max_tokens: maxTokens,
-            ...(format ? { response_format: format } : {}),
           }),
           signal: combined,
           redirect: 'error',

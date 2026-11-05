@@ -8,6 +8,7 @@ import { YibuTextModel } from '../modules/ai/infrastructure/yibu-text-model.ts';
 export function createTextModel() {
   const config = gatewayConfig();
   const base = new YibuTextModel(config);
+  if (config.deepSeekJson) return roleTextModel(base, base);
   const npcModel = process.env.YIBU_NPC_MODEL?.trim();
   // This is model capacity shared by global and private background decisions,
   // not shared Agent state. Direct player replies keep the fast NPC override.
@@ -15,7 +16,8 @@ export function createTextModel() {
   // Explicit provider configuration; never infer support from a model name.
   const npcEffort =
     process.env.YIBU_NPC_REASONING_EFFORT?.trim() as GatewayConfig['reasoningEffort'];
-  return npcModel || directorModel || npcEffort
+  const deepSeekKey = process.env.DEEPSEEK_PRIVATE_CHAT_API_KEY?.trim();
+  return npcModel || directorModel || npcEffort || deepSeekKey
     ? roleTextModel(
         base,
         npcModel || npcEffort
@@ -26,6 +28,15 @@ export function createTextModel() {
             })
           : base,
         directorModel ? new YibuTextModel({ ...config, model: directorModel }) : undefined,
+        deepSeekKey
+          ? new YibuTextModel({
+              apiKey: deepSeekKey,
+              baseUrl: 'https://api.deepseek.com',
+              model: 'deepseek-flash',
+              timeoutMs: config.timeoutMs,
+              deepSeekJson: true,
+            })
+          : undefined,
       )
     : base;
 }
@@ -34,7 +45,9 @@ export function createManuscriptTextModel() {
   const config = gatewayConfig();
   return new YibuTextModel({
     ...config,
-    model: process.env.YIBU_PREPARATION_MODEL?.trim() || config.model,
+    model: config.deepSeekJson
+      ? config.model
+      : process.env.YIBU_PREPARATION_MODEL?.trim() || config.model,
   });
 }
 export { sameOrigin as sessionOriginAllowed } from '../modules/identity/infrastructure/signed-session.ts';
