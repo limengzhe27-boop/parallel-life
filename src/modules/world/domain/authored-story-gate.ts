@@ -115,7 +115,9 @@ export function deriveAuthoredStoryGate(
   const presented = (key: string) => !!map.get(key)?.presented;
   const active = (key: string) => {
     const state = map.get(key);
-    return !!state && !terminal(key) && (state.status === 'proposed' || state.status === 'active');
+    // A proposed episode is only an offer; it becomes in-flight when an actor
+    // engages. Let the next review re-consider it instead of deadlocking the act.
+    return !!state && !terminal(key) && state.status === 'active';
   };
   const openingEventKey = text(plan.openingEventKey) ? plan.openingEventKey : null;
   const openingPresented = !openingEventKey || presented(openingEventKey);

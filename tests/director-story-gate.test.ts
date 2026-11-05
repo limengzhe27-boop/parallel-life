@@ -72,6 +72,16 @@ test('the next act stays closed until every current-act event was presented', ()
   assert.deepEqual(after.terminalNodeKeys, ['opening', 'node_1', 'node_2']);
 });
 
+test('a proposed but unshown episode does not block the act from being reconsidered', () => {
+  const gate = deriveAuthoredStoryGate(plan, [
+    state('opening', 'active', true),
+    state('node_1', 'proposed'),
+    state('node_2', 'active'),
+  ]);
+  assert.deepEqual(gate.activeNodeKeys, ['opening', 'node_2']);
+  assert.deepEqual(gate.eligibleNodeKeys, ['node_1']);
+});
+
 test('a presented but unresolved event is occupied and is not proposed twice', () => {
   const gate = deriveAuthoredStoryGate(plan, [state('opening', 'active', true)]);
   assert.deepEqual(gate.presentedNodeKeys, ['opening']);

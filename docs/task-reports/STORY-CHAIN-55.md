@@ -150,12 +150,26 @@ occupied =
   - `activeNodeKeys=[opening,node_1,node_2]`
   - `presentedNodeKeys=[opening,node_2]`
   - `deliberationWindow.nodeKeys=[]`
+- 随后发现两个真实缺口：
+  - `node_1` 的 episode 仍为 `proposed`，但已产生 `defer` receipt 和实际消息；旧门把 `proposed` 当作在途并排除出 eligible，形成死锁。
+  - 门/占用只读 `sourceEventIds`，没有把 `agent_episode_receipts.presented_message_ids` 当作已呈现证据。
+- 修复后：
+  - `active` 只认 `active`，`proposed` 可被下一次复盘重新考虑；
+  - `presented` 同时认 `sourceEventIds` 和真实 receipt 的 `presented_message_ids`；
+  - 未投影的新 commit 仍 fail closed。
+- `worldVersion=1415` 青青实际发送“假扮情侣”邀约，node_1 进入 presented；快照：
+  - `currentStageKeys=["runtime_stage_2"]`
+  - `presentedNodeKeys=[opening,node_1,node_2]`
+  - `deliberationWindow.nodeKeys=["event_277761b2379f3db6","node_4"]`
+- `worldVersion=1416` 第 2 幕 node_4（夜不归宿/青青情绪危机）由李之之实际发消息；快照：
+  - `presentedNodeKeys=[opening,node_1,node_2,node_4]`
+  - `deliberationWindow.nodeKeys=["event_277761b2379f3db6","node_5"]`
 
-这说明当前门禁不是“无限开放 18 个事件”，而是 opening 真实呈现后才进入第 1 幕；第 1 幕节点在途时窗口为空，必须等实际呈现/终结才继续。
+这说明门禁不是“无限开放 18 个事件”：opening 真实呈现后才进入第 1 幕；第 1 幕节点都取得真实呈现后自动进入第 2 幕；第 2 幕 node_4 呈现后，剩余 `event_277.../node_5` 才进入窗口。
 
 #### 检查与运行
 
-- `npm run check`：**4273/4273 通过**。
+- `npm run check`：**4274/4274 通过**。
 - `npm run build`：主目录集成构建通过。
 - 聚焦真实 PG：`own-agenda-review-evidence` **18/18 通过**（含新增 quarantine 回归）。
 - 0130 已应用到 `parallel_life_clone_20261026`、`parallel_life_test`、`parallel_life_dev`；本地 3218 已切到主目录构建，health 200。
@@ -164,16 +178,16 @@ occupied =
 ## 4. 还没有完成
 
 1. **新故事包**：18 个节点全部呈现/终结后，`eligibleNodeKeys=[]`，尚未生成第 19+ 个事件；下一批应新增 `story_pack` 生成/作者追加路径。
-2. **真实开场/第 1 幕**：opening 已真实呈现，第 1 幕 node_1/node_2 已真实发起任务；但玩家回复、事件结果与第 1 幕终结尚未验收。
+2. **真实开场/第 1–2 幕**：opening、第 1 幕 node_1/node_2、第 2 幕 node_4 均已真实呈现；第 2 幕剩余 `event_277.../node_5` 已进入窗口，玩家回复与事件结果尚未验收。
 3. **事件终结**：本批仍以“呈现”推进当前幕；非邀请类 `director_event` 的 `resolved` 语义、NPC 拒绝/quiet 后如何不阻塞剧情，仍需按玩家决定/实际结果补齐。
-4. **本地运行**：3218 已切主目录构建并 health 200；旧 `.local/build-story55` 不再作为当前入口。worker 需在收尾时同步到同一构建，避免旧代码继续处理 own-agenda。
+4. **本地运行**：3218 与 worker 均已切主目录构建并 health 200；旧 `.local/build-story55` 不再作为当前入口。
 5. **生产**：0127–0130 尚未应用到生产 Supabase；未推送/未部署 Vercel。不能把本地迁移当线上完成。
 
 ## 5. 最终提交
 
 - 业务/迁移/报告提交：本批改动尚在工作树，待集成提交（上一提交 `dcfca52c`）。
 - 本地地址：`http://localhost:3218`（主目录构建）
-- 集成检查：4273/4273，build 通过
+- 集成检查：4274/4274，build 通过
 - 迁移：0127–0130 本地 clone/test/dev 已应用；生产未应用
 
 ## 5. 接续点

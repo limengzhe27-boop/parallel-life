@@ -1014,9 +1014,11 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       }
     }
   }
+  const authoredEpisodeTask =
+    !!snapshot.episodeManifest || isActorEpisodeConsiderationInput(snapshot.input);
   // Last-resort context reduction: old quiet episode deliberations are not
   // current work and must not make the whole director review unsendable.
-  if (snapshot.episodeManifest && !fits()) {
+  if (authoredEpisodeTask && !fits()) {
     const state = optional.state as {
       episodeParticipations?: { id: string; choice: string }[];
     } | null;
@@ -1031,7 +1033,7 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
   // A long private thread can accumulate dozens of duplicate open questions.
   // Keep the focused question, every closed/assessed one, and the recent open
   // tails; the durable ledger remains authoritative for later exact recovery.
-  if (snapshot.episodeManifest && !fits(NPC_AGENT_REQUEST_LIMIT)) {
+  if (authoredEpisodeTask && !fits(NPC_AGENT_REQUEST_LIMIT)) {
     const state = optional.state as {
       questions?: { sourceId?: string; status?: string }[];
       focus?: { questionSourceId?: string | null } | null;
@@ -1048,20 +1050,27 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
       }
     }
   }
-  // Episode follow-ups are the last large optional block. Keep the two most
-  // recent non-terminal tasks rather than failing the entire turn.
-  if (
-    snapshot.episodeManifest &&
-    !fits(NPC_AGENT_REQUEST_LIMIT) &&
-    Array.isArray(optional.episodeFollowUps)
-  ) {
-    const retained = (optional.episodeFollowUps as { followUp?: string }[])
-      .filter((followUp) => followUp.followUp !== 'terminal')
-      .slice(-2);
-    if (retained.length < optional.episodeFollowUps.length) {
-      optional.episodeFollowUps = retained;
-      if (payload.contextSelection) payload.contextSelection.stateDetailsWithheld = true;
+  // An authored episode task is explicit current work. Unlike ordinary chat, it
+  // may drop old follow-ups, unrelated open questions and optional prose to fit.
+  if (authoredEpisodeTask && !fits(NPC_AGENT_REQUEST_LIMIT)) {
+    if (Array.isArray(optional.episodeFollowUps)) optional.episodeFollowUps = [];
+    const state = optional.state as {
+      questions?: { sourceId?: string; responsibilityId?: string; status?: string }[];
+      focus?: { questionSourceId?: string | null } | null;
+    } | null;
+    if (state?.questions?.length) {
+      const focusSourceId = state.focus?.questionSourceId;
+      state.questions = state.questions.filter(
+        (q) => q.sourceId === focusSourceId || q.responsibilityId !== undefined,
+      );
     }
+  }
+  if (
+    authoredEpisodeTask &&
+    !fits(NPC_AGENT_REQUEST_LIMIT) &&
+    Array.isArray(optional.observations)
+  ) {
+    optional.observations = optional.observations.slice(-5);
   }
   if (!fits(NPC_AGENT_REQUEST_LIMIT))
     throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {

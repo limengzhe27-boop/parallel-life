@@ -67,6 +67,9 @@ export async function readAuthoredStoryGate(
     await sql.query(
       `SELECT o->>'authoredEventKey' node_key,ep.document->>'status' status,
         jsonb_array_length(COALESCE(ep.document->'sourceEventIds','[]')) source_count,
+        EXISTS(SELECT 1 FROM parallel_life.agent_episode_receipts r
+          WHERE r.world_id=ep.world_id AND r.owner_id=ep.owner_id AND r.episode_id=ep.id
+            AND jsonb_array_length(COALESCE(r.presented_message_ids,'[]'))>0) receipt_presented,
         EXISTS(SELECT 1 FROM parallel_life.agent_episode_outcomes x
           WHERE x.world_id=ep.world_id AND x.owner_id=ep.owner_id AND x.episode_id=ep.id) resolved
        FROM parallel_life.shared_episodes ep
@@ -95,7 +98,8 @@ export async function readAuthoredStoryGate(
         : row.status === 'active'
           ? ('active' as const)
           : ('proposed' as const),
-      presented: Number(row.source_count) > 0 || row.resolved === true,
+      presented:
+        Number(row.source_count) > 0 || row.receipt_presented === true || row.resolved === true,
       resolved: row.resolved === true,
     })),
     ...nodeRows.map((row) => ({
@@ -229,7 +233,10 @@ export async function readAuthoredEligibilityInTransaction(
          WHERE ep.world_id=$1 AND ep.owner_id=$2 AND o->>'id'=ep.id
           AND o ? 'authoredEventKey' AND ep.created_at >= $3::timestamptz
           AND (ep.document->>'status' IN ('resolved','withdrawn')
-            OR jsonb_array_length(COALESCE(ep.document->'sourceEventIds','[]'))>0)
+            OR jsonb_array_length(COALESCE(ep.document->'sourceEventIds','[]'))>0
+            OR EXISTS(SELECT 1 FROM parallel_life.agent_episode_receipts r
+              WHERE r.world_id=ep.world_id AND r.owner_id=ep.owner_id AND r.episode_id=ep.id
+                AND jsonb_array_length(COALESCE(r.presented_message_ids,'[]'))>0))
          UNION
          SELECT n.node_key key FROM parallel_life.publication_story_nodes n
          WHERE n.world_id=$1 AND n.owner_id=$2 AND n.story_at >= $3::timestamptz
