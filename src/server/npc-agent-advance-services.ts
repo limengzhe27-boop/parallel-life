@@ -1,4 +1,5 @@
 import { readUnclaimedWakeInTransaction } from '../modules/world/infrastructure/agent-orphan-wake-recovery.ts';
+import { directorIdleBeatMode } from './config.ts';
 import { readAgentObservationScheduleCandidatesInTransaction } from '../modules/world/infrastructure/agent-observation-schedule-read.ts';
 import { repairQuestionProgressReasonsInTransaction } from '../modules/world/infrastructure/question-progress-repair.ts';
 import { independentObservationWork } from '../modules/world/domain/independent-observation-work.ts';
@@ -642,12 +643,15 @@ export function npcAgentAdvanceServices(
           return await runDirectorAgent(
             {
               attempts: directors,
-              model: new WorldDirectorAgentModel({
-                complete: (...args) => {
-                  batch?.modelStarted();
-                  return modelFactory().complete(...args);
+              model: new WorldDirectorAgentModel(
+                {
+                  complete: (...args) => {
+                    batch?.modelStarted();
+                    return modelFactory().complete(...args);
+                  },
                 },
-              }),
+                { idleBeat: directorIdleBeatMode() },
+              ),
               parse: parseDirectorDecision,
             },
             ownerId,

@@ -148,7 +148,8 @@ const Candidate = z
     planReview: z
       .object({
         planId: Key,
-        goalId: Key,
+        // Plans accepted from a director task are not required to invent a goal.
+        goalId: Key.nullable(),
         result: z
           .object({
             worldId: Key,

@@ -13,6 +13,7 @@ import {
   parseDirectorDecision,
 } from '../modules/world/infrastructure/director-agent-model.ts';
 import { runDirectorAgent } from '../modules/world/application/run-director-agent.ts';
+import { directorIdleBeatMode } from './config.ts';
 
 /** The same persistent Director, only for ambiguous explicit player turns, never per ordinary message. */
 export async function coordinateNativeResponder(
@@ -76,8 +77,15 @@ export async function coordinateNativeResponder(
       {
         attempts: store,
         model: {
-          validateInput: (s) => new WorldDirectorAgentModel(model()).validateInput(s),
-          decide: (s, abort) => new WorldDirectorAgentModel(model()).decide(s, abort),
+          validateInput: (s) =>
+            new WorldDirectorAgentModel(model(), {
+              idleBeat: directorIdleBeatMode(),
+            }).validateInput(s),
+          decide: (s, abort) =>
+            new WorldDirectorAgentModel(model(), { idleBeat: directorIdleBeatMode() }).decide(
+              s,
+              abort,
+            ),
         },
         parse: parseDirectorDecision,
       },
