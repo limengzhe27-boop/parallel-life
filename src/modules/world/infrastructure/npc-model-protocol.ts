@@ -1185,13 +1185,18 @@ function transport(value: unknown, convertParameters = true): unknown {
 function isPlayerFacingWakeStatement(text: string): boolean {
   const value = text.trim();
   if (!value) return false;
-  if (
-    /目前我只能|该做的已经|再作打算|也是个信号|先专心|不会再去催|等他的反应|我只能等|先推进我能管控|等不到你确切/.test(
+  // Backstage labels never belong in a player-facing bubble.
+  if (value.includes('主角')) return false;
+  const planning =
+    /我现在的心情|我现在的想法|我现在只能|目前我只能|该做的已经|该做的都|再作打算|也是个信号|先专心|主动权|自问自答|这个阶段|等他的反应|我只能等|接下来，没有|已经顺利发出|等不到你确切|已经表达|已经说清楚|已经做到|不会主动|不会再主动|不会继续|不催|不追问|不追加|不打扰|留给他|留给对方|只能等|安静下来|收一收/.test(
       value,
-    )
-  )
-    return false;
-  return value.includes('你') || value.length <= 40;
+    );
+  // A short direct line ("我到了。", "我还是安静等你，不打扰你。") is valid chat.
+  // Long self-analysis about waiting/strategy is not; neither is a long third-person
+  // report that never addresses the player.
+  if (planning && value.length > 60) return false;
+  if (!value.includes('你') && value.length > 40 && planning) return false;
+  return true;
 }
 
 function isInitialPositionWork(context: AgentValidationContext): boolean {
