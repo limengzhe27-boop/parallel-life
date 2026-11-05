@@ -16,7 +16,7 @@ const RECOVERY_STATUSES = new Set([
 ]);
 
 export function directorFailureRetryMs(status?: string): number {
-  return status && KNOWN_RETRYABLE.has(status) ? 15_000 : 5 * 60 * 1000;
+  return status && KNOWN_RETRYABLE.has(status) ? 15_000 : 10 * 60 * 1000;
 }
 
 export function nextDirectorReviewAt(storyAt: string, status?: string): string {

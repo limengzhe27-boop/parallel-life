@@ -4,6 +4,7 @@ import {
   phoneTimeMode,
   idleCheckDue,
   phoneConversationFocus,
+  PHONE_IDLE_PAUSE_MS,
 } from '../src/features/phone/time-experience-policy.ts';
 import { ClockActivityRequestSchema, WorldClockSchema } from '../src/contracts/world-clock.ts';
 import { StoryWaitRequestSchema, StoryWaitReceiptSchema } from '../src/contracts/story-wait.ts';
@@ -61,11 +62,14 @@ test('open private/group dialogue and scenes stay slow while reading, and leavin
   assert.equal(idleCheckDue(35000, 0, 0), true);
   assert.equal(idleCheckDue(35000, 10000, 0), true);
   assert.equal(idleCheckDue(150000, 0, 140000), false);
+  assert.equal(PHONE_IDLE_PAUSE_MS, 30 * 60_000);
 });
 test('activity and wait requests reject caller-controlled timestamps and owners', () => {
   const activity = { clientId: id, sequence: 4, mode: 'conversation' };
   assert(ClockActivityRequestSchema.safeParse(activity).success);
   assert(!ClockActivityRequestSchema.safeParse({ ...activity, ownerId: id }).success);
+  assert(ClockActivityRequestSchema.safeParse({ ...activity, idle: true }).success);
+  assert(!ClockActivityRequestSchema.safeParse({ ...activity, idle: 'yes' }).success);
   assert(
     !ClockActivityRequestSchema.safeParse({ ...activity, storyNow: '2030-01-01T00:00:00Z' })
       .success,

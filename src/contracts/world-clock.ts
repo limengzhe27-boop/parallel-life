@@ -16,7 +16,7 @@ const ClockValuesSchema = z.strictObject({
   summary: z.string().nullable(),
   managed: z.boolean().optional(),
   continuityMode: z.enum(['presence', 'continuous']).optional(),
-  pauseReason: z.enum(['legacy', 'manual']).nullable().optional(),
+  pauseReason: z.enum(['legacy', 'manual', 'idle']).nullable().optional(),
   activeUntil: Timestamp.nullable().optional(),
 });
 /** Reads contain clock values; successful controls also carry a committed receipt. */
@@ -32,6 +32,7 @@ export const ClockActivityRequestSchema = z.strictObject({
   clientId: Id,
   sequence: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   mode: z.enum(['browsing', 'conversation', 'away']),
+  idle: z.boolean().optional(),
   focus: z
     .strictObject({ channel: z.enum(['private', 'group', 'scene']), threadId: Id })
     .nullable()

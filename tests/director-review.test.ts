@@ -11,19 +11,19 @@ import {
 test('director review is due when absent or at the persisted boundary', () => {
   const at = '2026-10-21T06:00:00.000Z';
   const next = nextDirectorReviewAt(at);
-  assert.equal(next, '2026-10-21T06:05:00.000Z');
+  assert.equal(next, '2026-10-21T06:10:00.000Z');
   assert.equal(directorReviewDue(null, at), true);
   assert.equal(
     directorReviewDue(
       { nextReviewAt: next, lastReviewedAt: at, reviewCount: 1 },
-      '2026-10-21T06:04:59.999Z',
+      '2026-10-21T06:09:59.999Z',
     ),
     false,
   );
   assert.equal(
     directorReviewDue(
       { nextReviewAt: next, lastReviewedAt: at, reviewCount: 1 },
-      '2026-10-21T06:05:00.000Z',
+      '2026-10-21T06:10:00.000Z',
     ),
     true,
   );
@@ -53,7 +53,7 @@ test('director retry is seconds for known failure and recovery-only for unknown 
   const at = '2026-10-21T06:00:00.000Z';
   assert.equal(nextDirectorReviewAt(at, 'invalid_output'), '2026-10-21T06:00:15.000Z');
   assert.equal(nextDirectorReviewAt(at, 'cancelled_before_send'), '2026-10-21T06:00:15.000Z');
-  assert.equal(nextDirectorReviewAt(at, 'committed'), '2026-10-21T06:05:00.000Z');
+  assert.equal(nextDirectorReviewAt(at, 'committed'), '2026-10-21T06:10:00.000Z');
   assert.equal(
     directorRecoveryEligible({
       nextReviewAt: '2026-10-21T07:00:00.000Z',
@@ -118,7 +118,7 @@ test('new cadence does not shorten persisted old review boundaries or change unk
     reviewCount: 1,
     lastStatus: 'committed',
   };
-  assert.equal(directorReviewDue(old, '2026-10-21T06:05:00.000Z'), false);
+  assert.equal(directorReviewDue(old, '2026-10-21T06:10:00.000Z'), false);
   assert.equal(directorReviewDue(old, '2026-10-21T06:59:59.999Z'), false);
   assert.equal(directorReviewDue(old, '2026-10-21T07:00:00.000Z'), true);
   const unknown = { ...old, lastStatus: 'unknown_after_send' };
@@ -126,7 +126,7 @@ test('new cadence does not shorten persisted old review boundaries or change unk
   assert.equal(directorRecoveryEligible(old), false);
   assert.equal(
     nextDirectorReviewAt(old.lastReviewedAt, 'unknown_after_send'),
-    '2026-10-21T06:05:00.000Z',
+    '2026-10-21T06:10:00.000Z',
   );
   assert.equal(
     nextDirectorReviewAt(old.lastReviewedAt, 'stale_discarded'),

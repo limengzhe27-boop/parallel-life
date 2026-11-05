@@ -13,7 +13,7 @@ test('agenda time and each persistent budget are independent server configuratio
   for (const env of [
     { NPC_AGENDA_REVIEW_ACTOR_LIMIT: '0' },
     { NPC_AGENDA_REVIEW_QUIET_BACKOFF: '0.5' },
-    { NPC_AGENDA_REVIEW_REAL_GAP_MS: '500000' },
+    { NPC_AGENDA_REVIEW_REAL_GAP_MS: '5000000' },
     { NPC_AGENDA_REVIEW_OWNER_WINDOW_SECONDS: 'oops' },
   ])
     assert.throws(() => npcAgendaRuntimeConfig(env), /INVALID_NPC_AGENDA_CONFIGURATION/);

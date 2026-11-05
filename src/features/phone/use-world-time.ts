@@ -9,6 +9,7 @@ import { readRoute } from './navigation.ts';
 import { notePollFailure, notePollSuccess, pollingAllowed } from './poll-guard.ts';
 import {
   idleCheckDue,
+  PHONE_IDLE_PAUSE_MS,
   phoneTimeMode,
   phoneConversationFocus,
   phoneCheckHistory,
@@ -69,7 +70,7 @@ export function useWorldTime(
     } catch {}
   };
   const sync = useCallback(
-    (mode: Mode, resume = false): Promise<WorldClock | null> => {
+    (mode: Mode, resume = false, idle = false): Promise<WorldClock | null> => {
       const s = session.current;
       if (!s?.active) return Promise.resolve(null);
       s.mode = mode;
@@ -77,6 +78,7 @@ export function useWorldTime(
         clientId: s.clientId,
         sequence: ++s.sequence,
         mode,
+        ...(idle ? { idle: true } : {}),
         focus:
           mode === 'conversation'
             ? phoneConversationFocus(readRoute(location.hash, worldId), lockedRef.current)
@@ -162,10 +164,16 @@ export function useWorldTime(
           if (s.active) setNotice('时间暂时未同步，稍后重试。');
         });
     };
+    let idleTimer: number | undefined;
     const leave = () => {
       if (s.returning) return;
       s.returning = true;
       s.resumeRequired = true;
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => {
+        if (document.visibilityState === 'visible' || !s.active || !s.returning) return;
+        void sync('away', false, true).catch(() => {});
+      }, PHONE_IDLE_PAUSE_MS);
       setView((current) =>
         current?.worldId === worldId
           ? {
@@ -185,15 +193,18 @@ export function useWorldTime(
       if (s.returning && document.visibilityState === 'visible') visibility();
     };
     const visibility = () => {
-      if (document.visibilityState !== 'visible') leave();
-      else if (s.returning) {
-        // Resume the existing clock policy, then inspect real pending work immediately.
-        // Returning is not a new conversation, message, or paid source identity.
-        s.returning = false;
-        s.resumeRequired = true;
-        immediateCheck.current = true;
-        update();
+      if (document.visibilityState !== 'visible') {
+        leave();
+        return;
       }
+      window.clearTimeout(idleTimer);
+      if (!s.returning) return;
+      // Resume the existing clock policy, then inspect real pending work immediately.
+      // Returning is not a new conversation, message, or paid source identity.
+      s.returning = false;
+      s.resumeRequired = true;
+      immediateCheck.current = true;
+      update();
     };
     update();
     const heartbeat = setInterval(update, 15_000);
@@ -207,6 +218,7 @@ export function useWorldTime(
     window.addEventListener('pageshow', onPageShow);
     return () => {
       leave();
+      window.clearTimeout(idleTimer);
       s.active = false;
       if (session.current === s) session.current = null;
       clearInterval(heartbeat);

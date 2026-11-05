@@ -31,7 +31,7 @@ test('bounded tick passes remaining capacity, shares cron/worker defaults and is
   assert.deepEqual(seen, ['0', '1', '2']);
   assert.deepEqual(result, { claimed: 3, advanced: 3, messages: 3, failed: 0 });
   assert.deepEqual(proactiveTickPolicy(), { maxWorlds: 50, maxElapsedMs: 240000 });
-  assert.deepEqual(proactiveClaimParameters(), [2, 60, 60]);
+  assert.deepEqual(proactiveClaimParameters(), [2, 300, 60]);
   assert.deepEqual(
     proactiveClaimParameters(1, { cooldownSeconds: 60, leaseSeconds: 60 }),
     [1, 60, 60],
@@ -42,7 +42,7 @@ test('bounded tick passes remaining capacity, shares cron/worker defaults and is
   assert.deepEqual(localProactivePolicy(), {
     checkEveryMs: 15000,
     maxWorlds: 2,
-    cooldownSeconds: 60,
+    cooldownSeconds: 300,
     leaseSeconds: 60,
     maxElapsedMs: 15000,
   });

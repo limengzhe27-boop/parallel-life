@@ -36,7 +36,7 @@ export type WorldClock = {
   activeUntil?: string | null;
   /** Presence controls attention/speed; continuous worlds continue offline at real-time speed. */
   continuityMode?: 'presence' | 'continuous';
-  pauseReason?: 'legacy' | 'manual' | null;
+  pauseReason?: 'legacy' | 'manual' | 'idle' | null;
 };
 export type ClockAdvance = {
   clock: WorldClock;

@@ -100,7 +100,8 @@ export function WorldPhoneApp({
     [isBuilding, setIsBuilding] = useState(false),
     [localMessages, setLocalMessages] = useState<PhoneMessage[]>([]),
     [statusMessage, setStatusMessage] = useState('正在打开你的手机…'),
-    [refreshing, setRefreshing] = useState(false);
+    [refreshing, setRefreshing] = useState(false),
+    [dismissedSummary, setDismissedSummary] = useState('');
   const acceptRecordsPhone = useCallback(
     (next: WorldPhone) => {
       if (next.id !== worldId) return;
@@ -994,9 +995,37 @@ export function WorldPhoneApp({
   useEffect(() => {
     if (data?.id === worldId && !refreshing) directorCheck.current();
   }, [data?.id, refreshing, worldId, liveTime.entryKey]);
+  const clockSummary = liveTime.clock?.summary ?? '';
   return (
     <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />
+      {clockSummary && clockSummary !== dismissedSummary && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '6px 14px',
+            fontSize: 12,
+            background: 'var(--surface, #f5f3ed)',
+            color: 'var(--ink, #2f332f)',
+          }}
+        >
+          <span>{clockSummary}</span>
+          <button
+            type="button"
+            aria-label="关闭提示"
+            style={{ border: 0, background: 'none', color: 'inherit', font: 'inherit' }}
+            onClick={() => setDismissedSummary(clockSummary)}
+          >
+            知道了
+          </button>
+        </div>
+      )}
       {data?.id === worldId &&
         opening &&
         opening.runtime !== 'agents' &&

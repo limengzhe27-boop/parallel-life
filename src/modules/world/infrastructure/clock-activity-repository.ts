@@ -107,6 +107,14 @@ async function effectiveAppointments(
 function boundedDeadline(until: string, boundary: string | null) {
   return boundary && Date.parse(boundary) < Date.parse(until) ? boundary : until;
 }
+function nextPauseReason(clock: WorldClock, paused: boolean): WorldClock['pauseReason'] {
+  if (!paused) return null;
+  return clock.pauseReason === 'manual'
+    ? 'manual'
+    : clock.pauseReason === 'legacy'
+      ? 'legacy'
+      : null;
+}
 export class PostgresClockActivityRepository {
   private readonly db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
@@ -173,6 +181,11 @@ export async function updateClockActivity(
         missedBeats: 0,
         summary: null,
       };
+  // A long hidden tab pauses the continuous world; returning is an automatic
+  // resume only for an idle pause, never for an explicit manual pause.
+  if (clock.paused && clock.pauseReason === 'idle' && input.resume && input.mode !== 'away') {
+    clock = { ...clock, paused: false, pauseReason: null, lastTickAt: realNow };
+  }
   // Re-entering a normal published life is the player's continue action. Staff
   // trials and ordinary heartbeats retain their explicit pause protection.
   if (clock.paused && clock.pauseReason === 'manual' && input.resume && input.mode !== 'away') {
@@ -231,6 +244,17 @@ export async function updateClockActivity(
   }));
   const previous = leases.find((l) => l.clientId.toLowerCase() === input.clientId.toLowerCase());
   if (previous && previous.sequence >= input.sequence) return readableActivityClock(clock, realNow);
+  // Only the last live tab may decide that the life should stop after a long
+  // hidden absence. A second visible tab remains authoritative.
+  const idlePause =
+    input.mode === 'away' &&
+    input.idle === true &&
+    !leases.some(
+      (lease) =>
+        lease.clientId.toLowerCase() !== input.clientId.toLowerCase() &&
+        lease.mode !== 'away' &&
+        Date.parse(lease.expiresAt) > Date.parse(realNow),
+    );
   const focus = nextClockConversationFocus(input, previous);
   if (
     focus &&
@@ -326,7 +350,8 @@ export async function updateClockActivity(
     ],
   );
   const mode = activityMode([...leases.filter((l) => l !== previous), lease], realNow);
-  const paused = !permitted || (clock.continuityMode !== 'continuous' && !mode.activeUntil);
+  const paused =
+    idlePause || !permitted || (clock.continuityMode !== 'continuous' && !mode.activeUntil);
   const nextSpeed = mode.activeUntil
     ? mode.speed
     : clock.continuityMode === 'continuous'
@@ -347,10 +372,15 @@ export async function updateClockActivity(
     managed: true,
     activeUntil: paused ? null : mode.activeUntil,
     paused,
-    summary: input.resume ? null : clock.summary,
+    summary: idlePause
+      ? '你离开了一段时间，回来看看期间的新消息。'
+      : input.resume
+        ? clock.summary
+        : null,
     speed: nextSpeed,
     storyNow: changed ? storyNow : clock.storyNow,
     lastTickAt: changed ? realNow : clock.lastTickAt,
+    pauseReason: idlePause ? 'idle' : nextPauseReason(clock, paused),
   };
   if (next.activeUntil)
     next.activeUntil = boundedDeadline(next.activeUntil, appointmentDeadline(next, appointments));

@@ -18,6 +18,8 @@ export type ClockActivityInput = {
   clientId: string;
   sequence: number;
   mode: 'browsing' | 'conversation' | 'away';
+  /** True only after a long hidden absence; pauses the continuous world until resume. */
+  idle?: boolean;
   resume?: boolean;
   /** Omitted heartbeats retain the current conversation target; null ends that target explicitly. */
   focus?: ClockConversationFocus | null;
@@ -38,6 +40,7 @@ export function validateClockActivity(input: ClockActivityInput): void {
     !Number.isSafeInteger(input.sequence) ||
     input.sequence < 0 ||
     !['browsing', 'conversation', 'away'].includes(input.mode) ||
+    (input.idle !== undefined && typeof input.idle !== 'boolean') ||
     (input.resume !== undefined && typeof input.resume !== 'boolean') ||
     (input.focus !== undefined && input.focus !== null && !validClockConversationFocus(input.focus))
   )

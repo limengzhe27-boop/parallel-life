@@ -25,7 +25,7 @@ export function proactiveTickPolicy(
 }
 export type ProactiveClaimTiming = { cooldownSeconds: number; leaseSeconds: number };
 export const DEFAULT_PROACTIVE_CLAIM_TIMING: Readonly<ProactiveClaimTiming> = Object.freeze({
-  cooldownSeconds: 60,
+  cooldownSeconds: 300,
   leaseSeconds: 60,
 });
 /** Parameters alter code scheduling only; the original SQL owns world qualification and leases. */

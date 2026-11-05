@@ -17,6 +17,8 @@ export const PHONE_RUNTIME_POLICY: Readonly<PhoneRuntimePolicy> = Object.freeze(
 });
 export const PHONE_IDLE_CHECK_MS =
   PHONE_RUNTIME_POLICY.deliveryTargetMs - PHONE_RUNTIME_POLICY.preparationReserveMs;
+/** A hidden tab stops the continuous life after this long absence. */
+export const PHONE_IDLE_PAUSE_MS = 30 * 60_000;
 export type PhoneCheckHistory = {
   lastActivityAt: number;
   lastCheckAt: number;

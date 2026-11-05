@@ -61,7 +61,7 @@ if (args.includes('--status')) {
   const policy = localProactivePolicy({
     checkEveryMs: Number(option('--check-ms', 15000)),
     maxWorlds: Number(option('--max-worlds', 2)),
-    cooldownSeconds: Number(option('--cooldown-seconds', 60)),
+    cooldownSeconds: Number(option('--cooldown-seconds', 300)),
     leaseSeconds: Number(option('--lease-seconds', 60)),
     maxElapsedMs: Number(option('--tick-budget-ms', 15000)),
   });
