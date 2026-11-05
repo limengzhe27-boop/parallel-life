@@ -73,9 +73,9 @@
 - 实现提交：`f3498dc8`（`codex/progression52`）。
 - 合入 main：`35e11829`（`--no-ff`）。
 - 本地构建：`.local/build-progression52`，`BUILD_ID=hrlE4s7Wjgcezpjdkf0Dg`；关键源码与 main 逐文件 SHA 一致。
-- 3218：PID `24040`，`/api/health` 200；旧 `build-stage51` web 已停止（其中一个已释放端口但 TERM 后仍存活的进程，核实无监听后 KILL，无数据写入）。
+- 3218：PID `24424`，`/api/health` 200，运行 `.local/build-progression52`；期间另一条 `build-stage51` 进程重新占用 3218，核实后已停止并切回本构建。
 - 队列 worker：PID `24223`，health ready，`tasksRun=0`。
-- 主动 worker：PID `24243`，health ready；首 tick 遇到 `4953…` 的 `advance-lease-busy`（lease 至 03:22:08Z），本进程尚无新调用/新消息。
+- 主动 worker：PID `24243`，health ready；已 tick 1 次、claimed/advanced 2、messages 3、failed 0（等待既有 lease 后完成）。
 - 队列与主动 worker 从 `.local/build-progression52/scripts/...` 启动，加载的是已提交 HEAD 的 `src`，不加载当前工作树里并发的未提交 WIP。
 - 未启动 3219、未部署 Vercel；原用户存档、付费回执、迁移均未改。
 - 页面只验证了 `/` 与 `/api/health` 200；完整手机 UI/通知/键盘未做浏览器目视。health 200 不等于剧情验收。
