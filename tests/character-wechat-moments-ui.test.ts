@@ -416,21 +416,25 @@ test('an aborted old-world response cannot overwrite the loaded new-world feed',
   }
 });
 
-test('player camera opens an independent composer and audience selection keeps empty selection editable', () => {
+test('composer opens directly without cover or audience controls and offers both photo sources', () => {
   const h = harness(MomentsApp);
   Object.assign(h.context.actions, { sendMessage() {} });
+  Object.assign(h.context.data, { photos: [{ id: 'photo1', title: '手机已有照片', status: 'ready', url: '/photo1.png' }] });
   try {
+    assert.doesNotMatch(h.html(), /我的朋友圈/);
     h.render().find(n => n.props['aria-label'] === '发表朋友圈')!.props.onClick();
-    h.render().find(n => n.type === 'button' && n.props.children === '发表文字')!.props.onClick();
-    const editor = h.render();
+    let editor = h.render();
     assert.ok(editor.some(n => n.type === 'textarea' && n.props.placeholder === '这一刻的想法…'));
     assert.ok(!editor.some(n => n.props['aria-label'] === '朋友的动态'));
-    editor.find(n => n.type === 'button' && n.props.className === 'settingRow')!.props.onClick();
-    h.render().filter(n => n.type === 'input' && n.props.type === 'radio')[2]!.props.onChange();
-    assert.equal(h.render().filter(n => n.type === 'input' && n.props.type === 'checkbox').length, 2);
-    const person = h.render().find(n => n.type === 'input' && n.props.type === 'checkbox')!;
-    person.props.onChange({ target: { checked: true } });
-    h.render().find(n => n.type === 'input' && n.props.type === 'checkbox')!.props.onChange({ target: { checked: false } });
-    assert.equal(h.render().filter(n => n.type === 'input' && n.props.type === 'checkbox').length, 2);
+    assert.doesNotMatch(h.html(), /谁可以看|提醒谁看/);
+    editor.find(n => n.props['aria-label'] === '添加照片')!.props.onClick();
+    let picker = h.render();
+    assert.ok(picker.some(n => n.type === 'input' && n.props.type === 'file' && n.props.multiple));
+    picker.find(n => n.props['aria-label'] === '选择手机已有照片')!.props.onClick();
+    h.render().find(n => n.type === 'button' && n.props.children === '完成')!.props.onClick();
+    editor = h.render();
+    assert.ok(editor.some(n => n.type === 'img' && n.props.src === '/photo1.png'));
+    editor.find(n => n.props['aria-label'] === '移除第1张照片')!.props.onClick();
+    assert.ok(!h.render().some(n => n.type === 'img' && n.props.src === '/photo1.png'));
   } finally { h.close(); }
 });

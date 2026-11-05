@@ -163,7 +163,7 @@
   font: inherit;
   padding: 6px 12px;
 }
-.editor .editorHeader .publish {
+.editor .editorHeader .publish:not(:disabled) {
   background: #07c160;
   color: white;
   border-radius: 5px;
@@ -210,6 +210,7 @@
   right: 3px;
   width: 26px;
   height: 26px;
+  min-height: 26px;
   padding: 0;
   border: 0;
   border-radius: 50%;

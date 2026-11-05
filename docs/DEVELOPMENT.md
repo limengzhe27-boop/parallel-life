@@ -3692,6 +3692,6 @@ PROGRESSION-INTEGRITY-54：业务24989116，check4265、真实PG22、build通过
 
 |SOCIAL-WECHAT-56|[ ] 待验收（浏览器/PG通过，待3218统一切换）|root-social-wechat|main dcfca52c；moments界面/CSS、social协议/领域/仓储、相关测试|微信式独立发布页、相册上传九图与权限、评论与取消赞；复用现有存储。check4273/build/PG7及独立库浏览器上传发表评论刷新通过；候选3238，3218由55串行切换。见[56报告](task-reports/SOCIAL-WECHAT-56.md)。|
 
-|SOCIAL-NPC-57|[ ] 进行中|root-social-npc57；social_wake_audit只读审查|main26e5047b；朋友圈快照读取、moment.interact原内核必要修复、messages.tsx/apps.module.css误加聊天点赞移除、专属PG测试/真实验收脚本及报告；不动他人scheduler/director/model/own-agenda WIP|验证可见动态在原NPC自主回合中按性格选择点赞、评论或安静；保留ACL和去重，不按每条帖子强制回应，不新建调度机制；必要检查后本地集成。|
+|SOCIAL-NPC-57|[ ] 待继续验收（真实模型暴露目标字段错配已修复）|root-social-npc57；social_wake_audit只读审查|main26e5047b；朋友圈快照读取、moment.interact原内核必要修复、messages.tsx/apps.module.css误加聊天点赞移除、专属PG测试/真实验收脚本及报告；不动他人scheduler/director/model/own-agenda WIP|验证可见动态在原NPC自主回合中按性格选择点赞、评论或安静；保留ACL和去重，不按每条帖子强制回应，不新建调度机制；必要检查后本地集成。|
 
-|SOCIAL-COMPOSER-58|[ ] 进行中|root-social-npc57|moments.tsx/moments.module.css及专属报告；不动他人业务|按用户参考简化发布页，移除可见范围选择与封面，明确手机相册/本地图片来源；保留原鉴权与上传发布事务，本地3218浏览器验收。|
+|SOCIAL-COMPOSER-58|[x] 本地交付（4276/check/build及真实页面通过）|root-social-npc57|moments.tsx/moments.module.css、character-wechat-moments-ui.test.ts及专属报告；不动他人业务|按用户参考简化发布页，移除可见范围选择与封面，明确手机相册/本地图片来源；保留原鉴权与上传发布事务；独立库实际页面混合选图/发表/刷新/断网重试通过，最终构建切换3218 PID94612；[报告](task-reports/SOCIAL-COMPOSER-58.md)。|
