@@ -188,7 +188,7 @@ test('player reports are qualified history, superseded does not mean abandoned',
   c.status = 'superseded';
   assert.equal(projectPlayerRecords(f).history[0]!.state, 'superseded');
 });
-test('calendar status requires committed proposal and explicit response, legacy stays absent', () => {
+function invitationFixture() {
   const f = fixture(),
     event = f.events[0]!;
   if (event.type !== 'turn.resolved') throw Error();
@@ -224,31 +224,121 @@ test('calendar status requires committed proposal and explicit response, legacy 
     sourceEventId: event.id,
     status: 'proposed',
   });
-  assert.equal(projectPlayerRecords(f).current.at(-1)!.state, 'proposed');
-  f.appointments[0]!.status = 'confirmed';
-  assert.equal(projectPlayerRecords(f).current.length, 1);
-  f.worldVersion = 2;
-  f.appointments[0]!.responseVersion = 2;
+  return { f, id, replyId };
+}
+
+function respondToFixtureInvitation(
+  f: PlayerRecordsInput,
+  id: string,
+  operation: 'accept' | 'cancel' | 'reschedule' | 'attend',
+) {
+  const previousVersion = f.worldVersion++;
+  const at = operation === 'reschedule' ? '2026-10-10T01:00:00.000Z' : undefined;
+  const commandId = randomUUID();
+  const appointment = f.appointments[0]!;
+  appointment.status = (
+    {
+      accept: 'confirmed',
+      cancel: 'cancelled',
+      reschedule: 'proposed',
+      attend: 'attended',
+    } as const
+  )[operation];
+  appointment.responseVersion = f.worldVersion;
+  appointment.responseAt = time;
+  if (at) appointment.at = at;
   f.events.push({
     schemaVersion: 1,
     type: 'invitation.responded',
     id: randomUUID(),
     worldId: f.worldId,
-    version: 2,
-    commandId: randomUUID(),
+    version: f.worldVersion,
+    commandId,
     occurredAt: time,
     storyTime: time,
     data: {
-      commandId: randomUUID(),
+      commandId,
       worldId: f.worldId,
-      expectedVersion: 1,
+      expectedVersion: previousVersion,
       id,
-      operation: 'accept',
+      operation,
+      ...(at ? { at } : {}),
     },
   });
+}
+
+test('calendar status requires committed proposal and explicit response, legacy stays absent', () => {
+  const { f, id } = invitationFixture();
+  assert.equal(projectPlayerRecords(f).current.at(-1)!.state, 'proposed');
+  f.appointments[0]!.status = 'confirmed';
+  assert.equal(projectPlayerRecords(f).current.length, 1);
+  respondToFixtureInvitation(f, id, 'accept');
   assert.equal(projectPlayerRecords(f).current.at(-1)!.state, 'confirmed');
   f.appointments[0]!.status = undefined;
   assert.equal(projectPlayerRecords(f).current.length, 1);
+});
+
+test('invitation tasks require visible proposal evidence and separate suggestions from consent', () => {
+  const { f, id, replyId } = invitationFixture();
+  const record = () =>
+    PlayerRecordsSchema.parse(projectPlayerRecords(f)).current.find((r) => r.kind === 'invitation');
+  const original = record();
+  assert.equal(original?.task?.kind, 'decide_invitation');
+  assert.equal(original?.task?.recommended, undefined);
+  f.directedInvitationIds = new Set([randomUUID()]);
+  assert.equal(record()?.task?.recommended, undefined);
+  f.directedInvitationIds = new Set([id]);
+  assert.equal(record()?.task?.recommended, true);
+  assert.equal(record()?.task?.reason, '邀请你练习摄影');
+  assert.deepEqual(record()?.navigation, { app: 'calendar', invitationId: id });
+  assert.equal(record()?.state, 'proposed');
+  const projected = record()!;
+  assert.equal(projected.source.kind, 'world_event');
+  if (projected.source.kind === 'world_event') assert.equal(projected.source.messageId, replyId);
+
+  const offer = f.events[0]!;
+  assert.equal(offer.type, 'turn.resolved');
+  f.events.push({
+    ...offer,
+    id: randomUUID(),
+    commandId: randomUUID(),
+    version: ++f.worldVersion,
+    data: { ...offer.data, userText: '我还想再想想，也想问问几点方便。', effects: [] },
+  });
+  assert.equal(record()?.task?.kind, 'decide_invitation');
+
+  // An accepted-looking projection or a director recommendation cannot replace an explicit response.
+  f.appointments[0]!.status = 'confirmed';
+  assert.equal(record(), undefined);
+  respondToFixtureInvitation(f, id, 'accept');
+  assert.equal(record()?.task?.kind, 'attend_invitation');
+
+  // The persisted reschedule requires a new decision and cannot be treated as continued consent.
+  respondToFixtureInvitation(f, id, 'reschedule');
+  assert.equal(record()?.task?.kind, 'decide_invitation');
+  assert.equal(record()?.state, 'proposed');
+
+  // A director link alone cannot expose an invitation whose proposal was never presented.
+  f.messages = f.messages.filter((m) => m.id !== replyId);
+  assert.equal(record(), undefined);
+});
+
+test('cancelled and recorded attendance invitations never leave an active task', () => {
+  for (const operation of ['cancel', 'attend'] as const) {
+    const { f, id } = invitationFixture();
+    f.directedInvitationIds = new Set([id]);
+    if (operation === 'attend') respondToFixtureInvitation(f, id, 'accept');
+    respondToFixtureInvitation(f, id, operation);
+    const records = PlayerRecordsSchema.parse(projectPlayerRecords(f));
+    assert.equal(
+      records.current.find((r) => r.kind === 'invitation'),
+      undefined,
+    );
+    const archived = records.history.find((r) => r.kind === 'invitation');
+    assert.equal(archived?.state, operation === 'cancel' ? 'cancelled' : 'attended');
+    assert.equal(archived?.assertion, 'invitation_status');
+    assert.equal(archived?.task, undefined);
+  }
 });
 test('legacy records are genuinely empty and source timestamps do not become invented story dates', () => {
   const f = fixture();
