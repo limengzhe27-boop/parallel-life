@@ -1,3 +1,9 @@
+import {
+  isSceneMatterLinked,
+  matterCriterion,
+  sceneMatterId,
+  sceneMatterInvitationEffective,
+} from '../modules/world/domain/scene-matter-policy.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import { respondToEmptyScene } from './empty-scene-environment.ts';
 import { canReadGroupMessage } from '../modules/world/domain/experience-rules.ts';
@@ -199,6 +205,24 @@ export function nativeNpcTaskHandler(
         sourceId = original?.sourceEventId ?? '';
         relatedMatterIds = action?.relatedMatterIds ?? [];
         if (!original) throw new DomainError('INVALID_COMMAND', 'NATIVE_INPUT_NOT_ACCEPTED');
+        if (
+          action?.intent === 'attempt' &&
+          world.matters?.some(
+            (matter) =>
+              ['not_started', 'in_progress', 'blocked'].includes(matter.status) &&
+              relatedMatterIds.includes(sceneMatterId(scene.scene.id, matter.id)) &&
+              isSceneMatterLinked(world, scene.scene, matter) &&
+              matterCriterion(matter) &&
+              sceneMatterInvitationEffective(
+                matter,
+                world.appointments,
+                world.space?.places.find((place) => place.id === matter.relatedPlaceId)
+                  ?.appointmentIds,
+                storyAt,
+              ),
+          )
+        )
+          return null; // The world dispatcher uses the existing scene action adjudicator.
         const present = scenePresent(scene.scene, version);
         actorIds = scenePresent(scene.scene, world.version).flatMap((p) =>
           p.kind === 'actor' &&
@@ -364,6 +388,7 @@ export function nativeNpcTaskHandler(
       if (actorId !== null && !actorIds.includes(actorId)) throw new DomainError('INVALID_COMMAND');
       return { receipt, actorId, actorIds, states };
     });
+    if (!native) return false;
     /* Never report a handled task while leaving its lease running forever: with
        no one present there is nothing this paid channel can commit. */
     if (!native.actorIds.length) {

@@ -274,7 +274,7 @@ async function item(
     [x.id, x.worldId, x.ownerId, x.sceneId, x.sourceEventId, kind, x],
   );
 }
-async function seedSceneMatters(
+export async function seedSceneMatters(
   sql: SqlClient,
   ownerId: string,
   worldId: string,
@@ -1000,6 +1000,7 @@ export async function scenePlanning(
   worldId: string,
   input: SceneTaskInput,
   environmentOnly = false,
+  authoritativePresence = false,
 ): Promise<ScenePlanningContext> {
   const { world, storyAt, paused } = await sceneWorld(sql, ownerId, worldId),
     x = await experience(sql, ownerId, worldId),
@@ -1049,6 +1050,7 @@ export async function scenePlanning(
   }
   return {
     world,
+    authoritativePresence,
     memoriesByActor,
     blockedSourcesByActor,
     storyAt,

@@ -14,6 +14,7 @@ import type {
   CurrentMatter,
 } from '../domain/experience-rules.ts';
 export type ScenePlanningContext = {
+  authoritativePresence?: boolean;
   /** Trusted orchestration mode; autonomous runs contain no fabricated player input. */
   runMode?: 'opening' | 'player_input' | 'autonomous';
   /** Sourced wake-up reason, independent of a player's UI action. */

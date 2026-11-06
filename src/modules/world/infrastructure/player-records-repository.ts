@@ -1,3 +1,5 @@
+import { projectStoryTime } from '../domain/clock.ts';
+import { readClockInTransaction } from './clock-repository.ts';
 import { historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { mergeAppointments } from '../domain/genesis-links.ts';
@@ -339,7 +341,24 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           if (observation) matterObservations.set(matter.id, observation);
         }
       }
+      const realNow = new Date().toISOString();
+      const clock = matters.some((matter) => matter.span === 'near_term' && matter.relatedPlaceId)
+        ? await readClockInTransaction(sql, ownerId, worldId, realNow)
+        : undefined;
       const input: PlayerRecordsInput = {
+        ...(clock
+          ? {
+              sceneTaskContext: {
+                space: world.state.space,
+                storyAt: new Date(
+                  Math.max(
+                    Date.parse(world.state.time),
+                    Date.parse(projectStoryTime(clock, realNow)),
+                  ),
+                ).toISOString(),
+              },
+            }
+          : {}),
         worldId,
         worldVersion: world.version,
         choices,

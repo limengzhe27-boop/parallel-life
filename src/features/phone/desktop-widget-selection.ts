@@ -4,7 +4,13 @@ import type { PhoneInvitation, PhonePhoto, PhoneRecordsState } from './apps/type
 type PlayerRecord = PlayerRecords['current'][number];
 
 function taskKey(record: PlayerRecord) {
-  return JSON.stringify([record.id, record.state, record.source, record.text]);
+  return JSON.stringify([
+    record.id,
+    record.state,
+    record.source,
+    record.text,
+    record.task?.stepTitle,
+  ]);
 }
 
 /** Task wording is presentation only. The current record owns its state and destination. */
@@ -54,10 +60,29 @@ export function playerTask(record: PlayerRecord, referenceTime?: string) {
       stateLabel: '待你处理',
       actionLabel: '去商量',
     };
+  if (
+    record.task?.kind === 'scene_action' &&
+    record.kind === 'world_matter' &&
+    ['not_started', 'in_progress'].includes(record.state) &&
+    record.navigation?.app === 'map'
+  )
+    return {
+      ...record.task,
+      key: taskKey(record),
+      at: Infinity,
+      title: record.task.stepTitle ?? record.title,
+      stateLabel: '现场待办',
+      actionLabel: '查看地点',
+    };
   return invitationTask(record, referenceTime);
 }
 
-const taskPriority = { decide_invitation: 0, address_request: 1, attend_invitation: 2 };
+const taskPriority = {
+  decide_invitation: 0,
+  scene_action: 1,
+  address_request: 2,
+  attend_invitation: 3,
+};
 
 /** Read only the player's current, explicitly recorded work; never borrow NPC plans or notes. */
 export function selectDesktopTask(
@@ -87,12 +112,16 @@ export function selectDesktopTask(
     current.find(
       (item) =>
         item.kind === 'world_matter' &&
+        item.navigation?.app !== 'map' &&
         item.span === 'near_term' &&
         ['in_progress', 'blocked'].includes(item.state),
     ) ??
     current.find(
       (item) =>
-        item.kind === 'world_matter' && item.span === 'near_term' && item.state === 'not_started',
+        item.kind === 'world_matter' &&
+        item.navigation?.app !== 'map' &&
+        item.span === 'near_term' &&
+        item.state === 'not_started',
     ) ??
     current.find(
       (item) => item.kind === 'player_choice' && ['planned', 'blocked'].includes(item.state),

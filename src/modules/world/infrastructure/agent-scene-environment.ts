@@ -1,3 +1,4 @@
+import { matterCriterion } from '../domain/scene-matter-policy.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
@@ -15,7 +16,12 @@ import {
 import { applyWorldHistoryEvent } from '../domain/world-history.ts';
 import { SceneReceiptSchema, SceneRuntimeSessionSchema } from '../../../contracts/scenes.ts';
 import { ParticipantSchema } from '../../../contracts/world-experiences.ts';
-import { SceneTaskInputSchema, loadScene, sceneWorld } from './scene-repository.ts';
+import {
+  SceneTaskInputSchema,
+  loadScene,
+  sceneWorld,
+  seedSceneMatters,
+} from './scene-repository.ts';
 import { withLeasedAgentDatabase } from './leased-agent-database.ts';
 import { compactWorldState } from './postgres-world-repository.ts';
 import { acceptAgentInputInTransaction } from './agent-runtime-repository.ts';
@@ -526,6 +532,14 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
           "INSERT INTO parallel_life.scene_items(id,world_id,owner_id,scene_id,source_event_id,kind,document) VALUES($1,$2,$3,$4,$5,'entry',$6)",
           [item.id, world.id, lease.ownerId, input.sceneId, event.id, item],
         );
+      await seedSceneMatters(
+        sql,
+        lease.ownerId,
+        world.id,
+        projection.scene,
+        world.matters?.filter((matter) => matterCriterion(matter)),
+        { sourceEventId: event.id, sourceVersion: event.version },
+      );
       if (renderRequest) {
         const document = {
           ...renderRequest,

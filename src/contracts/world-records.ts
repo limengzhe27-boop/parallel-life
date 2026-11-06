@@ -150,7 +150,8 @@ export const PlayerRecordSchema = z.strictObject({
   stepChecklist: SceneStepChecklistSchema.optional(),
   task: z
     .strictObject({
-      kind: z.enum(['decide_invitation', 'attend_invitation', 'address_request']),
+      kind: z.enum(['decide_invitation', 'attend_invitation', 'address_request', 'scene_action']),
+      stepTitle: z.string().min(1).max(100).optional(),
       recommended: z.literal(true).optional(),
       reason: z.string().min(1).max(140).optional(),
     })

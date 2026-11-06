@@ -534,7 +534,7 @@ export class ScenePlanner implements ScenePlannerPort {
     );
     const candidates = opening
       ? c.world.actors.filter((a) => defaultActorIds.includes(a.id))
-      : actualPresent.length > 0
+      : actualPresent.length > 0 || c.authoritativePresence
         ? c.world.actors.filter((a) => actualPresent.includes(a.id))
         : c.world.actors.filter((a) => defaultActorIds.includes(a.id));
     // Director receives public scene information only: no owner facts, interviews or private conversations.

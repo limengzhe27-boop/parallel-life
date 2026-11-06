@@ -3,10 +3,15 @@ import type { Appointment, Message, StoryChoice, WorldEvent, WorldState } from '
 import type { InvitationEvent } from './invitations.ts';
 import { applySceneWorldResults, type SceneResultEvent } from './scene-world-results.ts';
 import type { SceneAction } from './experience-rules.ts';
-import { sceneMatterId } from './scene-matter-policy.ts';
+import {
+  matterCriterion,
+  sceneMatterId,
+  sceneMatterInvitationEffective,
+} from './scene-matter-policy.ts';
 import type { WorldMatter } from './matters.ts';
 import { trustedOpportunity } from './matter-progression.ts';
 import { sceneStepRule } from './scene-step-progress.ts';
+import { defaultTravelRoute } from './space-travel-policy.ts';
 
 export type RecordSource =
   | {
@@ -97,7 +102,8 @@ export type PlayerRecord = {
   }[];
   stepChecklist?: SceneStepChecklist;
   task?: {
-    kind: 'decide_invitation' | 'attend_invitation' | 'address_request';
+    kind: 'decide_invitation' | 'attend_invitation' | 'address_request' | 'scene_action';
+    stepTitle?: string;
     recommended?: true;
     reason?: string;
   };
@@ -130,6 +136,7 @@ export type PlayerRecordsInput = {
   worldId: string;
   worldVersion: number;
   initial?: WorldState;
+  sceneTaskContext?: { space: WorldState['space']; storyAt: string };
   historyPhotos?: ReadonlyMap<string, string[]>;
   opening?: {
     seedId: string;
@@ -751,6 +758,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
     });
   }
   projectPursuitConnections(input, output);
+  projectSceneTasks(input, output.current);
   return output;
 }
 
@@ -874,6 +882,76 @@ function sameStepDefinition(a: WorldMatter, b: WorldMatter) {
     (key) => canonicalRecordEvidence(a[key]) === canonicalRecordEvidence(b[key]),
   );
 }
+function projectSceneTasks(input: PlayerRecordsInput, records: PlayerRecord[]) {
+  const { initial, sceneTaskContext, matters } = input;
+  const space = sceneTaskContext?.space;
+  const now = Date.parse(sceneTaskContext?.storyAt ?? '');
+  if (
+    !initial ||
+    initial.id !== input.worldId ||
+    !sceneTaskContext ||
+    !space ||
+    !matters ||
+    !Number.isFinite(now)
+  )
+    return;
+  const byId = new Map(matters.map((matter) => [matter.id, matter]));
+  const originals = new Map(initial.matters?.map((matter) => [matter.id, matter]));
+  for (const record of records) {
+    if (
+      record.kind !== 'world_matter' ||
+      record.source.kind !== 'world_matter' ||
+      record.span !== 'near_term' ||
+      !['not_started', 'in_progress'].includes(record.state) ||
+      record.navigation?.app !== 'map'
+    )
+      continue;
+    const matter = byId.get(record.source.matterId);
+    if (!matter) continue;
+    const rule = matterCriterion(matter);
+    const original = originals.get(matter.id);
+    if (
+      !rule ||
+      rule.placeId !== record.navigation.placeId ||
+      (matter.opportunity
+        ? !record.opportunity
+        : !original ||
+          !sameStepDefinition(original, matter) ||
+          matter.source.kind !== 'preset' ||
+          initial.officialLife?.presetId !== matter.source.presetId ||
+          initial.officialLife.version !== matter.source.version)
+    )
+      continue;
+    const place = space.places.find((place) => place.id === rule.placeId);
+    if (
+      !place ||
+      (space.currentPlaceId !== place.id &&
+        !space.routes.some(
+          (r) => r.fromPlaceId === space.currentPlaceId && r.toPlaceId === place.id,
+        ) &&
+        !defaultTravelRoute(space, space.currentPlaceId, place.id))
+    )
+      continue;
+    if (
+      !sceneMatterInvitationEffective(
+        matter,
+        input.appointments,
+        place.appointmentIds,
+        sceneTaskContext.storyAt,
+      ) ||
+      (!matter.relatedInvitationId && rule.requiresWitness && !record.opportunity)
+    )
+      continue;
+    const checklist = record.stepChecklist;
+    const next = checklist?.steps.find((step) => step.required && step.state === 'pending');
+    if (sceneStepRule(initial, matter) && (!next || next.performer !== 'player')) continue;
+    record.task = {
+      kind: 'scene_action',
+      ...(next ? { stepTitle: next.title } : {}),
+    };
+  }
+}
+
 function projectStepChecklist(
   input: PlayerRecordsInput,
   matter: WorldMatter,

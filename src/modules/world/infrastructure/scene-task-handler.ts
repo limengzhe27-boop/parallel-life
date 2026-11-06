@@ -1,3 +1,4 @@
+import { declareWorldEngineContext } from './world-command-uow.ts';
 import { randomUUID } from 'node:crypto';
 import type { ScenePlannerPort } from '../application/scene-ports.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
@@ -13,11 +14,13 @@ export function sceneTaskHandler(
     const started = Date.now();
     try {
       const input = SceneTaskInputSchema.parse(lease.input);
-      const context = await queue.read(lease, (sql) =>
-        scenePlanning(sql, lease.ownerId, lease.scopeId, input),
-      );
+      const context = await queue.read(lease, async (sql) => {
+        const epoch = await declareWorldEngineContext(sql, lease.scopeId, lease.ownerId);
+        return scenePlanning(sql, lease.ownerId, lease.scopeId, input, false, epoch >= 2);
+      });
       const proposal = await planner.propose(context, signal);
       await queue.commit(lease, async (sql) => {
+        await declareWorldEngineContext(sql, lease.scopeId, lease.ownerId);
         const version = await commitSceneProposal(
           sql,
           lease.ownerId,

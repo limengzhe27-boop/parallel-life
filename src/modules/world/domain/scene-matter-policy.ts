@@ -134,6 +134,21 @@ export function isSceneMatterLinked(
     return false;
   return true;
 }
+export function sceneMatterInvitationEffective(
+  matter: WorldMatter,
+  appointments: readonly Appointment[],
+  placeAppointmentIds: readonly string[] | undefined,
+  storyAt: string,
+): boolean {
+  if (!matter.relatedInvitationId) return true;
+  const invitation = appointments.find((entry) => entry.id === matter.relatedInvitationId);
+  return Boolean(
+    invitation &&
+    ['confirmed', 'attended'].includes(invitation.status ?? '') &&
+    Date.parse(invitation.at) <= Date.parse(storyAt) &&
+    placeAppointmentIds?.includes(invitation.id),
+  );
+}
 export function validateWorldMatterSceneUpdate(input: {
   world: WorldState;
   initial: WorldState;
@@ -178,18 +193,15 @@ export function validateWorldMatterSceneUpdate(input: {
   ] as const)
     if (original && JSON.stringify(normalize(m[key])) !== JSON.stringify(normalize(original[key])))
       throw new DomainError('INVALID_PROPOSAL', 'Immutable matter definition changed');
-  if (m.relatedInvitationId) {
-    const invitation = world.appointments.find((a) => a.id === m.relatedInvitationId);
-    if (
-      !invitation ||
-      !['confirmed', 'attended'].includes(invitation.status ?? '') ||
-      Date.parse(invitation.at) > Date.parse(input.at) ||
-      !world.space?.places
-        .find((p) => p.id === m.relatedPlaceId)
-        ?.appointmentIds.includes(invitation.id)
+  if (
+    !sceneMatterInvitationEffective(
+      m,
+      world.appointments,
+      world.space?.places.find((p) => p.id === m.relatedPlaceId)?.appointmentIds,
+      input.at,
     )
-      throw new DomainError('INVALID_PROPOSAL', 'Matter invitation is not effective here');
-  }
+  )
+    throw new DomainError('INVALID_PROPOSAL', 'Matter invitation is not effective here');
   if (input.status === 'completed') {
     const rule = matterCriterion(m);
     if (
