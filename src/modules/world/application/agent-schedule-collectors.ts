@@ -910,6 +910,31 @@ async function appointmentWindows(
 async function observations(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot,
     out: AgentCandidate[] = [];
+  if (
+    snapshot.channel.kind === 'private' &&
+    snapshot.channel.allowedCapabilities.includes('moment.interact')
+  ) {
+    for (const observation of snapshot.observations) {
+      if (!observation.sourceId.startsWith('moment:') || observation.speaker?.kind !== 'player')
+        continue;
+      const source = context.sources.get(observation.sourceId);
+      if (source?.kind !== 'world_event' || source.worldVersion <= 0) continue;
+      const age = Date.parse(view.storyAt) - Date.parse(source.at);
+      if (!(age >= 0 && age <= 30 * 60_000)) continue;
+      out.push(
+        await candidate(view, context, {
+          source: 'observation',
+          actionId: null,
+          sourceIds: [source.id],
+          responsibilities: [],
+          semantic: { playerMoment: source.id },
+          reason: '本人看见玩家的新朋友圈，可自行回应或略过。',
+          wakeCue:
+            '本轮只考虑basisSourceIds 所指的朋友圈。结合这条动态的具体内容和你与玩家的关系，选择点赞、评论、发一条明确与这条动态有关的私聊，或略过。没看到图片内容就不要猜画面；此前已经做过的互动不要重复。',
+        }),
+      );
+    }
+  }
   // Finish the actor's already actionable duty before opening another orphan
   // handoff review. Otherwise a backlog of old accepted briefs suppresses the
   // bounded agenda review that can actually dispose of the current duty.
@@ -1188,7 +1213,9 @@ export function createAgentScheduleSources(
           ...(actor.snapshot.worldContext?.knowledge.length ||
           actor.snapshot.actorObservationInbox?.sourceIds.length ||
           actor.snapshot.episodeResults?.length ||
-          actor.snapshot.sources.some((source) => source.id.startsWith('media-result:')) ||
+          actor.snapshot.sources.some(
+            (source) => source.id.startsWith('media-result:') || source.id.startsWith('moment:'),
+          ) ||
           actor.snapshot.episodeFollowUps?.some(
             (followup) => followup.choice === 'engage' && followup.followUp === 'none',
           )

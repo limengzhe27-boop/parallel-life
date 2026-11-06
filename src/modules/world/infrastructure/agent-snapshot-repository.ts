@@ -628,7 +628,7 @@ export async function readPrivateAgentSnapshot(
         if (observations[i]!.sourceId === playerEpisode.view.source.id) observations.splice(i, 1);
       observations.push(playerEpisode.view.observation);
     }
-    // The feed is pull-based. Reading a post does not create an inbox wake or a response obligation.
+    // Authorized feed entries can also offer a bounded observation turn.
     const momentRows = (
       await sql.query(
         `SELECT post.value AS moment, COALESCE(e.version, 0) AS version,
@@ -680,6 +680,9 @@ export async function readPrivateAgentSnapshot(
       observations.push({
         sourceId: id,
         kind: 'speech',
+        ...(moment.actorId === 'player' && Number(row.version) > 0
+          ? { speaker: { kind: 'player' as const } }
+          : {}),
         text: `${name}在你可见的朋友圈发了动态（momentKey=${moment.key}${row.liked ? '，你已点赞' : ''}${moment.audienceActorIds ? '，限指定人物可见，不向其他人物转述' : ''}）：${moment.text.slice(0, 400)}${moment.images?.length || moment.image ? `（附${moment.images?.length || 1}张图片；当前未提供画面内容，不据此猜测画面）` : ''}${row.own_comments?.length ? `\n你已在这条动态下评论过：${row.own_comments.join('；')}。没有新内容时不重复评论。` : ''}`,
       });
     }

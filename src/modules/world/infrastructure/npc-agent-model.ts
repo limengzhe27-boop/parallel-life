@@ -480,7 +480,14 @@ function prepare(snapshot: AgentSnapshot): PreparedNpcRequest {
                 ) === true
               : wake.source === 'actor_plan'
                 ? snapshot.sources.some((s) => s.id === id)
-                : !!snapshot.actorObservationInbox?.sourceIds.includes(id)),
+                : !!snapshot.actorObservationInbox?.sourceIds.includes(id) ||
+                  (id.startsWith('moment:') &&
+                    snapshot.sources.some(
+                      (source) => source.id === id && source.kind === 'world_event',
+                    ) &&
+                    snapshot.observations.some(
+                      (o) => o.sourceId === id && o.speaker?.kind === 'player',
+                    ))),
         );
     } catch {
       /* An ordinary wake is not permission to protect arbitrary material. */

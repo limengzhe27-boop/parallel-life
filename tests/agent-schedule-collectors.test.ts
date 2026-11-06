@@ -1408,3 +1408,47 @@ test('unknown actor stays fenced while another actor retains its actual planned 
     assert.ok(result.selected.every((c) => c.candidate.actorId === 'b'));
   }
 });
+
+test('a recent visible player moment offers one stable, optional NPC observation turn', async () => {
+  const a = actor();
+  const b = actor('b');
+  for (const item of [a, b]) item.snapshot.channel.allowedCapabilities.push('moment.interact');
+  const source = {
+    id: 'moment:post',
+    kind: 'world_event' as const,
+    recordId: 'posted',
+    worldVersion: 4,
+    at,
+  };
+  a.snapshot.sources.push(source);
+  a.snapshot.observations.push({
+    sourceId: source.id,
+    kind: 'speech',
+    text: '玩家发布的测试动态',
+    speaker: { kind: 'player' },
+  });
+  const input = view([a, b]);
+  const first = (await collect(input, 'observation')).candidates;
+  assert.equal(first.length, 1);
+  assert.equal(first[0]!.actorId, 'a');
+  assert.deepEqual(first[0]!.sourceIds, ['moment:post']);
+  assert.equal(first[0]!.requiresCoordination, false);
+  assert.match(first[0]!.wakeCue ?? '', /或略过/);
+  const later = structuredClone(input);
+  const moveTime = (storyAt: string) => {
+    later.storyAt = storyAt;
+    for (const item of later.actors) {
+      item.snapshot.storyAt = storyAt;
+      item.snapshot.worldContext!.time.storyAt = storyAt;
+    }
+  };
+  moveTime('2026-10-15T10:03:00.000Z');
+  assert.equal((await collect(later, 'observation')).candidates[0]?.id, first[0]!.id);
+  assert.equal(
+    (await collect({ ...later, consumedCandidateIds: [first[0]!.id] }, 'observation')).candidates
+      .length,
+    0,
+  );
+  moveTime('2026-10-15T11:00:00.000Z');
+  assert.equal((await collect(later, 'observation')).candidates.length, 0);
+});
