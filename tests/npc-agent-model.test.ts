@@ -1062,7 +1062,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /已有对象沿用id和完整sourceIds/);
   assert.match(system, /失败时不展示成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v99-scene-expression');
+  assert.equal(payload.promptVersion, 'npc-agent-v100-question-withdrawal');
   assert.match(system, /玩家说忙、晚点、休息或暂时不谈/);
   assert.match(system, /后续按玩家实际给出的暂缓范围与已有合法条件继续/);
   assert.match(system, /不把“晚点”扩大为永久停止/);

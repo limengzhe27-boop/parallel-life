@@ -7,6 +7,9 @@ import { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { PlayerRecordsReader } from '../application/player-records.ts';
 import {
   projectPlayerRecords,
+  urgentArrivalRequest,
+  urgentArrivalRelease,
+  urgentArrivalWasRelieved,
   type PlayerRecordsInput,
   type VisibleStoryRequest,
 } from '../domain/player-records.ts';
@@ -182,12 +185,12 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
       }
       // The director's internal text never leaves the server. Join only the NPC's
       // actual player-visible question and its still-waiting, same-episode responsibility.
-      const storyRequests = (
+      const pendingStoryRequests = (
         await sql.query(
           `SELECT * FROM (
            SELECT DISTINCT ON (r.id) r.id AS request_id, r.actor_id, m.id AS message_id,
                   m.document->>'text' AS text, m.document->>'at' AS at,
-                  e.id AS event_id, e.version AS event_version
+                  e.id AS event_id, e.version AS event_version, m.ordinal AS message_ordinal
            FROM parallel_life.actor_agent_states s
            JOIN parallel_life.agent_runtime_worlds runtime
              ON runtime.world_id=s.world_id AND runtime.owner_id=s.owner_id
@@ -224,22 +227,67 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
              AND (responsibility->'sourceIds' ? r.input_receipt_id
                OR responsibility->'sourceIds' ? ('episode-intent:'||r.id))
            ORDER BY r.id,e.version DESC,m.ordinal DESC
-           ) pending ORDER BY event_version DESC,request_id LIMIT 3`,
+           ) pending ORDER BY event_version DESC,request_id`,
           [worldId, ownerId, world.version],
         )
-      ).rows.map((row): VisibleStoryRequest => ({
-        requestId: row.request_id,
-        actorId: row.actor_id,
-        text: row.text,
-        source: {
-          kind: 'world_event',
-          eventId: row.event_id,
-          eventVersion: row.event_version,
-          messageId: row.message_id,
-          at: row.at,
-          timeBasis: 'story',
-        },
-      }));
+      ).rows;
+      const urgentRequests = pendingStoryRequests.filter((row) =>
+        urgentArrivalRequest.test(row.text),
+      );
+      const relieved = new Set<string>();
+      if (urgentRequests.length) {
+        const unambiguous = urgentRequests.filter(
+          (row) => urgentRequests.filter((other) => other.actor_id === row.actor_id).length === 1,
+        );
+        if (unambiguous.length) {
+          const later = await sql.query(
+            `SELECT pending.request_id, followup.text
+             FROM unnest($4::text[], $5::text[], $6::bigint[]) pending(request_id, actor_id, ordinal)
+             CROSS JOIN LATERAL (
+               SELECT m.document->>'text' AS text, m.ordinal
+               FROM parallel_life.world_messages m
+               JOIN parallel_life.world_events e
+                 ON e.world_id=m.world_id AND e.owner_id=m.owner_id AND e.id=m.document->>'sourceEventId'
+               JOIN parallel_life.commands c
+                 ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+                   AND c.result_event_id=e.id AND c.status='succeeded'
+               WHERE m.world_id=$1 AND m.owner_id=$2 AND m.actor_id=pending.actor_id
+                 AND e.version<=$3 AND m.ordinal>pending.ordinal
+                 AND m.document->>'role'='assistant'
+                 AND (m.document->>'text' ~ $7 OR m.document->>'text' ~ $8)
+               ORDER BY m.ordinal DESC LIMIT 1
+             ) followup`,
+            [
+              worldId,
+              ownerId,
+              world.version,
+              unambiguous.map((row) => row.request_id),
+              unambiguous.map((row) => row.actor_id),
+              unambiguous.map((row) => row.message_ordinal),
+              urgentArrivalRequest.source,
+              urgentArrivalRelease.source,
+            ],
+          );
+          for (const row of later.rows)
+            if (urgentArrivalWasRelieved(row.text)) relieved.add(row.request_id);
+        }
+      }
+      const storyRequests = pendingStoryRequests
+        .filter((row) => !relieved.has(row.request_id))
+        .slice(0, 3)
+        .map((row): VisibleStoryRequest => ({
+          requestId: row.request_id,
+          actorId: row.actor_id,
+          text: row.text,
+          source: {
+            kind: 'world_event',
+            eventId: row.event_id,
+            eventVersion: row.event_version,
+            messageId: row.message_id,
+            at: row.at,
+            timeBasis: 'story',
+          },
+        }));
       const eventIds = events.map((e) => e.id);
       const sceneAttendanceSources = new Map();
       for (const event of events) {

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
   projectPlayerRecords,
+  urgentArrivalRequest,
+  urgentArrivalWasRelieved,
   type PlayerRecordsInput,
 } from '../src/modules/world/domain/player-records.ts';
 import { PlayerRecordsSchema } from '../src/contracts/world-records.ts';
@@ -351,4 +353,13 @@ test('legacy records are genuinely empty and source timestamps do not become inv
   f.messages = [];
   assert.deepEqual(projectPlayerRecords(f).current, []);
   assert.deepEqual(projectPlayerRecords(f).about, []);
+});
+
+test('an explicit alternative retires urgency while topic changes and requests to reply do not', () => {
+  assert.ok(urgentArrivalRequest.test('妈妈现在在医院病房，你能不能快点过来？'));
+  assert.ok(urgentArrivalWasRelieved('我不催你了。你要是能来就来，来不了……我在这儿守着也行。'));
+  assert.ok(urgentArrivalWasRelieved('现在不用赶来了，我来处理。'));
+  assert.ok(!urgentArrivalWasRelieved('我不催了。你要是能看到，回我一下。'));
+  assert.ok(!urgentArrivalWasRelieved('今晚西餐厅，七点，能来帮我吗？'));
+  assert.ok(!urgentArrivalWasRelieved('原本不用来了，但现在情况又变了，你快过来。'));
 });

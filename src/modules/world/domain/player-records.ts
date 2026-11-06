@@ -126,6 +126,17 @@ export type PlayerRecords = {
   about: PlayerRecord[];
   history: PlayerRecord[];
 };
+/** A legacy urgent request may remain open after the speaker made coming optional.
+ * This only retires the homepage recommendation; it records no player decision.
+ */
+export const urgentArrivalRequest =
+  /(?:快点|赶快|赶紧|尽快|马上|立刻)[^。！？\n]{0,6}(?:过来|赶来|来一趟)|(?:快来|快过来)/u;
+export const urgentArrivalRelease =
+  /(?:不用|不必|不需要)[再着急赶]*[过赶]?来(?:了|一趟|[。！!，,]|$)|来不了[^。！？\n]{0,12}(?:我|我们)[^。！？\n]{0,16}(?:守着|照看|看着|处理|接手)[^。！？\n]{0,8}(?:也行|就行|就好|可以)/u;
+export function urgentArrivalWasRelieved(text: string): boolean {
+  return urgentArrivalRelease.test(text) && !urgentArrivalRequest.test(text);
+}
+
 export type VisibleStoryRequest = {
   requestId: string;
   actorId: string;

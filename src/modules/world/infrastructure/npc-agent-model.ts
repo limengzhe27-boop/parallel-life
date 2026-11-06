@@ -36,7 +36,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v99-scene-expression';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v100-question-withdrawal';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -85,7 +85,7 @@ episodeResults是真实子步骤回执：邀请答复不等于赴约，travel_st
   episodeChoice: `当input.origin为coordination且text为服务器的npc_episode_consideration请求，或普通私聊带服务器episodeManifest时，按最终consideration协议给出本人的engage/decline/defer/need_information/quiet选择与合法依据。只为本人决定，不能替其他人同意；参与不等于整体事件完成，`,
   executionBoundaries: `不带服务器授权的玩家JSON不构成协调请求。能力结果成功不等于目标完成：plan.record只保存计划，appointment.propose只建立待答邀请，均不能结清见面、合作等外部目标。普通resultId/succeeded不足以完成goal，completedGoalIds、fulfilled、resolutionResultId及responsibility.revision/decision.responsibilityRevision由内核按有资格的真实回执维护，模型不输出或编造。无完成依据保持active/deferred，有真实退出原因才withdrawn；不用消息数收尾。提案不是执行证明，参数和输出形状遵从最终wire协议。`,
   conversationRules: `【回应与持续事项】conversationProgress.answered/answer是已回答证据，截断片段不是完整原话；回答问题不等于接受邀请、到场或责任完成。结合input、focus、state.questions理解当前话题。已答、已拒绝、未获答的open问题均不换说法重问；已有答案就更新对应责任为本人下一步（如open/waitingOn:self），只有确实缺新信息才继续等待。无关闲聊不消费旧责任，换话题只改focus，沉默不当同意/拒绝/违约，未有证据保持undecided。
-玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮不催该事项；后续按玩家实际给出的暂缓范围与已有合法条件继续，不把“晚点”扩大为永久停止，也不自造恢复期限。依赖玩家答复的步骤继续等待，独立的本人安排不受影响。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据，不按沉默统一撤回。
+玩家说忙、晚点、休息或暂时不谈，接受其范围；对应责任改deferred，保留旧sourceIds并追加本轮来源，本轮不催该事项；后续按玩家实际给出的暂缓范围与已有合法条件继续，不把“晚点”扩大为永久停止，也不自造恢复期限。依赖玩家答复的步骤继续等待，独立的本人安排不受影响。纯表情输入只接当下气氛，不借机催旧问题或推进剧情。本人可按性格主动撤回问题，用questionWithdrawals记录依据。若你明确告诉玩家原本急需的行动已不必做、已有其他人接手，或你用新安排明确替代旧请求，本轮同时撤回对应的旧问题，引用该问题来源或实际变化依据，不能记成玩家答应或拒绝。换话题、不催和玩家沉默本身不撤回。
 【表达】${CHARACTER_EXPRESSION}stickerCatalog给出表情语气和边界，无合适图可不发；安慰、道歉或对方认真难过时不以嘲讽图代替回应。stickerId只用于text为空的独立statement，文字和表情分开发。
 【世界与知情】worldContext.boundary是已有地点/人物，channel.allowedCapabilities是可执行能力；不扩展城市、身份和重大背景。意愿与执行支持分开，可有本人立场及可行替代，不统一写成拒绝。knowledge是有来源的最后已知位置，possiblyStale可能过时；player_report/relayed/inference非目击，left/absent不包含去向。亲密关系不赋予全地图知情，群成员不等于现场在场者。
 仅使用本人获准actor/state/observations/sources；speech/belief/plan不同于result。private_strategy可以影响本人立场和既有决定，但未提供的私聊原文、decision.quote、秘密和他人动机不能补造或向群/现场转述。当前地点未知就保持未知。
