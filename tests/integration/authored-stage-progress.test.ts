@@ -19,6 +19,7 @@ import {
 } from '../../src/contracts/published-world-content.ts';
 import type { PublicationWorldCompilerPort } from '../../src/modules/settings/application/publication-world-ports.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { PostgresPlayerRecords } from '../../src/modules/world/infrastructure/player-records-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
 import { PostgresAgentRuntimeRepository } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
@@ -503,7 +504,20 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
       const f = await fixture();
       const initial = await view(f);
       assert.equal(initial.eligibility.find((e) => e.ref.nodeKey === 'follow')!.status, 'blocked');
+      const records = new PostgresPlayerRecords(app);
+      assert.equal(
+        (await records.read(f.owner, f.id)).current.some((r) => r.task),
+        false,
+      );
       const { world, appointment } = await invite(f);
+      const recordId = `sys/invitation/${f.id}/${appointment.id}`;
+      const pending = (await records.read(f.owner, f.id)).current.find((r) => r.id === recordId);
+      assert.deepEqual(pending?.task, {
+        kind: 'decide_invitation',
+        recommended: true,
+        reason: '愿意一起商量一下安排吗？',
+      });
+      assert.deepEqual(pending?.navigation, { app: 'calendar', invitationId: appointment.id });
       const presented = await view(f);
       assert.equal(
         presented.eligibility.find((e) => e.ref.nodeKey === 'follow')!.status,
@@ -525,6 +539,9 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
         operation: 'accept' as const,
       };
       await worlds.respondToInvitation({ userId: f.owner }, command);
+      const confirmed = (await records.read(f.owner, f.id)).current.find((r) => r.id === recordId);
+      assert.equal(confirmed?.task?.kind, 'attend_invitation');
+      assert.equal(confirmed?.task?.recommended, true);
       const completed = await view(f);
       const progress = await app.transaction(f.owner, (sql) =>
         readEpisodeOutcomeProgress(sql, f.owner, completed.catalog),
@@ -574,6 +591,7 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
       const other = randomUUID();
       await new IdentityRepository(app).ensureGuest(other);
       await assert.rejects(view(f, other), { code: 'NOT_FOUND' });
+      await assert.rejects(records.read(other, f.id), { code: 'NOT_FOUND' });
       assert.equal(
         (
           await app.transaction(other, (sql) =>

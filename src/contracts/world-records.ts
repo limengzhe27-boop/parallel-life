@@ -148,6 +148,13 @@ export const PlayerRecordSchema = z.strictObject({
   origin: GenesisSourceSchema.optional(),
   relatedLinks: z.array(HistoryLinkSchema).max(4).optional(),
   stepChecklist: SceneStepChecklistSchema.optional(),
+  task: z
+    .strictObject({
+      kind: z.enum(['decide_invitation', 'attend_invitation']),
+      recommended: z.literal(true).optional(),
+      reason: z.string().min(1).max(140).optional(),
+    })
+    .optional(),
   progress: z
     .strictObject({
       milestones: z

@@ -12,6 +12,7 @@ import { PlayerRecordsSchema } from '../../../contracts/world-records.ts';
 import { SceneRuntimeActionSchema } from '../../../contracts/scenes.ts';
 import { matterSceneObservation } from '../domain/matter-scene-observation.ts';
 import type { WorldMatter } from '../domain/matters.ts';
+import type { Appointment } from '../domain/types.ts';
 import {
   sceneAttendanceSource,
   type SceneAttendanceEvent,
@@ -45,7 +46,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         )
       ).rows[0]?.state;
       const choices = world.state.choices ?? [];
-      let appointments = (
+      let appointments: Appointment[] = (
         await sql.query(
           "SELECT p.document FROM parallel_life.world_appointments p JOIN parallel_life.world_events e ON e.world_id=p.world_id AND e.id=p.document->>'sourceEventId' AND e.owner_id=p.owner_id WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$3",
           [worldId, ownerId, world.version],
@@ -146,6 +147,32 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
             e,
           ).appointments;
         }
+      }
+      const openInvitations = new Map(
+        appointments
+          .filter((a) => a.status === 'proposed' || a.status === 'confirmed')
+          .map((a) => [a.id, a.sourceEventId]),
+      );
+      const directedInvitationIds = new Set<string>();
+      if (openInvitations.size) {
+        const evidence = await sql.query(
+          `SELECT ev.subject_id, ev.source_event_id
+           FROM parallel_life.agent_episode_evidence ev
+           JOIN parallel_life.shared_episodes ep
+             ON ep.world_id=ev.world_id AND ep.owner_id=ev.owner_id AND ep.id=ev.episode_id
+           JOIN parallel_life.director_decisions d
+             ON d.world_id=ep.world_id AND d.owner_id=ep.owner_id AND d.id=ep.origin_decision_id
+           JOIN parallel_life.director_runtime_attempts a
+             ON a.world_id=d.world_id AND a.owner_id=d.owner_id AND a.id=d.attempt_id
+               AND a.decision_id=d.id AND a.status='committed'
+           WHERE ev.world_id=$1 AND ev.owner_id=$2 AND ev.world_version<=$3
+             AND ev.kind='invitation_proposed' AND ev.subject_kind='appointment'
+             AND ev.subject_id=ANY($4::text[]) AND ep.document->>'status'<>'withdrawn'`,
+          [worldId, ownerId, world.version, [...openInvitations.keys()]],
+        );
+        for (const row of evidence.rows)
+          if (openInvitations.get(row.subject_id) === row.source_event_id)
+            directedInvitationIds.add(row.subject_id);
       }
       const eventIds = events.map((e) => e.id);
       const sceneAttendanceSources = new Map();
@@ -258,6 +285,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         progressionEvents: events.filter((e) => e.type === 'scene.action_resolved'),
         sceneStepSources,
         appointments,
+        directedInvitationIds,
         messages,
         events,
         ...(initial ? { initial } : {}),

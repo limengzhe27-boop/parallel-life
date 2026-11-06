@@ -96,6 +96,11 @@ export type PlayerRecord = {
     label: string;
   }[];
   stepChecklist?: SceneStepChecklist;
+  task?: {
+    kind: 'decide_invitation' | 'attend_invitation';
+    recommended?: true;
+    reason?: string;
+  };
   progress?: {
     milestones: { title: string; at: string; recordId: string }[];
     opportunities: { title: string; recordId: string }[];
@@ -128,6 +133,8 @@ export type PlayerRecordsInput = {
   };
   choices: StoryChoice[];
   appointments: Appointment[];
+  /** Appointment IDs with a committed director-to-actor episode execution. */
+  directedInvitationIds?: ReadonlySet<string>;
   messages: Message[];
   actors: { id: string; name: string }[];
   events: (WorldEvent | InvitationEvent)[];
@@ -207,6 +214,20 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
   });
   const add = (row: Omit<PlayerRecord, 'stateLabel'>, historical = false) =>
     (historical ? output.history : output.current).push({ ...row, stateLabel: labels[row.state] });
+  const invitationTask = (
+    appointment: Appointment,
+    visibleText?: string,
+  ): Pick<PlayerRecord, 'task'> => {
+    if (appointment.status !== 'proposed' && appointment.status !== 'confirmed') return {};
+    const reason = visibleText?.trim().slice(0, 140);
+    return {
+      task: {
+        kind: appointment.status === 'proposed' ? 'decide_invitation' : 'attend_invitation',
+        ...(input.directedInvitationIds?.has(appointment.id) ? { recommended: true } : {}),
+        ...(reason ? { reason } : {}),
+      },
+    };
+  };
   const attendanceSourceFor = (appointment: Appointment) => {
     const proof = input.sceneAttendanceSources?.get(appointment.id);
     return appointment.status === 'attended' &&
@@ -303,6 +324,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         assertion: 'invitation_status',
         source: recordSource,
         navigation: { app: 'calendar', invitationId: current.id },
+        ...invitationTask(current),
       });
     }
   }
@@ -400,6 +422,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
           source: currentSource,
           origin: entry.source,
           navigation: { app: 'calendar', invitationId: current.id },
+          ...invitationTask(current, entry.quote),
           relatedLinks: [
             {
               app: 'messages',
@@ -619,6 +642,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
           attendanceSourceFor(appointment) ??
           source(currentSource, currentSource.id === e.id ? visibleReply : undefined),
         navigation: { app: 'calendar', invitationId: appointment.id },
+        ...invitationTask(appointment, visibleReply.text),
       },
       ['cancelled', 'attended', 'missed'].includes(appointment.status),
     );
