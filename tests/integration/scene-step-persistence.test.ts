@@ -12,12 +12,14 @@ import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/
 import { SceneRepository } from '../../src/modules/world/infrastructure/scene-repository.ts';
 import { PostgresPlayerRecords } from '../../src/modules/world/infrastructure/player-records-repository.ts';
 import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
+import { worldTaskDispatcher } from '../../src/server/world-task-dispatcher.ts';
+import { nativeNpcTaskHandler } from '../../src/server/npc-agent-channel-services.ts';
+import { sceneEnvironmentTaskHandler } from '../../src/modules/world/infrastructure/agent-scene-environment.ts';
 import { sceneTaskHandler } from '../../src/modules/world/infrastructure/scene-task-handler.ts';
 import { runOne } from '../../src/modules/tasks/application/run-worker.ts';
 import { sceneMatterId } from '../../src/modules/world/domain/scene-matter-policy.ts';
 import { actorContext } from '../../src/modules/world/application/actor-context.ts';
-import { resolveTurn } from '../../src/modules/world/application/resolve-turn.ts';
-import { WorldTurnPlanner } from '../../src/modules/world/infrastructure/turn-planner.ts';
+import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import {
   replayWorldHistory,
   type WorldHistoryEvent,
@@ -30,6 +32,7 @@ import type {
   SceneProposal,
   ScenePlannerPort,
 } from '../../src/modules/world/application/scene-ports.ts';
+import { selectDesktopTask } from '../../src/features/phone/desktop-widget-selection.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 // Real transactions, synthetic labelled planner outputs. No AI/production calls.
@@ -49,6 +52,25 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
     scenes = new SceneRepository(db);
   await new IdentityRepository(db).ensureGuest(owner);
   await new IdentityRepository(db).ensureGuest(other);
+  const environment = sceneEnvironmentTaskHandler(db);
+  const native = nativeNpcTaskHandler(db, () => ({
+    async complete() {
+      return JSON.stringify({
+        statements: [
+          {
+            text: '合成测试：我在柜台这里，先核对单子。',
+            dependsOnActionIds: [],
+            requestsPlayerReply: false,
+          },
+        ],
+        goals: [],
+        plans: [],
+        actions: [],
+        responsibilities: [],
+        decisions: [],
+      });
+    },
+  }));
   const run = (taskId: string, p: SceneProposal | ScenePlannerPort) =>
     runOne(
       {
@@ -57,17 +79,22 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         finish: (l, o) => queue.finish(l, o),
       },
       {
-        world: sceneTaskHandler(
-          queue,
-          'propose' in p
-            ? p
-            : {
-                async propose() {
-                  return p;
+        world: worldTaskDispatcher({
+          agent: async (lease, signal) =>
+            (await environment(lease, signal)) || native(lease, signal),
+          group: async () => assert.fail('Expected a scene task'),
+          scene: sceneTaskHandler(
+            queue,
+            'propose' in p
+              ? p
+              : {
+                  async propose() {
+                    return p;
+                  },
                 },
-              },
-          'synthetic-no-model',
-        ),
+            'synthetic-no-model',
+          ),
+        }),
       },
     );
   try {
@@ -77,6 +104,15 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       { commandId: randomUUID(), version: 3 },
     );
     const worldId = start.worldId;
+    assert.equal(
+      (
+        await admin.query(
+          'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1',
+          [worldId],
+        )
+      ).rows[0]?.engine_epoch,
+      2,
+    );
     let world = await worlds.get({ userId: owner }, worldId);
     const trigger = world.matters!.find(
       (m) => m.source.kind === 'preset' && m.source.matterKey === 'deliver_r17',
@@ -84,6 +120,22 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
     const actor = world.actors.find((a) => a.name === '老周')!,
       absent = world.actors.find((a) => a.name === '林悦')!;
     const invitation = world.appointments.find((a) => a.id === trigger.relatedInvitationId)!;
+    const sceneTaskRecordId = `sys/matter/${worldId}/${trigger.id}`;
+    const sceneTaskRecord = async () =>
+      (await new PostgresPlayerRecords(db).read(owner, worldId)).current.find(
+        (row) => row.id === sceneTaskRecordId,
+      );
+    const assertSceneTaskStep = async (stepId: string, completedRequired: number) => {
+      const record = await sceneTaskRecord();
+      assert.ok(record);
+      assert.equal(record.task?.kind, 'scene_action');
+      assert.equal(record.stepChecklist?.completedRequired, completedRequired);
+      const step = record.stepChecklist?.steps.find((candidate) => candidate.id === stepId);
+      assert.ok(step);
+      assert.equal(step.state, 'pending');
+      assert.equal(record.task?.kind === 'scene_action' && record.task.stepTitle, step.title);
+    };
+    assert.equal((await sceneTaskRecord())?.task, undefined);
     await worlds.respondToInvitation(
       { userId: owner },
       {
@@ -94,12 +146,14 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         operation: 'accept',
       },
     );
+    assert.equal((await sceneTaskRecord())?.task, undefined);
     await db.transaction(owner, (sql) =>
       sql.query('UPDATE parallel_life.world_clock SET story_now=$1,speed=0 WHERE world_id=$2', [
         invitation.at,
         worldId,
       ]),
     );
+    await assertSceneTaskStep('order_reviewed', 0);
     world = await worlds.get({ userId: owner }, worldId);
     const entered = await scenes.enterPlace(owner, worldId, {
         commandId: randomUUID(),
@@ -118,36 +172,37 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       matterUpdates: [],
       dialogues: [],
     };
-    let openingCalls = 0;
-    await run(
-      entered.task!.id,
-      new ScenePlanner({
-        async complete() {
-          openingCalls++;
-          return JSON.stringify(
-            openingCalls === 1
-              ? { ...SceneProposalSchema.parse(base), presentActorIds: [] }
-              : { present: true, text: '合成测试：我在柜台这里，先核对单子。' },
-          );
-        },
-      }),
-    );
+    await run(entered.task!.id, {
+      async propose() {
+        return assert.fail('Epoch-2 opening must use the deterministic scene environment');
+      },
+    });
     const opened = await scenes.read(owner, worldId);
-    assert.equal(opened.task?.status, 'succeeded');
-    assert.equal(openingCalls, 2);
+    assert.equal(
+      (await admin.query('SELECT status FROM parallel_life.tasks WHERE id=$1', [entered.task!.id]))
+        .rows[0]?.status,
+      'succeeded',
+    );
     const presence = opened.scene!.presence.find(
       (p) => p.participant.kind === 'actor' && p.participant.actorId === actor.id,
-    )!;
-    assert.ok(presence);
-    assert.equal(presence.joinedVersion, opened.worldVersion);
-    assert.equal(presence.sourceVersion, opened.worldVersion);
-    assert.ok(opened.entries.some((e) => e.kind === 'dialogue' && e.text.startsWith('合成测试：')));
-    assert.equal(
-      (await worlds.get({ userId: owner }, worldId)).appointments.find(
-        (a) => a.id === invitation.id,
-      )!.status,
-      'attended',
     );
+    assert.ok(presence);
+    assert.ok(opened.entries.some((e) => e.kind === 'time_place'));
+    assert.ok(opened.task);
+    await run(opened.task.id, {
+      async propose() {
+        return assert.fail('Expected a native scene greeting');
+      },
+    });
+    assert.equal((await scenes.read(owner, worldId)).task?.status, 'succeeded');
+    assert.ok(
+      ['confirmed', 'attended'].includes(
+        (await worlds.get({ userId: owner }, worldId)).appointments.find(
+          (a) => a.id === invitation.id,
+        )!.status!,
+      ),
+    );
+    await assertSceneTaskStep('order_reviewed', 0);
     const enqueue = async (text: string, target = trigger.id) => {
       const view = await scenes.read(owner, worldId),
         request = {
@@ -286,6 +341,7 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         assert.equal((await target()).status, 'in_progress');
         const first = (await target()).stepProgress!.steps[0]!;
         assert.equal(first.stepId, 'order_reviewed');
+        await assertSceneTaskStep('repair_explained', 1);
         const firstRecords = await new PostgresPlayerRecords(db).read(owner, worldId);
         const firstChecklist = firstRecords.current.find(
           (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
@@ -377,6 +433,7 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         assert.deepEqual((await target()).stepProgress!.steps[0], first);
         assert.equal((await target()).stepProgress!.steps.length, 3);
         assert.equal((await target()).status, 'in_progress');
+        await assertSceneTaskStep('handed_over', 2);
         const explainedRecords = await new PostgresPlayerRecords(db).read(owner, worldId);
         const explainedChecklist = explainedRecords.current.find(
           (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
@@ -475,6 +532,43 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       },
     );
     await t.test(
+      'player handover remains pending until the receiver actually takes the objects',
+      async () => {
+        const a = await enqueue(text);
+        await run(
+          a.command.task!.id,
+          new ScenePlanner({
+            async complete(messages) {
+              const payload = JSON.parse(messages[1]!.content.split('\nCURRENT TASK:')[0]!);
+              return JSON.stringify(
+                'allowedActions' in payload
+                  ? {
+                      actionFormat: 'indexed-npc-actions-v2',
+                      text: ['我先腾出柜台。'],
+                      actions: [],
+                    }
+                  : { ...final, dialogues: [], npcActions: [] },
+              );
+            },
+          }),
+        );
+        assert.equal((await scenes.read(owner, worldId)).task?.status, 'succeeded');
+        assert.equal((await target()).status, 'in_progress');
+        const record = await sceneTaskRecord();
+        assert.equal(record?.stepChecklist?.completedRequired, 3);
+        assert.equal(
+          record?.stepChecklist?.steps.find((step) => step.id === 'received')?.state,
+          'pending',
+        );
+        assert.equal(record?.task, undefined);
+        const data = await new PostgresPlayerRecords(db).read(owner, worldId);
+        assert.notEqual(
+          selectDesktopTask({ status: 'ready', data }, invitation.at)?.id,
+          sceneTaskRecordId,
+        );
+      },
+    );
+    await t.test(
       'NPC actually receives the handed objects; overall completion does not rewrite partial player action',
       async () => {
         const a = await enqueue(text);
@@ -532,6 +626,11 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         assert.ok(!invisible.facts.some((f) => f.id.startsWith('matter_result:')));
         assert.ok(!invisible.matters?.some((m) => m.id === op.id));
         const records = await new PostgresPlayerRecords(db).read(owner, worldId);
+        assert.equal(
+          records.current.find((row) => row.id === sceneTaskRecordId),
+          undefined,
+        );
+        assert.equal(records.history.find((row) => row.id === sceneTaskRecordId)?.task, undefined);
         const completeChecklist = records.history.find(
           (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
         )!.stepChecklist!;
@@ -556,6 +655,7 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           `sys/matter/${worldId}/${trigger.id}`,
         );
         assert.equal(nextRecord.state, 'not_started');
+        assert.equal(nextRecord.task?.kind, 'scene_action');
         const before = await counts();
         assert.deepEqual(await scenes.input(owner, worldId, sceneId, a.request), a.command);
         await run(a.command.task!.id, final);
@@ -663,41 +763,46 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
     await t.test(
       'private chat reads actual receipt and completed opportunity without redoing or granting another reward',
       async () => {
+        const inScene = await state();
+        await scenes.navigate(
+          owner,
+          worldId,
+          sceneId,
+          { commandId: randomUUID(), expectedVersion: inScene.version },
+          true,
+        );
         const before = await state();
-        const completed = before.matters!.find((m) => m.id === trigger.id)!;
-        const opportunity = before.matters!.find((m) => m.opportunity)!;
         const beforeMatters = structuredClone(before.matters);
         const text = '老周，R17已经交给你了，记录也整理好了，下一次独立接单可以怎么准备？';
         const reply =
           'R17钥匙和单子我收到了，接头和验收的记录也看得明白。先用这份案例说明你能修什么，接不接新单还得看实际情况。';
         let calls = 0;
-        const planner = new WorldTurnPlanner({
+        const service = npcAgentServices(db, () => ({
           async complete(messages) {
             calls++;
             const payload = JSON.parse(messages[1]!.content);
-            const resultFocus = payload.resultFocus as { factId: string; text: string }[];
-            assert.ok(resultFocus.some((f) => f.text.includes('R17')));
+            const observations = payload.observations as { text: string; kind: string }[];
             assert.ok(
-              payload.worldMatters.some(
-                (m: { id: string; status: string }) =>
-                  m.id === completed.id && m.status === 'completed',
+              observations.some(
+                (o) => o.kind === 'fact' && o.text.includes('亲眼见证事项「交付已修缮的R17」达成'),
               ),
             );
             assert.ok(
-              payload.worldMatters.some(
-                (m: { id: string; status: string }) =>
-                  m.id === opportunity.id && m.status === 'completed',
+              observations.some(
+                (o) =>
+                  o.kind === 'fact' && o.text.includes('亲眼见证事项「整理 R17 交接记录」达成'),
               ),
             );
             return JSON.stringify({
-              schemaVersion: 1,
-              effects: [
-                { type: 'message.received', id: 'synthetic_reply', actorId: actor.id, text: reply },
-              ],
-              acknowledgedResultFactIds: resultFocus.map((f) => f.factId),
+              statements: [{ text: reply, dependsOnActionIds: [], requestsPlayerReply: false }],
+              goals: [],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
             });
           },
-        });
+        }));
         const command = {
           id: randomUUID(),
           worldId,
@@ -705,10 +810,9 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           expectedVersion: before.version,
           text,
         };
-        const deps = { worlds, planner, now: () => before.time, newId: randomUUID };
-        const result = await resolveTurn(deps, { userId: owner }, command);
+        const result = await service.sendMessageIfEnabled(owner, command);
+        assert.equal(result?.status, 'committed');
         assert.equal(calls, 1);
-        assert.deepEqual(result.state.matters, beforeMatters);
         const reread = await state();
         assert.deepEqual(reread.matters, beforeMatters);
         assert.ok(reread.messages.some((m) => m.actorId === actor.id && m.text === reply));
@@ -718,14 +822,16 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           ),
         );
         const beforeReplay = await counts();
-        await resolveTurn(deps, { userId: owner }, command);
+        await service.sendMessageIfEnabled(owner, command);
         assert.equal(calls, 1);
         assert.deepEqual(await counts(), beforeReplay);
       },
     );
   } finally {
-    for (const id of [owner, other])
+    for (const id of [owner, other]) {
+      await admin.query('DELETE FROM parallel_life.agent_runtime_worlds WHERE owner_id=$1', [id]);
       await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [id]);
+    }
     await db.close();
     await queue.close();
     await admin.end();
