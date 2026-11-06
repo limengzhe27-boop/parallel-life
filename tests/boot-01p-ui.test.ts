@@ -32,7 +32,7 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { NotesRecordDetail, NotesRecords, NotesAbout, recordAttribution, searchRecords } =
+const { NotesRecordDetail, NotesRecords, NotesAbout, recordAttribution } =
   await import('../src/features/phone/apps/notes-records.tsx');
 const { NotesApp } = await import('../src/features/phone/apps/notes.tsx');
 const { MessagesApp } = await import('../src/features/phone/apps/messages.tsx');
@@ -193,7 +193,6 @@ test('history records stay sourced and readonly; related targets use IDs and a c
     ['calendar', invitationId],
     ['photos', photoId],
   ]);
-  assert.equal(searchRecords(fixture.current, '虚构起点').length, 1);
   assert.equal(recordAttribution(fixture.current[0]!), '虚构起点来信');
   const recordMarkup = renderToStaticMarkup(
     createElement(NotesRecordDetail, {

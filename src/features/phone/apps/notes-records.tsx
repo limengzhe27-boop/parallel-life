@@ -587,13 +587,7 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
             border: '1px solid #f1f5f9',
           }}
         >
-          <details
-            className={s.background}
-            open={
-              !query.trim() ||
-              !!data.choices.some((c) => searchable(query, c.actorName, c.quote, c.intent))
-            }
-          >
+          <details className={s.background} open>
             <summary
               style={{
                 fontWeight: 650,
@@ -613,77 +607,71 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
               人物来信或对话中带来的关键处境与分歧。选择已发生或待续，不在此处就地编辑。
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {data.choices
-                .filter(
-                  (choice) =>
-                    !query.trim() ||
-                    searchable(query, choice.actorName, choice.quote, choice.intent),
-                )
-                .map((choice) => (
+              {data.choices.map((choice) => (
+                <div
+                  key={choice.id}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '13px',
+                  }}
+                >
                   <div
-                    key={choice.id}
                     style={{
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      background: '#f8fafc',
-                      border: '1px solid #e2e8f0',
-                      fontSize: '13px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '4px',
                     }}
                   >
-                    <div
+                    <strong style={{ color: '#0f172a' }}>{choice.actorName} · 处境</strong>
+                    <span
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '4px',
+                        fontSize: '11px',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: choice.status === 'pending' ? '#fef3c7' : '#f1f5f9',
+                        color: choice.status === 'pending' ? '#92400e' : '#475569',
+                        fontWeight: 500,
                       }}
                     >
-                      <strong style={{ color: '#0f172a' }}>{choice.actorName} · 处境</strong>
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          background: choice.status === 'pending' ? '#fef3c7' : '#f1f5f9',
-                          color: choice.status === 'pending' ? '#92400e' : '#475569',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {choice.status === 'pending' ? '待续 / 待决定' : '已跟进'}
-                      </span>
-                    </div>
-                    <p style={{ margin: '2px 0 4px', color: '#334155' }}>
-                      <span style={{ color: '#64748b' }}>你说：</span>“{choice.quote}”
-                    </p>
-                    {choice.nextStep && (
-                      <div
-                        style={{
-                          marginTop: '6px',
-                          paddingTop: '6px',
-                          borderTop: '1px dashed #cbd5e1',
-                        }}
-                      >
-                        <p style={{ margin: '0 0 4px', color: '#475569', fontSize: '12px' }}>
-                          <span>{choice.actorName}提出：</span>
-                          {choice.nextStep.quote}
-                        </p>
-                        {choice.nextStep.calendar && (
-                          <button
-                            type="button"
-                            className={s.actionShortcut}
-                            onClick={() =>
-                              choice.nextStep?.calendar &&
-                              open('calendar', choice.nextStep.calendar.id)
-                            }
-                            style={{ marginTop: '4px' }}
-                          >
-                            📅 查看日历日程 · {choice.nextStep.calendar.title} ›
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      {choice.status === 'pending' ? '待续 / 待决定' : '已跟进'}
+                    </span>
                   </div>
-                ))}
+                  <p style={{ margin: '2px 0 4px', color: '#334155' }}>
+                    <span style={{ color: '#64748b' }}>你说：</span>“{choice.quote}”
+                  </p>
+                  {choice.nextStep && (
+                    <div
+                      style={{
+                        marginTop: '6px',
+                        paddingTop: '6px',
+                        borderTop: '1px dashed #cbd5e1',
+                      }}
+                    >
+                      <p style={{ margin: '0 0 4px', color: '#475569', fontSize: '12px' }}>
+                        <span>{choice.actorName}提出：</span>
+                        {choice.nextStep.quote}
+                      </p>
+                      {choice.nextStep.calendar && (
+                        <button
+                          type="button"
+                          className={s.actionShortcut}
+                          onClick={() =>
+                            choice.nextStep?.calendar &&
+                            open('calendar', choice.nextStep.calendar.id)
+                          }
+                          style={{ marginTop: '4px' }}
+                        >
+                          📅 查看日历日程 · {choice.nextStep.calendar.title} ›
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </details>
         </section>
