@@ -820,6 +820,22 @@ function verifiedStepMatter(input: PlayerRecordsInput, matter: WorldMatter) {
         event.data.id === matter.relatedInvitationId,
     )
     .sort((a, b) => a.version - b.version);
+  const projected = input.appointments.find((a) => a.id === matter.relatedInvitationId);
+  if (projected?.responseVersion !== undefined) {
+    const version = projected.responseVersion;
+    if (
+      version > input.worldVersion ||
+      (version > initial.version &&
+        !invitationResponses.some((response) => response.version === version) &&
+        !input.progressionEvents?.some(
+          (event) =>
+            event.worldId === input.worldId &&
+            event.version === version &&
+            event.data.worldResults?.attendance?.appointmentId === projected.id,
+        ))
+    )
+      return;
+  }
   let responseIndex = 0;
   let previousVersion = initial.version;
   try {
