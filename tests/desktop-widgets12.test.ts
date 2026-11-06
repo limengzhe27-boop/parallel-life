@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { PlayerRecords } from '../src/contracts/world-records.ts';
 import type { PhoneInvitation, PhonePhoto } from '../src/features/phone/apps/types.ts';
 import {
+  invitationTask,
   selectDesktopTask,
   selectDesktopSchedule,
   selectDesktopPhoto,
@@ -194,4 +195,41 @@ test('empty and failed reads remain honest and never invent a task or image', ()
   assert.doesNotMatch(empty, /不可充当任务|条未读|<img/);
   assert.match(failed, /任务暂未读取/);
   assert.doesNotMatch(failed, /backend failed|暂无眼下任务/);
+});
+
+test('home takes decisions first, prefers a recommended task, and sets aside only its current state', () => {
+  const now = '2026-10-27T00:15:00Z';
+  const candidate = (
+    id: string,
+    kind: 'decide_invitation' | 'attend_invitation',
+    at: string,
+    recommended?: true,
+  ) => ({
+    ...record(id, {
+      kind: 'invitation',
+      state: kind === 'decide_invitation' ? 'proposed' : 'confirmed',
+      text: at,
+      navigation: { app: 'calendar', invitationId: id },
+    }),
+    task: { kind, recommended },
+  });
+  const attendance = candidate('coffee', 'attend_invitation', '2026-10-27T01:00:00Z', true);
+  const laterAttendance = candidate('lunch', 'attend_invitation', '2026-10-27T04:00:00Z', true);
+  const decision = candidate('flight', 'decide_invitation', '2026-10-27T02:00:00Z');
+  const recommended = candidate('visit', 'decide_invitation', '2026-10-27T03:00:00Z', true);
+  const expired = candidate('past', 'decide_invitation', '2026-10-26T23:00:00Z', true);
+  const data = records([attendance, laterAttendance, expired, decision, recommended]);
+  assert.equal(selectDesktopTask(data, now)?.id, recommended.id);
+  const deferred = [invitationTask(recommended, now)!.key];
+  assert.equal(selectDesktopTask(data, now, deferred)?.id, decision.id);
+  assert.equal(
+    selectDesktopTask(records([laterAttendance, attendance, expired]), now)?.id,
+    attendance.id,
+  );
+  const rescheduled = { ...recommended, text: '2026-10-27T03:30:00Z' };
+  assert.equal(selectDesktopTask(records([rescheduled]), now, deferred)?.id, recommended.id);
+  assert.equal(selectDesktopTask(records([recommended]), now, deferred), undefined);
+  assert.equal(selectDesktopTask(records([{ ...decision, state: 'cancelled' }]), now), undefined);
+  assert.match(render({ records: data }), /决定是否参加：visit/);
+  assert.match(render({ records: data }), /待你决定/);
 });

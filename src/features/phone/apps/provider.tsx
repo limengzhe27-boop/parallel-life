@@ -35,6 +35,10 @@ type Context = {
   drafts: Record<string, string>;
   setDraft: (key: string, text: string) => void;
   bringDraft: (key: string, text: string) => void;
+  taskDeferrals?: {
+    keys: readonly string[];
+    defer: (key: string) => void;
+  };
   noteDrafts: Record<string, NoteDraft>;
   setNoteDraft: (key: string, value: NoteDraft) => void;
   clearNoteDraft: (key: string) => void;
@@ -81,6 +85,7 @@ function WorldApps({
   children,
 }: PhoneAppsProviderProps) {
   const [drafts, updateDrafts] = useState<Record<string, string>>({});
+  const [deferredTasks, updateDeferredTasks] = useState<readonly string[]>([]);
   const [noteDrafts, updateNotes] = useState<Record<string, NoteDraft>>({});
   const [operations, updateOps] = useState<Record<string, Operation>>({});
   const opRef = useRef<Record<string, Operation>>({});
@@ -190,6 +195,11 @@ function WorldApps({
             ...d,
             [key]: mergeIncomingDraft(d[key], incomingText),
           })),
+        taskDeferrals: {
+          keys: deferredTasks,
+          defer: (key) =>
+            updateDeferredTasks((keys) => (keys.includes(key) ? keys : [...keys.slice(-31), key])),
+        },
         noteDrafts,
         setNoteDraft: (key, value) => updateNotes((d) => ({ ...d, [key]: value })),
         clearNoteDraft: (key) =>
@@ -210,4 +220,8 @@ export function usePhoneApps() {
   const context = useContext(AppsContext);
   if (!context) throw new Error('PhoneAppView requires PhoneAppsProvider');
   return context;
+}
+
+export function usePhoneTaskDeferrals() {
+  return useContext(AppsContext)?.taskDeferrals;
 }

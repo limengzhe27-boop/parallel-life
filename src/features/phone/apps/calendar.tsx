@@ -6,6 +6,7 @@ import {
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneInvitation } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
+import { invitationTask } from '../desktop-widget-selection.ts';
 import { Empty, Feedback, Links } from './common.tsx';
 import {
   dayKey,
@@ -388,7 +389,7 @@ function InvitationDetail({
   invitation: PhoneInvitation;
   open: PhoneAppContext['open'];
 }) {
-  const { worldId, data, actions, drafts, setDraft, operations, run } = usePhoneApps();
+  const { worldId, data, records, actions, drafts, setDraft, operations, run } = usePhoneApps();
   const waitActions = actions as typeof actions & AppointmentWaitPhoneActions;
   const [waitNote, setWaitNote] = useState('');
   const waitKey = `appointment-wait:${n.id}`,
@@ -430,6 +431,15 @@ function InvitationDetail({
   const date = drafts[`date:${n.id}`] ?? worldDateTimeInput(n.at);
   const leadActor = data.contacts.find((c) => n.participantIds.includes(c.id));
   const isDue = Date.parse(data.referenceTime ?? '') >= Date.parse(n.at);
+  const isDecisionTask =
+    n.status === 'proposed' &&
+    records.status === 'ready' &&
+    records.data.current.some(
+      (record) =>
+        record.navigation?.app === 'calendar' &&
+        record.navigation.invitationId === n.id &&
+        invitationTask(record)?.kind === 'decide_invitation',
+    );
   async function change(
     kind: 'accept' | 'reschedule' | 'cancel' | 'attend' | 'miss',
     submittedDate?: string,
@@ -574,8 +584,13 @@ function InvitationDetail({
               和{leadActor.name}聊聊这次约定
             </button>
           )}
+          {isDecisionTask && isDue && <p className={s.info}>约定时间已过，可以先商量新时间。</p>}
           {n.status === 'proposed' && (
-            <button className={s.primary} disabled={disabled} onClick={() => void change('accept')}>
+            <button
+              className={s.primary}
+              disabled={disabled || (isDecisionTask && isDue)}
+              onClick={() => void change('accept')}
+            >
               {operation?.errorCode === 'UNKNOWN' && operation.signature?.includes(':accept:')
                 ? '确认重试接受'
                 : '接受邀约'}
@@ -612,7 +627,7 @@ function InvitationDetail({
               setEdit(false);
             }}
           >
-            取消日程
+            {isDecisionTask ? '不参加' : '取消日程'}
           </button>
         </div>
       )}
@@ -662,14 +677,22 @@ function InvitationDetail({
         </form>
       )}
       {confirmCancel && (
-        <div className={s.confirm} role="group" aria-label="确认取消日程">
-          <p>确定取消“{n.title}”吗？</p>
+        <div
+          className={s.confirm}
+          role="group"
+          aria-label={isDecisionTask ? '确认不参加' : '确认取消日程'}
+        >
+          <p>{isDecisionTask ? `确定不参加“${n.title}”吗？` : `确定取消“${n.title}”吗？`}</p>
           <button className={s.danger} disabled={disabled} onClick={() => void change('cancel')}>
             {operation?.errorCode === 'UNKNOWN' && operation.signature?.includes(':cancel:')
               ? '确认重试取消'
-              : '确认取消'}
+              : isDecisionTask
+                ? '确认不参加'
+                : '确认取消'}
           </button>
-          <button onClick={() => setConfirmCancel(false)}>保留日程</button>
+          <button onClick={() => setConfirmCancel(false)}>
+            {isDecisionTask ? '再想想' : '保留日程'}
+          </button>
         </div>
       )}
       <Feedback operation={operation} success="日程已更新" />

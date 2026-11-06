@@ -660,3 +660,39 @@ test('RecordsApp renders full records projection and preserves search and detail
     uiContext = undefined;
   }
 });
+
+test('invitation task record shows an evidence reason and opens the exact invitation', () => {
+  const invitation = {
+    ...fixture.current[2]!,
+    text: '2026-10-11T00:00:00.000Z',
+    state: 'proposed' as const,
+    task: {
+      kind: 'decide_invitation' as const,
+      recommended: true as const,
+      reason: '有人邀请你一起喝咖啡。',
+    },
+  };
+  const data = { ...fixture, current: [invitation] };
+  const opened: unknown[] = [];
+  const deferred: string[] = [];
+  const open: Parameters<typeof NotesRecords>[0]['open'] = (...args) => opened.push(args);
+  const referenceTime = '2026-10-10T00:00:00Z';
+  const list = renderToStaticMarkup(createElement(NotesRecords, { data, open, referenceTime }));
+  assert.match(list, /决定是否参加：一起喝咖啡/);
+  assert.match(list, /剧情建议/);
+  const detail = NotesRecordDetail({
+    data,
+    target: invitation.id,
+    open,
+    referenceTime,
+    deferTask: (key) => deferred.push(key),
+  });
+  assert.match(renderToStaticMarkup(detail), /有人邀请你一起喝咖啡/);
+  press(detail, '查看邀约 ›');
+  assert.deepEqual(opened, [
+    ['calendar', (invitation.navigation as { invitationId: string }).invitationId],
+  ]);
+  press(detail, '先放着');
+  assert.equal(deferred.length, 1);
+  assert.equal(invitation.state, 'proposed');
+});

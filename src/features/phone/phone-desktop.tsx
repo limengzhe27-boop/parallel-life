@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { usePhoneTaskDeferrals } from './apps/provider.tsx';
 import type { PhoneAppsData, PhoneRecordsState } from './apps/types.ts';
 import type { PhoneApp, PhonePanel } from './navigation.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { worldDayKey, worldTimeLabel } from '../../modules/world/domain/display-time.ts';
 import {
+  invitationTask,
   selectDesktopPhoto,
   selectDesktopSchedule,
   selectDesktopTask,
@@ -32,7 +34,11 @@ export function PhoneDesktop({
   const [failedPhoto, setFailedPhoto] = useState<string>();
   const schedule = selectDesktopSchedule(data.invitations, data.referenceTime);
   const photo = selectDesktopPhoto(data.photos);
-  const task = selectDesktopTask(records);
+  const taskDeferrals = usePhoneTaskDeferrals();
+  const task = selectDesktopTask(records, data.referenceTime, taskDeferrals?.keys);
+  const invitation = task && invitationTask(task, data.referenceTime);
+  const taskTitle = invitation?.title ?? task?.title;
+  const taskState = invitation?.stateLabel ?? task?.stateLabel;
   const scheduleDay = schedule ? worldDayKey(schedule.at) : '';
   const today = worldDayKey(data.referenceTime ?? '');
   const scheduleTime = schedule
@@ -107,16 +113,16 @@ export function PhoneDesktop({
         type="button"
         className={styles.task}
         onClick={() => open('records', task?.id)}
-        aria-label={task ? `眼下任务：${task.title}，${task.stateLabel}` : taskEmpty}
+        aria-label={task ? `眼下任务：${taskTitle}，${taskState}` : taskEmpty}
       >
         <span className={styles.taskIcon}>
           <PhoneIcon name="records" />
         </span>
         <span className={styles.taskBody}>
           <span>眼下任务</span>
-          <strong>{task?.title || taskEmpty}</strong>
+          <strong>{taskTitle || taskEmpty}</strong>
         </span>
-        {task && <span className={styles.taskState}>{task.stateLabel}</span>}
+        {task && <span className={styles.taskState}>{taskState}</span>}
         <PhoneIcon name="next" />
       </button>
     </div>

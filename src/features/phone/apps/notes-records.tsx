@@ -1,4 +1,5 @@
 import type { PlayerRecords } from '../../../contracts/world-records.ts';
+import { invitationTask } from '../desktop-widget-selection.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import { usePhoneApps } from './provider.tsx';
 import { searchable, timeText } from './helpers.ts';
@@ -55,25 +56,38 @@ export function searchRecords(records: readonly RecordItem[], query: string): Re
   );
 }
 
-function RecordRows({ records, open }: { records: readonly RecordItem[]; open: Open }) {
+function RecordRows({
+  records,
+  open,
+  referenceTime,
+}: {
+  records: readonly RecordItem[];
+  open: Open;
+  referenceTime?: string;
+}) {
   return (
     <ul className={s.rows}>
       {records.map((record) => {
         const destination = recordDestination(record);
+        const task = invitationTask(record, referenceTime);
+        const title = task?.title ?? record.title;
+        const stateLabel = task?.stateLabel ?? record.stateLabel;
         return (
           <li key={record.id} className={s.rowItem}>
             <button
               type="button"
               className={s.row}
               onClick={() => open('records', record.id)}
-              aria-label={`${record.title}，${record.stateLabel}${record.stepChecklist ? `，已完成 ${record.stepChecklist.completedRequired}/${record.stepChecklist.requiredTotal}` : ''}`}
+              aria-label={`${title}，${stateLabel}${record.stepChecklist ? `，已完成 ${record.stepChecklist.completedRequired}/${record.stepChecklist.requiredTotal}` : ''}`}
             >
               <span className={s.rowText}>
-                <strong>{record.title}</strong>
+                <strong>{title}</strong>
                 <span className={s.preview}>{recordText(record)}</span>
                 <span className={s.metaGroup}>
-                  <small className={s.stateBadge}>{record.stateLabel}</small>
-                  <small className={s.attributionBadge}>{recordAttribution(record)}</small>
+                  <small className={s.stateBadge}>{stateLabel}</small>
+                  <small className={s.attributionBadge}>
+                    {task?.recommended ? '剧情建议' : recordAttribution(record)}
+                  </small>
                 </span>
                 {record.stepChecklist && (
                   <span className={s.checklistSummary}>
@@ -99,13 +113,15 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
                   className={s.actionShortcut}
                   onClick={() => open(destination.app, destination.target)}
                 >
-                  {destination.app === 'map'
-                    ? '前往现场推进 ›'
-                    : destination.app === 'messages'
-                      ? record.kind === 'world_matter'
-                        ? '联系相关人物 ›'
-                        : '查看来源对话 ›'
-                      : '查看日程 ›'}
+                  {task
+                    ? `${task.actionLabel} ›`
+                    : destination.app === 'map'
+                      ? '前往现场推进 ›'
+                      : destination.app === 'messages'
+                        ? record.kind === 'world_matter'
+                          ? '联系相关人物 ›'
+                          : '查看来源对话 ›'
+                        : '查看日程 ›'}
                 </button>
               </div>
             )}
@@ -172,9 +188,13 @@ export function isNotesBackgroundRecord(record: RecordItem) {
     (record.span !== 'pursuit' && record.kind !== 'world_matter')
   );
 }
-function ordinaryInvitation(record: RecordItem) {
+function ordinaryInvitation(record: RecordItem, referenceTime?: string) {
   return (
-    record.kind === 'invitation' && !record.opportunity && !record.progress && !record.stepChecklist
+    record.kind === 'invitation' &&
+    !invitationTask(record, referenceTime) &&
+    !record.opportunity &&
+    !record.progress &&
+    !record.stepChecklist
   );
 }
 export function NotesAbout({
@@ -206,15 +226,17 @@ export function NotesRecords({
   open,
   historyOpen = false,
   onHistoryToggle,
+  referenceTime,
 }: {
   data: PlayerRecords;
   query?: string;
   open: Open;
   historyOpen?: boolean;
   onHistoryToggle?: (value: boolean) => void;
+  referenceTime?: string;
 }) {
   const current = searchRecords(
-    data.current.filter((record) => !ordinaryInvitation(record)),
+    data.current.filter((record) => !ordinaryInvitation(record, referenceTime)),
     query,
   );
   const opportunities = current.filter((record) => record.opportunity);
@@ -241,7 +263,7 @@ export function NotesRecords({
         <h3>眼下要做的事</h3>
         <p className={s.hint}>记录近期事项与建议，进展随实际行动更新。</p>
         {otherCurrent.length ? (
-          <RecordRows records={otherCurrent} open={open} />
+          <RecordRows records={otherCurrent} open={open} referenceTime={referenceTime} />
         ) : (
           <div className={s.empty}>
             <p>{searching ? '没有找到相关事项' : '暂时没有已记录的事项'}</p>
@@ -301,10 +323,14 @@ export function NotesRecordDetail({
   data,
   target,
   open,
+  referenceTime,
+  deferTask,
 }: {
   data: PlayerRecords;
   target: string;
   open: Open;
+  referenceTime?: string;
+  deferTask?: (key: string) => void;
 }) {
   const record = [...data.current, ...data.about, ...data.history].find(
     (item) => item.id === target,
@@ -320,6 +346,7 @@ export function NotesRecordDetail({
       </div>
     );
   const destination = recordDestination(record);
+  const task = invitationTask(record, referenceTime);
   const origin =
     record.origin ?? (record.source.kind === 'world_genesis' ? record.source : undefined);
   const related = (record.relatedLinks ?? []).filter(
@@ -327,10 +354,16 @@ export function NotesRecordDetail({
   );
   return (
     <article className={s.detail} data-system-record={record.id}>
-      <p className={s.attribution}>{recordAttribution(record)}</p>
-      <h2>{record.title}</h2>
-      <span className={s.state}>{record.stateLabel}</span>
+      <p className={s.attribution}>{task?.recommended ? '剧情建议' : recordAttribution(record)}</p>
+      <h2>{task?.title ?? record.title}</h2>
+      <span className={s.state}>{task?.stateLabel ?? record.stateLabel}</span>
       <p className={s.body}>{recordText(record)}</p>
+      {task?.reason && <p className={s.body}>为什么 · {task.reason}</p>}
+      {task && deferTask && (
+        <button type="button" className={s.linkButton} onClick={() => deferTask(task.key)}>
+          先放着
+        </button>
+      )}
       {record.opportunity && (
         <div className={s.opportunityOrigin}>
           <span>这是一个可以尝试的机会，还没有替你作决定。</span>
@@ -417,13 +450,15 @@ export function NotesRecordDetail({
             className={s.linkButton}
             onClick={() => open(destination.app, destination.target)}
           >
-            {destination.app === 'messages'
-              ? record.kind === 'world_matter'
-                ? '联系相关人物'
-                : '查看来源对话'
-              : destination.app === 'map'
-                ? '前往现场推进'
-                : '查看日程'}
+            {task
+              ? task.actionLabel
+              : destination.app === 'messages'
+                ? record.kind === 'world_matter'
+                  ? '联系相关人物'
+                  : '查看来源对话'
+                : destination.app === 'map'
+                  ? '前往现场推进'
+                  : '查看日程'}
             <span aria-hidden="true"> ›</span>
           </button>
         ) : (
@@ -487,7 +522,7 @@ export function NotesRecordsReadState({
 
 /** Standalone RecordsApp: dedicated read-only viewer for world background and player records */
 export function RecordsApp({ target, open }: PhoneAppContext) {
-  const { data, records, reloadRecords, drafts, setDraft } = usePhoneApps();
+  const { data, records, reloadRecords, drafts, setDraft, taskDeferrals } = usePhoneApps();
   const query = drafts['records:search'] ?? '';
   const setQuery = (value: string) => setDraft('records:search', value);
   const reload = reloadRecords
@@ -510,7 +545,19 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
           </button>
         </nav>
         {records.status === 'ready' ? (
-          <NotesRecordDetail data={records.data} target={target} open={open} />
+          <NotesRecordDetail
+            data={records.data}
+            target={target}
+            open={open}
+            referenceTime={data.referenceTime}
+            deferTask={
+              taskDeferrals &&
+              ((key) => {
+                taskDeferrals.defer(key);
+                open('records');
+              })
+            }
+          />
         ) : (
           <NotesRecordsReadState
             status={records.status}
@@ -595,6 +642,7 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
           open={open}
           historyOpen={drafts['records:history-open'] === 'true'}
           onHistoryToggle={(value) => setDraft('records:history-open', String(value))}
+          referenceTime={data.referenceTime}
         />
       ) : (
         <NotesRecordsReadState
