@@ -108,7 +108,10 @@ export function selectDesktopTask(
       (a, b) =>
         Number(a.task.kind === 'attend_invitation') - Number(b.task.kind === 'attend_invitation') ||
         (a.task.kind !== 'attend_invitation' && b.task.kind !== 'attend_invitation'
-          ? taskUpdatedAt(b.record) - taskUpdatedAt(a.record)
+          ? taskUpdatedAt(b.record) - taskUpdatedAt(a.record) ||
+            (a.record.source.kind === 'world_event' && b.record.source.kind === 'world_event'
+              ? b.record.source.eventVersion - a.record.source.eventVersion
+              : 0)
           : 0) ||
         taskPriority[a.task.kind] - taskPriority[b.task.kind] ||
         Number(Boolean(b.task.recommended)) - Number(Boolean(a.task.recommended)) ||

@@ -273,7 +273,7 @@ test('new actionable story work replaces an older live decision on the homepage'
   const next = record('刚提出的请求', {
     kind: 'actor_suggestion',
     state: 'suggested',
-    source: source('2026-10-27T00:10:00Z', 2),
+    source: source('2026-10-27T00:00:00Z', 2),
     navigation: { app: 'wechat', actorId: 'npc' },
     task: { kind: 'address_request', recommended: true },
   });
