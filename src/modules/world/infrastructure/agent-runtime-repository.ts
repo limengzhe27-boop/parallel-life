@@ -659,6 +659,15 @@ export class PostgresAgentRuntimeRepository
           .rows[0].live
       )
         fail('ATTEMPT_STALE');
+      // An expired reservation that never crossed the send boundary cannot
+      // make progress and must not keep the actor's unique active slot occupied.
+      await sql.query(
+        `UPDATE parallel_life.agent_attempts SET status='cancelled_before_send',updated_at=now()
+         WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3
+           AND status='reserved' AND lease_until<=clock_timestamp()
+           AND sent_at IS NULL AND response IS NULL AND response_hash IS NULL AND event_id IS NULL`,
+        [input.worldId, ownerId, input.actorId],
+      );
       // An unanswered paid call keeps its receipt and billing uncertainty,
       // but a distinct player input may retire its execution right immediately. Same-command
       // replay was resolved above; this only admits a distinct, already authorized input.

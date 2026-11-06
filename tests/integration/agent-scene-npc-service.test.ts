@@ -421,41 +421,53 @@ test('actual deterministic environment → saved scene input → leased native N
     },
   );
 
-  await t.test(
-    'a brief competing actor reservation does not fail the accepted scene input',
-    async () => {
-      const f = await fixture(true);
-      const competingId = randomUUID();
-      const inserted = await admin.query(
-        `INSERT INTO parallel_life.agent_attempts(id,world_id,owner_id,actor_id,command_id,
+  for (const expired of [false, true])
+    await t.test(
+      expired
+        ? 'an abandoned unsent reservation cannot block a scene greeting'
+        : 'a brief competing actor reservation does not fail the accepted scene input',
+      async () => {
+        const f = await fixture(true, expired);
+        const competingId = randomUUID();
+        const inserted = await admin.query(
+          `INSERT INTO parallel_life.agent_attempts(id,world_id,owner_id,actor_id,command_id,
          input_receipt_id,input_hash,engine_epoch,expected_world_version,expected_actor_revision,
          token,lease_until,status)
-       SELECT $1,world_id,owner_id,$2,$3,id,input_hash,2,$4,0,$5,now()+interval '30 seconds','reserved'
+       SELECT $1,world_id,owner_id,$2,$3,id,input_hash,2,$4,0,$5,now()+$8::interval,'reserved'
        FROM parallel_life.agent_input_receipts WHERE world_id=$6 AND command_id=$7`,
-        [
-          competingId,
-          f.responder,
-          randomUUID(),
-          f.accepted.version,
-          randomUUID(),
-          f.worldId,
-          f.command.commandId,
-        ],
-      );
-      assert.equal(inserted.rowCount, 1);
-      const release = (async () => {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        await admin.query(
-          "UPDATE parallel_life.agent_attempts SET status='cancelled_before_send' WHERE id=$1",
-          [competingId],
+          [
+            competingId,
+            f.responder,
+            randomUUID(),
+            f.accepted.version,
+            randomUUID(),
+            f.worldId,
+            f.command.commandId,
+            expired ? '-1 second' : '30 seconds',
+          ],
         );
-      })();
-      const [result] = await Promise.all([run(f), release]);
-      assert.equal(result.failure, undefined);
-      assert.equal(result.modelCalls, 1);
-      assert.equal((await tasks.get(f.owner, f.accepted.task!.id)).status, 'succeeded');
-    },
-  );
+        assert.equal(inserted.rowCount, 1);
+        const release = expired
+          ? Promise.resolve()
+          : (async () => {
+              await new Promise((resolve) => setTimeout(resolve, 250));
+              await admin.query(
+                "UPDATE parallel_life.agent_attempts SET status='cancelled_before_send' WHERE id=$1",
+                [competingId],
+              );
+            })();
+        const [result] = await Promise.all([run(f), release]);
+        assert.equal(result.failure, undefined);
+        assert.equal(result.modelCalls, 1);
+        const previous = (
+          await admin.query('SELECT status,sent_at FROM parallel_life.agent_attempts WHERE id=$1', [
+            competingId,
+          ])
+        ).rows[0];
+        assert.deepEqual(previous, { status: 'cancelled_before_send', sent_at: null });
+        assert.equal((await tasks.get(f.owner, f.accepted.task!.id)).status, 'succeeded');
+      },
+    );
 
   await t.test(
     'entry without player speech queues and saves one in-person greeting; refresh cannot repeat it',
