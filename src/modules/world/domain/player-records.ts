@@ -733,10 +733,9 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
     const topics = sentences.map((sentence) => sentence.split('——').at(-1)!.trim());
     const topic =
       topics.find((sentence) => sentence.length >= 12 && /[？?]$/u.test(sentence)) ??
-      topics.reduce(
-        (longest, sentence) => (sentence.length > longest.length ? sentence : longest),
-        '',
-      );
+      topics.find((sentence) => sentence.length >= 12) ??
+      topics[0] ??
+      quote;
     const excerpt = topic.length > 45 ? topic.slice(0, 44) + '…' : topic;
     add({
       id: `sys/story-request/${input.worldId}/${request.requestId}`,
