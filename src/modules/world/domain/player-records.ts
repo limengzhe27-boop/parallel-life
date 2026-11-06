@@ -1,6 +1,6 @@
 import { verifiedGenesisLinks } from './genesis-links.ts';
 import type { Appointment, Message, StoryChoice, WorldEvent, WorldState } from './types.ts';
-import type { InvitationEvent } from './invitations.ts';
+import { applyInvitationEvent, type InvitationEvent } from './invitations.ts';
 import { applySceneWorldResults, type SceneResultEvent } from './scene-world-results.ts';
 import type { SceneAction } from './experience-rules.ts';
 import {
@@ -812,8 +812,15 @@ function verifiedStepMatter(input: PlayerRecordsInput, matter: WorldMatter) {
   )
     return;
   let working = structuredClone(initial);
-  // Current invitation projections are source-validated by storage; do not backdate later responses.
-  working.appointments = structuredClone(input.appointments);
+  const invitationResponses = input.events
+    .filter(
+      (event): event is InvitationEvent =>
+        event.type === 'invitation.responded' &&
+        event.worldId === input.worldId &&
+        event.data.id === matter.relatedInvitationId,
+    )
+    .sort((a, b) => a.version - b.version);
+  let responseIndex = 0;
   let previousVersion = initial.version;
   try {
     for (const source of [...sources.values()].sort(
@@ -841,12 +848,17 @@ function verifiedStepMatter(input: PlayerRecordsInput, matter: WorldMatter) {
         canonicalRecordEvidence(action) !== canonicalRecordEvidence(results.action)
       )
         return;
-      const invitation = working.appointments.find((a) => a.id === matter.relatedInvitationId);
-      if (
-        invitation?.responseVersion !== undefined &&
-        invitation.responseVersion > inputEvent.version
-      )
-        return;
+      // Replay only responses known at this input. A later attendance/cancellation
+      // in today's projection cannot invalidate a step that was legal when executed.
+      while (responseIndex < invitationResponses.length) {
+        const response = invitationResponses[responseIndex]!;
+        if (response.version > inputEvent.version) break;
+        responseIndex++;
+        working.appointments = applyInvitationEvent(
+          { ...working, version: response.version - 1, time: response.storyTime },
+          response,
+        ).appointments;
+      }
       // Only unrelated event-version gaps are skipped; all step deltas are replayed from empty progress.
       working = applySceneWorldResults({ ...working, version: event.version - 1 }, event, initial);
       previousVersion = event.version;
