@@ -26,7 +26,7 @@ export type RecordSource =
   | {
       kind: 'opening_field';
       seedId: string;
-      field: 'identity' | 'setting' | 'official_note' | 'official_invitation';
+      field: 'identity' | 'situation' | 'setting' | 'official_note' | 'official_invitation';
       key?: string;
     }
   | {
@@ -152,6 +152,7 @@ export type PlayerRecordsInput = {
   opening?: {
     seedId: string;
     identity?: string;
+    situation?: string;
     setting?: string;
     officialSource?: { presetId: string; version: number };
   };
@@ -261,13 +262,14 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
       ? proof
       : undefined;
   };
-  for (const field of ['identity', 'setting'] as const) {
+  const openingLabels = { identity: '起点身份', situation: '开场处境', setting: '世界背景' };
+  for (const field of ['identity', 'situation', 'setting'] as const) {
     const text = input.opening?.[field]?.trim();
     if (text && input.opening)
       output.about.push({
         id: `sys/opening/${input.worldId}/${field}`,
         kind: 'opening_context',
-        title: field === 'identity' ? '起点身份' : '起点处境',
+        title: openingLabels[field],
         text,
         state: 'starting_point',
         stateLabel: labels.starting_point,

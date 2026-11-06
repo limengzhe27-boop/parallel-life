@@ -201,6 +201,7 @@ export const WorldPhoneSchema = z.strictObject({
   title: z.string(),
   time: Timestamp,
   identity: z.string(),
+  situation: z.string().optional(),
   setting: z.string(),
   actors: z.array(
     z.strictObject({

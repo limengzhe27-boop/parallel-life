@@ -420,6 +420,7 @@ export class BuildRepository {
       title: state.title,
       time: storyTime,
       identity: metadata.opening.identity,
+      ...(opening ? { situation: opening.situation } : {}),
       setting: metadata.opening.setting,
       ...(publicationArt(
         visual?.media?.find((m: { key: string }) => m.key === visual?.coverMediaKey),

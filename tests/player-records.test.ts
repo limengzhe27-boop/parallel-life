@@ -363,3 +363,26 @@ test('an explicit alternative retires urgency while topic changes and requests t
   assert.ok(!urgentArrivalWasRelieved('今晚西餐厅，七点，能来帮我吗？'));
   assert.ok(!urgentArrivalWasRelieved('原本不用来了，但现在情况又变了，你快过来。'));
 });
+
+test('opening records keep the player situation distinct from the world setting', () => {
+  const input = fixture();
+  input.opening = {
+    seedId: randomUUID(),
+    identity: '魂穿后的年轻男性',
+    situation: '刚醒来，发现手机里有熟人的来信。',
+    setting: '现代都市',
+  };
+  const records = PlayerRecordsSchema.parse(projectPlayerRecords(input));
+  assert.deepEqual(
+    records.about.flatMap((record) =>
+      record.source.kind === 'opening_field'
+        ? [[record.source.field, record.title, record.text]]
+        : [],
+    ),
+    [
+      ['identity', '起点身份', input.opening.identity],
+      ['situation', '开场处境', input.opening.situation],
+      ['setting', '世界背景', input.opening.setting],
+    ],
+  );
+});

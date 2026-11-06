@@ -2096,6 +2096,19 @@ export function WorldPhoneSurface({
                   >
                     {data.identity}
                   </p>
+                  {data.situation && (
+                    <p
+                      style={{
+                        margin: '0 0 10px',
+                        fontSize: '13px',
+                        color: '#334155',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <strong>开场处境：</strong>
+                      {data.situation}
+                    </p>
+                  )}
                   <div
                     style={{
                       fontSize: '12px',
