@@ -159,6 +159,32 @@ export function WorldPhoneApp({
     experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
     screenLocked,
   );
+  // A confirmed scene task can become actionable at its appointment time
+  // without a new world event. Reuse the live clock and refresh once per boundary.
+  const taskClock = Date.parse(liveTime.displayTime ?? '');
+  const dueTaskKey =
+    automatic && data?.id === worldId && Number.isFinite(taskClock)
+      ? (data.invitations ?? [])
+          .filter((item) => item.status === 'confirmed' && Date.parse(item.at) <= taskClock)
+          .map((item) => item.id)
+          .sort()
+          .join(',')
+      : undefined;
+  const previousTaskBoundary = useRef<
+    { worldId: string; version?: number; key: string } | undefined
+  >(undefined);
+  const taskWorldVersion = data?.version;
+  useEffect(() => {
+    if (dueTaskKey === undefined) return;
+    const previous = previousTaskBoundary.current;
+    previousTaskBoundary.current = { worldId, version: taskWorldVersion, key: dueTaskKey };
+    if (
+      previous?.worldId === worldId &&
+      previous.version === taskWorldVersion &&
+      previous.key !== dueTaskKey
+    )
+      void reloadRecords();
+  }, [dueTaskKey, reloadRecords, taskWorldVersion, worldId]);
   const liveTimeRef = useRef(liveTime);
   liveTimeRef.current = liveTime;
   useEffect(() => {

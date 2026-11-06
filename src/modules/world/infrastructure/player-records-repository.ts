@@ -184,7 +184,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
             directedInvitationIds.add(row.subject_id);
       }
       // The director's internal text never leaves the server. Join only the NPC's
-      // actual player-visible question and its still-waiting, same-episode responsibility.
+      // actual open, player-visible question from the episode's delivery receipt.
       const pendingStoryRequests = (
         await sql.query(
           `SELECT * FROM (
@@ -195,24 +195,23 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
            JOIN parallel_life.agent_runtime_worlds runtime
              ON runtime.world_id=s.world_id AND runtime.owner_id=s.owner_id
            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(s.document->'questions','[]')) q
-           JOIN LATERAL jsonb_array_elements(COALESCE(s.document->'responsibilities','[]')) responsibility
+           LEFT JOIN LATERAL jsonb_array_elements(COALESCE(s.document->'responsibilities','[]')) responsibility
              ON responsibility->>'id'=q->>'responsibilityId'
+           JOIN parallel_life.world_messages m
+             ON m.world_id=s.world_id AND m.owner_id=s.owner_id AND m.actor_id=s.actor_id
+               AND left(q->>'sourceId',8)='message:' AND m.id=substring(q->>'sourceId' from 9)
+               AND m.document->>'role'='assistant' AND m.document->>'text'=q->>'text'
+           JOIN parallel_life.agent_episode_receipts receipt
+             ON receipt.world_id=s.world_id AND receipt.owner_id=s.owner_id AND receipt.actor_id=s.actor_id
+               AND receipt.choice='engage' AND receipt.presented_message_ids ? m.id
            JOIN parallel_life.agent_episode_requests r
              ON r.world_id=s.world_id AND r.owner_id=s.owner_id AND r.actor_id=s.actor_id
-               AND r.id=responsibility#>>'{subject,id}' AND r.engine_epoch=runtime.engine_epoch
+               AND r.id=receipt.request_id AND r.receipt_id=receipt.id
+               AND r.input_receipt_id=receipt.input_receipt_id AND r.engine_epoch=runtime.engine_epoch
                AND r.status='consumed'
-           JOIN parallel_life.agent_episode_receipts receipt
-             ON receipt.world_id=r.world_id AND receipt.owner_id=r.owner_id AND receipt.id=r.receipt_id
-               AND receipt.request_id=r.id AND receipt.actor_id=r.actor_id
-               AND receipt.input_receipt_id=r.input_receipt_id AND receipt.choice='engage'
            JOIN parallel_life.shared_episodes episode
              ON episode.world_id=r.world_id AND episode.owner_id=r.owner_id AND episode.id=r.episode_id
                AND episode.origin_decision_id=r.origin_decision_id AND episode.document->>'status'='active'
-           JOIN parallel_life.world_messages m
-             ON m.world_id=r.world_id AND m.owner_id=r.owner_id AND m.actor_id=r.actor_id
-               AND left(q->>'sourceId',8)='message:' AND m.id=substring(q->>'sourceId' from 9)
-               AND receipt.presented_message_ids ? m.id
-               AND m.document->>'role'='assistant' AND m.document->>'text'=q->>'text'
            JOIN parallel_life.world_events e
              ON e.world_id=m.world_id AND e.owner_id=m.owner_id AND e.id=m.document->>'sourceEventId'
                AND e.version<=receipt.world_version
@@ -222,11 +221,17 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
            WHERE s.world_id=$1 AND s.owner_id=$2 AND s.projected_world_version<=$3
              AND receipt.world_version<=$3
              AND q->>'status'='open' AND q->>'channel'='private' AND q->>'threadId'=s.actor_id
-             AND responsibility->>'waitingOn'='player' AND responsibility->>'status' IN ('open','waiting','deferred')
-             AND responsibility#>>'{subject,kind}'='request'
-             AND (responsibility->'sourceIds' ? r.input_receipt_id
-               OR responsibility->'sourceIds' ? ('episode-intent:'||r.id))
-           ORDER BY r.id,e.version DESC,m.ordinal DESC
+             AND (
+               q->>'responsibilityId' IS NULL OR (
+                 responsibility->>'waitingOn'='player'
+                 AND responsibility->>'status' IN ('open','waiting','deferred')
+                 AND responsibility#>>'{subject,kind}'='request'
+                 AND responsibility#>>'{subject,id}'=r.id
+                 AND (responsibility->'sourceIds' ? r.input_receipt_id
+                   OR responsibility->'sourceIds' ? ('episode-intent:'||r.id))
+               )
+             )
+           ORDER BY r.id, (q->>'responsibilityId' IS NOT NULL) DESC, e.version DESC,m.ordinal
            ) pending ORDER BY event_version DESC,request_id`,
           [worldId, ownerId, world.version],
         )
@@ -274,7 +279,6 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
       }
       const storyRequests = pendingStoryRequests
         .filter((row) => !relieved.has(row.request_id))
-        .slice(0, 3)
         .map((row): VisibleStoryRequest => ({
           requestId: row.request_id,
           actorId: row.actor_id,

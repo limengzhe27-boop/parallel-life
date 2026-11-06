@@ -362,7 +362,7 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
       }),
     );
   }
-  async function deliver(f: F, ask = false) {
+  async function deliver(f: F, ask: boolean | 'unbound' = false) {
     const actor = (await attempts.read(f.owner, { worldId: f.id, actorId: f.request.actorId }))!;
     const text = JSON.stringify({
       type: 'npc_episode_consideration',
@@ -449,24 +449,27 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
                     text: '你能告诉我进货清单上还缺哪几样吗？',
                     dependsOnActionIds: [],
                     requestsPlayerReply: true,
-                    questionForResponsibilityId: responsibilityId,
+                    ...(ask === true ? { questionForResponsibilityId: responsibilityId } : {}),
                   },
                 ],
                 goals: [],
                 plans: [],
                 actions: [],
                 decisions: [],
-                responsibilities: [
-                  {
-                    id: responsibilityId,
-                    subject: { kind: 'request', id: f.request.id },
-                    summary: '等玩家说明进货清单缺项',
-                    sourceIds: basis,
-                    status: 'waiting',
-                    waitingOn: 'player',
-                    nextCheck: [],
-                  },
-                ],
+                responsibilities:
+                  ask === true
+                    ? [
+                        {
+                          id: responsibilityId,
+                          subject: { kind: 'request', id: f.request.id },
+                          summary: '等玩家说明进货清单缺项',
+                          sourceIds: basis,
+                          status: 'waiting',
+                          waitingOn: 'player',
+                          nextCheck: [],
+                        },
+                      ]
+                    : [],
                 episodeDecision: {
                   requestId: f.request.id,
                   choice: 'engage',
@@ -527,6 +530,23 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
     assert.ok(appointment);
     return { world, appointment };
   }
+
+  await t.test(
+    'a newly delivered episode question enters tasks without a duplicate responsibility',
+    async () => {
+      const f = await fixture({ completion: false });
+      const records = new PostgresPlayerRecords(app);
+      const current = async () =>
+        (await records.read(f.owner, f.id)).current.filter(
+          (r) => r.task?.kind === 'address_request',
+        );
+      assert.deepEqual(await current(), []);
+      await deliver(f, 'unbound');
+      const [task] = await current();
+      assert.equal(task?.task?.reason, '你能告诉我进货清单上还缺哪几样吗？');
+      assert.deepEqual(task?.navigation, { app: 'wechat', actorId: f.request.actorId });
+    },
+  );
 
   await t.test('a shown non-invitation task follows the real question resolution', async () => {
     const f = await fixture({ completion: false });

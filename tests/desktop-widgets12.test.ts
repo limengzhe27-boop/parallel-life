@@ -253,3 +253,31 @@ test('home shows a grounded dialogue action and honors its deferral and terminal
   assert.equal(selectDesktopTask(records([{ ...request, state: 'completed' }])), undefined);
   assert.equal(selectDesktopTask(records([{ ...request, navigation: undefined }])), undefined);
 });
+
+test('new actionable story work replaces an older live decision on the homepage', () => {
+  const source = (at: string, eventVersion: number) => ({
+    kind: 'world_event' as const,
+    eventId: 'event-' + eventVersion,
+    eventVersion,
+    at,
+    timeBasis: 'story' as const,
+  });
+  const old = record('原先邀约', {
+    kind: 'invitation',
+    state: 'proposed',
+    text: '2026-10-27T12:00:00Z',
+    source: source('2026-10-27T00:00:00Z', 1),
+    navigation: { app: 'calendar', invitationId: 'old' },
+    task: { kind: 'decide_invitation' },
+  });
+  const next = record('刚提出的请求', {
+    kind: 'actor_suggestion',
+    state: 'suggested',
+    source: source('2026-10-27T00:10:00Z', 2),
+    navigation: { app: 'wechat', actorId: 'npc' },
+    task: { kind: 'address_request', recommended: true },
+  });
+  assert.equal(selectDesktopTask(records([old]))?.id, old.id);
+  assert.equal(selectDesktopTask(records([old, next]))?.id, next.id);
+  assert.equal(selectDesktopTask(records([old, { ...next, state: 'completed' }]))?.id, old.id);
+});

@@ -84,6 +84,12 @@ const taskPriority = {
   attend_invitation: 3,
 };
 
+function taskUpdatedAt(record: PlayerRecord): number {
+  const source = record.source;
+  const time = 'at' in source && source.timeBasis === 'story' ? Date.parse(source.at) : NaN;
+  return Number.isFinite(time) ? time : 0;
+}
+
 /** Read only the player's current, explicitly recorded work; never borrow NPC plans or notes. */
 export function selectDesktopTask(
   records: PhoneRecordsState | undefined,
@@ -100,6 +106,10 @@ export function selectDesktopTask(
     })
     .sort(
       (a, b) =>
+        Number(a.task.kind === 'attend_invitation') - Number(b.task.kind === 'attend_invitation') ||
+        (a.task.kind !== 'attend_invitation' && b.task.kind !== 'attend_invitation'
+          ? taskUpdatedAt(b.record) - taskUpdatedAt(a.record)
+          : 0) ||
         taskPriority[a.task.kind] - taskPriority[b.task.kind] ||
         Number(Boolean(b.task.recommended)) - Number(Boolean(a.task.recommended)) ||
         (a.task.kind === 'address_request' && b.task.kind === 'address_request'
