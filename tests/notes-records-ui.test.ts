@@ -53,7 +53,6 @@ const {
   NotesRecordsReadState,
   isSystemRecordTarget,
   recordDestination,
-  searchRecords,
   recordText,
   recordAttribution,
   RecordsApp,
@@ -177,8 +176,6 @@ test('sourced sections preserve server text, attribution, recent coverage and st
   assert.doesNotMatch(html, /完整任务|奖励|硬编码账单|一起喝咖啡|摄影师/);
   const about = renderToStaticMarkup(createElement(NotesAbout, { data: fixture, open: noop }));
   assert.match(about, /人生起点的身份与处境|摄影师/);
-  assert.equal(searchRecords(fixture.current, ' 小芳 ').length, 2);
-  assert.deepEqual(searchRecords(fixture.current, 'message-not-actor'), []);
 });
 test('same-name contacts and invitation IDs navigate by server IDs; missing target is never guessed', () => {
   assert.deepEqual(recordDestination(fixture.current[0]!), {
@@ -224,7 +221,7 @@ test('system details are read only and retain speaker and source-time meaning', 
   assert.match(story, /故事时间|查看对话/);
   assert.match(recorded, /记录时间/);
 });
-test('empty and no-match views remain distinct from loading and read error', () => {
+test('empty views remain distinct from loading and read error', () => {
   const blank = renderToStaticMarkup(createElement(NotesRecords, { data: empty, open: noop }));
   assert.match(blank, /暂时没有已记录的事项/);
   assert.doesNotMatch(blank, /长期目标|长期追求/);
@@ -232,11 +229,6 @@ test('empty and no-match views remain distinct from loading and read error', () 
     renderToStaticMarkup(createElement(NotesAbout, { data: empty, open: noop })),
     /人生起点的信息还未记录/,
   );
-  const searched = renderToStaticMarkup(
-    createElement(NotesRecords, { data: fixture, query: '不存在的词', open: noop }),
-  );
-  assert.match(searched, /没有找到相关事项/);
-  assert.doesNotMatch(searched, /暂时没有已记录的事项/);
   const loading = renderToStaticMarkup(createElement(NotesRecordsReadState, { status: 'loading' }));
   const failure = renderToStaticMarkup(
     createElement(NotesRecordsReadState, {
@@ -363,12 +355,11 @@ test('invitation timestamps use world display time without changing source seman
     createElement(NotesRecordDetail, { data, target: invitation.id, open: noop }),
   );
   assert.doesNotMatch(list, /约定时间：2026-10-11 08:00/);
-  assert.match(list, /邀约与日程，去日历查看/);
+  assert.doesNotMatch(list, /邀约与日程，去日历查看/);
   assert.match(detail, /约定时间：2026-10-11 08:00/);
   assert.doesNotMatch(list + detail, /2026-10-11T00:00:00.000Z/);
   assert.match(detail, /故事时间.*2026-10-10 08:20/);
   assert.equal(invitation.text, '2026-10-11T00:00:00.000Z');
-  assert.equal(searchRecords([invitation], '2026-10-11 08:00').length, 1);
   assert.equal(recordText({ ...invitation, text: '2026-02-30T00:00:00Z' }), '2026-02-30T00:00:00Z');
   assert.equal(recordText({ ...invitation, text: '周末咖啡店见。' }), '周末咖啡店见。');
   assert.equal(recordText({ ...fixture.current[0]!, text: invitation.text }), invitation.text);
@@ -647,10 +638,9 @@ test('ordinary invitation mirrors are removed from tasks/history while meaningfu
   const html = renderToStaticMarkup(tree);
   assert.doesNotMatch(html, /一起喝咖啡|此前记录/);
   assert.match(html, /相关事项有真实进展/);
-  press(tree, '邀约与日程，去日历查看');
-  assert.deepEqual(opened, [['calendar']]);
+  assert.doesNotMatch(html, /邀约与日程，去日历查看/);
 });
-test('RecordsApp renders full records projection and preserves search and details', () => {
+test('RecordsApp renders full records projection and omits the removed search and calendar shortcut', () => {
   try {
     const h = setupNotes();
     const tree = RecordsApp({ app: 'records', open: (...args) => h.opened.push(args) });
@@ -658,7 +648,7 @@ test('RecordsApp renders full records projection and preserves search and detail
     assert.match(html, /人生记录/);
     assert.match(html, /关于这段人生（起点与设定）/);
     assert.match(html, /眼下要做的事/);
-    assert.doesNotMatch(html, /我的便签/);
+    assert.doesNotMatch(html, /我的便签|搜索人生记录|邀约与日程，去日历查看/);
   } finally {
     uiContext = undefined;
   }

@@ -2,7 +2,7 @@ import type { PlayerRecords } from '../../../contracts/world-records.ts';
 import { invitationTask, playerTask } from '../desktop-widget-selection.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import { usePhoneApps } from './provider.tsx';
-import { searchable, timeText } from './helpers.ts';
+import { timeText } from './helpers.ts';
 import s from './notes-records.module.css';
 
 type RecordItem = PlayerRecords['current'][number];
@@ -39,21 +39,6 @@ export function recordText(record: RecordItem): string {
   if (record.kind !== 'invitation') return record.text;
   const formatted = timeText(record.text);
   return formatted ? `约定时间：${formatted}` : record.text;
-}
-
-export function searchRecords(records: readonly RecordItem[], query: string): RecordItem[] {
-  return records.filter((record) =>
-    searchable(
-      query,
-      record.title,
-      record.text,
-      recordText(record),
-      record.stateLabel,
-      recordAttribution(record),
-      ...(record.progress?.milestones.map((step) => step.title) ?? []),
-      ...(record.progress?.opportunities.map((step) => step.title) ?? []),
-    ),
-  );
 }
 
 function RecordRows({
@@ -197,23 +182,15 @@ function ordinaryInvitation(record: RecordItem, referenceTime?: string) {
     !record.stepChecklist
   );
 }
-export function NotesAbout({
-  data,
-  query = '',
-  open,
-}: {
-  data: PlayerRecords;
-  query?: string;
-  open: Open;
-}) {
-  const situations = searchRecords(data.about.filter(isNotesBackgroundRecord), query);
+export function NotesAbout({ data, open }: { data: PlayerRecords; open: Open }) {
+  const situations = data.about.filter(isNotesBackgroundRecord);
   return (
     <div className={s.records}>
       <p className={s.hint}>人生起点的身份与处境，来自这段人生已有的记录。</p>
       {situations.length ? (
         <RecordRows records={situations} open={open} />
       ) : (
-        <p className={s.empty}>{query.trim() ? '没有找到相关背景' : '人生起点的信息还未记录'}</p>
+        <p className={s.empty}>人生起点的信息还未记录</p>
       )}
     </div>
   );
@@ -222,34 +199,22 @@ export function NotesAbout({
 /** Only renders the already authorized server projection; no client task inference. */
 export function NotesRecords({
   data,
-  query = '',
   open,
   historyOpen = false,
   onHistoryToggle,
   referenceTime,
 }: {
   data: PlayerRecords;
-  query?: string;
   open: Open;
   historyOpen?: boolean;
   onHistoryToggle?: (value: boolean) => void;
   referenceTime?: string;
 }) {
-  const current = searchRecords(
-    data.current.filter((record) => !ordinaryInvitation(record, referenceTime)),
-    query,
-  );
+  const current = data.current.filter((record) => !ordinaryInvitation(record, referenceTime));
   const opportunities = current.filter((record) => record.opportunity);
   const otherCurrent = current.filter((record) => !record.opportunity);
-  const pursuits = searchRecords(
-    data.about.filter((r) => r.span === 'pursuit' && r.kind === 'world_matter'),
-    query,
-  );
-  const history = searchRecords(
-    data.history.filter((record) => !ordinaryInvitation(record)),
-    query,
-  );
-  const searching = Boolean(query.trim());
+  const pursuits = data.about.filter((r) => r.span === 'pursuit' && r.kind === 'world_matter');
+  const history = data.history.filter((record) => !ordinaryInvitation(record));
   return (
     <div className={s.records}>
       {opportunities.length > 0 && (
@@ -266,20 +231,15 @@ export function NotesRecords({
           <RecordRows records={otherCurrent} open={open} referenceTime={referenceTime} />
         ) : (
           <div className={s.empty}>
-            <p>{searching ? '没有找到相关事项' : '暂时没有已记录的事项'}</p>
-            {!searching && (
-              <div className={s.links}>
-                <button type="button" onClick={() => open('messages')}>
-                  看看微信
-                </button>
-                <button type="button" onClick={() => open('calendar')}>
-                  看看日历
-                </button>
-                <button type="button" onClick={() => open('map')}>
-                  看看地图
-                </button>
-              </div>
-            )}
+            <p>暂时没有已记录的事项</p>
+            <div className={s.links}>
+              <button type="button" onClick={() => open('messages')}>
+                看看微信
+              </button>
+              <button type="button" onClick={() => open('map')}>
+                看看地图
+              </button>
+            </div>
           </div>
         )}
       </section>
@@ -289,27 +249,18 @@ export function NotesRecords({
           <RecordRows records={pursuits} open={open} />
         </section>
       )}
-      <div className={s.links}>
-        <button type="button" onClick={() => open('calendar')}>
-          邀约与日程，去日历查看
-        </button>
-      </div>
-      {data.history.some((record) => !ordinaryInvitation(record)) && (
+      {history.length > 0 && (
         <details
           className={s.history}
-          open={searching || historyOpen}
+          open={historyOpen}
           onToggle={(event) => {
-            if (!searching) onHistoryToggle?.(event.currentTarget.open);
+            onHistoryToggle?.(event.currentTarget.open);
           }}
         >
           <summary>
             此前记录 <span>{history.length}</span>
           </summary>
-          {history.length ? (
-            <RecordRows records={history} open={open} />
-          ) : (
-            <p className={s.empty}>没有找到相关的此前记录</p>
-          )}
+          <RecordRows records={history} open={open} />
         </details>
       )}
     </div>
@@ -523,8 +474,6 @@ export function NotesRecordsReadState({
 /** Standalone RecordsApp: dedicated read-only viewer for world background and player records */
 export function RecordsApp({ target, open }: PhoneAppContext) {
   const { data, records, reloadRecords, drafts, setDraft, taskDeferrals } = usePhoneApps();
-  const query = drafts['records:search'] ?? '';
-  const setQuery = (value: string) => setDraft('records:search', value);
   const reload = reloadRecords
     ? () => {
         void reloadRecords();
@@ -578,29 +527,9 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
         </p>
       </header>
 
-      {/* 搜索框 */}
-      <div style={{ margin: '8px 0 16px' }}>
-        <input
-          type="search"
-          value={query}
-          placeholder="搜索人生记录…"
-          onChange={(e) => setQuery(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '10px',
-            border: '1px solid #e2e8f0',
-            background: '#ffffff',
-            fontSize: '14px',
-            boxSizing: 'border-box',
-          }}
-        />
-      </div>
-
       {records.status === 'ready' ? (
         <NotesRecords
           data={records.data}
-          query={query}
           open={open}
           historyOpen={drafts['records:history-open'] === 'true'}
           onHistoryToggle={(value) => setDraft('records:history-open', String(value))}
@@ -625,7 +554,7 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
           border: '1px solid #f1f5f9',
         }}
       >
-        <details className={s.background} open={Boolean(query.trim())}>
+        <details className={s.background}>
           <summary
             style={{
               fontWeight: 650,
@@ -642,9 +571,7 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
           <p className={s.hint} style={{ margin: '6px 0 10px' }}>
             查看开场时已经知道的背景与处境。
           </p>
-          {records.status === 'ready' ? (
-            <NotesAbout data={records.data} query={query} open={open} />
-          ) : null}
+          {records.status === 'ready' ? <NotesAbout data={records.data} open={open} /> : null}
         </details>
       </section>
 

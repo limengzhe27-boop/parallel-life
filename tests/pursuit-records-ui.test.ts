@@ -34,7 +34,7 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { NotesRecords, NotesRecordDetail, searchRecords } =
+const { NotesRecords, NotesRecordDetail } =
   await import('../src/features/phone/apps/notes-records.tsx');
 function fixture(): PlayerRecordsInput {
   const f = progressionFixture('county-yellow-hair');
@@ -121,7 +121,6 @@ test('rendered records expose a real choice and source, without edit or reward b
   assert.match(next, /还没有替你作决定/);
   assert.match(next, /看看它从哪里来/);
   assert.doesNotMatch(detail + next, />领取奖励<|>编辑<|>完成任务</);
-  assert.equal(searchRecords(data.about, 'R17').length, 1);
 });
 function buttons(node: ReactNode): Array<{ children: ReactNode; onClick?: () => void }> {
   if (Array.isArray(node)) return node.flatMap(buttons);
