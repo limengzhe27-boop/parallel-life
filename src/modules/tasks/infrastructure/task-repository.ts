@@ -44,6 +44,14 @@ export async function enqueue(
   commandId: string,
   input: unknown,
   hash: string,
+  options: {
+    /**
+     * A scene-entry greeting is scoped to one scene turn and must not be lost
+     * just because another world task is queued. The kernel still fences the
+     * commit by world version and actor revision.
+     */
+    allowConcurrentWorldTask?: boolean;
+  } = {},
 ): Promise<Task> {
   const existing = (
     await sql.query('SELECT * FROM parallel_life.tasks WHERE owner_id=$1 AND command_id=$2', [
@@ -56,6 +64,7 @@ export async function enqueue(
     return publicTask(existing);
   }
   if (
+    !options.allowConcurrentWorldTask &&
     (
       await sql.query(
         "SELECT 1 FROM parallel_life.tasks WHERE owner_id=$1 AND scope_kind=$2 AND scope_id=$3 AND status IN ('queued','running')",

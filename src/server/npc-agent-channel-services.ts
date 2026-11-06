@@ -94,6 +94,7 @@ export function nativeNpcTaskHandler(
     lease: TaskLease,
     signal: AbortSignal,
     waitUntil: number,
+    recallRetry = 0,
   ): Promise<boolean> {
     const started = performance.now();
     // A platform timeout cannot run a catch/finally block. Record bounded phase
@@ -475,6 +476,13 @@ export function nativeNpcTaskHandler(
         .lookup(lease.ownerId, world.id, commandId)
         .then((a) => a?.status)
         .catch(() => 'lookup_failed');
+      // The scene gained an item between snapshot build and validation. The
+      // world does not change because of this rejection, so rebuild once instead
+      // of turning a normal arrival into silence.
+      if ((error as { code?: string })?.code === 'ACTOR_SCENE_RECALL_CONFLICT' && recallRetry < 2) {
+        await delay(300, undefined, { signal });
+        return handle(lease, signal, waitUntil, recallRetry + 1);
+      }
       if (
         native.receipt.channel === 'scene' &&
         !previous &&

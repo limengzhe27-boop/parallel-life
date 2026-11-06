@@ -650,6 +650,9 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
           stableId('scene-entry-greeting', event.id),
           greeting,
           requestHash(greeting),
+          // The player is already in the scene; a busy world must not turn the
+          // arrival into silence.
+          { allowConcurrentWorldTask: true },
         );
       }
       return true;
