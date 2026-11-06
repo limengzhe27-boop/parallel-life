@@ -7,6 +7,7 @@ import { authoredMaterialCanonicalJson } from '../domain/authored-agent-material
 import { scenePresent, scenePrivateThought } from '../domain/scene-runtime.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { loadScene } from './scene-repository.ts';
+import { isAdmittedAgentCommitHead } from './agent-commit-version.ts';
 import { isStreamPrefixWorldVersion } from './npc-stream-segment-repository.ts';
 
 export type ActorSceneObservationFrame = {
@@ -102,7 +103,21 @@ export async function readActorSceneObservationSourcesInTransaction(
     ));
   if (
     (world.version !== frame.worldVersion && !isPrefix) ||
-    Date.parse(frame.storyAt) < Date.parse(world.state.time)
+    // A committed stream segment can advance story time before its own
+    // finalization. Revalidate the old evidence at its original time only
+    // inside the already authenticated append transaction.
+    (Date.parse(frame.storyAt) < Date.parse(world.state.time) &&
+      !(
+        isPrefix &&
+        (await isAdmittedAgentCommitHead(
+          sql,
+          ownerId,
+          frame.worldId,
+          frame.actorId,
+          frame.worldVersion,
+          world.version,
+        ))
+      ))
   )
     reject('ACTOR_SCENE_OBSERVATION_VERSION_CONFLICT');
   const read = await loadScene(sql, frame.worldId, frame.sceneId);

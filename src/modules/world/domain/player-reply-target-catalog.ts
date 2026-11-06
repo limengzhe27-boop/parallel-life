@@ -25,7 +25,7 @@ export function playerReplyTargetCatalog(scope: PlayerInterpretationScope) {
   }));
 }
 
-/** Expansion is mechanical. The existing binder still verifies quote, scope and decisions. */
+/** A question-only target can record an answer but has no decision to update. */
 export function expandCompactPlayerInterpretation(
   scope: PlayerInterpretationScope,
   interpretation: CompactPlayerInterpretation,
@@ -40,7 +40,7 @@ export function expandCompactPlayerInterpretation(
       const index = Number(targetRef.slice(6)) - 1;
       const target = targets[index];
       if (!target || !Number.isSafeInteger(index)) throw Error('NPC_REPLY_TARGET_REFERENCE');
-      return { ...target, relation, decision };
+      return { ...target, relation, decision: target.responsibilityId ? decision : null };
     }),
   };
 }

@@ -141,14 +141,9 @@ test('unknown, duplicate, forged tuple and mixed aliases are not repaired or acc
 test('question-only alias cannot invent player obligation; private source and wake excluded', () => {
   const { context, scope, value } = compact();
   context.state.responsibilities = [];
-  assert.throws(() => parseAgentProposal(context, wire(value)));
-  assert.deepEqual(
-    parseAgentProposal(
-      context,
-      wire({ ...value, replies: [{ ...value.replies[0], decision: null }] }),
-    ).decisions,
-    [],
-  );
+  const proposal = parseAgentProposal(context, wire(value));
+  assert.deepEqual(proposal.decisions, []);
+  assert.equal(proposal.replyAssessments?.length, 1);
   scope.authorizedSourceIds.delete('question-source');
   assert.deepEqual(playerReplyTargetCatalog(scope), []);
   context.sources = context.sources.filter((s) => s.id !== 'question-source');
