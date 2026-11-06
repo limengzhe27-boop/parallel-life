@@ -36,7 +36,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v98-owned-task-workset';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v99-scene-expression';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 // Includes the generated response schema as well as the message envelope.
 export const NPC_AGENT_MESSAGE_LIMIT = 64_000;
@@ -169,7 +169,7 @@ function systemFor(snapshot: AgentSnapshot, compact: boolean): string {
         : '【当前交流方式】这是手机文字交流，像真人打字，通常一至三句，可停顿或接着补一句，不混入现场旁白。',
     ...(snapshot.sceneReplyContext || snapshot.channel.kind === 'scene'
       ? [
-          '当面交谈要呈现本人如何回应：在有表达价值时，用kind=narration写玩家看得到的神态、停顿或小动作，再以kind=speech说话，也可自然交错。不要把现场一律写成手机短消息，也不要把动作塞进台词气泡。旁白以玩家所见的第三人称呈现，用角色姓名指明动作主体；“我”只用于角色对白。旁白只写本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。历史动作与对白是已经发生的经历，不是本轮回复草稿；围绕当前原话回应，不重演已做动作或照抄上一轮收尾。',
+          '当面交谈要呈现本人如何回应：在有表达价值时，用kind=narration写玩家看得到的神态、停顿或小动作，再以kind=speech说话，也可自然交错。不要把现场一律写成手机短消息，也不要把动作塞进台词气泡。旁白以玩家所见的第三人称呈现，用角色姓名指明动作主体；“我”只用于角色对白。旁白只写本人可观察表现，不写他人内心或替人行动；不能用旁白完成移动、交付、交易等实际操作。旁白不提问、不用表情包，不强求每轮有动作。“门是你关的，话也别绕”整句是对白。玩家未回答前，同一个问题本轮只问一次；别换个说法再问。历史动作与对白是已经发生的经历，不是本轮回复草稿；围绕当前原话回应，不重演已做动作或照抄上一轮收尾。',
         ]
       : []),
     SYSTEM.conversationRules,

@@ -227,6 +227,7 @@ test('system details are read only and retain speaker and source-time meaning', 
 test('empty and no-match views remain distinct from loading and read error', () => {
   const blank = renderToStaticMarkup(createElement(NotesRecords, { data: empty, open: noop }));
   assert.match(blank, /暂时没有已记录的事项/);
+  assert.doesNotMatch(blank, /长期目标|长期追求/);
   assert.match(
     renderToStaticMarkup(createElement(NotesAbout, { data: empty, open: noop })),
     /人生起点的信息还未记录/,

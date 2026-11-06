@@ -83,3 +83,22 @@ test('scene speech keeps words and dependencies while omitting chat-only decorat
   assert.equal(scene.statements[0].stickerId, undefined);
   assert.deepEqual(scene.statements[0].dependsOnActionIds, []);
 });
+
+test('misfiled direct speech and repeated alternatives normalize before saving a scene reply', () => {
+  const lines = [
+    ['narration', '门关上。'],
+    ['speech', '我昨晚发的消息，你是没看见，还是看见了不想回？'],
+    ['narration', '门是你关的，话也别绕。'],
+    ['speech', '昨晚那条消息，我问的是你——没看见，还是看见了不想回？'],
+    ['narration', '刘胜男垂下眼，把手机倒扣在桌上。'],
+    ['speech', '下午的会你去吗？'],
+  ];
+  const r = decodeNpcWire(context(), {
+    ...wire(),
+    statements: lines.map(([kind, text]) => ({ kind, text, dependsOnActionIds: [] })),
+  }) as { statements: { kind: string; text: string }[] };
+  assert.deepEqual(
+    r.statements.map(({ kind, text }) => [kind, text]),
+    [lines[0], lines[1], ['speech', lines[2]![1]], lines[4], lines[5]],
+  );
+});

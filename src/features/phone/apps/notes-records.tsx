@@ -242,7 +242,7 @@ export function NotesRecords({
   const opportunities = current.filter((record) => record.opportunity);
   const otherCurrent = current.filter((record) => !record.opportunity);
   const pursuits = searchRecords(
-    data.about.filter((r) => r.span === 'pursuit' || r.kind === 'world_matter'),
+    data.about.filter((r) => r.span === 'pursuit' && r.kind === 'world_matter'),
     query,
   );
   const history = searchRecords(
@@ -283,15 +283,12 @@ export function NotesRecords({
           </div>
         )}
       </section>
-      <section className={s.section} aria-label="这段人生想做到的事">
-        <h3>这段人生想做到的事</h3>
-        <p className={s.hint}>想慢慢做成的事，也记下已经走过的路。</p>
-        {pursuits.length ? (
+      {pursuits.length > 0 && (
+        <section className={s.section} aria-label="长期目标">
+          <h3>长期目标</h3>
           <RecordRows records={pursuits} open={open} />
-        ) : (
-          <p className={s.empty}>{searching ? '没有找到相关追求' : '暂时没有已记录的长期追求'}</p>
-        )}
-      </section>
+        </section>
+      )}
       <div className={s.links}>
         <button type="button" onClick={() => open('calendar')}>
           邀约与日程，去日历查看

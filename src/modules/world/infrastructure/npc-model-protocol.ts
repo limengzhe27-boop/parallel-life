@@ -1223,6 +1223,52 @@ function isInitialPositionWork(context: AgentValidationContext): boolean {
   }
 }
 
+function normalizeSceneStatements(statements: AgentProposal['statements']) {
+  const result: AgentProposal['statements'] = [];
+  for (const statement of statements) {
+    const text = statement.text?.trim() ?? '';
+    // Recover only clear spoken lines. Leave ambiguous and mixed prose intact.
+    const directSpeech =
+      /^(?:“[^”]+”|「[^」]+」)$/u.test(text) ||
+      (/^[^。！？?!：:\n]*你[^。！？?!：:\n]*[？?]$/u.test(text) &&
+        !/说[：:]|问[：:]|抬|皱|转身|看着|盯着|摇头|点头/u.test(text)) ||
+      /^[^。！？?!：:\n]+，[^。！？?!：:\n]*(?:别绕|别拐弯|直说|说清楚)[。！!]?$/u.test(text);
+    const line =
+      statement.kind === 'narration' && directSpeech
+        ? { ...statement, kind: 'speech' as const }
+        : statement;
+    if (
+      line.kind === 'speech' &&
+      !line.requestsPlayerReply &&
+      !line.questionForResponsibilityId &&
+      !line.dependsOnActionIds?.length
+    ) {
+      const wording = text.replace(/[\p{P}\s]/gu, '');
+      const repeated = result.some((prior) => {
+        if (
+          prior.kind !== 'speech' ||
+          prior.dependsOnActionIds?.length ||
+          prior.requestsPlayerReply ||
+          prior.questionForResponsibilityId
+        )
+          return false;
+        const previousText = prior.text ?? '';
+        const previous = previousText.replace(/[\p{P}\s]/gu, '');
+        if (wording === previous) return true;
+        if (!/[？?]$/u.test(text) || !/[？?]$/u.test(previousText.trim())) return false;
+        const answer = wording.match(/.{3,}还是.{3,}$/u)?.[0];
+        if (!answer) return false;
+        // Keep distinct questions. Require the same two alternatives at the end.
+        const tail = answer.slice(-10);
+        return /还是/u.test(tail) && previous.endsWith(tail);
+      });
+      if (repeated) continue;
+    }
+    result.push(line);
+  }
+  return result;
+}
+
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   // Initial placement is an internal spatial completion, not a chat turn. Keep the
@@ -1295,7 +1341,11 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
         : {}),
       protocol: CURRENT_NPC_WIRE_PROTOCOL,
     }) as AgentProposal;
-    return { ...result, ...(replyChannel ? { replyChannel } : {}) };
+    return {
+      ...result,
+      ...(delivery === 'scene' ? { statements: normalizeSceneStatements(result.statements) } : {}),
+      ...(replyChannel ? { replyChannel } : {}),
+    };
   }
   if (
     'protocol' in raw &&
