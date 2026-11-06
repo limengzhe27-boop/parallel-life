@@ -77,8 +77,9 @@ export function selectDesktopTask(
       (a, b) =>
         taskPriority[a.task.kind] - taskPriority[b.task.kind] ||
         Number(Boolean(b.task.recommended)) - Number(Boolean(a.task.recommended)) ||
-        Number(a.task.at < now) - Number(b.task.at < now) ||
-        a.task.at - b.task.at ||
+        (a.task.kind === 'address_request' && b.task.kind === 'address_request'
+          ? b.task.at - a.task.at
+          : Number(a.task.at < now) - Number(b.task.at < now) || a.task.at - b.task.at) ||
         a.record.id.localeCompare(b.record.id),
     );
   return (
