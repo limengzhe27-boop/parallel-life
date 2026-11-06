@@ -47,17 +47,28 @@ test('simultaneous scene and phone observers coalesce reads while a later commit
   assert.deepEqual(versions, [6, 8]);
 });
 
+test('a transient projection failure is retried once across both observers', async () => {
+  const sync = new SceneWorldSync('world');
+  const versions: number[] = [];
+  const refresh = async (version: number) => {
+    versions.push(version);
+    if (versions.length === 1) throw new Error('phone is one version behind');
+  };
+  await Promise.all([sync.sync(read(6), 2, refresh), sync.sync(read(6), 2, refresh)]);
+  assert.deepEqual(versions, [6, 6]);
+});
+
 test('failed projection reads remain retryable without resubmitting the scene action', async () => {
   const sync = new SceneWorldSync('world');
   let reads = 0;
   const refresh = async () => {
-    if (++reads === 1) throw new Error('offline');
+    if (++reads <= 2) throw new Error('offline');
   };
   await assert.rejects(sync.sync(read(6, 'succeeded'), 2, refresh), /offline/);
   await sync.sync(read(6, 'succeeded'), 2, refresh);
-  assert.equal(reads, 2);
+  assert.equal(reads, 3);
   await sync.sync(read(6, 'succeeded'), 6, refresh);
-  assert.equal(reads, 2);
+  assert.equal(reads, 3);
 });
 
 test('failed or unknown task can refresh saved inputs but cannot be advertised as a successful action', async () => {

@@ -26,9 +26,17 @@ export class SceneWorldSync {
       return this.sync(scene, phoneVersion, refresh);
     }
     const version = scene.worldVersion;
-    const pending = refresh(version).then(() => {
+    const pending = (async () => {
+      try {
+        await refresh(version);
+      } catch {
+        // Scene and phone reads can cross a commit or a short connection interruption.
+        // Retry the shared read, never the action that produced the scene result.
+        await new Promise<void>((resolve) => setTimeout(resolve, 300));
+        await refresh(version);
+      }
       this.completedVersion = Math.max(this.completedVersion, version);
-    });
+    })();
     this.pending = pending;
     try {
       await pending;

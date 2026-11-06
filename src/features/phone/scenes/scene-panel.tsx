@@ -249,9 +249,14 @@ export function ScenePanel({
     } finally {
       const next = await refresh().catch(() => undefined);
       if (next && onWorldChanged)
-        await sync.sync(next, phoneVersion, onWorldChanged).catch(() => {
-          if (live.current) setSyncError('手机内容暂未同步。');
-        });
+        await sync.sync(next, phoneVersion, onWorldChanged).then(
+          () => {
+            if (live.current) setSyncError('');
+          },
+          () => {
+            if (live.current) setSyncError('手机内容暂未同步。');
+          },
+        );
       running.current = false;
       if (live.current) setBusy(false);
     }
