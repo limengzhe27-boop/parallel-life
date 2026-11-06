@@ -2197,6 +2197,25 @@ function decodeCurrentNpcWire(context: AgentValidationContext, raw: unknown) {
     npcSourceReferences(context.sources),
     'decode',
   ) as { executions: any[]; changes: Record<string, unknown> };
+  // `questionForResponsibilityId` is optional metadata linking a question to a
+  // responsibility this actor can already see (or creates in this same proposal).
+  // A model that guesses an id must not lose the whole player-facing reply: drop
+  // the bad link and keep the question itself.
+  {
+    const known = new Set<string>([
+      ...context.state.responsibilities.map((item) => item.id),
+      ...(context.viewState?.responsibilities ?? []).map((item) => item.id),
+    ]);
+    const proposed = mapped.changes.responsibilities;
+    if (Array.isArray(proposed))
+      for (const item of proposed)
+        if (item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string')
+          known.add((item as { id: string }).id);
+    for (const statement of envelope.statements) {
+      const link = statement.questionForResponsibilityId;
+      if (typeof link === 'string' && !known.has(link)) delete statement.questionForResponsibilityId;
+    }
+  }
   if (
     envelope.protocol !== PREVIOUS_DELTA_WIRE_PROTOCOL &&
     playerReplyTargets({

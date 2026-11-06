@@ -1655,3 +1655,51 @@ test('wake statements are player-facing bubbles, never private planning monologu
     ['我到了。'],
   );
 });
+
+test('an invented question link is dropped without losing the reply', () => {
+  const { c } = fixture(false);
+  c.state.responsibilities.push({
+    id: 'resp-1',
+    sourceIds: ['input'],
+    subject: { kind: 'appointment', id: 'appointment-1' },
+    summary: '等你确认今晚的安排',
+    status: 'waiting',
+    waitingOn: 'player',
+    nextCheck: [],
+  });
+  const response = {
+    protocol: 'npc-wire-v19',
+    statements: [
+      {
+        text: '行程单还摊着。去，还是不去？',
+        dependsOnActionIds: [],
+        requestsPlayerReply: true,
+        questionForResponsibilityId: '5c0c611b-6006-4679-9448-38a80053992b',
+      },
+      {
+        text: '那我就当你答应了。',
+        dependsOnActionIds: [],
+        requestsPlayerReply: false,
+      },
+    ],
+    executions: [],
+    changes: { focusChange: { kind: 'keep' } },
+  };
+  const proposal = parseAgentProposal(c, response);
+  assert.equal(proposal.statements.length, 2);
+  assert.equal(proposal.statements[0]!.questionForResponsibilityId, undefined);
+  assert.equal(proposal.statements[0]!.requestsPlayerReply, true);
+
+  const known = parseAgentProposal(c, {
+    ...response,
+    statements: [
+      {
+        text: '行程单还摊着。去，还是不去？',
+        dependsOnActionIds: [],
+        requestsPlayerReply: true,
+        questionForResponsibilityId: 'resp-1',
+      },
+    ],
+  });
+  assert.equal(known.statements[0]!.questionForResponsibilityId, 'resp-1');
+});
