@@ -1,5 +1,5 @@
 import type { PlayerRecords } from '../../../contracts/world-records.ts';
-import { invitationTask } from '../desktop-widget-selection.ts';
+import { invitationTask, playerTask } from '../desktop-widget-selection.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import { usePhoneApps } from './provider.tsx';
 import { searchable, timeText } from './helpers.ts';
@@ -69,7 +69,7 @@ function RecordRows({
     <ul className={s.rows}>
       {records.map((record) => {
         const destination = recordDestination(record);
-        const task = invitationTask(record, referenceTime);
+        const task = playerTask(record, referenceTime);
         const title = task?.title ?? record.title;
         const stateLabel = task?.stateLabel ?? record.stateLabel;
         return (
@@ -346,7 +346,7 @@ export function NotesRecordDetail({
       </div>
     );
   const destination = recordDestination(record);
-  const task = invitationTask(record, referenceTime);
+  const task = playerTask(record, referenceTime);
   const origin =
     record.origin ?? (record.source.kind === 'world_genesis' ? record.source : undefined);
   const related = (record.relatedLinks ?? []).filter(
@@ -357,7 +357,7 @@ export function NotesRecordDetail({
       <p className={s.attribution}>{task?.recommended ? '剧情建议' : recordAttribution(record)}</p>
       <h2>{task?.title ?? record.title}</h2>
       <span className={s.state}>{task?.stateLabel ?? record.stateLabel}</span>
-      <p className={s.body}>{recordText(record)}</p>
+      {task?.reason !== recordText(record) && <p className={s.body}>{recordText(record)}</p>}
       {task?.reason && <p className={s.body}>为什么 · {task.reason}</p>}
       {task && deferTask && (
         <button type="button" className={s.linkButton} onClick={() => deferTask(task.key)}>

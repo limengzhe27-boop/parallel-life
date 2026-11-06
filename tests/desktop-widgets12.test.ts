@@ -9,6 +9,7 @@ import type { PlayerRecords } from '../src/contracts/world-records.ts';
 import type { PhoneInvitation, PhonePhoto } from '../src/features/phone/apps/types.ts';
 import {
   invitationTask,
+  playerTask,
   selectDesktopTask,
   selectDesktopSchedule,
   selectDesktopPhoto,
@@ -233,4 +234,22 @@ test('home takes decisions first, prefers a recommended task, and sets aside onl
   assert.equal(selectDesktopTask(records([{ ...decision, state: 'cancelled' }]), now), undefined);
   assert.match(render({ records: data }), /决定是否参加：visit/);
   assert.match(render({ records: data }), /待你决定/);
+});
+
+test('home shows a grounded dialogue action and honors its deferral and terminal state', () => {
+  const request = record('商量活动委托的报酬', {
+    kind: 'actor_suggestion',
+    state: 'suggested',
+    navigation: { app: 'wechat', actorId: 'actor-with-request' },
+    task: { kind: 'address_request', recommended: true },
+  });
+  const existing = record('已有工作');
+  const data = records([existing, request]);
+  const view = playerTask(request);
+  assert.ok(view);
+  assert.equal(selectDesktopTask(data)?.id, request.id);
+  assert.match(render({ records: data }), /商量活动委托的报酬，待你处理/);
+  assert.equal(selectDesktopTask(data, undefined, [view.key])?.id, existing.id);
+  assert.equal(selectDesktopTask(records([{ ...request, state: 'completed' }])), undefined);
+  assert.equal(selectDesktopTask(records([{ ...request, navigation: undefined }])), undefined);
 });

@@ -3,6 +3,10 @@ import type { PhoneInvitation, PhonePhoto, PhoneRecordsState } from './apps/type
 
 type PlayerRecord = PlayerRecords['current'][number];
 
+function taskKey(record: PlayerRecord) {
+  return JSON.stringify([record.id, record.state, record.source, record.text]);
+}
+
 /** Task wording is presentation only. The current record owns its state and destination. */
 export function invitationTask(record: PlayerRecord, referenceTime?: string) {
   if (record.kind !== 'invitation' || record.navigation?.app !== 'calendar') return undefined;
@@ -10,7 +14,7 @@ export function invitationTask(record: PlayerRecord, referenceTime?: string) {
   const at = Date.parse(record.text);
   if (!task || !Number.isFinite(at)) return undefined;
   // The view is keyed to this exact invitation state and its latest source.
-  const key = JSON.stringify([record.id, record.state, record.source, record.text]);
+  const key = taskKey(record);
   if (task.kind === 'decide_invitation' && record.state === 'proposed') {
     if (at < Date.parse(referenceTime ?? '')) return undefined;
     return {
@@ -34,6 +38,27 @@ export function invitationTask(record: PlayerRecord, referenceTime?: string) {
   return undefined;
 }
 
+/** Requests enter this view only through the evidence-backed records contract. */
+export function playerTask(record: PlayerRecord, referenceTime?: string) {
+  if (
+    record.task?.kind === 'address_request' &&
+    record.kind === 'actor_suggestion' &&
+    record.state === 'suggested' &&
+    record.navigation?.app === 'wechat'
+  )
+    return {
+      ...record.task,
+      key: taskKey(record),
+      at: record.source.kind === 'world_event' ? Date.parse(record.source.at) : Infinity,
+      title: record.title,
+      stateLabel: '待你处理',
+      actionLabel: '去商量',
+    };
+  return invitationTask(record, referenceTime);
+}
+
+const taskPriority = { decide_invitation: 0, address_request: 1, attend_invitation: 2 };
+
 /** Read only the player's current, explicitly recorded work; never borrow NPC plans or notes. */
 export function selectDesktopTask(
   records: PhoneRecordsState | undefined,
@@ -45,12 +70,12 @@ export function selectDesktopTask(
   const now = Date.parse(referenceTime ?? '');
   const actionable = current
     .flatMap((record) => {
-      const task = invitationTask(record, referenceTime);
+      const task = playerTask(record, referenceTime);
       return task && !deferred.includes(task.key) ? [{ record, task }] : [];
     })
     .sort(
       (a, b) =>
-        Number(a.task.kind === 'attend_invitation') - Number(b.task.kind === 'attend_invitation') ||
+        taskPriority[a.task.kind] - taskPriority[b.task.kind] ||
         Number(Boolean(b.task.recommended)) - Number(Boolean(a.task.recommended)) ||
         Number(a.task.at < now) - Number(b.task.at < now) ||
         a.task.at - b.task.at ||

@@ -696,3 +696,38 @@ test('invitation task record shows an evidence reason and opens the exact invita
   assert.equal(deferred.length, 1);
   assert.equal(invitation.state, 'proposed');
 });
+
+test('dialogue task detail exposes the delivered quote, deferral, and exact conversation', () => {
+  const request = {
+    ...fixture.current[2]!,
+    id: 'sys/request/activity',
+    title: '商量活动委托的报酬',
+    text: '她想先谈清楚报酬。',
+    kind: 'actor_suggestion' as const,
+    state: 'suggested' as const,
+    navigation: { app: 'wechat' as const, actorId: 'request-actor' },
+    task: {
+      kind: 'address_request' as const,
+      recommended: true as const,
+      reason: '报酬你想怎么算？',
+    },
+  };
+  const data = { ...fixture, current: [request] };
+  const opened: unknown[] = [];
+  const deferred: string[] = [];
+  const open: Parameters<typeof NotesRecords>[0]['open'] = (...args) => opened.push(args);
+  const list = renderToStaticMarkup(createElement(NotesRecords, { data, open }));
+  assert.match(list, /商量活动委托的报酬/);
+  assert.match(list, /待你处理/);
+  const detail = NotesRecordDetail({
+    data,
+    target: request.id,
+    open,
+    deferTask: (key) => deferred.push(key),
+  });
+  assert.match(renderToStaticMarkup(detail), /为什么 · 报酬你想怎么算？/);
+  press(detail, '去商量 ›');
+  assert.deepEqual(opened, [['messages', 'request-actor']]);
+  press(detail, '先放着');
+  assert.equal(deferred.length, 1);
+});

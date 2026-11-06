@@ -7,7 +7,7 @@ import type { PhoneApp, PhonePanel } from './navigation.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { worldDayKey, worldTimeLabel } from '../../modules/world/domain/display-time.ts';
 import {
-  invitationTask,
+  playerTask,
   selectDesktopPhoto,
   selectDesktopSchedule,
   selectDesktopTask,
@@ -36,9 +36,9 @@ export function PhoneDesktop({
   const photo = selectDesktopPhoto(data.photos);
   const taskDeferrals = usePhoneTaskDeferrals();
   const task = selectDesktopTask(records, data.referenceTime, taskDeferrals?.keys);
-  const invitation = task && invitationTask(task, data.referenceTime);
-  const taskTitle = invitation?.title ?? task?.title;
-  const taskState = invitation?.stateLabel ?? task?.stateLabel;
+  const action = task && playerTask(task, data.referenceTime);
+  const taskTitle = action?.title ?? task?.title;
+  const taskState = action?.stateLabel ?? task?.stateLabel;
   const scheduleDay = schedule ? worldDayKey(schedule.at) : '';
   const today = worldDayKey(data.referenceTime ?? '');
   const scheduleTime = schedule
