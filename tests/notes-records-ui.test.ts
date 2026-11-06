@@ -264,7 +264,7 @@ test('unknown system details never fall back to an editor and text is escaped', 
   const missing = renderToStaticMarkup(
     createElement(NotesRecordDetail, { data: fixture, target: 'sys/unknown', open: noop }),
   );
-  assert.match(missing, /暂时无法打开|返回备忘录/);
+  assert.match(missing, /暂时无法打开|返回人生记录/);
   assert.doesNotMatch(missing, /<(?:form|input|textarea)\b/);
   const escaped = {
     ...fixture,
@@ -324,7 +324,8 @@ function renderNotes(
 }
 test('notes entry defaults to private notes and keeps private notes during independent read failure', () => {
   const ready = renderNotes(undefined, { status: 'ready', data: fixture });
-  assert.match(ready, /关于这段人生|我的便签|PRIVATE_NOTE_TEXT/);
+  assert.match(ready, /PRIVATE_NOTE_TEXT/);
+  assert.doesNotMatch(ready, /关于这段人生|眼下要做的事/);
   assert.doesNotMatch(ready, /LEGACY_CHOICE_MARKER/);
   const failure = renderNotes(undefined, { status: 'error', error: '人生记录暂时无法读取' });
   assert.match(failure, /PRIVATE_NOTE_TEXT/);
@@ -564,14 +565,15 @@ function press(node: ReactNode, label: string) {
   assert.ok(found, label);
   found.onClick!();
 }
-test('NotesApp renders pure private notes and top entrance to records', () => {
+test('NotesApp keeps private notes separate from life records', () => {
   try {
     const h = setupNotes();
     const tree = h.render();
     const html = renderToStaticMarkup(tree);
     assert.match(html, /新建便签/);
     assert.match(html, /自己的便签/);
-    assert.match(html, /关于这段人生/);
+    assert.match(html, /只有你可以查看和编辑这里的便签/);
+    assert.doesNotMatch(html, /关于这段人生/);
     assert.doesNotMatch(html, /眼下要做的事/);
     assert.doesNotMatch(html, /aria-pressed="true">便签/);
 

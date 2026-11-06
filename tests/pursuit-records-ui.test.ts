@@ -141,5 +141,5 @@ test('pursuit steps navigate to the exact source record and next opportunity', (
     const text = renderToStaticMarkup(createElement('span', {}, b.children));
     if (text.includes('查看这一步') || text.includes(data.current[0]!.title)) b.onClick?.();
   }
-  assert.deepEqual(calls, ['notes:' + data.history[0]!.id, 'notes:' + data.current[0]!.id]);
+  assert.deepEqual(calls, ['records:' + data.history[0]!.id, 'records:' + data.current[0]!.id]);
 });

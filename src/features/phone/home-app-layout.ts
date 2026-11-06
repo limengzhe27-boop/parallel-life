@@ -9,10 +9,10 @@ export const homeAppRows = [
   [
     { kind: 'app', app: 'calendar', label: '日历' },
     { kind: 'app', app: 'photos', label: '相册' },
-    { kind: 'app', app: 'notes', label: '备忘录' },
+    { kind: 'app', app: 'notes', label: '便签' },
   ],
   [
-    { kind: 'app', app: 'records', label: '记录' },
+    { kind: 'app', app: 'records', label: '人生记录' },
     { kind: 'panel', panel: 'timeline', label: '身份' },
   ],
 ] as const satisfies readonly (readonly HomeEntry[])[];

@@ -30,15 +30,15 @@ const apps: Record<PhoneApp, string> = {
   moments: '朋友圈',
   photos: '相册',
   calendar: '日历',
-  notes: '备忘录',
+  notes: '便签',
   records: '人生记录',
   scenes: '现场',
   map: '地图',
 };
 const panels: Partial<Record<PhonePanel, string>> = {
-  timeline: '人生轨迹',
+  timeline: '身份',
   scene: '现场',
-  management: '备忘录',
+  management: '便签',
 };
 export type PhoneNotification = {
   id: string;

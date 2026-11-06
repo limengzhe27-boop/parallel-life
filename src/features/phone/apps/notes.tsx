@@ -40,7 +40,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
   if (isSystemRecordTarget(target)) {
     return (
       <div className={`${s.app} ${r.notesPage}`}>
-        <nav className={r.recordNavigation} aria-label="备忘录导航">
+        <nav className={r.recordNavigation} aria-label="便签导航">
           <button
             type="button"
             className={r.recordBack}
@@ -347,7 +347,6 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     );
   }
 
-  // 5. 备忘录主列表：只保留纯私密便签
   const notes = [...data.notes]
     .filter(isPrivateNote)
     .filter((n) =>
@@ -358,7 +357,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
   return (
     <div className={`${s.app} ${r.notesPage}`}>
       <header className={r.notesHeader}>
-        <h2>备忘录</h2>
+        <h2>便签</h2>
         <button
           className={r.newNote}
           type="button"
@@ -371,35 +370,10 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         </button>
       </header>
 
-      {/* 顶部单张卡片：关于这段人生与系统记录（引导至人生记录 App） */}
-      <div
-        style={{
-          margin: '0 0 14px',
-          padding: '12px 14px',
-          borderRadius: '12px',
-          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-          border: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-        }}
-        onClick={() => open('records')}
-      >
-        <div>
-          <strong style={{ fontSize: '14px', color: '#1e293b', display: 'block' }}>
-            关于这段人生
-          </strong>
-          <span style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', display: 'block' }}>
-            世界设定、你的身份与起点处境 · 只读
-          </span>
-        </div>
-        <span style={{ fontSize: '14px', color: '#3b82f6', fontWeight: 600 }}>查看 ›</span>
-      </div>
+      <p className={r.hint}>只有你可以查看和编辑这里的便签。</p>
 
       <Search value={query} onChange={setQuery} label="搜索便签" />
 
-      <h3 className={r.privateHeading}>我的便签</h3>
       {noteDrafts[NEW_NOTE_TARGET] &&
         (!query.trim() ||
           searchable(

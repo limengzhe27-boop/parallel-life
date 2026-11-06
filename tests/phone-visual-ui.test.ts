@@ -32,8 +32,8 @@ test('home has five desktop entries and three independent dock applications', ()
   assert.deepEqual(
     homeAppRows.map((row) => row.map((entry) => entry.label)),
     [
-      ['日历', '相册', '备忘录'],
-      ['记录', '身份'],
+      ['日历', '相册', '便签'],
+      ['人生记录', '身份'],
     ],
   );
   assert.equal(homeAppRows.flat().length + homeDockApps.length, 8);

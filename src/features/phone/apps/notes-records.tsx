@@ -340,8 +340,8 @@ export function NotesRecordDetail({
       <div className={s.detail}>
         <h2>这条记录暂时无法打开</h2>
         <p className={s.hint}>它可能已不在近期记录中，请返回列表查看。</p>
-        <button type="button" className={s.linkButton} onClick={() => open('notes')}>
-          返回备忘录
+        <button type="button" className={s.linkButton} onClick={() => open('records')}>
+          返回人生记录
         </button>
       </div>
     );
@@ -356,6 +356,9 @@ export function NotesRecordDetail({
     <article className={s.detail} data-system-record={record.id}>
       <p className={s.attribution}>{task?.recommended ? '剧情建议' : recordAttribution(record)}</p>
       <h2>{task?.title ?? record.title}</h2>
+      {record.kind === 'world_matter' && task && task.title !== record.title && (
+        <p className={s.hint}>所属事项 · {record.title}</p>
+      )}
       <span className={s.state}>{task?.stateLabel ?? record.stateLabel}</span>
       {task?.reason !== recordText(record) && <p className={s.body}>{recordText(record)}</p>}
       {task?.reason && <p className={s.body}>为什么 · {task.reason}</p>}
@@ -370,14 +373,14 @@ export function NotesRecordDetail({
           <button
             className={s.linkButton}
             type="button"
-            onClick={() => open('notes', record.opportunity!.triggerRecordId)}
+            onClick={() => open('records', record.opportunity!.triggerRecordId)}
           >
             看看它从哪里来 ›
           </button>
           <button
             className={s.linkButton}
             type="button"
-            onClick={() => open('notes', record.opportunity!.pursuitRecordId)}
+            onClick={() => open('records', record.opportunity!.pursuitRecordId)}
           >
             这一步通向哪里 ›
           </button>
@@ -399,7 +402,7 @@ export function NotesRecordDetail({
                   <button
                     className={s.linkButton}
                     type="button"
-                    onClick={() => open('notes', step.recordId)}
+                    onClick={() => open('records', step.recordId)}
                   >
                     查看这一步 ›
                   </button>
@@ -415,7 +418,7 @@ export function NotesRecordDetail({
                   className={s.nextStep}
                   type="button"
                   key={step.recordId}
-                  onClick={() => open('notes', step.recordId)}
+                  onClick={() => open('records', step.recordId)}
                 >
                   <span>{step.title}</span>
                   <span aria-hidden="true">›</span>
@@ -574,7 +577,7 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
       <header style={{ padding: '16px 4px 8px' }}>
         <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0 }}>人生记录</h2>
         <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-          记录这段人生已知的事实、进展与起点设定（只读）
+          查看当前事项、已经发生的事和人生起点
         </p>
       </header>
 
@@ -597,44 +600,6 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
         />
       </div>
 
-      {/* ① 关于这段人生 */}
-      <section
-        className={s.section}
-        aria-label="关于这段人生"
-        style={{
-          margin: '0 0 16px',
-          background: '#ffffff',
-          padding: '14px',
-          borderRadius: '12px',
-          border: '1px solid #f1f5f9',
-        }}
-      >
-        <details className={s.background} open={true}>
-          <summary
-            style={{
-              fontWeight: 650,
-              fontSize: '16px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span>① 关于这段人生（起点与设定）</span>
-            <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>
-              起点与世界设定 · 只读
-            </small>
-          </summary>
-          <p className={s.hint} style={{ margin: '6px 0 10px' }}>
-            世界设定、我的身份与起点处境由剧本确立，你只需了解，不必修改（只读）。
-          </p>
-          {records.status === 'ready' ? (
-            <NotesAbout data={records.data} query={query} open={open} />
-          ) : null}
-        </details>
-      </section>
-
-      {/* ② 现在、③ 过去 与 读取状态 */}
       {records.status === 'ready' ? (
         <NotesRecords
           data={records.data}
@@ -652,7 +617,40 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
         />
       )}
 
-      {/* ④ 处境：面临的选择与时间线 */}
+      <section
+        className={s.section}
+        aria-label="关于这段人生"
+        style={{
+          margin: '0 0 16px',
+          background: '#ffffff',
+          padding: '14px',
+          borderRadius: '12px',
+          border: '1px solid #f1f5f9',
+        }}
+      >
+        <details className={s.background} open={Boolean(query.trim())}>
+          <summary
+            style={{
+              fontWeight: 650,
+              fontSize: '16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>关于这段人生（起点与设定）</span>
+            <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>只读</small>
+          </summary>
+          <p className={s.hint} style={{ margin: '6px 0 10px' }}>
+            查看开场时已经知道的背景与处境。
+          </p>
+          {records.status === 'ready' ? (
+            <NotesAbout data={records.data} query={query} open={open} />
+          ) : null}
+        </details>
+      </section>
+
       {data.choices && data.choices.length > 0 && (
         <section
           className={s.section}
@@ -682,7 +680,7 @@ export function RecordsApp({ target, open }: PhoneAppContext) {
                 justifyContent: 'space-between',
               }}
             >
-              <span>④ 处境与选择</span>
+              <span>处境与选择</span>
               <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>
                 {data.choices.length} 条处境与选择（只读）
               </small>
