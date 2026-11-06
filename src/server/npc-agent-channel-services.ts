@@ -1,3 +1,4 @@
+import { sceneStepRule } from '../modules/world/domain/scene-step-progress.ts';
 import {
   isSceneMatterLinked,
   matterCriterion,
@@ -207,20 +208,30 @@ export function nativeNpcTaskHandler(
         if (!original) throw new DomainError('INVALID_COMMAND', 'NATIVE_INPUT_NOT_ACCEPTED');
         if (
           action?.intent === 'attempt' &&
-          world.matters?.some(
-            (matter) =>
-              ['not_started', 'in_progress', 'blocked'].includes(matter.status) &&
-              relatedMatterIds.includes(sceneMatterId(scene.scene.id, matter.id)) &&
-              isSceneMatterLinked(world, scene.scene, matter) &&
-              matterCriterion(matter) &&
-              sceneMatterInvitationEffective(
+          world.matters?.some((matter) => {
+            if (
+              !['not_started', 'in_progress', 'blocked'].includes(matter.status) ||
+              !relatedMatterIds.includes(sceneMatterId(scene.scene.id, matter.id)) ||
+              !isSceneMatterLinked(world, scene.scene, matter) ||
+              !sceneMatterInvitationEffective(
                 matter,
                 world.appointments,
                 world.space?.places.find((place) => place.id === matter.relatedPlaceId)
                   ?.appointmentIds,
                 storyAt,
+              )
+            )
+              return false;
+            const rule = matterCriterion(matter);
+            const steps = sceneStepRule(world, matter);
+            return Boolean(
+              rule?.actionAll.some((part) => part.test(action.text)) ||
+              steps?.steps.some(
+                (step) =>
+                  step.patterns.length && step.patterns.every((part) => part.test(action.text)),
               ),
-          )
+            );
+          })
         )
           return null; // The world dispatcher uses the existing scene action adjudicator.
         const present = scenePresent(scene.scene, version);
