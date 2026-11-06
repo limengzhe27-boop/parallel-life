@@ -70,7 +70,7 @@ export function mapFeedback(
     receipt.worldId !== worldId ||
     receipt.commandId !== operation.request.commandId ||
     receipt.routeId !== operation.request.routeId ||
-    receipt.version !== operation.request.expectedVersion + 1 ||
+    receipt.version <= operation.request.expectedVersion ||
     !worldDateTimeLabel(receipt.arrivedAt)
   ) {
     return {

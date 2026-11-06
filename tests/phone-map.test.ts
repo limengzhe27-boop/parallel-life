@@ -239,6 +239,11 @@ test('only original matching committed receipt can render arrival, never a local
     receipt,
   };
   assert.equal(mapFeedback(worldId, op).status, 'committed');
+  // Unrelated world events can advance the version before the travel commits.
+  assert.equal(
+    mapFeedback(worldId, { ...op, receipt: { ...receipt, version: 9 } }).status,
+    'committed',
+  );
   assert.equal(mapFeedback(worldId, { ...op, receipt: undefined }).status, 'unknown');
   for (const bad of [
     { ...receipt, worldId: actorId },
