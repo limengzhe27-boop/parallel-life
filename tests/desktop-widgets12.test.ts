@@ -229,6 +229,7 @@ test('home takes decisions first, prefers a recommended task, and sets aside onl
   const rescheduled = { ...recommended, text: '2026-10-27T03:30:00Z' };
   assert.equal(selectDesktopTask(records([rescheduled]), now, deferred)?.id, recommended.id);
   assert.equal(selectDesktopTask(records([recommended]), now, deferred), undefined);
+  assert.equal(selectDesktopTask(records([decision]), decision.text)?.id, decision.id);
   assert.equal(selectDesktopTask(records([{ ...decision, state: 'cancelled' }]), now), undefined);
   assert.match(render({ records: data }), /决定是否参加：visit/);
   assert.match(render({ records: data }), /待你决定/);

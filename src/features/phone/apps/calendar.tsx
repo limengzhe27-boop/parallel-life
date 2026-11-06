@@ -430,7 +430,10 @@ function InvitationDetail({
     !actions.changeInvitation || operation?.busy || waitOperation?.busy || changedAfterAccept;
   const date = drafts[`date:${n.id}`] ?? worldDateTimeInput(n.at);
   const leadActor = data.contacts.find((c) => n.participantIds.includes(c.id));
-  const isDue = Date.parse(data.referenceTime ?? '') >= Date.parse(n.at);
+  const now = Date.parse(data.referenceTime ?? '');
+  const at = Date.parse(n.at);
+  const isDue = now >= at;
+  const isPast = now > at;
   const isDecisionTask =
     n.status === 'proposed' &&
     records.status === 'ready' &&
@@ -584,11 +587,11 @@ function InvitationDetail({
               和{leadActor.name}聊聊这次约定
             </button>
           )}
-          {isDecisionTask && isDue && <p className={s.info}>约定时间已过，可以先商量新时间。</p>}
+          {isDecisionTask && isPast && <p className={s.info}>约定时间已过，可以先商量新时间。</p>}
           {n.status === 'proposed' && (
             <button
               className={s.primary}
-              disabled={disabled || (isDecisionTask && isDue)}
+              disabled={disabled || (isDecisionTask && isPast)}
               onClick={() => void change('accept')}
             >
               {operation?.errorCode === 'UNKNOWN' && operation.signature?.includes(':accept:')

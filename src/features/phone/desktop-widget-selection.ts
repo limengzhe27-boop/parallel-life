@@ -1,12 +1,7 @@
 import type { PlayerRecords } from '../../contracts/world-records.ts';
 import type { PhoneInvitation, PhonePhoto, PhoneRecordsState } from './apps/types.ts';
 
-type InvitationTask = {
-  kind: 'decide_invitation' | 'attend_invitation';
-  recommended?: true;
-  reason?: string;
-};
-type PlayerRecord = PlayerRecords['current'][number] & { task?: InvitationTask };
+type PlayerRecord = PlayerRecords['current'][number];
 
 /** Task wording is presentation only. The current record owns its state and destination. */
 export function invitationTask(record: PlayerRecord, referenceTime?: string) {
@@ -17,7 +12,7 @@ export function invitationTask(record: PlayerRecord, referenceTime?: string) {
   // The view is keyed to this exact invitation state and its latest source.
   const key = JSON.stringify([record.id, record.state, record.source, record.text]);
   if (task.kind === 'decide_invitation' && record.state === 'proposed') {
-    if (at <= Date.parse(referenceTime ?? '')) return undefined;
+    if (at < Date.parse(referenceTime ?? '')) return undefined;
     return {
       ...task,
       key,
