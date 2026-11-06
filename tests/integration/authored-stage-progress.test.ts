@@ -540,6 +540,7 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
     assert.equal(task.task?.reason, '你能告诉我进货清单上还缺哪几样吗？');
     assert.deepEqual(task.navigation, { app: 'wechat', actorId: f.request.actorId });
     for (const [text, relation] of [
+      ['今天下雨了', 'unrelated'],
       ['等一下', 'defer_answer'],
       ['还缺包装纸', 'answer'],
     ] as const) {
