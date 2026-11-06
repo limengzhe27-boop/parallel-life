@@ -97,7 +97,7 @@ export type PlayerRecord = {
   }[];
   stepChecklist?: SceneStepChecklist;
   task?: {
-    kind: 'decide_invitation' | 'attend_invitation';
+    kind: 'decide_invitation' | 'attend_invitation' | 'address_request';
     recommended?: true;
     reason?: string;
   };
@@ -120,6 +120,12 @@ export type PlayerRecords = {
   about: PlayerRecord[];
   history: PlayerRecord[];
 };
+export type VisibleStoryRequest = {
+  requestId: string;
+  actorId: string;
+  text: string;
+  source: Extract<RecordSource, { kind: 'world_event' }>;
+};
 export type PlayerRecordsInput = {
   worldId: string;
   worldVersion: number;
@@ -135,6 +141,7 @@ export type PlayerRecordsInput = {
   appointments: Appointment[];
   /** Appointment IDs with a committed director-to-actor episode execution. */
   directedInvitationIds?: ReadonlySet<string>;
+  storyRequests?: readonly VisibleStoryRequest[];
   messages: Message[];
   actors: { id: string; name: string }[];
   events: (WorldEvent | InvitationEvent)[];
@@ -716,6 +723,33 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         });
       }
     }
+  }
+  for (const request of input.storyRequests ?? []) {
+    const actor = input.actors.find((entry) => entry.id === request.actorId);
+    if (!actor || request.source.eventVersion > input.worldVersion) continue;
+    const quote = request.text.trim();
+    if (!quote) continue;
+    const sentences = quote.match(/[^。！？?!\n]+[。！？?!]?/gu) ?? [quote];
+    const topics = sentences.map((sentence) => sentence.split('——').at(-1)!.trim());
+    const topic =
+      topics.find((sentence) => sentence.length >= 12 && /[？?]$/u.test(sentence)) ??
+      topics.reduce(
+        (longest, sentence) => (sentence.length > longest.length ? sentence : longest),
+        '',
+      );
+    const excerpt = topic.length > 45 ? topic.slice(0, 44) + '…' : topic;
+    add({
+      id: `sys/story-request/${input.worldId}/${request.requestId}`,
+      kind: 'actor_suggestion',
+      span: 'near_term',
+      title: `和${actor.name}商量：「${excerpt}」`,
+      text: quote,
+      state: 'suggested',
+      assertion: 'actor_statement',
+      source: request.source,
+      navigation: { app: 'wechat', actorId: actor.id },
+      task: { kind: 'address_request', recommended: true, reason: quote.slice(0, 140) },
+    });
   }
   projectPursuitConnections(input, output);
   return output;

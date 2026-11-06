@@ -3,7 +3,11 @@ import { isDeepStrictEqual } from 'node:util';
 import { mergeAppointments } from '../domain/genesis-links.ts';
 import { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { PlayerRecordsReader } from '../application/player-records.ts';
-import { projectPlayerRecords, type PlayerRecordsInput } from '../domain/player-records.ts';
+import {
+  projectPlayerRecords,
+  type PlayerRecordsInput,
+  type VisibleStoryRequest,
+} from '../domain/player-records.ts';
 import { replayWorldHistory, type WorldHistoryEvent } from '../domain/world-history.ts';
 import { readPublicationInvitationLinks } from '../../settings/infrastructure/publication-story-repository.ts';
 import { applyInvitationEvent } from '../domain/invitations.ts';
@@ -174,6 +178,66 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           if (openInvitations.get(row.subject_id) === row.source_event_id)
             directedInvitationIds.add(row.subject_id);
       }
+      // The director's internal text never leaves the server. Join only the NPC's
+      // actual player-visible question and its still-waiting, same-episode responsibility.
+      const storyRequests = (
+        await sql.query(
+          `SELECT * FROM (
+           SELECT DISTINCT ON (r.id) r.id AS request_id, r.actor_id, m.id AS message_id,
+                  m.document->>'text' AS text, m.document->>'at' AS at,
+                  e.id AS event_id, e.version AS event_version
+           FROM parallel_life.actor_agent_states s
+           JOIN parallel_life.agent_runtime_worlds runtime
+             ON runtime.world_id=s.world_id AND runtime.owner_id=s.owner_id
+           CROSS JOIN LATERAL jsonb_array_elements(COALESCE(s.document->'questions','[]')) q
+           JOIN LATERAL jsonb_array_elements(COALESCE(s.document->'responsibilities','[]')) responsibility
+             ON responsibility->>'id'=q->>'responsibilityId'
+           JOIN parallel_life.agent_episode_requests r
+             ON r.world_id=s.world_id AND r.owner_id=s.owner_id AND r.actor_id=s.actor_id
+               AND r.id=responsibility#>>'{subject,id}' AND r.engine_epoch=runtime.engine_epoch
+               AND r.status='consumed'
+           JOIN parallel_life.agent_episode_receipts receipt
+             ON receipt.world_id=r.world_id AND receipt.owner_id=r.owner_id AND receipt.id=r.receipt_id
+               AND receipt.request_id=r.id AND receipt.actor_id=r.actor_id
+               AND receipt.input_receipt_id=r.input_receipt_id AND receipt.choice='engage'
+           JOIN parallel_life.shared_episodes episode
+             ON episode.world_id=r.world_id AND episode.owner_id=r.owner_id AND episode.id=r.episode_id
+               AND episode.origin_decision_id=r.origin_decision_id AND episode.document->>'status'='active'
+           JOIN parallel_life.world_messages m
+             ON m.world_id=r.world_id AND m.owner_id=r.owner_id AND m.actor_id=r.actor_id
+               AND left(q->>'sourceId',8)='message:' AND m.id=substring(q->>'sourceId' from 9)
+               AND receipt.presented_message_ids ? m.id
+               AND m.document->>'role'='assistant' AND m.document->>'text'=q->>'text'
+           JOIN parallel_life.world_events e
+             ON e.world_id=m.world_id AND e.owner_id=m.owner_id AND e.id=m.document->>'sourceEventId'
+               AND e.version<=receipt.world_version
+           JOIN parallel_life.commands command
+             ON command.world_id=e.world_id AND command.owner_id=e.owner_id AND command.id=e.command_id
+               AND command.result_event_id=e.id AND command.status='succeeded'
+           WHERE s.world_id=$1 AND s.owner_id=$2 AND s.projected_world_version<=$3
+             AND receipt.world_version<=$3
+             AND q->>'status'='open' AND q->>'channel'='private' AND q->>'threadId'=s.actor_id
+             AND responsibility->>'waitingOn'='player' AND responsibility->>'status' IN ('open','waiting','deferred')
+             AND responsibility#>>'{subject,kind}'='request'
+             AND (responsibility->'sourceIds' ? r.input_receipt_id
+               OR responsibility->'sourceIds' ? ('episode-intent:'||r.id))
+           ORDER BY r.id,e.version DESC,m.ordinal DESC
+           ) pending ORDER BY event_version DESC,request_id LIMIT 3`,
+          [worldId, ownerId, world.version],
+        )
+      ).rows.map((row): VisibleStoryRequest => ({
+        requestId: row.request_id,
+        actorId: row.actor_id,
+        text: row.text,
+        source: {
+          kind: 'world_event',
+          eventId: row.event_id,
+          eventVersion: row.event_version,
+          messageId: row.message_id,
+          at: row.at,
+          timeBasis: 'story',
+        },
+      }));
       const eventIds = events.map((e) => e.id);
       const sceneAttendanceSources = new Map();
       for (const event of events) {
@@ -286,6 +350,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         sceneStepSources,
         appointments,
         directedInvitationIds,
+        storyRequests,
         messages,
         events,
         ...(initial ? { initial } : {}),

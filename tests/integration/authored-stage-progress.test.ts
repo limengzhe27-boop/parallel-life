@@ -362,7 +362,7 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
       }),
     );
   }
-  async function invite(f: F) {
+  async function deliver(f: F, ask = false) {
     const actor = (await attempts.read(f.owner, { worldId: f.id, actorId: f.request.actorId }))!;
     const text = JSON.stringify({
       type: 'npc_episode_consideration',
@@ -441,6 +441,40 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
         model: {
           async decide() {
             calls++;
+            if (ask) {
+              const responsibilityId = f.request.id + ':followup';
+              return {
+                statements: [
+                  {
+                    text: '你能告诉我进货清单上还缺哪几样吗？',
+                    dependsOnActionIds: [],
+                    requestsPlayerReply: true,
+                    questionForResponsibilityId: responsibilityId,
+                  },
+                ],
+                goals: [],
+                plans: [],
+                actions: [],
+                decisions: [],
+                responsibilities: [
+                  {
+                    id: responsibilityId,
+                    subject: { kind: 'request', id: f.request.id },
+                    summary: '等玩家说明进货清单缺项',
+                    sourceIds: basis,
+                    status: 'waiting',
+                    waitingOn: 'player',
+                    nextCheck: [],
+                  },
+                ],
+                episodeDecision: {
+                  requestId: f.request.id,
+                  choice: 'engage',
+                  reason: '先核对缺项。',
+                  sourceIds: basis,
+                },
+              };
+            }
             return {
               statements: [{ text: '愿意一起商量一下安排吗？', dependsOnActionIds: ['invite'] }],
               goals: [
@@ -485,10 +519,96 @@ test('actual native scoped whole-event outcome unlocks an explicitly authored st
     );
     assert.equal(calls, 1);
     const world = await worlds.get({ userId: f.owner }, f.id);
+    return world;
+  }
+  async function invite(f: F) {
+    const world = await deliver(f);
     const appointment = world.appointments.find((a) => a.title === 'PG_STAGE_INVITATION');
     assert.ok(appointment);
     return { world, appointment };
   }
+
+  await t.test('a shown non-invitation task follows the real question resolution', async () => {
+    const f = await fixture({ completion: false });
+    const records = new PostgresPlayerRecords(app);
+    const playerTask = async () =>
+      (await records.read(f.owner, f.id)).current.find((r) => r.task?.kind === 'address_request');
+    assert.equal(await playerTask(), undefined);
+    await deliver(f, true);
+    const task = await playerTask();
+    assert.ok(task);
+    assert.equal(task.task?.reason, '你能告诉我进货清单上还缺哪几样吗？');
+    assert.deepEqual(task.navigation, { app: 'wechat', actorId: f.request.actorId });
+    for (const [text, relation] of [
+      ['等一下', 'defer_answer'],
+      ['还缺包装纸', 'answer'],
+    ] as const) {
+      const world = await worlds.get({ userId: f.owner }, f.id);
+      const actor = (await attempts.read(f.owner, { worldId: f.id, actorId: f.request.actorId }))!;
+      const question = actor.questions!.find((q) => q.status === 'open')!;
+      const commandId = randomUUID();
+      const { receipt } = await attempts.accept(f.owner, {
+        id: randomUUID(),
+        worldId: f.id,
+        commandId,
+        inputHash: createHash('sha256').update(text).digest('hex'),
+        channel: 'private',
+        threadId: actor.actorId,
+        recipientActorId: actor.actorId,
+        expectedWorldVersion: world.version,
+        receivedAt: new Date().toISOString(),
+        storyAt: world.time,
+        origin: 'player',
+        text,
+      });
+      const { snapshot } = await readPrivateAgentSnapshot(
+        app,
+        f.owner,
+        world,
+        actor.actorId,
+        receipt,
+        world.time,
+        actor,
+      );
+      await runNpcAgent(
+        {
+          attempts,
+          kernel: new PostgresNpcAgentKernel(app, worlds),
+          model: {
+            async decide() {
+              return {
+                statements: [{ text: '知道了。', dependsOnActionIds: [] }],
+                goals: [],
+                plans: [],
+                actions: [],
+                responsibilities: [],
+                decisions: [],
+                replyAssessments: [
+                  { questionId: question.id, sourceId: receipt.id, quote: text, relation },
+                ],
+              };
+            },
+          },
+        },
+        f.owner,
+        {
+          id: randomUUID(),
+          worldId: f.id,
+          actorId: actor.actorId,
+          commandId,
+          inputReceiptId: receipt.id,
+          engineEpoch: 2,
+          expectedWorldVersion: world.version,
+          expectedActorRevision: actor.revision,
+          inputHash: receipt.inputHash,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 120000).toISOString(),
+        },
+        snapshot,
+      );
+      assert.equal((await playerTask())?.id, relation === 'answer' ? undefined : task.id);
+    }
+  });
 
   for (const opening of ['authored', 'legacy-inferred'] as const) {
     await t.test(`keeps the ${opening} opening eligible`, async () => {
